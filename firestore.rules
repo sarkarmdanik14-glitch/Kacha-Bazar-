@@ -1,0 +1,241 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is logged in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper to check user document data in 'users' collection
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Helper to check if authorized Admin/Owner
+    function isAdmin() {
+      return isSignedIn() && (
+        (
+          exists(/databases/$(database)/documents/admins/$(request.auth.uid)) && 
+          (!('isActive' in get(/databases/$(database)/documents/admins/$(request.auth.uid)).data) || 
+           get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isActive == true)
+        ) || (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          (getUserData().role == 'admin' || getUserData().role == 'founder')
+        )
+      );
+    }
+
+    // Helper to check if seller
+    function isSeller() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/sellers/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (getUserData().role == 'seller' || getUserData().role == 'admin' || getUserData().role == 'founder'))
+      );
+    }
+
+    // Helper to check if rider
+    function isRider() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/riders/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (getUserData().role == 'rider' || getUserData().role == 'admin' || getUserData().role == 'founder'))
+      );
+    }
+
+    // Global Safety Net default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Categories - Publicly viewable for browsing, managed by Admin/Owner
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Products - Publicly viewable for browsing, managed by Admin/Owner & Sellers
+    match /products/{productId} {
+      allow read: if true;
+      allow create, delete: if isAdmin() || (isSeller() && request.resource.data.sellerId == request.auth.uid);
+      allow update: if isAdmin() || 
+                       (isSeller() && resource.data.sellerId == request.auth.uid) || 
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'options']);
+    }
+
+    // Orders - Accessible for preview, print, memo download, and order verification
+    match /orders/{orderId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if isAdmin() || (isSignedIn() && (
+        (resource.data.customerId == request.auth.uid && (
+          !('paymentStatus' in request.resource.data) ||
+          request.resource.data.paymentStatus == resource.data.paymentStatus
+        )) ||
+        (resource.data.riderId == request.auth.uid && (
+          !('paymentStatus' in request.resource.data) ||
+          request.resource.data.paymentStatus == "paid" ||
+          request.resource.data.paymentStatus == resource.data.paymentStatus
+        )) ||
+        (resource.data.sellerId == request.auth.uid && (
+          !('paymentStatus' in request.resource.data) ||
+          request.resource.data.paymentStatus == resource.data.paymentStatus
+        ))
+      ));
+      allow delete: if isAdmin();
+    }
+
+    // Users (Customers, Sellers, Riders profiles) - Customers access ONLY their own profile data
+    match /users/{userId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow create: if isSignedIn() && request.auth.uid == userId && (
+        !('status' in request.resource.data) || request.resource.data.status == 'pending'
+      );
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId && (
+        (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) &&
+        (!('sellerStatus' in request.resource.data) || request.resource.data.sellerStatus == resource.data.sellerStatus) &&
+        (!('riderStatus' in request.resource.data) || request.resource.data.riderStatus == resource.data.riderStatus) &&
+        (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)
+      ));
+      allow delete: if isAdmin();
+    }
+
+    // Carts (Cloud-synced user carts) - Users access ONLY their own cart
+    match /carts/{cartId} {
+      allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == cartId);
+    }
+
+    // Admins collection - strictly read-only for verified admin user
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && request.auth.uid == adminId;
+      allow write: if false; // Only manageable via Firebase Console or Firebase Admin SDK
+    }
+
+    // Sellers collection
+    match /sellers/{sellerId} {
+      allow read: if true; // Public shop details viewable
+      allow create: if isSignedIn() && request.auth.uid == sellerId && (
+        !('status' in request.resource.data) || request.resource.data.status == 'pending'
+      );
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == sellerId && (
+        (!('status' in request.resource.data) || request.resource.data.status == resource.data.status)
+      ));
+      allow delete: if isAdmin();
+    }
+
+    // Riders collection
+    match /riders/{riderId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == riderId);
+      allow create: if isSignedIn() && request.auth.uid == riderId && (
+        !('status' in request.resource.data) || request.resource.data.status == 'pending'
+      );
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == riderId && (
+        (!('status' in request.resource.data) || request.resource.data.status == resource.data.status)
+      ));
+      allow delete: if isAdmin();
+    }
+
+    // Payments - Sensitive payment data accessible ONLY by owner and Admin
+    match /payments/{paymentId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if true; // Guest/customer checkout payment record creation
+      allow update, delete: if isAdmin();
+    }
+
+    // Wallet - Users access ONLY their own wallet
+    match /wallet/{walletId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == walletId);
+      allow create: if isSignedIn() && (request.auth.uid == walletId || isRider() || isAdmin());
+      allow update: if isAdmin() || isRider() || (isSignedIn() && request.auth.uid == walletId);
+      allow delete: if false;
+    }
+
+    // Transactions - Users access ONLY their own transactions
+    match /transactions/{transactionId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid || 
+        isRider() || 
+        isAdmin()
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // Coupons - Publicly readable for validation, managed by Admin
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Flash Sales - Publicly readable, managed by Admin
+    match /flash_sales/{saleId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Referrals - Users access ONLY their own referrals
+    match /referrals/{referralId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.referrerId == request.auth.uid || 
+        resource.data.referredId == request.auth.uid
+      ));
+      allow create: if isSignedIn() && (
+        request.resource.data.referredId == request.auth.uid
+      );
+      allow update: if isAdmin() || isRider() || (isSignedIn() && (
+        resource.data.referrerId == request.auth.uid || 
+        resource.data.referredId == request.auth.uid
+      ));
+      allow delete: if isAdmin();
+    }
+
+    // Reviews - Publicly viewable, users manage their own reviews, Admin manages all
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    // Notifications - Users access ONLY their own notifications or system broadcast
+    match /notifications/{notificationId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.userId == "admin-default"
+      ));
+      allow create: if request.resource.data.userId == "admin-default" || (isSignedIn() && (
+        request.resource.data.userId == request.auth.uid ||
+        isRider() ||
+        isAdmin()
+      ));
+      allow update, delete: if isAdmin();
+    }
+
+    // Banners - Publicly viewable, managed by Admin
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Settings - Publicly viewable, managed by Admin
+    match /settings/{settingId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Memo Audit Logs - Strictly readable & creatable for tracking, immutable
+    match /memo_audit_logs/{logId} {
+      allow read, create: if true;
+      allow update, delete: if false;
+    }
+
+    // Chats - User accesses ONLY their own live chat session
+    match /chats/{chatId} {
+      allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == chatId);
+      allow create: if isSignedIn() && request.auth.uid == chatId;
+    }
+
+    // Chat messages - User accesses ONLY messages from their chat session
+    match /chat_messages/{messageId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.chatId == request.auth.uid);
+      allow create: if isAdmin() || (isSignedIn() && request.resource.data.chatId == request.auth.uid);
+    }
+  }
+}

@@ -1,0 +1,284 @@
+{
+  "collections": [
+    {
+      "name": "users",
+      "description": "Customer profiles and general user credentials",
+      "fields": {
+        "uid": "string",
+        "email": "string",
+        "displayName": "string",
+        "role": "string",
+        "phoneNumber": "string",
+        "createdAt": "timestamp",
+        "address": "string",
+        "referralCode": "string",
+        "referredBy": "string"
+      }
+    },
+    {
+      "name": "admins",
+      "description": "Administrator profiles tracking super privileges",
+      "fields": {
+        "uid": "string",
+        "email": "string",
+        "createdAt": "timestamp"
+      }
+    },
+    {
+      "name": "sellers",
+      "description": "Seller profile and shop configurations",
+      "fields": {
+        "uid": "string",
+        "email": "string",
+        "shopName": "string",
+        "ownerName": "string",
+        "phoneNumber": "string",
+        "address": "string",
+        "status": "string",
+        "createdAt": "timestamp",
+        "balance": "number"
+      }
+    },
+    {
+      "name": "riders",
+      "description": "Delivery riders tracking details and status",
+      "fields": {
+        "uid": "string",
+        "email": "string",
+        "name": "string",
+        "phoneNumber": "string",
+        "vehicleType": "string",
+        "status": "string",
+        "createdAt": "timestamp",
+        "balance": "number",
+        "currentOrderId": "string"
+      }
+    },
+    {
+      "name": "categories",
+      "description": "Product categories matching data.ts",
+      "fields": {
+        "id": "string",
+        "nameBn": "string",
+        "nameEn": "string",
+        "iconName": "string",
+        "colorClass": "string",
+        "borderColor": "string"
+      }
+    },
+    {
+      "name": "products",
+      "description": "Grocery product documents",
+      "fields": {
+        "id": "string",
+        "nameBn": "string",
+        "nameEn": "string",
+        "price": "number",
+        "originalPrice": "number",
+        "unitBn": "string",
+        "unitEn": "string",
+        "category": "string",
+        "image": "string",
+        "isFlashSale": "boolean",
+        "discount": "number",
+        "rating": "number",
+        "stock": "number",
+        "descriptionBn": "string",
+        "descriptionEn": "string",
+        "isBestSelling": "boolean",
+        "isNewArrival": "boolean",
+        "isPopular": "boolean",
+        "isSeasonal": "boolean",
+        "isCombo": "boolean",
+        "isBuyMoreSaveMore": "boolean",
+        "brand": "string",
+        "reviewCount": "number",
+        "sellerId": "string"
+      }
+    },
+    {
+      "name": "orders",
+      "description": "Customer purchase orders",
+      "fields": {
+        "id": "string",
+        "customerId": "string",
+        "customerName": "string",
+        "customerPhone": "string",
+        "deliveryAddress": "string",
+        "items": "array",
+        "subtotal": "number",
+        "discount": "number",
+        "deliveryCharge": "number",
+        "total": "number",
+        "paymentMethod": "string",
+        "paymentStatus": "string",
+        "orderStatus": "string",
+        "createdAt": "timestamp",
+        "isGuest": "boolean",
+        "riderId": "string",
+        "couponUsed": "string"
+      }
+    },
+    {
+      "name": "payments",
+      "description": "Payment logs for bKash, Nagad, Visa, etc",
+      "fields": {
+        "id": "string",
+        "orderId": "string",
+        "userId": "string",
+        "amount": "number",
+        "method": "string",
+        "status": "string",
+        "transactionId": "string",
+        "createdAt": "timestamp"
+      }
+    },
+    {
+      "name": "wallet",
+      "description": "Customer digital wallets for refund credits",
+      "fields": {
+        "userId": "string",
+        "balance": "number",
+        "updatedAt": "timestamp"
+      }
+    },
+    {
+      "name": "transactions",
+      "description": "Financial ledger of wallet, earnings, and payout activities",
+      "fields": {
+        "id": "string",
+        "userId": "string",
+        "type": "string",
+        "amount": "number",
+        "description": "string",
+        "createdAt": "timestamp",
+        "referenceId": "string"
+      }
+    },
+    {
+      "name": "coupons",
+      "description": "Discount coupon configurations",
+      "fields": {
+        "code": "string",
+        "discountAmount": "number",
+        "minOrderAmount": "number",
+        "isActive": "boolean",
+        "expiryDate": "timestamp"
+      }
+    },
+    {
+      "name": "flash_sales",
+      "description": "Flash sale event setups",
+      "fields": {
+        "id": "string",
+        "titleBn": "string",
+        "titleEn": "string",
+        "discountPercent": "number",
+        "isActive": "boolean",
+        "endDate": "timestamp"
+      }
+    },
+    {
+      "name": "referrals",
+      "description": "Referral system linking and tracking",
+      "fields": {
+        "id": "string",
+        "referrerId": "string",
+        "referredId": "string",
+        "status": "string",
+        "bonusPaid": "boolean",
+        "createdAt": "timestamp"
+      }
+    },
+    {
+      "name": "reviews",
+      "description": "Ratings and written feedback left for products",
+      "fields": {
+        "id": "string",
+        "productId": "string",
+        "userId": "string",
+        "userName": "string",
+        "rating": "number",
+        "commentBn": "string",
+        "commentEn": "string",
+        "createdAt": "timestamp"
+      }
+    },
+    {
+      "name": "notifications",
+      "description": "In-app notifications sent to specific users or broadcast to all",
+      "fields": {
+        "id": "string",
+        "userId": "string",
+        "titleBn": "string",
+        "titleEn": "string",
+        "messageBn": "string",
+        "messageEn": "string",
+        "isRead": "boolean",
+        "createdAt": "timestamp"
+      }
+    },
+    {
+      "name": "banners",
+      "description": "Hero promo banners configuration",
+      "fields": {
+        "id": "string",
+        "titleBn": "string",
+        "titleEn": "string",
+        "tagBn": "string",
+        "tagEn": "string",
+        "bgGradient": "string",
+        "image": "string",
+        "isActive": "boolean"
+      }
+    },
+    {
+      "name": "settings",
+      "description": "Global application configuration parameter",
+      "fields": {
+        "id": "string",
+        "deliveryCharge": "number",
+        "freeDeliveryThreshold": "number",
+        "referralBonusAmount": "number",
+        "bKashNumber": "string",
+        "nagadNumber": "string",
+        "rocketNumber": "string"
+      }
+    },
+    {
+      "name": "chats",
+      "description": "Support chat rooms/conversations for users",
+      "fields": {
+        "id": "string",
+        "userId": "string",
+        "userEmail": "string",
+        "userDisplayName": "string",
+        "lastMessage": "string",
+        "lastMessageAt": "timestamp",
+        "unreadCount": "number",
+        "isTypingSupport": "boolean",
+        "isTypingCustomer": "boolean"
+      }
+    },
+    {
+      "name": "chat_messages",
+      "description": "Messages sent inside support chats",
+      "fields": {
+        "id": "string",
+        "chatId": "string",
+        "senderId": "string",
+        "senderName": "string",
+        "text": "string",
+        "createdAt": "timestamp",
+        "isRead": "boolean"
+      }
+    },
+    {
+      "name": "carts",
+      "description": "User shopping carts synced to the cloud",
+      "fields": {
+        "items": "array"
+      }
+    }
+  ]
+}
