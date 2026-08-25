@@ -110,8 +110,8 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
       phone: "+8801722638985",
       timeBn: "সকাল ৮:০০ - রাত ১০:০০",
       timeEn: "8:00 AM - 10:00 PM",
-      instructionsBn: "ফোন করে যেকোনো পছন্দের পণ্য সহজে অর্ডার করুন",
-      instructionsEn: "Call directly to place your custom grocery order",
+      instructionsBn: "ঝটপট কল করুন",
+      instructionsEn: "Quick Call",
       buttonTextBn: "কল করুন",
       buttonTextEn: "Call Now"
     },

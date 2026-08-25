@@ -6,19 +6,21 @@ import {
   ChevronLeft, ChevronRight, Share2, Eye, Plus, Minus, Trash2, X, 
   MapPin, Bell, User, Check, Send, Tag, Gift, Award, Smartphone, 
   QrCode, ArrowRight, ArrowLeft, ThumbsUp, Info, ChevronDown, ChevronUp, CheckCircle, Percent, Volume2,
-  Phone, Mail, ExternalLink, Navigation, Locate, Copy, Zap, Printer, Download, FileText, Loader2, Wifi, WifiOff
+  Phone, PhoneCall, Mail, ExternalLink, Navigation, Locate, Copy, Zap, Printer, Download, FileText, Loader2, Wifi, WifiOff, MessageSquare
 } from "lucide-react";
 import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
-import { PRODUCTS as initialProducts, CATEGORIES as initialCategories, PROMO_BANNERS, REVIEWS as initialReviews, RECIPES } from "./data";
 import { Product, Category, CartItem, Review, ProductOption } from "./types";
 
 const PortalModal = React.lazy(() => import("./components/portal/PortalModal"));
 const CheckoutModal = React.lazy(() => import("./components/CheckoutModal"));
 const CustomerLiveChat = React.lazy(() => import("./components/CustomerLiveChat"));
+const CustomerVoiceCallModal = React.lazy(() => import("./components/CustomerVoiceCallModal"));
 import { seedDatabase, db, collection, onSnapshot, auth, onAuthStateChanged, doc, getDoc, setDoc, query, where, limit, orderBy, or, addDoc, deleteDoc, serverTimestamp } from "./lib/firebase";
 import { calculateDeliveryFeeFromSettings } from "./lib/delivery";
+import { initVoiceWelcome } from "./lib/voiceWelcome";
 import { BannerSlider } from "./components/BannerSlider";
+import { CartItemRow } from "./components/CartItemRow";
 import { motion, AnimatePresence } from "motion/react";
 
 import makkahImg from "./assets/images/makkah.jpg";
@@ -164,6 +166,121 @@ export const getOptionLabel = (opt: ProductOption, lang: "bn" | "en", fmtNum: (n
   return `${valText} ${unitText} - ৳${fmtNum(opt.price)}`;
 };
 
+export const getWeightOnlyLabel = (opt: ProductOption, lang: "bn" | "en", fmtNum: (n: number | string) => string) => {
+  let unitText = opt.unit;
+  let valText = String(opt.value);
+  if (lang === "bn") {
+    valText = fmtNum(opt.value);
+    if (opt.unit === "g") unitText = "গ্রাম";
+    else if (opt.unit === "kg") unitText = "কেজি";
+    else if (opt.unit === "ml") unitText = "মি.লি.";
+    else if (opt.unit === "L") unitText = "লিটার";
+    else if (opt.unit.toLowerCase() === "pc" || opt.unit.toLowerCase() === "pcs") unitText = "টি";
+  }
+  return `${valText} ${unitText}`;
+};
+
+export const calculateProductPriceForWeight = (
+  product: Product,
+  val: number,
+  unit: string
+): number => {
+  if (typeof val !== "number" || isNaN(val) || val <= 0) {
+    return product.price || 0;
+  }
+  const availableOptions = getProductWeightOptions(product);
+  const normalizedUnit = (unit || "").toLowerCase().trim();
+
+  // 1. Exact match in preconfigured options
+  const exact = availableOptions.find(
+    o => o.value === val && (
+      o.unit.toLowerCase().trim() === normalizedUnit || 
+      (normalizedUnit === "গ্রাম" && o.unit === "g") || 
+      (normalizedUnit === "কেজি" && o.unit === "kg")
+    )
+  );
+  if (exact) {
+    return exact.price;
+  }
+
+  const basePrice = product.price || 0;
+  const unitEn = (product.unitEn || "").toLowerCase().trim();
+  const unitBn = (product.unitBn || "").trim();
+
+  const isKg = normalizedUnit === "kg" || normalizedUnit === "কেজি";
+  const isG = normalizedUnit === "g" || normalizedUnit === "গ্রাম";
+
+  if (isKg || isG) {
+    const valInKg = isKg ? val : val / 1000;
+    
+    // Check if 1kg option exists in available options
+    const kgOpt = availableOptions.find(o => o.unit.toLowerCase() === "kg" && o.value === 1);
+    let pricePerKg = kgOpt ? kgOpt.price : basePrice;
+
+    if (!kgOpt) {
+      let baseInKg = 1;
+      if (unitEn.includes("500") || unitBn.includes("৫০০")) baseInKg = 0.5;
+      else if (unitEn.includes("250") || unitBn.includes("২৫০")) baseInKg = 0.25;
+      else if (unitEn.includes("1.5") || unitBn.includes("১.৫")) baseInKg = 1.5;
+      else if (unitEn.includes("2") || unitBn.includes("২")) baseInKg = 2;
+      else if (isG && !isKg) baseInKg = 0.5;
+      pricePerKg = basePrice / baseInKg;
+    }
+
+    return Math.max(1, Math.round(pricePerKg * valInKg));
+  }
+
+  const isL = normalizedUnit === "l" || normalizedUnit === "liter" || normalizedUnit === "লিটার";
+  const isMl = normalizedUnit === "ml" || normalizedUnit === "মি.লি." || normalizedUnit === "মিলি";
+
+  if (isL || isMl) {
+    const valInL = isL ? val : val / 1000;
+    const lOpt = availableOptions.find(o => o.unit.toLowerCase() === "l" && o.value === 1);
+    let pricePerL = lOpt ? lOpt.price : basePrice;
+
+    if (!lOpt) {
+      let baseInL = 1;
+      if (unitEn.includes("500") || unitBn.includes("৫০০")) baseInL = 0.5;
+      else if (unitEn.includes("250") || unitBn.includes("২৫০")) baseInL = 0.25;
+      else if (unitEn.includes("2") || unitBn.includes("২")) baseInL = 2;
+      pricePerL = basePrice / baseInL;
+    }
+
+    return Math.max(1, Math.round(pricePerL * valInL));
+  }
+
+  return Math.max(1, Math.round(basePrice * val));
+};
+
+export const validateWeightLimit = (
+  value: number,
+  unit: string
+): { isValid: boolean; errorMsgBn?: string; errorMsgEn?: string } => {
+  if (typeof value !== "number" || isNaN(value) || value <= 0) {
+    return {
+      isValid: false,
+      errorMsgBn: "সঠিক ওজন লিখুন",
+      errorMsgEn: "Enter a valid weight"
+    };
+  }
+
+  const u = (unit || "").toLowerCase().trim();
+  let weightInKg = value;
+  if (u === "g" || u === "গ্রাম" || u === "ml" || u === "মি.লি." || u === "মিলি") {
+    weightInKg = value / 1000;
+  }
+
+  if (weightInKg > 2.001) {
+    return {
+      isValid: false,
+      errorMsgBn: "সর্বোচ্চ ২ কেজি (2kg / ২০০০ গ্রাম) গ্রহণযোগ্য",
+      errorMsgEn: "Maximum 2kg (2000g) allowed"
+    };
+  }
+
+  return { isValid: true };
+};
+
 export default function App() {
   // Localization: 'bn' (Bangla) or 'en' (English)
   const [lang, setLang] = useState<"bn" | "en">("bn");
@@ -191,14 +308,15 @@ export default function App() {
   });
 
   const [recentlyViewed, setRecentlyViewed] = useState<Product[]>(() => {
-    // Seed with two default products so it doesn't start empty
-    return [initialProducts[0], initialProducts[7]];
+    const saved = localStorage.getItem("kb_recent_viewed");
+    return saved ? JSON.parse(saved) : [];
   });
 
   // UI Drawers & Modals
   const [showCart, setShowCart] = useState<boolean>(false);
   const [showWishlist, setShowWishlist] = useState<boolean>(false);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
+  const [showLiveChat, setShowLiveChat] = useState<boolean>(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [voiceSearching, setVoiceSearching] = useState<boolean>(false);
   const [showLocationSelect, setShowLocationSelect] = useState<boolean>(false);
@@ -273,10 +391,16 @@ export default function App() {
     };
   }, []);
 
+  // Voice Welcome Greeting (Plays once per session: "আসসালামু আলাইকুম, কাঁচা বাজারে আপনাকে স্বাগতম।")
+  useEffect(() => {
+    initVoiceWelcome();
+  }, []);
+
   const [showCheckoutModal, setShowCheckoutModal] = useState<boolean>(false);
   const [showAboutModal, setShowAboutModal] = useState<boolean>(false);
   const [showContactModal, setShowContactModal] = useState<boolean>(false);
   const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
+  const [showVoiceCall, setShowVoiceCall] = useState<boolean>(false);
 
   // Dynamic image verification and safe loading status
   const [imagesLoaded, setImagesLoaded] = useState({
@@ -460,19 +584,13 @@ export default function App() {
     }
   }, [cart, loggedInUser]);
 
-  const [products, setProducts] = useState<Product[]>(() => {
-    // Only load homepage featured products initially to improve Home Page performance
-    return initialProducts.filter(p => 
-      p.isPopular || 
-      p.isNewArrival || 
-      p.isBestSelling || 
-      p.isFlashSale || 
-      p.isSeasonal
-    );
-  });
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
-  const [reviews, setReviews] = useState<Review[]>(initialReviews);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState<boolean>(true);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
+  const [loadingBanners, setLoadingBanners] = useState<boolean>(true);
   const [leadership, setLeadership] = useState<any>({
     chairman: {
       nameEn: "MST HOSNE ARA BEGUM",
@@ -502,40 +620,63 @@ export default function App() {
     });
   }, [products]);
 
+  // Real-time synchronization of products, categories, reviews, banners, and home config from Firestore
   useEffect(() => {
-    seedDatabase(initialCategories, initialProducts);
-  }, []);
+    setLoadingProducts(true);
+    const unsubProducts = onSnapshot(
+      collection(db, "products"),
+      (snap) => {
+        const items: Product[] = [];
+        snap.forEach((doc) => {
+          items.push(mapDocToProduct(doc.id, doc.data()));
+        });
+        setProducts(items);
+        setLoadingProducts(false);
+      },
+      (err) => {
+        console.warn("Firestore products sync notice:", err.message);
+        setLoadingProducts(false);
+      }
+    );
 
-  // Helper to merge newly fetched products to state by unique id
-  const mergeProducts = useCallback((newItems: Product[]) => {
-    setProducts(prev => {
-      const map = new Map<string, Product>();
-      prev.forEach(p => map.set(p.id.toString(), p));
-      newItems.forEach(p => map.set(p.id.toString(), p));
-      return Array.from(map.values());
-    });
-  }, []);
-
-  // Real-time synchronization of categories, home products, reviews, and active categories from Firestore
-  useEffect(() => {
+    setLoadingCategories(true);
     const unsubCategories = onSnapshot(
       collection(db, "categories"), 
       (snap) => {
         const cats: Category[] = [];
-        const allCat = initialCategories.find(c => c.id === "all");
-        if (allCat) {
-          cats.push(allCat);
-        }
+        // Virtual "All Products" category tab for UI
+        const allCat: Category = {
+          id: "all",
+          nameBn: "সকল পণ্য",
+          nameEn: "All Products",
+          iconName: "LayoutGrid",
+          colorClass: "from-emerald-500 to-teal-600",
+          borderColor: "border-emerald-200"
+        };
+        cats.push(allCat);
+
         if (!snap.empty) {
           snap.forEach((doc) => {
-            cats.push(doc.data() as Category);
+            const data = doc.data();
+            cats.push({
+              id: doc.id || data.id,
+              nameBn: data.nameBn,
+              nameEn: data.nameEn,
+              iconName: data.iconName || "Sparkles",
+              colorClass: data.colorClass || "from-emerald-500 to-teal-600",
+              borderColor: data.borderColor || "border-slate-200",
+              image: data.image,
+              isAvailable: data.isAvailable !== false,
+              displayOrder: typeof data.displayOrder === "number" ? data.displayOrder : (typeof data.order === "number" ? data.order : undefined),
+              order: typeof data.order === "number" ? data.order : (typeof data.displayOrder === "number" ? data.displayOrder : undefined)
+            } as Category);
           });
         }
         // Remove duplicates if any
         const uniqueCats = cats.filter((c, index, self) =>
           index === self.findIndex((t) => t.id === c.id)
         );
-        // Sort categories according to displayOrder or initialCategories order
+        // Sort categories according to displayOrder or name
         uniqueCats.sort((a, b) => {
           if (a.id === "all") return -1;
           if (b.id === "all") return 1;
@@ -546,23 +687,22 @@ export default function App() {
           }
           if (orderA !== undefined && orderB === undefined) return -1;
           if (orderA === undefined && orderB !== undefined) return 1;
-          const idxA = initialCategories.findIndex(x => x.id === a.id);
-          const idxB = initialCategories.findIndex(x => x.id === b.id);
-          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-          if (idxA !== -1) return -1;
-          if (idxB !== -1) return 1;
           return (a.nameEn || "").localeCompare(b.nameEn || "");
         });
         setCategories(uniqueCats);
+        setLoadingCategories(false);
       },
-      (err) => console.warn("Firestore categories sync notice:", err.message)
+      (err) => {
+        console.warn("Firestore categories sync notice:", err.message);
+        setLoadingCategories(false);
+      }
     );
 
     const unsubReviews = onSnapshot(
       collection(db, "reviews"), 
       (snap) => {
+        const revs: Review[] = [];
         if (!snap.empty) {
-          const revs: Review[] = [];
           snap.forEach((doc) => {
             const data = doc.data();
             revs.push({
@@ -570,20 +710,19 @@ export default function App() {
               productId: data.productId,
               userId: data.userId,
               userName: data.userName,
-              rating: Number(data.rating),
-              commentBn: data.commentBn,
-              commentEn: data.commentEn,
+              rating: Number(data.rating || 5),
+              commentBn: data.commentBn || "",
+              commentEn: data.commentEn || "",
               date: data.createdAt ? new Date(data.createdAt.seconds * 1000).toLocaleDateString() : "Today"
             });
           });
-          setReviews(revs);
-        } else {
-          setReviews(initialReviews);
         }
+        setReviews(revs);
       },
       (err) => console.warn("Firestore reviews sync notice:", err.message)
     );
 
+    setLoadingBanners(true);
     const unsubBanners = onSnapshot(
       collection(db, "banners"), 
       (snap) => {
@@ -592,8 +731,12 @@ export default function App() {
           bList.push({ id: doc.id, ...doc.data() });
         });
         setBanners(bList);
+        setLoadingBanners(false);
       },
-      (err) => console.warn("Firestore banners sync notice:", err.message)
+      (err) => {
+        console.warn("Firestore banners sync notice:", err.message);
+        setLoadingBanners(false);
+      }
     );
 
     const unsubLeadership = onSnapshot(
@@ -635,6 +778,7 @@ export default function App() {
     );
 
     return () => {
+      unsubProducts();
       unsubCategories();
       unsubReviews();
       unsubBanners();
@@ -642,84 +786,6 @@ export default function App() {
       unsubHome();
     };
   }, []);
-
-  // Listen to Home Page section products dynamically
-  useEffect(() => {
-    const qHome = query(
-      collection(db, "products"),
-      or(
-        where("isPopular", "==", true),
-        where("isNewArrival", "==", true),
-        where("isBestSelling", "==", true),
-        where("isFlashSale", "==", true),
-        where("isSeasonal", "==", true)
-      )
-    );
-
-    const unsubHome = onSnapshot(
-      qHome, 
-      (snap) => {
-        const items: Product[] = [];
-        snap.forEach(doc => {
-          items.push(mapDocToProduct(doc.id, doc.data()));
-        });
-        mergeProducts(items);
-      },
-      (err) => console.warn("Firestore home products sync notice:", err.message)
-    );
-
-    return () => {
-      unsubHome();
-    };
-  }, []);
-
-  // Listen to active category products dynamically when tapped
-  useEffect(() => {
-    if (selectedCategory === "all") return;
-
-    // Immediately load/merge local fallback products for this category to ensure instant render
-    const localCatProducts = initialProducts.filter(p => p.category === selectedCategory);
-    if (localCatProducts.length > 0) {
-      mergeProducts(localCatProducts);
-    }
-
-    const qCat = query(
-      collection(db, "products"),
-      where("category", "==", selectedCategory)
-    );
-
-    const unsubCat = onSnapshot(
-      qCat, 
-      (snap) => {
-        const items: Product[] = [];
-        snap.forEach((doc) => {
-          items.push(mapDocToProduct(doc.id, doc.data()));
-        });
-        if (items.length > 0) {
-          mergeProducts(items);
-        }
-      },
-      (err) => console.warn("Firestore category products sync notice:", err.message)
-    );
-
-    return () => unsubCat();
-  }, [selectedCategory]);
-
-  // Load products matching search query dynamically to keep initial state small
-  useEffect(() => {
-    if (!searchQuery) return;
-    const norm = searchQuery.toLowerCase();
-    const matched = initialProducts.filter(p => 
-      p.nameBn.toLowerCase().includes(norm) || 
-      p.nameEn.toLowerCase().includes(norm) || 
-      p.descriptionBn.toLowerCase().includes(norm) ||
-      p.descriptionEn.toLowerCase().includes(norm) ||
-      (p.brand && p.brand.toLowerCase().includes(norm))
-    );
-    if (matched.length > 0) {
-      mergeProducts(matched);
-    }
-  }, [searchQuery]);
 
   const [newReview, setNewReview] = useState({ name: "", comment: "", rating: 5 });
 
@@ -995,13 +1061,9 @@ export default function App() {
       );
 
       if (existingIdx > -1) {
-        const mergedQty = prev[existingIdx].quantity + targetItem.quantity;
-        const availStock = typeof newOption.stock === "number" ? newOption.stock : (typeof targetItem.product.stock === "number" ? targetItem.product.stock : 50);
-        const finalQty = Math.min(mergedQty, availStock > 0 ? availStock : mergedQty);
-
         return prev.map((item, idx) => {
           if (idx === existingIdx) {
-            return { ...item, quantity: finalQty, selectedOption: newOption };
+            return { ...item, quantity: 1, selectedOption: newOption };
           }
           return item;
         }).filter((_, idx) => idx !== itemIndex);
@@ -1009,7 +1071,7 @@ export default function App() {
 
       return prev.map((item, idx) => {
         if (idx === itemIndex) {
-          return { ...item, selectedOption: newOption };
+          return { ...item, quantity: 1, selectedOption: newOption };
         }
         return item;
       });
@@ -1026,13 +1088,25 @@ export default function App() {
     );
   };
 
+  const hasInvalidCustomWeight = useMemo(() => {
+    return cart.some(item => {
+      if (item.selectedOption?.isCustom) {
+        const val = item.selectedOption.value;
+        const unit = item.selectedOption.unit;
+        const validCheck = validateWeightLimit(val, unit);
+        return !validCheck.isValid;
+      }
+      return false;
+    });
+  }, [cart]);
+
   const hasInsufficientCartStock = useMemo(() => {
     return cart.some(item => {
       const availableOptions = getProductWeightOptions(item.product);
       const currentOpt = item.selectedOption || availableOptions.find(o => o.price === item.product.price) || availableOptions[0];
       const optStock = typeof currentOpt?.stock === "number" ? currentOpt.stock : (typeof item.product.stock === "number" ? item.product.stock : 50);
       const isItemOutOfStock = optStock <= 0 || item.product.isAvailable === false || (typeof item.product.stock === "number" && item.product.stock <= 0);
-      return isItemOutOfStock || item.quantity > optStock;
+      return isItemOutOfStock;
     });
   }, [cart]);
 
@@ -1436,54 +1510,74 @@ export default function App() {
       {/* ================= HEADER ================= */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm transition-shadow duration-300">
         
-        {/* Brand-new Premium Islamic Header */}
-        <div id="premium-islamic-header" className="bg-[#04060c] border-b border-amber-500/20 h-[50px] sm:h-[58px] w-full flex items-center justify-between px-3 sm:px-6 md:px-8 text-white relative select-none">
-          {/* Left Side: Al-Masjid an-Nabawi (Madinah Green Dome) Image Only */}
-          <div className="flex items-center justify-start w-1/4 sm:w-1/5 md:w-1/6 h-full">
+        {/* Islamic Header taking 100% full space edge-to-edge with 4-sided White Border & Black Center Piping */}
+        <div 
+          id="premium-islamic-header" 
+          className="w-full bg-[#04060c] h-[50px] sm:h-[58px] flex items-center justify-between px-3 sm:px-6 md:px-8 text-white relative select-none overflow-hidden"
+        >
+          {/* 4-Sided Elegant Frame: Outer Thin White + Center Black Piping + Inner Thin White */}
+          <div className="absolute inset-0 border border-white pointer-events-none z-20" />
+          <div className="absolute inset-[1.5px] border border-black pointer-events-none z-20" />
+          <div className="absolute inset-[3px] border border-white pointer-events-none z-20" />
+
+          {/* Left Side: Al-Masjid an-Nabawi (Madinah Green Dome) Image */}
+          <div className="flex items-center justify-start w-1/4 sm:w-1/5 md:w-1/6 h-full relative z-10">
             {madinaImg ? (
-              <div className="h-[36px] w-[36px] sm:h-[42px] sm:w-[42px] rounded-lg overflow-hidden border border-amber-500/20 shadow-[0_0_12px_rgba(245,158,11,0.15)] bg-slate-900 transition-all duration-300 hover:border-amber-500/40">
+              <div className="relative h-[36px] w-[36px] sm:h-[42px] sm:w-[42px] rounded-md overflow-hidden bg-slate-900 shadow-sm">
                 <img 
                   src={madinaImg} 
                   alt="Al-Masjid an-Nabawi" 
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover"
                 />
+                {/* 4-Sided Frame: Outer White + Center Black Piping + Inner White */}
+                <div className="absolute inset-0 rounded-md border border-white pointer-events-none z-10" />
+                <div className="absolute inset-[1px] rounded-[5px] border border-black pointer-events-none z-10" />
+                <div className="absolute inset-[2px] rounded-[4px] border border-white pointer-events-none z-10" />
               </div>
             ) : null}
           </div>
 
           {/* Center Calligraphy texts */}
-          <div className="flex-1 flex flex-col items-center justify-center text-center px-2 py-1 h-full select-all">
-            <div className="flex flex-col items-center justify-center space-y-0.5">
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-2 py-0.5 h-full select-all relative z-10">
+            <div className="flex flex-col items-center justify-center space-y-0.5 sm:space-y-1">
               {bismillahImg ? (
-                <img 
-                  src={bismillahImg} 
-                  alt="Bismillah" 
-                  referrerPolicy="no-referrer"
-                  className="h-3 sm:h-3.5 md:h-4 object-contain drop-shadow-[0_1px_4px_rgba(245,158,11,0.15)]"
-                />
+                <div className="relative px-2.5 py-0.5 rounded-md overflow-hidden bg-slate-900/90 shadow-sm flex items-center justify-center border border-white">
+                  <img 
+                    src={bismillahImg} 
+                    alt="Bismillah" 
+                    referrerPolicy="no-referrer"
+                    className="h-2.5 sm:h-3 md:h-3.5 object-contain drop-shadow-sm"
+                  />
+                </div>
               ) : null}
               {kalemaImg ? (
-                <img 
-                  src={kalemaImg} 
-                  alt="Shahada" 
-                  referrerPolicy="no-referrer"
-                  className="h-5 sm:h-6 md:h-7 object-contain drop-shadow-[0_2px_8px_rgba(245,158,11,0.25)]"
-                />
+                <div className="relative px-3 py-0.5 rounded-md overflow-hidden bg-slate-900/90 shadow-sm flex items-center justify-center border border-white">
+                  <img 
+                    src={kalemaImg} 
+                    alt="Shahada" 
+                    referrerPolicy="no-referrer"
+                    className="h-4 sm:h-4.5 md:h-5.5 object-contain drop-shadow-sm"
+                  />
+                </div>
               ) : null}
             </div>
           </div>
 
-          {/* Right Side: Holy Kaaba (Makkah) Image Only */}
-          <div className="flex items-center justify-end w-1/4 sm:w-1/5 md:w-1/6 h-full">
+          {/* Right Side: Holy Kaaba (Makkah) Image */}
+          <div className="flex items-center justify-end w-1/4 sm:w-1/5 md:w-1/6 h-full relative z-10">
             {makkahImg ? (
-              <div className="h-[36px] w-[36px] sm:h-[42px] sm:w-[42px] rounded-lg overflow-hidden border border-amber-500/20 shadow-[0_0_12px_rgba(245,158,11,0.15)] bg-slate-900 transition-all duration-300 hover:border-amber-500/40">
+              <div className="relative h-[36px] w-[36px] sm:h-[42px] sm:w-[42px] rounded-md overflow-hidden bg-slate-900 shadow-sm">
                 <img 
                   src={makkahImg}
                   alt="Holy Kaaba" 
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover"
                 />
+                {/* 4-Sided Frame: Outer White + Center Black Piping + Inner White */}
+                <div className="absolute inset-0 rounded-md border border-white pointer-events-none z-10" />
+                <div className="absolute inset-[1px] rounded-[5px] border border-black pointer-events-none z-10" />
+                <div className="absolute inset-[2px] rounded-[4px] border border-white pointer-events-none z-10" />
               </div>
             ) : null}
           </div>
@@ -1503,115 +1597,6 @@ export default function App() {
             </span>
           </div>
         )}
-
-        {/* Top Mini Bar */}
-        <div className="bg-emerald-800 text-white py-0.5 sm:py-1.5 px-2 sm:px-4 text-[10px] sm:text-xs">
-          <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <div className="flex items-center space-x-1.5 sm:space-x-2">
-              <span className="bg-emerald-600 px-1 sm:px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold animate-pulse uppercase">
-                {lang === "bn" ? "⚡ ১ ঘণ্টার মধ্যে ডেলিভারি" : "⚡ 1-Hour Delivery"}
-              </span>
-              <p className="hidden md:inline">
-                {lang === "bn" 
-                  ? `✓ ${currentLocation} এলাকায় নিশ্চিত সুপারফাস্ট ডেলিভারি!` 
-                  : `✓ Superfast delivery ensured across ${currentLocation}!`}
-              </p>
-            </div>
-            
-            <div className="flex items-center space-x-1.5 sm:space-x-4">
-              {/* Connection Status Indicator */}
-              <div className="flex items-center space-x-1 sm:space-x-1.5 bg-emerald-900/60 px-1.5 sm:px-2 py-0.5 rounded border border-emerald-700/50">
-                {isOnline ? (
-                  <>
-                    <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 bg-emerald-400"></span>
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] font-bold text-emerald-200">
-                      {lang === "bn" ? "অনলাইন" : "Online"}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2">
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 bg-amber-400 animate-pulse"></span>
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] font-bold text-amber-300">
-                      {lang === "bn" ? "অফলাইন" : "Offline"}
-                    </span>
-                  </>
-                )}
-              </div>
-              {/* Delivery Location Selector */}
-              <div className="relative">
-                <button 
-                  onClick={() => setShowLocationSelect(!showLocationSelect)}
-                  className="flex items-center space-x-1 hover:text-emerald-200 transition cursor-pointer max-w-[130px] xs:max-w-[170px] sm:max-w-none"
-                  id="header-location-selector"
-                >
-                  <MapPin className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-                  <span className="truncate text-[10px] sm:text-xs leading-none">{currentLocation}</span>
-                  <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" />
-                </button>
-                {showLocationSelect && (
-                  <div className="absolute right-0 mt-1 w-52 bg-white text-slate-800 rounded-lg shadow-lg border border-slate-100 z-50 p-2 py-1.5">
-                    
-                    {/* Location Permission & Detection Triggers */}
-                    <div className="border-b border-slate-100 pb-1.5 mb-1.5 px-1">
-                      <button
-                        onClick={handleDetectLocation}
-                        disabled={loadingLocation}
-                        className="w-full flex items-center space-x-2 p-1.5 rounded text-xs text-left text-emerald-700 hover:bg-emerald-50 active:bg-emerald-100 font-bold transition disabled:opacity-50 cursor-pointer"
-                      >
-                        <Locate className={`w-3.5 h-3.5 text-emerald-600 shrink-0 ${loadingLocation ? "animate-spin" : ""}`} />
-                        <span className="truncate">
-                          {lang === "bn" ? "আমার অবস্থান সনাক্ত করুন" : "Detect My Location"}
-                        </span>
-                      </button>
-                      
-                      <button
-                        onClick={handleUseCurrentLocation}
-                        disabled={loadingLocation}
-                        className="w-full flex items-center space-x-2 p-1.5 rounded text-xs text-left text-blue-700 hover:bg-blue-50 active:bg-blue-100 font-bold transition disabled:opacity-50 cursor-pointer mt-1"
-                      >
-                        <Navigation className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        <span className="truncate">
-                          {lang === "bn" ? "বর্তমান অবস্থান ব্যবহার করুন" : "Use Current Location"}
-                        </span>
-                      </button>
-                    </div>
-
-                    <p className="text-[10px] text-slate-400 p-1.5 font-bold uppercase tracking-wider">
-                      {lang === "bn" ? "ডেলিভারি এলাকা নির্বাচন করুন" : "Select Location"}
-                    </p>
-                    {["চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর", "ধানমন্ডি, ঢাকা", "গুলশান, ঢাকা", "বনানী, ঢাকা", "উত্তরা, ঢাকা", "মিরপুর, ঢাকা", "খুলশী, চট্টগ্রাম"].map((loc) => (
-                      <button
-                        key={loc}
-                        onClick={() => {
-                          setCurrentLocation(loc);
-                          setShowLocationSelect(false);
-                          triggerToast(`এলাকা পরিবর্তন করা হয়েছে: ${loc}`, `Location changed to: ${loc}`);
-                        }}
-                        className="w-full text-left p-1.5 text-xs hover:bg-emerald-50 hover:text-emerald-700 rounded transition"
-                      >
-                        {loc}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Language Toggle */}
-              <button 
-                onClick={() => setLang(lang === "bn" ? "en" : "bn")}
-                className="font-bold border border-white/20 hover:bg-white/10 px-2 py-0.5 rounded transition uppercase tracking-wider text-[10px] cursor-pointer"
-                id="header-lang-toggle"
-              >
-                {lang === "bn" ? "English" : "বাংলা"}
-              </button>
-            </div>
-          </div>
-        </div>
 
         {/* Main Header Bar */}
         <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-1 sm:gap-4">
@@ -1639,59 +1624,38 @@ export default function App() {
           {/* Action Buttons */}
           <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-3 shrink-0">
             
-            {/* Notifications Panel */}
-            <div className="relative">
-              <button 
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="p-1 sm:p-2 text-slate-600 hover:text-emerald-600 hover:bg-slate-50 rounded-full relative transition cursor-pointer"
-                id="header-notifications-btn"
-              >
-                <Bell className="w-5 h-5 sm:w-6 sm:h-6" />
-                {notificationList.some(n => !n.read) && (
-                  <span className="absolute top-1 right-1 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-red-500 border-2 border-white rounded-full animate-ping"></span>
-                )}
-              </button>
-              
-              {showNotifications && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-100 z-50 p-3">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-100 mb-2">
-                    <h4 className="text-xs font-bold text-slate-800">{lang === "bn" ? "বিজ্ঞপ্তি সমূহ" : "Notifications"}</h4>
-                    <button 
-                      onClick={() => {
-                        setNotificationList(prev => prev.map(n => ({ ...n, read: true })));
-                        triggerToast("সব বিজ্ঞপ্তি পঠিত মার্ক করা হয়েছে", "All notifications marked as read");
-                      }}
-                      className="text-[10px] text-emerald-600 hover:underline font-bold"
-                    >
-                      {lang === "bn" ? "সব পঠিত করুন" : "Mark all read"}
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {notificationList.map((notif) => (
-                      <div 
-                        key={notif.id} 
-                        className={`p-2 rounded-lg text-xs transition ${notif.read ? "bg-slate-50 text-slate-500" : "bg-emerald-50/50 text-slate-800 font-medium"}`}
-                      >
-                        <p>{lang === "bn" ? notif.textBn : notif.textEn}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Wishlist Button */}
+            {/* Live Chat Button in Header (Ultra-Compact & Sleek) */}
             <button 
-              onClick={() => setShowWishlist(true)}
-              className="p-1 sm:p-2 text-slate-600 hover:text-emerald-600 hover:bg-slate-50 rounded-full relative transition cursor-pointer"
-              id="header-wishlist-btn"
+              onClick={() => setShowLiveChat(prev => !prev)}
+              className="flex items-center space-x-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full transition-all cursor-pointer shadow-xs border border-emerald-500/50 shrink-0"
+              id="header-live-chat-btn"
+              title={lang === "bn" ? "লাইভ সাপোর্ট চ্যাট" : "Live Support Chat"}
             >
-              <Heart className="w-5 h-5 sm:w-6 sm:h-6" />
-              {wishlist.length > 0 && (
-                <span className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 bg-rose-500 text-white text-[8px] sm:text-[9px] font-bold w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full flex items-center justify-center">
-                  {fmtNum(wishlist.length)}
-                </span>
-              )}
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-300"></span>
+              </span>
+              <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span className="text-[10px] sm:text-[10.5px] font-semibold tracking-tight">
+                {lang === "bn" ? "চ্যাট" : "Chat"}
+              </span>
+            </button>
+
+            {/* Free Web Voice Call Button in Header (Ultra-Compact & Sleek) */}
+            <button 
+              onClick={() => setShowVoiceCall(true)}
+              className="flex items-center space-x-1 bg-gradient-to-r from-teal-700 to-emerald-800 hover:from-teal-800 hover:to-emerald-900 active:scale-95 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full transition-all cursor-pointer shadow-xs shrink-0 border border-emerald-400/40"
+              id="header-free-call-btn"
+              title={lang === "bn" ? "ফ্রি সরাসরি ভয়েস কল" : "Free Web Voice Call"}
+            >
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400"></span>
+              </span>
+              <PhoneCall className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <span className="text-[10px] sm:text-[10.5px] font-semibold tracking-tight">
+                {lang === "bn" ? "কল" : "Call"}
+              </span>
             </button>
 
             {/* Shopping Cart Button */}
@@ -1729,80 +1693,80 @@ export default function App() {
 
       </header>
 
-      {/* ================= 2. SEARCH BAR ================= */}
-      <section className="max-w-7xl mx-auto px-4 mt-4">
-        <div className="max-w-2xl mx-auto relative">
+      {/* ================= 2. SEARCH BAR & QUICK CALL TO ORDER (EQUAL 50-50 SPLIT) ================= */}
+      <section className="max-w-7xl mx-auto px-2 sm:px-4 mt-2.5 sm:mt-4">
+        <div className="max-w-5xl mx-auto grid grid-cols-2 gap-2 sm:gap-3 items-stretch">
+          
+          {/* Search Bar (50% equal width) */}
           <div className="w-full relative flex items-center">
-            <Search className="absolute left-4 text-slate-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder={lang === "bn" ? "তাজা সবজি, ইলিশ মাছ, আম খুঁজুন..." : "Search fresh veggies, Hilsha, sweet mango..."}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-12 py-3 bg-white border border-slate-200 rounded-full text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition-all duration-200"
-              id="search-input"
-            />
-            <button 
-              onClick={handleVoiceSearchClick}
-              className="absolute right-4 p-1 text-slate-400 hover:text-emerald-600 rounded-full hover:bg-slate-100 transition cursor-pointer"
-              title={lang === "bn" ? "ভয়েস সার্চ" : "Voice Search"}
-              id="search-mic"
-            >
-              <Mic className="w-5 h-5" />
-            </button>
+            <div className="w-full h-full relative flex items-center">
+              <Search className="absolute left-2.5 sm:left-4 text-slate-400 w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 pointer-events-none" />
+              <input
+                type="text"
+                placeholder={lang === "bn" ? "পণ্য বা সবজি খুঁজুন..." : "Search items..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-[38px] sm:h-[44px] md:h-[48px] pl-7 sm:pl-11 pr-7 sm:pr-10 bg-white border border-slate-200 rounded-full text-[11px] sm:text-xs md:text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition-all duration-200 truncate"
+                id="search-input"
+              />
+              <button 
+                onClick={handleVoiceSearchClick}
+                className="absolute right-2 sm:right-3 p-1 text-slate-400 hover:text-emerald-600 rounded-full hover:bg-slate-100 transition cursor-pointer"
+                title={lang === "bn" ? "ভয়েস সার্চ" : "Voice Search"}
+                id="search-mic"
+              >
+                <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5" />
+              </button>
+            </div>
+
+            {/* Live Suggestion Box */}
+            {searchQuery && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 rounded-xl shadow-xl z-50 max-h-80 overflow-y-auto p-2">
+                <div className="flex justify-between items-center border-b border-slate-50 p-1.5 pb-2">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">
+                    {lang === "bn" ? `${filteredProducts.length}টি ফলাফল পাওয়া গেছে` : `Found ${filteredProducts.length} results`}
+                  </span>
+                  <button onClick={() => setSearchQuery("")} className="text-xs text-red-500 hover:underline">
+                    {lang === "bn" ? "মুছে ফেলুন" : "Clear"}
+                  </button>
+                </div>
+                {filteredProducts.slice(0, 5).map((prod) => (
+                  <div 
+                    key={prod.id} 
+                    onClick={() => {
+                      openQuickView(prod);
+                      setSearchQuery("");
+                    }}
+                    className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition"
+                  >
+                    <img src={prod.image} className="w-10 h-10 object-cover rounded" onError={handleProductImgError} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold truncate text-slate-800">{lang === "bn" ? prod.nameBn : prod.nameEn}</p>
+                      <p className="text-[10px] text-emerald-600 font-bold">৳{fmtNum(prod.price)} / {lang === "bn" ? prod.unitBn : prod.unitEn}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* ================= CALL TO ORDER HOME BANNER ================= */}
-          <div className="mt-2 sm:mt-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg sm:rounded-xl py-1.5 sm:py-3 px-2.5 sm:px-4 shadow-sm flex flex-row items-center justify-between gap-2 sm:gap-3 border border-amber-400 relative overflow-hidden">
-            <div className="absolute inset-0 bg-white/5 pointer-events-none skew-x-12 transform translate-x-12"></div>
-            <div className="flex items-center space-x-1.5 sm:space-x-2.5 text-left z-10 min-w-0">
-              <div className="w-4.5 h-4.5 sm:w-6 sm:h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/10 shadow-inner">
-                <Phone className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white animate-bounce" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-[11px] sm:text-base font-bold sm:font-black tracking-tight truncate">
-                  {lang === "bn" ? "সরাসরি ফোন করে ঝটপট অর্ডার করুন" : "Place Your Order Directly via Call!"}
-                </h4>
-              </div>
-            </div>
-            <a 
-              href="tel:+8801722638985"
-              className="bg-white hover:bg-slate-50 text-amber-600 font-extrabold sm:font-black text-[10px] sm:text-[11px] px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-md sm:rounded-lg transition shadow-xs cursor-pointer uppercase tracking-wider flex items-center justify-center space-x-1 shrink-0"
+          {/* Quick Call to Order (50% equal width) */}
+          {(homeConfig?.sectionVisibility?.showCallToOrder !== false && homeConfig?.callToOrder?.enabled !== false) && (
+            <button 
+              onClick={() => setShowVoiceCall(true)}
+              className="w-full h-[38px] sm:h-[44px] md:h-[48px] bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-full px-3 sm:px-4 shadow-sm flex items-center justify-center gap-1.5 sm:gap-2.5 border border-amber-400 relative overflow-hidden transition-all duration-200 active:scale-95 group cursor-pointer"
+              id="call-to-order-bar"
+              title={lang === "bn" ? "ঝটপট ফ্রি কল করুন" : "Quick Free Call"}
             >
-              <Phone className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-              <span>{lang === "bn" ? "কল করুন" : "Call Now"}</span>
-            </a>
-          </div>
-          
-          {/* Live Suggestion Box */}
-          {searchQuery && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 rounded-xl shadow-xl z-50 max-h-80 overflow-y-auto p-2">
-              <div className="flex justify-between items-center border-b border-slate-50 p-1.5 pb-2">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">
-                  {lang === "bn" ? `${filteredProducts.length}টি ফলাফল পাওয়া গেছে` : `Found ${filteredProducts.length} results`}
-                </span>
-                <button onClick={() => setSearchQuery("")} className="text-xs text-red-500 hover:underline">
-                  {lang === "bn" ? "মুছে ফেলুন" : "Clear"}
-                </button>
+              <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/10 shadow-inner group-hover:scale-110 transition-transform">
+                <Phone className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white animate-bounce" />
               </div>
-              {filteredProducts.slice(0, 5).map((prod) => (
-                <div 
-                  key={prod.id} 
-                  onClick={() => {
-                    openQuickView(prod);
-                    setSearchQuery("");
-                  }}
-                  className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition"
-                >
-                  <img src={prod.image} className="w-10 h-10 object-cover rounded" onError={handleProductImgError} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold truncate text-slate-800">{lang === "bn" ? prod.nameBn : prod.nameEn}</p>
-                    <p className="text-[10px] text-emerald-600 font-bold">৳{fmtNum(prod.price)} / {lang === "bn" ? prod.unitBn : prod.unitEn}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+              <span className="text-[12px] sm:text-xs md:text-sm font-black tracking-wide truncate">
+                {lang === "bn" ? "ঝটপট ফ্রি কল" : "Quick Free Call"}
+              </span>
+            </button>
           )}
+
         </div>
       </section>
 
@@ -1827,6 +1791,7 @@ export default function App() {
             }
           }}
           customBanners={homeConfig?.heroBanners || banners}
+          loading={loadingBanners}
         />
       )}
 
@@ -1855,59 +1820,72 @@ export default function App() {
         </div>
         
         {/* All Categories displayed directly in a premium, responsive grid */}
-        <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-10 gap-3 md:gap-4">
-          {categories.filter(c => c.id !== "all" && c.isAvailable !== false && (c as any).disabled !== true && !(homeConfig?.categoryConfig?.hiddenCategoryIds || []).includes(c.id)).map((cat, idx) => {
-            const isHiddenOnMobile = idx >= 6 && !showAllMobile;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => {
-                  if (selectedCategory === cat.id) {
-                    setSelectedCategory("all");
-                    setSelectedSubcategory("all");
-                  } else {
-                    setSelectedCategory(cat.id);
-                    setSelectedSubcategory("all");
-                    setShowFlashSaleOnly(false);
-                  }
-                }}
-                className={`flex-col items-center p-3 rounded-2xl border cursor-pointer transition-all duration-300 shadow-xs hover:shadow-md hover:-translate-y-0.5 ${isHiddenOnMobile ? "hidden sm:flex" : "flex"} ${selectedCategory === cat.id ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-white" : "border-slate-100 bg-white"}`}
-              >
-                <div className={`w-11 h-11 rounded-full flex items-center justify-center mb-1.5 transition overflow-hidden ${selectedCategory === cat.id ? "bg-emerald-600 text-white" : cat.colorClass}`}>
-                  {(cat as any).image || (cat as any).imageUrl ? (
-                    <img src={(cat as any).image || (cat as any).imageUrl} alt={cat.nameEn} className="w-full h-full object-cover" />
-                  ) : (
-                    renderCatIcon(cat.iconName)
-                  )}
-                </div>
-                <p className="text-[10px] sm:text-xs font-bold text-slate-700 text-center leading-tight mt-1">
-                  {lang === "bn" ? cat.nameBn : cat.nameEn}
-                </p>
-              </button>
-            );
-          })}
-        </div>
+        {loadingCategories ? (
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-10 gap-3 md:gap-4">
+            {Array.from({ length: 10 }).map((_, idx) => (
+              <div key={idx} className="flex flex-col items-center p-3 rounded-2xl border border-slate-100 bg-white animate-pulse">
+                <div className="w-11 h-11 rounded-full bg-slate-100 mb-1.5"></div>
+                <div className="h-2.5 w-14 bg-slate-100 rounded mt-1"></div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-10 gap-3 md:gap-4">
+            {categories.filter(c => c.id !== "all" && c.isAvailable !== false && (c as any).disabled !== true && !(homeConfig?.categoryConfig?.hiddenCategoryIds || []).includes(c.id)).map((cat, idx) => {
+              const isHiddenOnMobile = idx >= 6 && !showAllMobile;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => {
+                    if (selectedCategory === cat.id) {
+                      setSelectedCategory("all");
+                      setSelectedSubcategory("all");
+                    } else {
+                      setSelectedCategory(cat.id);
+                      setSelectedSubcategory("all");
+                      setShowFlashSaleOnly(false);
+                    }
+                  }}
+                  className={`flex-col items-center p-3 rounded-2xl border cursor-pointer transition-all duration-300 shadow-xs hover:shadow-md hover:-translate-y-0.5 ${isHiddenOnMobile ? "hidden sm:flex" : "flex"} ${selectedCategory === cat.id ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-white" : "border-slate-100 bg-white"}`}
+                >
+                  <div className={`w-11 h-11 rounded-full flex items-center justify-center mb-1.5 transition overflow-hidden ${selectedCategory === cat.id ? "bg-emerald-600 text-white" : cat.colorClass}`}>
+                    {(cat as any).image || (cat as any).imageUrl ? (
+                      <img src={(cat as any).image || (cat as any).imageUrl} alt={cat.nameEn} className="w-full h-full object-cover" />
+                    ) : (
+                      renderCatIcon(cat.iconName)
+                    )}
+                  </div>
+                  <p className="text-[10px] sm:text-xs font-bold text-slate-700 text-center leading-tight mt-1">
+                    {lang === "bn" ? cat.nameBn : cat.nameEn}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Mobile Show All/Less Button placed at the very end of the category list, not as the 6th item */}
-        <div className="flex justify-center mt-4 sm:hidden">
-          {!showAllMobile ? (
-            <button
-              onClick={() => setShowAllMobile(true)}
-              className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 hover:border-emerald-500 rounded-full text-xs font-bold text-slate-700 hover:text-emerald-600 shadow-sm transition cursor-pointer"
-            >
-              <span>{lang === "bn" ? "সব ক্যাটাগরি দেখুন" : "Show All Categories"}</span>
-              <ChevronDown className="w-4 h-4 text-slate-400" />
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowAllMobile(false)}
-              className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 hover:border-emerald-500 rounded-full text-xs font-bold text-slate-700 hover:text-emerald-600 shadow-sm transition cursor-pointer"
-            >
-              <span>{lang === "bn" ? "কম ক্যাটাগরি দেখুন" : "Show Less"}</span>
-              <ChevronUp className="w-4 h-4 text-slate-400" />
-            </button>
-          )}
-        </div>
+        {!loadingCategories && (
+          <div className="flex justify-center mt-4 sm:hidden">
+            {!showAllMobile ? (
+              <button
+                onClick={() => setShowAllMobile(true)}
+                className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 hover:border-emerald-500 rounded-full text-xs font-bold text-slate-700 hover:text-emerald-600 shadow-sm transition cursor-pointer"
+              >
+                <span>{lang === "bn" ? "সব ক্যাটাগরি দেখুন" : "Show All Categories"}</span>
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowAllMobile(false)}
+                className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 hover:border-emerald-500 rounded-full text-xs font-bold text-slate-700 hover:text-emerald-600 shadow-sm transition cursor-pointer"
+              >
+                <span>{lang === "bn" ? "কম ক্যাটাগরি দেখুন" : "Show Less"}</span>
+                <ChevronUp className="w-4 h-4 text-slate-400" />
+              </button>
+            )}
+          </div>
+        )}
       </section>
 
       {selectedCategory === "all" ? (
@@ -1949,103 +1927,124 @@ export default function App() {
             </div>
 
             {/* Grid of All Flash Sale Products with BOTH buttons */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {availableProducts.filter(p => p.isFlashSale).map((product) => (
-                <div key={product.id} className="bg-white rounded-xl overflow-hidden border border-slate-100 flex flex-col justify-between hover:shadow-lg transition duration-300 relative group">
-                  {/* Discount badge */}
-                  {product.discount ? (
-                    <span className="absolute top-2 left-2 z-10 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow">
-                      {fmtNum(product.discount)}% {lang === "bn" ? "ছাড়" : "OFF"}
-                    </span>
-                  ) : null}
-
-                  {/* Wishlist toggle */}
-                  <button 
-                    onClick={() => toggleWishlist(product.id)}
-                    className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-white/80 hover:bg-white text-slate-400 hover:text-rose-500 shadow transition cursor-pointer"
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${wishlist.includes(product.id) ? "fill-rose-500 text-rose-500" : ""}`} />
-                  </button>
-
-                  {/* Image */}
-                  <div className="relative overflow-hidden bg-slate-50 h-32 sm:h-36">
-                    <img 
-                      src={product.image} 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                      alt={product.nameEn}
-                      referrerPolicy="no-referrer"
-                      onError={handleProductImgError}
-                    />
-                    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
-                      <button 
-                        onClick={() => openQuickView(product)}
-                        className="p-1.5 rounded-full bg-white hover:bg-emerald-500 text-slate-800 hover:text-white shadow-md transition-colors cursor-pointer hover:scale-105"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+            {loadingProducts ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl border border-slate-100 p-2.5 sm:p-3 animate-pulse shadow-2xs">
+                    <div className="w-full h-20 sm:h-24 bg-slate-100 rounded-xl mb-2.5"></div>
+                    <div className="h-3 w-3/4 bg-slate-100 rounded mb-1.5"></div>
+                    <div className="h-2 w-1/2 bg-slate-100 rounded mb-3"></div>
+                    <div className="h-6 w-full bg-slate-100 rounded-lg"></div>
                   </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
+                {availableProducts.filter(p => p.isFlashSale).map((product) => (
+                  <div key={product.id} className="bg-white rounded-2xl overflow-hidden border border-slate-100/90 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between relative group hover:-translate-y-0.5">
+                    {/* Discount badge */}
+                    {product.discount ? (
+                      <span className="absolute top-1.5 left-1.5 z-10 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-xs flex items-center gap-0.5">
+                        <span>{fmtNum(product.discount)}%</span>
+                        <span>{lang === "bn" ? "ছাড়" : "OFF"}</span>
+                      </span>
+                    ) : null}
 
-                  {/* Content */}
-                  <div className="p-3 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-600 transition-colors">
-                        {lang === "bn" ? product.nameBn : product.nameEn}
-                      </h4>
-                      <p className="text-[10px] text-slate-400 line-clamp-1">{lang === "bn" ? product.nameEn : product.nameBn}</p>
-                      
-                      <div className="flex items-center space-x-1 mt-1">
-                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                        <span className="text-[10px] font-bold text-slate-500">
-                          {fmtNum(product.rating)}
-                        </span>
+                    {/* Wishlist toggle */}
+                    <button 
+                      onClick={() => toggleWishlist(product.id)}
+                      className="absolute top-1.5 right-1.5 z-10 p-1 sm:p-1.5 rounded-full bg-white/90 hover:bg-white text-slate-400 hover:text-rose-500 shadow-xs transition-all duration-200 cursor-pointer hover:scale-110"
+                    >
+                      <Heart className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${wishlist.includes(product.id) ? "fill-rose-500 text-rose-500" : ""}`} />
+                    </button>
+
+                    {/* Compact Image Container (50% reduced height with clean framing) */}
+                    <div className="relative overflow-hidden bg-gradient-to-b from-slate-50/80 to-white/90 h-20 sm:h-24 md:h-28 flex items-center justify-center">
+                      <img 
+                        src={product.image} 
+                        className="w-full h-full object-contain p-1.5 sm:p-2 transition-transform duration-300 group-hover:scale-108" 
+                        alt={product.nameEn}
+                        referrerPolicy="no-referrer"
+                        onError={handleProductImgError}
+                      />
+                      <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
+                        <button 
+                          onClick={() => openQuickView(product)}
+                          className="p-1 rounded-full bg-white hover:bg-emerald-500 text-slate-800 hover:text-white shadow-xs transition-colors cursor-pointer hover:scale-105"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </button>
                       </div>
                     </div>
 
-                    <div className="mt-2.5 pt-2 border-t border-slate-50">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-sm font-black text-emerald-600">৳{fmtNum(product.price)}</span>
-                        {product.originalPrice && product.originalPrice > product.price ? (
-                          <span className="text-[10px] text-slate-400 line-through">৳{fmtNum(product.originalPrice)}</span>
-                        ) : null}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-1.5 mt-2">
-                        <button 
-                          onClick={() => addToCart(product)}
-                          className={`py-1.5 text-[10px] font-bold rounded-lg transition shadow-xs cursor-pointer flex items-center justify-center space-x-1 border ${cart.some(item => item.product.id === product.id) ? "bg-emerald-50 text-emerald-700 border border-emerald-600 hover:bg-emerald-100" : "bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50"}`}
-                        >
-                          {cart.some(item => item.product.id === product.id) ? (
-                            <span>{lang === "bn" ? "✓ কার্ট" : "✓ Cart"}</span>
-                          ) : (
-                            <span>{lang === "bn" ? "🛒 কার্ট" : "🛒 Cart"}</span>
+                    {/* Content */}
+                    <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-[11px] sm:text-xs md:text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-600 transition-colors leading-snug">
+                          {lang === "bn" ? product.nameBn : product.nameEn}
+                        </h4>
+                        <p className="text-[9px] sm:text-[10px] text-slate-400 line-clamp-1 leading-tight mt-0.5">{lang === "bn" ? product.nameEn : product.nameBn}</p>
+                        
+                        <div className="flex items-center justify-between mt-1">
+                          <div className="flex items-center space-x-1">
+                            <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 fill-amber-400" />
+                            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500">
+                              {fmtNum(product.rating)}
+                            </span>
+                          </div>
+                          {(product.unitBn || product.unitEn) && (
+                            <span className="text-[8.5px] sm:text-[9.5px] text-slate-400 font-medium truncate max-w-[50%]">
+                              {lang === "bn" ? product.unitBn : product.unitEn}
+                            </span>
                           )}
-                        </button>
-                        <button 
-                          onClick={() => handleBuyNow(product)}
-                          className="py-1.5 text-[10px] font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition shadow-xs cursor-pointer flex items-center justify-center space-x-1"
-                        >
-                          <span>{lang === "bn" ? "🛍️ অর্ডার" : "🛍️ Order"}</span>
-                        </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-xs sm:text-sm font-black text-emerald-600">৳{fmtNum(product.price)}</span>
+                          {product.originalPrice && product.originalPrice > product.price ? (
+                            <span className="text-[9px] sm:text-[10px] text-slate-400 line-through">৳{fmtNum(product.originalPrice)}</span>
+                          ) : null}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-1 mt-1.5">
+                          <button 
+                            onClick={() => addToCart(product)}
+                            className={`py-1 text-[9px] sm:text-[10px] font-bold rounded-lg transition shadow-2xs cursor-pointer flex items-center justify-center space-x-0.5 border ${cart.some(item => item.product.id === product.id) ? "bg-emerald-50 text-emerald-700 border border-emerald-600 hover:bg-emerald-100" : "bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50"}`}
+                          >
+                            {cart.some(item => item.product.id === product.id) ? (
+                              <span>{lang === "bn" ? "✓ কার্ট" : "✓ Cart"}</span>
+                            ) : (
+                              <span>{lang === "bn" ? "🛒 কার্ট" : "🛒 Cart"}</span>
+                            )}
+                          </button>
+                          <button 
+                            onClick={() => handleBuyNow(product)}
+                            className="py-1 text-[9px] sm:text-[10px] font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition shadow-2xs cursor-pointer flex items-center justify-center space-x-0.5"
+                          >
+                            <span>{lang === "bn" ? "🛍️ অর্ডার" : "🛍️ Order"}</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <>
           {/* ================= 5. FEATURED PRODUCTS ================= */}
           {homeConfig?.featuredProducts?.popularSectionVisible !== false && (
-          <section className="max-w-7xl mx-auto px-4 mt-10">
-            <div className="flex justify-between items-center mb-6">
+          <section className="max-w-7xl mx-auto px-4 mt-8">
+            <div className="flex justify-between items-center mb-4">
               <div>
-                <h3 className="text-lg md:text-xl font-bold text-slate-800 flex items-center gap-1.5">
-                  <span className="w-2.5 h-6 bg-emerald-600 rounded-full inline-block"></span>
+                <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="w-2 h-5 bg-emerald-600 rounded-full inline-block"></span>
                   {lang === "bn" ? "জনপ্রিয় ও আকর্ষণীয় পণ্য" : "Featured Products"}
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-[11px] sm:text-xs text-slate-400">
                   {lang === "bn" ? "আমাদের সেরা এবং অত্যন্ত জনপ্রিয় পণ্যসমূহ" : "Our handpicked premium products for you"}
                 </p>
               </div>
@@ -2056,103 +2055,124 @@ export default function App() {
                 {popularLimit === 4 ? (lang === "bn" ? "সবগুলো দেখুন" : "See All") : (lang === "bn" ? "কম দেখুন" : "See Less")}
               </button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {availableProducts.filter(p => p.isPopular || (homeConfig?.featuredProducts?.popularProductIds || []).includes(p.id)).slice(0, popularLimit).map((product) => (
-                <div key={product.id} className="bg-white rounded-xl overflow-hidden border border-slate-100 flex flex-col justify-between hover:shadow-lg transition duration-300 relative group">
-                  {/* Discount badge */}
-                  {product.discount ? (
-                    <span className="absolute top-2 left-2 z-10 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow">
-                      {fmtNum(product.discount)}% {lang === "bn" ? "ছাড়" : "OFF"}
-                    </span>
-                  ) : null}
-
-                  {/* Wishlist toggle */}
-                  <button 
-                    onClick={() => toggleWishlist(product.id)}
-                    className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-white/80 hover:bg-white text-slate-400 hover:text-rose-500 shadow transition cursor-pointer"
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${wishlist.includes(product.id) ? "fill-rose-500 text-rose-500" : ""}`} />
-                  </button>
-
-                  {/* Image */}
-                  <div className="relative overflow-hidden bg-slate-50 h-32 sm:h-36">
-                    <img 
-                      src={product.image} 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                      alt={product.nameEn}
-                      referrerPolicy="no-referrer"
-                      onError={handleProductImgError}
-                    />
-                    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
-                      <button 
-                        onClick={() => openQuickView(product)}
-                        className="p-1.5 rounded-full bg-white hover:bg-emerald-500 text-slate-800 hover:text-white shadow-md transition-colors cursor-pointer hover:scale-105"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+            {loadingProducts ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl border border-slate-100 p-2.5 sm:p-3 animate-pulse shadow-2xs">
+                    <div className="w-full h-20 sm:h-24 bg-slate-100 rounded-xl mb-2.5"></div>
+                    <div className="h-3 w-3/4 bg-slate-100 rounded mb-1.5"></div>
+                    <div className="h-2 w-1/2 bg-slate-100 rounded mb-3"></div>
+                    <div className="h-6 w-full bg-slate-100 rounded-lg"></div>
                   </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
+                {availableProducts.filter(p => p.isPopular || (homeConfig?.featuredProducts?.popularProductIds || []).includes(p.id)).slice(0, popularLimit).map((product) => (
+                  <div key={product.id} className="bg-white rounded-2xl overflow-hidden border border-slate-100/90 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between relative group hover:-translate-y-0.5">
+                    {/* Discount badge */}
+                    {product.discount ? (
+                      <span className="absolute top-1.5 left-1.5 z-10 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-xs flex items-center gap-0.5">
+                        <span>{fmtNum(product.discount)}%</span>
+                        <span>{lang === "bn" ? "ছাড়" : "OFF"}</span>
+                      </span>
+                    ) : null}
 
-                  {/* Content */}
-                  <div className="p-3 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-600 transition-colors">
-                        {lang === "bn" ? product.nameBn : product.nameEn}
-                      </h4>
-                      <p className="text-[10px] text-slate-400 line-clamp-1">{lang === "bn" ? product.nameEn : product.nameBn}</p>
-                      
-                      <div className="flex items-center space-x-1 mt-1">
-                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                        <span className="text-[10px] font-bold text-slate-500">
-                          {fmtNum(product.rating)}
-                        </span>
+                    {/* Wishlist toggle */}
+                    <button 
+                      onClick={() => toggleWishlist(product.id)}
+                      className="absolute top-1.5 right-1.5 z-10 p-1 sm:p-1.5 rounded-full bg-white/90 hover:bg-white text-slate-400 hover:text-rose-500 shadow-xs transition-all duration-200 cursor-pointer hover:scale-110"
+                    >
+                      <Heart className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${wishlist.includes(product.id) ? "fill-rose-500 text-rose-500" : ""}`} />
+                    </button>
+
+                    {/* Compact Image Container (50% reduced height with clean framing) */}
+                    <div className="relative overflow-hidden bg-gradient-to-b from-slate-50/80 to-white/90 h-20 sm:h-24 md:h-28 flex items-center justify-center">
+                      <img 
+                        src={product.image} 
+                        className="w-full h-full object-contain p-1.5 sm:p-2 transition-transform duration-300 group-hover:scale-108" 
+                        alt={product.nameEn}
+                        referrerPolicy="no-referrer"
+                        onError={handleProductImgError}
+                      />
+                      <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
+                        <button 
+                          onClick={() => openQuickView(product)}
+                          className="p-1 rounded-full bg-white hover:bg-emerald-500 text-slate-800 hover:text-white shadow-xs transition-colors cursor-pointer hover:scale-105"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </button>
                       </div>
                     </div>
 
-                    <div className="mt-2.5 pt-2 border-t border-slate-50">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-sm font-black text-emerald-600">৳{fmtNum(product.price)}</span>
-                        {product.originalPrice && product.originalPrice > product.price ? (
-                          <span className="text-[10px] text-slate-400 line-through">৳{fmtNum(product.originalPrice)}</span>
-                        ) : null}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-1.5 mt-2">
-                        <button 
-                          onClick={() => addToCart(product)}
-                          className={`py-1.5 text-[10px] font-bold rounded-lg transition shadow-xs cursor-pointer flex items-center justify-center space-x-1 border ${cart.some(item => item.product.id === product.id) ? "bg-emerald-50 text-emerald-700 border border-emerald-600 hover:bg-emerald-100" : "bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50"}`}
-                        >
-                          {cart.some(item => item.product.id === product.id) ? (
-                            <span>{lang === "bn" ? "✓ কার্ট" : "✓ Cart"}</span>
-                          ) : (
-                            <span>{lang === "bn" ? "🛒 কার্ট" : "🛒 Cart"}</span>
+                    {/* Content */}
+                    <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-[11px] sm:text-xs md:text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-600 transition-colors leading-snug">
+                          {lang === "bn" ? product.nameBn : product.nameEn}
+                        </h4>
+                        <p className="text-[9px] sm:text-[10px] text-slate-400 line-clamp-1 leading-tight mt-0.5">{lang === "bn" ? product.nameEn : product.nameBn}</p>
+                        
+                        <div className="flex items-center justify-between mt-1">
+                          <div className="flex items-center space-x-1">
+                            <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 fill-amber-400" />
+                            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500">
+                              {fmtNum(product.rating)}
+                            </span>
+                          </div>
+                          {(product.unitBn || product.unitEn) && (
+                            <span className="text-[8.5px] sm:text-[9.5px] text-slate-400 font-medium truncate max-w-[50%]">
+                              {lang === "bn" ? product.unitBn : product.unitEn}
+                            </span>
                           )}
-                        </button>
-                        <button 
-                          onClick={() => handleBuyNow(product)}
-                          className="py-1.5 text-[10px] font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition shadow-xs cursor-pointer flex items-center justify-center space-x-1"
-                        >
-                          <span>{lang === "bn" ? "🛍️ অর্ডার" : "🛍️ Order"}</span>
-                        </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-xs sm:text-sm font-black text-emerald-600">৳{fmtNum(product.price)}</span>
+                          {product.originalPrice && product.originalPrice > product.price ? (
+                            <span className="text-[9px] sm:text-[10px] text-slate-400 line-through">৳{fmtNum(product.originalPrice)}</span>
+                          ) : null}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-1 mt-1.5">
+                          <button 
+                            onClick={() => addToCart(product)}
+                            className={`py-1 text-[9px] sm:text-[10px] font-bold rounded-lg transition shadow-2xs cursor-pointer flex items-center justify-center space-x-0.5 border ${cart.some(item => item.product.id === product.id) ? "bg-emerald-50 text-emerald-700 border border-emerald-600 hover:bg-emerald-100" : "bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50"}`}
+                          >
+                            {cart.some(item => item.product.id === product.id) ? (
+                              <span>{lang === "bn" ? "✓ কার্ট" : "✓ Cart"}</span>
+                            ) : (
+                              <span>{lang === "bn" ? "🛒 কার্ট" : "🛒 Cart"}</span>
+                            )}
+                          </button>
+                          <button 
+                            onClick={() => handleBuyNow(product)}
+                            className="py-1 text-[9px] sm:text-[10px] font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition shadow-2xs cursor-pointer flex items-center justify-center space-x-0.5"
+                          >
+                            <span>{lang === "bn" ? "🛍️ অর্ডার" : "🛍️ Order"}</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
           )}
 
           {/* ================= 7. NEW ARRIVALS ================= */}
           {homeConfig?.featuredProducts?.newArrivalSectionVisible !== false && (
-          <section className="max-w-7xl mx-auto px-4 mt-10">
-            <div className="flex justify-between items-center mb-6">
+          <section className="max-w-7xl mx-auto px-4 mt-8">
+            <div className="flex justify-between items-center mb-4">
               <div>
-                <h3 className="text-lg md:text-xl font-bold text-slate-800 flex items-center gap-1.5">
-                  <span className="w-2.5 h-6 bg-emerald-500 rounded-full inline-block"></span>
+                <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="w-2 h-5 bg-emerald-500 rounded-full inline-block"></span>
                   {lang === "bn" ? "নতুন সংগৃহীত পণ্যসমূহ" : "New Arrivals"}
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-[11px] sm:text-xs text-slate-400">
                   {lang === "bn" ? "সরাসরি মাঠ থেকে আসা একদম সতেজ নতুন পণ্যসমূহ" : "Freshly harvested organic items added recently"}
                 </p>
               </div>
@@ -2164,102 +2184,123 @@ export default function App() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {availableProducts.filter(p => p.isNewArrival).slice(0, newArrivalsLimit).map((product) => (
-                <div key={product.id} className="bg-white rounded-xl overflow-hidden border border-slate-100 flex flex-col justify-between hover:shadow-lg transition duration-300 relative group">
-                  {/* Discount badge */}
-                  {product.discount ? (
-                    <span className="absolute top-2 left-2 z-10 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow">
-                      {fmtNum(product.discount)}% {lang === "bn" ? "ছাড়" : "OFF"}
-                    </span>
-                  ) : null}
-
-                  {/* Wishlist toggle */}
-                  <button 
-                    onClick={() => toggleWishlist(product.id)}
-                    className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-white/80 hover:bg-white text-slate-400 hover:text-rose-500 shadow transition cursor-pointer"
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${wishlist.includes(product.id) ? "fill-rose-500 text-rose-500" : ""}`} />
-                  </button>
-
-                  {/* Image */}
-                  <div className="relative overflow-hidden bg-slate-50 h-32 sm:h-36">
-                    <img 
-                      src={product.image} 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                      alt={product.nameEn}
-                      referrerPolicy="no-referrer"
-                      onError={handleProductImgError}
-                    />
-                    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
-                      <button 
-                        onClick={() => openQuickView(product)}
-                        className="p-1.5 rounded-full bg-white hover:bg-emerald-500 text-slate-800 hover:text-white shadow-md transition-colors cursor-pointer hover:scale-105"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+            {loadingProducts ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl border border-slate-100 p-2.5 sm:p-3 animate-pulse shadow-2xs">
+                    <div className="w-full h-20 sm:h-24 bg-slate-100 rounded-xl mb-2.5"></div>
+                    <div className="h-3 w-3/4 bg-slate-100 rounded mb-1.5"></div>
+                    <div className="h-2 w-1/2 bg-slate-100 rounded mb-3"></div>
+                    <div className="h-6 w-full bg-slate-100 rounded-lg"></div>
                   </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
+                {availableProducts.filter(p => p.isNewArrival).slice(0, newArrivalsLimit).map((product) => (
+                  <div key={product.id} className="bg-white rounded-2xl overflow-hidden border border-slate-100/90 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between relative group hover:-translate-y-0.5">
+                    {/* Discount badge */}
+                    {product.discount ? (
+                      <span className="absolute top-1.5 left-1.5 z-10 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-xs flex items-center gap-0.5">
+                        <span>{fmtNum(product.discount)}%</span>
+                        <span>{lang === "bn" ? "ছাড়" : "OFF"}</span>
+                      </span>
+                    ) : null}
 
-                  {/* Content */}
-                  <div className="p-3 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-600 transition-colors">
-                        {lang === "bn" ? product.nameBn : product.nameEn}
-                      </h4>
-                      <p className="text-[10px] text-slate-400 line-clamp-1">{lang === "bn" ? product.nameEn : product.nameBn}</p>
-                      
-                      <div className="flex items-center space-x-1 mt-1">
-                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                        <span className="text-[10px] font-bold text-slate-500">
-                          {fmtNum(product.rating)}
-                        </span>
+                    {/* Wishlist toggle */}
+                    <button 
+                      onClick={() => toggleWishlist(product.id)}
+                      className="absolute top-1.5 right-1.5 z-10 p-1 sm:p-1.5 rounded-full bg-white/90 hover:bg-white text-slate-400 hover:text-rose-500 shadow-xs transition-all duration-200 cursor-pointer hover:scale-110"
+                    >
+                      <Heart className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${wishlist.includes(product.id) ? "fill-rose-500 text-rose-500" : ""}`} />
+                    </button>
+
+                    {/* Compact Image Container (50% reduced height with clean framing) */}
+                    <div className="relative overflow-hidden bg-gradient-to-b from-slate-50/80 to-white/90 h-20 sm:h-24 md:h-28 flex items-center justify-center">
+                      <img 
+                        src={product.image} 
+                        className="w-full h-full object-contain p-1.5 sm:p-2 transition-transform duration-300 group-hover:scale-108" 
+                        alt={product.nameEn}
+                        referrerPolicy="no-referrer"
+                        onError={handleProductImgError}
+                      />
+                      <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
+                        <button 
+                          onClick={() => openQuickView(product)}
+                          className="p-1 rounded-full bg-white hover:bg-emerald-500 text-slate-800 hover:text-white shadow-xs transition-colors cursor-pointer hover:scale-105"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </button>
                       </div>
                     </div>
 
-                    <div className="mt-2.5 pt-2 border-t border-slate-50">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-sm font-black text-emerald-600">৳{fmtNum(product.price)}</span>
-                        {product.originalPrice && product.originalPrice > product.price ? (
-                          <span className="text-[10px] text-slate-400 line-through">৳{fmtNum(product.originalPrice)}</span>
-                        ) : null}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-1.5 mt-2">
-                        <button 
-                          onClick={() => addToCart(product)}
-                          className={`py-1.5 text-[10px] font-bold rounded-lg transition shadow-xs cursor-pointer flex items-center justify-center space-x-1 border ${cart.some(item => item.product.id === product.id) ? "bg-emerald-50 text-emerald-700 border border-emerald-600 hover:bg-emerald-100" : "bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50"}`}
-                        >
-                          {cart.some(item => item.product.id === product.id) ? (
-                            <span>{lang === "bn" ? "✓ কার্ট" : "✓ Cart"}</span>
-                          ) : (
-                            <span>{lang === "bn" ? "🛒 কার্ট" : "🛒 Cart"}</span>
+                    {/* Content */}
+                    <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-[11px] sm:text-xs md:text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-600 transition-colors leading-snug">
+                          {lang === "bn" ? product.nameBn : product.nameEn}
+                        </h4>
+                        <p className="text-[9px] sm:text-[10px] text-slate-400 line-clamp-1 leading-tight mt-0.5">{lang === "bn" ? product.nameEn : product.nameBn}</p>
+                        
+                        <div className="flex items-center justify-between mt-1">
+                          <div className="flex items-center space-x-1">
+                            <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 fill-amber-400" />
+                            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500">
+                              {fmtNum(product.rating)}
+                            </span>
+                          </div>
+                          {(product.unitBn || product.unitEn) && (
+                            <span className="text-[8.5px] sm:text-[9.5px] text-slate-400 font-medium truncate max-w-[50%]">
+                              {lang === "bn" ? product.unitBn : product.unitEn}
+                            </span>
                           )}
-                        </button>
-                        <button 
-                          onClick={() => handleBuyNow(product)}
-                          className="py-1.5 text-[10px] font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition shadow-xs cursor-pointer flex items-center justify-center space-x-1"
-                        >
-                          <span>{lang === "bn" ? "🛍️ অর্ডার" : "🛍️ Order"}</span>
-                        </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-xs sm:text-sm font-black text-emerald-600">৳{fmtNum(product.price)}</span>
+                          {product.originalPrice && product.originalPrice > product.price ? (
+                            <span className="text-[9px] sm:text-[10px] text-slate-400 line-through">৳{fmtNum(product.originalPrice)}</span>
+                          ) : null}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-1 mt-1.5">
+                          <button 
+                            onClick={() => addToCart(product)}
+                            className={`py-1 text-[9px] sm:text-[10px] font-bold rounded-lg transition shadow-2xs cursor-pointer flex items-center justify-center space-x-0.5 border ${cart.some(item => item.product.id === product.id) ? "bg-emerald-50 text-emerald-700 border border-emerald-600 hover:bg-emerald-100" : "bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50"}`}
+                          >
+                            {cart.some(item => item.product.id === product.id) ? (
+                              <span>{lang === "bn" ? "✓ কার্ট" : "✓ Cart"}</span>
+                            ) : (
+                              <span>{lang === "bn" ? "🛒 কার্ট" : "🛒 Cart"}</span>
+                            )}
+                          </button>
+                          <button 
+                            onClick={() => handleBuyNow(product)}
+                            className="py-1 text-[9px] sm:text-[10px] font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition shadow-2xs cursor-pointer flex items-center justify-center space-x-0.5"
+                          >
+                            <span>{lang === "bn" ? "🛍️ অর্ডার" : "🛍️ Order"}</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
           )}
 
           {/* ================= 8. BEST SELLERS ================= */}
-          <section className="max-w-7xl mx-auto px-4 mt-10">
-            <div className="flex justify-between items-center mb-6">
+          <section className="max-w-7xl mx-auto px-4 mt-8">
+            <div className="flex justify-between items-center mb-4">
               <div>
-                <h3 className="text-lg md:text-xl font-bold text-slate-800 flex items-center gap-1.5">
-                  <span className="w-2.5 h-6 bg-amber-500 rounded-full inline-block"></span>
+                <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="w-2 h-5 bg-amber-500 rounded-full inline-block"></span>
                   {lang === "bn" ? "সর্বোচ্চ বিক্রিত পণ্যসমূহ" : "Best Sellers"}
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-[11px] sm:text-xs text-slate-400">
                   {lang === "bn" ? "গ্রাহকদের সর্বোচ্চ পছন্দের তালিকায় থাকা পণ্যসমূহ" : "Our most popular and highest-selling groceries"}
                 </p>
               </div>
@@ -2271,90 +2312,111 @@ export default function App() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {availableProducts.filter(p => p.isBestSelling).slice(0, bestSellersLimit).map((product) => (
-                <div key={product.id} className="bg-white rounded-xl overflow-hidden border border-slate-100 flex flex-col justify-between hover:shadow-lg transition duration-300 relative group">
-                  {/* Discount badge */}
-                  {product.discount ? (
-                    <span className="absolute top-2 left-2 z-10 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow">
-                      {fmtNum(product.discount)}% {lang === "bn" ? "ছাড়" : "OFF"}
-                    </span>
-                  ) : null}
-
-                  {/* Wishlist toggle */}
-                  <button 
-                    onClick={() => toggleWishlist(product.id)}
-                    className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-white/80 hover:bg-white text-slate-400 hover:text-rose-500 shadow transition cursor-pointer"
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${wishlist.includes(product.id) ? "fill-rose-500 text-rose-500" : ""}`} />
-                  </button>
-
-                  {/* Image */}
-                  <div className="relative overflow-hidden bg-slate-50 h-32 sm:h-36">
-                    <img 
-                      src={product.image} 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                      alt={product.nameEn}
-                      referrerPolicy="no-referrer"
-                      onError={handleProductImgError}
-                    />
-                    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
-                      <button 
-                        onClick={() => openQuickView(product)}
-                        className="p-1.5 rounded-full bg-white hover:bg-emerald-500 text-slate-800 hover:text-white shadow-md transition-colors cursor-pointer hover:scale-105"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+            {loadingProducts ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl border border-slate-100 p-2.5 sm:p-3 animate-pulse shadow-2xs">
+                    <div className="w-full h-20 sm:h-24 bg-slate-100 rounded-xl mb-2.5"></div>
+                    <div className="h-3 w-3/4 bg-slate-100 rounded mb-1.5"></div>
+                    <div className="h-2 w-1/2 bg-slate-100 rounded mb-3"></div>
+                    <div className="h-6 w-full bg-slate-100 rounded-lg"></div>
                   </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
+                {availableProducts.filter(p => p.isBestSelling).slice(0, bestSellersLimit).map((product) => (
+                  <div key={product.id} className="bg-white rounded-2xl overflow-hidden border border-slate-100/90 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between relative group hover:-translate-y-0.5">
+                    {/* Discount badge */}
+                    {product.discount ? (
+                      <span className="absolute top-1.5 left-1.5 z-10 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-xs flex items-center gap-0.5">
+                        <span>{fmtNum(product.discount)}%</span>
+                        <span>{lang === "bn" ? "ছাড়" : "OFF"}</span>
+                      </span>
+                    ) : null}
 
-                  {/* Content */}
-                  <div className="p-3 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-600 transition-colors">
-                        {lang === "bn" ? product.nameBn : product.nameEn}
-                      </h4>
-                      <p className="text-[10px] text-slate-400 line-clamp-1">{lang === "bn" ? product.nameEn : product.nameBn}</p>
-                      
-                      <div className="flex items-center space-x-1 mt-1">
-                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                        <span className="text-[10px] font-bold text-slate-500">
-                          {fmtNum(product.rating)}
-                        </span>
+                    {/* Wishlist toggle */}
+                    <button 
+                      onClick={() => toggleWishlist(product.id)}
+                      className="absolute top-1.5 right-1.5 z-10 p-1 sm:p-1.5 rounded-full bg-white/90 hover:bg-white text-slate-400 hover:text-rose-500 shadow-xs transition-all duration-200 cursor-pointer hover:scale-110"
+                    >
+                      <Heart className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${wishlist.includes(product.id) ? "fill-rose-500 text-rose-500" : ""}`} />
+                    </button>
+
+                    {/* Compact Image Container (50% reduced height with clean framing) */}
+                    <div className="relative overflow-hidden bg-gradient-to-b from-slate-50/80 to-white/90 h-20 sm:h-24 md:h-28 flex items-center justify-center">
+                      <img 
+                        src={product.image} 
+                        className="w-full h-full object-contain p-1.5 sm:p-2 transition-transform duration-300 group-hover:scale-108" 
+                        alt={product.nameEn}
+                        referrerPolicy="no-referrer"
+                        onError={handleProductImgError}
+                      />
+                      <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
+                        <button 
+                          onClick={() => openQuickView(product)}
+                          className="p-1 rounded-full bg-white hover:bg-emerald-500 text-slate-800 hover:text-white shadow-xs transition-colors cursor-pointer hover:scale-105"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </button>
                       </div>
                     </div>
 
-                    <div className="mt-2.5 pt-2 border-t border-slate-50">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-sm font-black text-emerald-600">৳{fmtNum(product.price)}</span>
-                        {product.originalPrice && product.originalPrice > product.price ? (
-                          <span className="text-[10px] text-slate-400 line-through">৳{fmtNum(product.originalPrice)}</span>
-                        ) : null}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-1.5 mt-2">
-                        <button 
-                          onClick={() => addToCart(product)}
-                          className={`py-1.5 text-[10px] font-bold rounded-lg transition shadow-xs cursor-pointer flex items-center justify-center space-x-1 border ${cart.some(item => item.product.id === product.id) ? "bg-emerald-50 text-emerald-700 border border-emerald-600 hover:bg-emerald-100" : "bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50"}`}
-                        >
-                          {cart.some(item => item.product.id === product.id) ? (
-                            <span>{lang === "bn" ? "✓ কার্ট" : "✓ Cart"}</span>
-                          ) : (
-                            <span>{lang === "bn" ? "🛒 কার্ট" : "🛒 Cart"}</span>
+                    {/* Content */}
+                    <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-[11px] sm:text-xs md:text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-600 transition-colors leading-snug">
+                          {lang === "bn" ? product.nameBn : product.nameEn}
+                        </h4>
+                        <p className="text-[9px] sm:text-[10px] text-slate-400 line-clamp-1 leading-tight mt-0.5">{lang === "bn" ? product.nameEn : product.nameBn}</p>
+                        
+                        <div className="flex items-center justify-between mt-1">
+                          <div className="flex items-center space-x-1">
+                            <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 fill-amber-400" />
+                            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500">
+                              {fmtNum(product.rating)}
+                            </span>
+                          </div>
+                          {(product.unitBn || product.unitEn) && (
+                            <span className="text-[8.5px] sm:text-[9.5px] text-slate-400 font-medium truncate max-w-[50%]">
+                              {lang === "bn" ? product.unitBn : product.unitEn}
+                            </span>
                           )}
-                        </button>
-                        <button 
-                          onClick={() => handleBuyNow(product)}
-                          className="py-1.5 text-[10px] font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition shadow-xs cursor-pointer flex items-center justify-center space-x-1"
-                        >
-                          <span>{lang === "bn" ? "🛍️ অর্ডার" : "🛍️ Order"}</span>
-                        </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-xs sm:text-sm font-black text-emerald-600">৳{fmtNum(product.price)}</span>
+                          {product.originalPrice && product.originalPrice > product.price ? (
+                            <span className="text-[9px] sm:text-[10px] text-slate-400 line-through">৳{fmtNum(product.originalPrice)}</span>
+                          ) : null}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-1 mt-1.5">
+                          <button 
+                            onClick={() => addToCart(product)}
+                            className={`py-1 text-[9px] sm:text-[10px] font-bold rounded-lg transition shadow-2xs cursor-pointer flex items-center justify-center space-x-0.5 border ${cart.some(item => item.product.id === product.id) ? "bg-emerald-50 text-emerald-700 border border-emerald-600 hover:bg-emerald-100" : "bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50"}`}
+                          >
+                            {cart.some(item => item.product.id === product.id) ? (
+                              <span>{lang === "bn" ? "✓ কার্ট" : "✓ Cart"}</span>
+                            ) : (
+                              <span>{lang === "bn" ? "🛒 কার্ট" : "🛒 Cart"}</span>
+                            )}
+                          </button>
+                          <button 
+                            onClick={() => handleBuyNow(product)}
+                            className="py-1 text-[9px] sm:text-[10px] font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition shadow-2xs cursor-pointer flex items-center justify-center space-x-0.5"
+                          >
+                            <span>{lang === "bn" ? "🛍️ অর্ডার" : "🛍️ Order"}</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {/* ================= 9. REMAINING PRODUCT SECTIONS ================= */}
@@ -2388,13 +2450,18 @@ export default function App() {
           </div>
 
           {/* Seasonal Collection (Himsagar Mango, Jackfruit, etc) */}
+          {homeConfig?.featuredProducts?.seasonalSectionVisible !== false && (
           <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-4">
             <h3 className="text-base font-bold text-slate-800 mb-3 flex items-center justify-between">
-              <span>{lang === "bn" ? "মৌসুমী তাজা ফল মেলা" : "Seasonal Special Fruits"}</span>
+              <span>
+                {lang === "bn" 
+                  ? (homeConfig?.featuredProducts?.seasonalTitleBn || "মৌসুমী তাজা ফল মেলা") 
+                  : (homeConfig?.featuredProducts?.seasonalTitleEn || "Seasonal Special Fruits")}
+              </span>
               <Sparkles className="w-4.5 h-4.5 text-amber-500 animate-spin" />
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              {availableProducts.filter(p => p.isSeasonal).slice(0, 2).map((product) => (
+              {availableProducts.filter(p => p.isSeasonal || (homeConfig?.featuredProducts?.seasonalProductIds || []).includes(p.id)).slice(0, 2).map((product) => (
                 <div key={product.id} className="bg-white p-3 rounded-xl border border-amber-50/30 flex flex-col justify-between">
                   <img src={product.image} className="w-full h-24 object-cover rounded-lg mb-2" onError={handleProductImgError} />
                   <h4 className="text-xs font-bold text-slate-800 line-clamp-1">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
@@ -2411,6 +2478,7 @@ export default function App() {
               ))}
             </div>
           </div>
+          )}
 
         </div>
       </section>
@@ -2501,95 +2569,7 @@ export default function App() {
                         <h4 className="text-xs sm:text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-600 transition-colors">
                           {lang === "bn" ? product.nameBn : product.nameEn}
                         </h4>
-                        <p className="text-[10px] text-slate-400 line-clamp-1">{lang === "bn" ? product.nameEn : product.nameBn}</p>
-                        
-                        <div className="flex items-center space-x-1 mt-1">
-                          <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                          <span className="text-[10px] font-bold text-slate-500">
-                            {fmtNum(product.rating)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="mt-2.5 pt-2 border-t border-slate-50">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-sm font-black text-emerald-600">৳{fmtNum(product.price)}</span>
-                          {product.originalPrice && product.originalPrice > product.price ? (
-                            <span className="text-[10px] text-slate-400 line-through">৳{fmtNum(product.originalPrice)}</span>
-                          ) : null}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-1.5 mt-2">
-                          <button 
-                            onClick={() => addToCart(product)}
-                            className={`py-1.5 text-[10px] font-bold rounded-lg transition shadow-xs cursor-pointer flex items-center justify-center space-x-1 border ${cart.some(item => item.product.id === product.id) ? "bg-emerald-50 text-emerald-700 border border-emerald-600 hover:bg-emerald-100" : "bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50"}`}
-                          >
-                            {cart.some(item => item.product.id === product.id) ? (
-                              <span>{lang === "bn" ? "✓ কার্ট" : "✓ Cart"}</span>
-                            ) : (
-                              <span>{lang === "bn" ? "🛒 কার্ট" : "🛒 Cart"}</span>
-                            )}
-                          </button>
-                          <button 
-                            onClick={() => handleBuyNow(product)}
-                            className="py-1.5 text-[10px] font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition shadow-xs cursor-pointer flex items-center justify-center space-x-1"
-                          >
-                            <span>{lang === "bn" ? "🛍️ অর্ডার" : "🛍️ Order"}</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </section>
-
-
-        </>
-        )
-      ) : (
-        <div className="max-w-7xl mx-auto px-4 mt-6">
-          {/* Category Page Header Banner */}
-          {(() => {
-            const cat = categories.find(c => c.id === selectedCategory);
-            if (!cat) return null;
-
-            // Filter products
-            const catProducts = availableProducts.filter((product) => {
-              const matchesCategory = product.category === selectedCategory;
-              const matchesSubcategory = selectedSubcategory === "all" || product.subcategory === selectedSubcategory;
-              const normSearch = searchQuery.toLowerCase();
-              const matchesSearch = 
-                product.nameBn.toLowerCase().includes(normSearch) || 
-                product.nameEn.toLowerCase().includes(normSearch) || 
-                product.descriptionBn.toLowerCase().includes(normSearch) ||
-                product.descriptionEn.toLowerCase().includes(normSearch) ||
-                (product.brand && product.brand.toLowerCase().includes(normSearch));
-              return matchesCategory && matchesSubcategory && matchesSearch;
-            });
-
-            // Unique subcategories
-            const allCatProducts = availableProducts.filter(p => p.category === selectedCategory);
-            const subcategories = ["all", ...Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean)))];
-
-            // Sort products
-            const sortedProducts = [...catProducts].sort((a, b) => {
-              if (sortBy === "price-low") return a.price - b.price;
-              if (sortBy === "price-high") return b.price - a.price;
-              if (sortBy === "rating") return b.rating - a.rating;
-              if (sortBy === "discount") return (b.discount || 0) - (a.discount || 0);
-              // Default sorting respects displayOrder / order set by Admin
-              const orderA = typeof (a as any).displayOrder === "number" ? (a as any).displayOrder : (typeof (a as any).order === "number" ? (a as any).order : 9999);
-              const orderB = typeof (b as any).displayOrder === "number" ? (b as any).displayOrder : (typeof (b as any).order === "number" ? (b as any).order : 9999);
-              return orderA - orderB;
-            });
-
-            return (
-              <>
+                        <p className="text-[10px] text-slat              <>
                 <div className={`p-6 sm:p-8 rounded-2xl bg-gradient-to-br ${cat.colorClass.split(" ")[0]} border ${cat.borderColor} flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm`}>
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-md shrink-0 animate-fade-in overflow-hidden">
@@ -2681,8 +2661,22 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Loading Skeleton */}
+                {loadingProducts && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 mt-6">
+                    {Array.from({ length: 10 }).map((_, i) => (
+                      <div key={i} className="bg-white rounded-2xl overflow-hidden border border-slate-100 p-2.5 sm:p-3 animate-pulse shadow-2xs">
+                        <div className="w-full h-20 sm:h-24 bg-slate-100 rounded-xl mb-2.5"></div>
+                        <div className="h-3 w-3/4 bg-slate-100 rounded mb-1.5"></div>
+                        <div className="h-2 w-1/2 bg-slate-100 rounded mb-3"></div>
+                        <div className="h-6 w-full bg-slate-100 rounded-lg"></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Empty list search warning */}
-                {sortedProducts.length === 0 && (
+                {!loadingProducts && sortedProducts.length === 0 && (
                   <div className="mt-10 p-10 bg-white border border-slate-100 rounded-2xl text-center shadow-sm flex flex-col items-center max-w-md mx-auto">
                     <Search className="w-12 h-12 text-slate-300 mb-3 animate-pulse" />
                     <h3 className="text-sm font-bold text-slate-800">{lang === "bn" ? "কোন পণ্য পাওয়া যায়নি!" : "No products found!"}</h3>
@@ -2704,29 +2698,103 @@ export default function App() {
                 )}
 
                 {/* Grid */}
-                {sortedProducts.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6 mt-6">
+                {!loadingProducts && sortedProducts.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 mt-6">
                     {sortedProducts.map((product) => (
                       <div 
                         key={product.id} 
-                        className="bg-white rounded-2xl overflow-hidden border border-slate-100 flex flex-col justify-between hover:shadow-xl transition-all duration-300 relative group"
+                        className="bg-white rounded-2xl overflow-hidden border border-slate-100/90 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col justify-between relative group hover:-translate-y-0.5"
                       >
                         {product.discount && product.discount > 0 ? (
-                          <span className="absolute top-2.5 left-2.5 z-10 bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-md">
-                            {fmtNum(product.discount)}% {lang === "bn" ? "ছাড়" : "OFF"}
+                          <span className="absolute top-1.5 left-1.5 z-10 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-xs flex items-center gap-0.5">
+                            <span>{fmtNum(product.discount)}%</span>
+                            <span>{lang === "bn" ? "ছাড়" : "OFF"}</span>
                           </span>
                         ) : null}
 
                         <button 
                           onClick={() => toggleWishlist(product.id)}
-                          className="absolute top-2.5 right-2.5 z-10 p-1.5 rounded-full bg-white/90 hover:bg-white text-slate-400 hover:text-rose-500 shadow-md transition-all duration-200 cursor-pointer hover:scale-110"
+                          className="absolute top-1.5 right-1.5 z-10 p-1 sm:p-1.5 rounded-full bg-white/90 hover:bg-white text-slate-400 hover:text-rose-500 shadow-xs transition-all duration-200 cursor-pointer hover:scale-110"
                         >
-                          <Heart className={`w-4 h-4 ${wishlist.includes(product.id) ? "fill-rose-500 text-rose-500" : ""}`} />
+                          <Heart className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${wishlist.includes(product.id) ? "fill-rose-500 text-rose-500" : ""}`} />
                         </button>
 
-                        <div className="relative overflow-hidden bg-slate-50 h-36 sm:h-44">
+                        {/* Compact Image container (50% reduced height) */}
+                        <div className="relative overflow-hidden bg-gradient-to-b from-slate-50/80 to-white/90 h-20 sm:h-24 md:h-28 flex items-center justify-center">
                           <img 
                             src={product.image} 
+                            className="w-full h-full object-contain p-1.5 sm:p-2 transition-transform duration-300 group-hover:scale-108" 
+                            alt={product.nameEn}
+                            referrerPolicy="no-referrer"
+                            onError={handleProductImgError}
+                          />
+                          <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
+                            <button 
+                              onClick={() => openQuickView(product)}
+                              className="p-1 rounded-full bg-white hover:bg-emerald-500 text-slate-800 hover:text-white shadow-xs transition-colors cursor-pointer hover:scale-105"
+                            >
+                              <Eye className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-between">
+                          <div>
+                            <span className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-black tracking-wider">
+                              {product.subcategory}
+                            </span>
+                            <h4 className="text-[11px] sm:text-xs md:text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-emerald-600 transition-colors leading-snug">
+                              {lang === "bn" ? product.nameBn : product.nameEn}
+                            </h4>
+                            <p className="text-[9px] sm:text-[10px] text-slate-400 line-clamp-1 leading-tight mt-0.5">{lang === "bn" ? product.nameEn : product.nameBn}</p>
+                            
+                            <div className="flex items-center justify-between mt-1">
+                              <div className="flex items-center space-x-1">
+                                <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 fill-amber-400" />
+                                <span className="text-[9px] sm:text-[10px] font-bold text-slate-500">
+                                  {fmtNum(product.rating)}
+                                </span>
+                              </div>
+                              {(product.unitBn || product.unitEn) && (
+                                <span className="text-[8.5px] sm:text-[9.5px] text-slate-400 font-medium truncate max-w-[50%]">
+                                  {lang === "bn" ? product.unitBn : product.unitEn}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-xs sm:text-sm font-black text-emerald-600">৳{fmtNum(product.price)}</span>
+                              {product.originalPrice && product.originalPrice > product.price ? (
+                                <span className="text-[9px] sm:text-[10px] text-slate-400 line-through">৳{fmtNum(product.originalPrice)}</span>
+                              ) : null}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-1 mt-1.5">
+                              <button 
+                                onClick={() => addToCart(product)}
+                                className={`py-1 text-[9px] sm:text-[10px] font-bold rounded-lg transition shadow-2xs cursor-pointer flex items-center justify-center space-x-0.5 border ${cart.some(item => item.product.id === product.id) ? "bg-emerald-50 text-emerald-700 border border-emerald-600 hover:bg-emerald-100" : "bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50"}`}
+                              >
+                                {cart.some(item => item.product.id === product.id) ? (
+                                  <span>{lang === "bn" ? "✓ কার্ট" : "✓ Cart"}</span>
+                                ) : (
+                                  <span>{lang === "bn" ? "🛒 কার্ট" : "🛒 Cart"}</span>
+                                )}
+                              </button>
+                              <button 
+                                onClick={() => handleBuyNow(product)}
+                                className="py-1 text-[9px] sm:text-[10px] font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition shadow-2xs cursor-pointer flex items-center justify-center space-x-0.5"
+                              >
+                                <span>{lang === "bn" ? "🛍️ অর্ডার" : "🛍️ Order"}</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+                    ))}
+                  </div>uct.image} 
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
                             alt={product.nameEn}
                             referrerPolicy="no-referrer"
@@ -2813,7 +2881,7 @@ export default function App() {
       )}
 
       {/* ================= RECENTLY VIEWED (DYNAMIC FEED) ================= */}
-      {recentlyViewed.length > 0 && (
+      {(homeConfig?.sectionVisibility?.showRecentlyViewed !== false && recentlyViewed.length > 0) && (
         <section className="max-w-7xl mx-auto px-4 mt-10">
           <h3 className="text-base font-bold text-slate-800 mb-4 pb-1 border-b border-slate-100 flex items-center gap-1.5">
             <span className="w-2.5 h-4 bg-emerald-600 rounded"></span>
@@ -2838,87 +2906,176 @@ export default function App() {
         </section>
       )}
 
-      {/* ================= WHY CHOOSE US ================= */}
-      <section className="max-w-7xl mx-auto px-4 mt-3 sm:mt-6 md:mt-12 bg-white rounded-2xl border border-slate-100 py-2 px-3 sm:p-6 md:p-8">
-        <div className="text-center max-w-xl mx-auto mb-1 md:mb-8">
-          <h3 className="text-sm sm:text-lg md:text-2xl font-black text-slate-800 leading-tight">
-            {lang === "bn" ? "কেন আমরাই সেরা অনলাইন কাচা বাজার?" : "Why Choose Kacha Bazar Grocery?"}
-          </h3>
-          <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5 md:mt-1 leading-tight">
-            {lang === "bn" ? "খাদ্য সচেতনতা ও বিশুদ্ধতার এক অনন্য নির্ভরযোগ্য ঠিকানা" : "Our commitment to transparency, quality and organic farming"}
-          </p>
-        </div>
+      {/* ================= WHY CHOOSE US (EXACT MATCH TO REFERENCE DESIGN - COMPACT 50% HEIGHT) ================= */}
+      {homeConfig?.sectionVisibility?.showWhyChooseUs !== false && (
+      <section className="max-w-7xl mx-auto px-3 sm:px-4 mt-1.5 sm:mt-2">
+        <div className="bg-white rounded-xl md:rounded-2xl border border-slate-200/80 shadow-[0_1px_4px_rgba(0,0,0,0.02)] py-1.5 sm:py-2 px-2 sm:px-3">
+          {/* Section Header with Leaf Accents */}
+          <div className="flex items-center justify-center gap-1 sm:gap-1.5 mb-1">
+            {/* Left Leaf Ornament */}
+            <span className="flex items-center gap-0.5 text-emerald-500 select-none scale-75">
+              <span className="w-1 h-2 bg-emerald-500 rounded-full rotate-[-45deg] inline-block"></span>
+              <span className="w-1.5 h-1 bg-emerald-500 rounded-full inline-block"></span>
+              <span className="w-1 h-2 bg-emerald-500 rounded-full rotate-[45deg] inline-block"></span>
+            </span>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-0.5 sm:gap-2 md:gap-6 text-center">
-          {[
-            { icon: <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-emerald-600 mx-auto" />, titleBn: "রাসায়নিক ও ফরমালিন মুক্ত", titleEn: "100% Chemical Free", descBn: "শতভাগ সতেজ ও প্রাকৃতিকভাবে চাষকৃত পণ্য", descEn: "Strict standards ensuring absolute safety" },
-            { icon: <Truck className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-emerald-600 mx-auto" />, titleBn: "⚡ ১ ঘণ্টার মধ্যে ডেলিভারি", titleEn: "⚡ 1-Hour Delivery", descBn: "বিশেষ রেফ্রিজারেটেড বাক্সে সতেজতা বজায় রাখা", descEn: "Preserving nutrients from fields to kitchens" },
-            { icon: <Droplet className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-emerald-600 mx-auto" />, titleBn: "পরিবেশ বান্ধব বায়ো-প্যাকেজিং", titleEn: "Eco-Friendly Biodegradable Bags", descBn: "পচনশীল পাটের থলি ব্যবহার করে প্রকৃতির যত্ন", descEn: "Eliminating plastic waste entirely from logistics" },
-            { icon: <User className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-emerald-600 mx-auto" />, titleBn: "সরাসরি কৃষকবান্ধব চাষ সোর্সিং", titleEn: "Direct Farmer-First Sourcing", descBn: "কৃষকদের ন্যায্যমূল্য প্রদান ও গ্রামীণ উন্নয়ন", descEn: "Sourcing ethically without middleman commissions" }
-          ].map((item, idx) => (
-            <div key={idx} className="py-0.5 px-2 sm:p-4 rounded-xl hover:bg-slate-50 transition">
-              <div className="mb-0.5 md:mb-3">{item.icon}</div>
-              <h4 className="text-[11px] sm:text-sm font-bold text-slate-800 leading-tight">{lang === "bn" ? item.titleBn : item.titleEn}</h4>
-              <p className="text-[9.5px] sm:text-[11px] text-slate-400 mt-0 md:mt-1 leading-tight">{lang === "bn" ? item.descBn : item.descEn}</p>
+            <h3 className="text-xs sm:text-sm font-black text-[#132a45] tracking-tight text-center leading-none">
+              {lang === "bn" 
+                ? (homeConfig?.whyChooseUs?.titleBn || "কেন আমরাই সেরা অনলাইন কাচা বাজার?") 
+                : (homeConfig?.whyChooseUs?.titleEn || "Why Choose Kacha Bazar Grocery?")}
+            </h3>
+
+            {/* Right Leaf Ornament */}
+            <span className="flex items-center gap-0.5 text-emerald-500 select-none scale-75">
+              <span className="w-1 h-2 bg-emerald-500 rounded-full rotate-[-45deg] inline-block"></span>
+              <span className="w-1.5 h-1 bg-emerald-500 rounded-full inline-block"></span>
+              <span className="w-1 h-2 bg-emerald-500 rounded-full rotate-[45deg] inline-block"></span>
+            </span>
+          </div>
+
+          {/* 4 Feature Columns with Dashed Separators */}
+          <div className="grid grid-cols-2 md:grid-cols-4 text-center">
+            {/* Column 1: স্বাস্থ্যকর ও প্রাকৃতিক পণ্য */}
+            <div className="flex flex-col items-center justify-start py-0.5 px-1 sm:px-1.5 border-r border-b md:border-b-0 border-dashed border-slate-200">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 rounded-full bg-[#edf8f0] flex items-center justify-center mb-0.5 shrink-0">
+                <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 text-emerald-600" viewBox="0 0 36 36" fill="currentColor">
+                  <path d="M18 29V18M18 18C17.5 13 13 8.5 6 8c0 7 3.8 11.5 12 10zm0 0c.5-5 5-10 12-10 0 7-4.5 11.5-12 10z" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <h4 className="text-[10px] sm:text-[11px] md:text-xs font-bold text-[#132a45] leading-tight">
+                {lang === "bn" ? "স্বাস্থ্যকর ও প্রাকৃতিক পণ্য" : "Healthy & Natural Products"}
+              </h4>
+              <p className="text-[8.5px] sm:text-[9.5px] md:text-[10px] text-slate-500 font-medium leading-tight max-w-[160px] mx-auto">
+                {lang === "bn" ? "সতেজ পণ্য ও প্রাকৃতিজ উপাদান নিশ্চিত" : "Fresh products & natural ingredients guaranteed"}
+              </p>
             </div>
-          ))}
+
+            {/* Column 2: ⚡ ১ ঘণ্টার মধ্যে ডেলিভারি */}
+            <div className="flex flex-col items-center justify-start py-0.5 px-1 sm:px-1.5 border-b md:border-b-0 md:border-r border-dashed border-slate-200">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 rounded-full bg-[#fff8eb] flex items-center justify-center mb-0.5 shrink-0">
+                <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 text-amber-500 fill-amber-500" />
+              </div>
+              <h4 className="text-[10px] sm:text-[11px] md:text-xs font-bold text-[#132a45] leading-tight">
+                <span className="text-amber-500 mr-0.5">⚡</span>
+                {lang === "bn" ? "১ ঘণ্টার মধ্যে ডেলিভারি" : "1-Hour Delivery"}
+              </h4>
+              <p className="text-[8.5px] sm:text-[9.5px] md:text-[10px] text-slate-500 font-medium leading-tight max-w-[160px] mx-auto">
+                {lang === "bn" ? "দ্রুত ডেলিভারিতে সময় বাঁচান" : "Save time with fast express delivery"}
+              </p>
+            </div>
+
+            {/* Column 3: পরিবেশবান্ধব প্যাকেজিং */}
+            <div className="flex flex-col items-center justify-start py-0.5 px-1 sm:px-1.5 border-r border-dashed border-slate-200">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 rounded-full bg-[#edf8f0] flex items-center justify-center mb-0.5 shrink-0">
+                <Truck className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 text-emerald-600 fill-emerald-600" />
+              </div>
+              <h4 className="text-[10px] sm:text-[11px] md:text-xs font-bold text-[#132a45] leading-tight">
+                {lang === "bn" ? "পরিবেশবান্ধব প্যাকেজিং" : "Eco-Friendly Packaging"}
+              </h4>
+              <p className="text-[8.5px] sm:text-[9.5px] md:text-[10px] text-slate-500 font-medium leading-tight max-w-[160px] mx-auto">
+                {lang === "bn" ? "পরিবেশ সুরক্ষায় আমরা প্রতিশ্রুতিবদ্ধ" : "Committed to protecting our environment"}
+              </p>
+            </div>
+
+            {/* Column 4: সরাসরি কৃষকের কাছ থেকে */}
+            <div className="flex flex-col items-center justify-start py-0.5 px-1 sm:px-1.5">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 rounded-full bg-[#edf8f0] flex items-center justify-center mb-0.5 shrink-0">
+                <User className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 text-emerald-600 fill-emerald-600" />
+              </div>
+              <h4 className="text-[10px] sm:text-[11px] md:text-xs font-bold text-[#132a45] leading-tight">
+                {lang === "bn" ? "সরাসরি কৃষকের কাছ থেকে" : "Directly From Farmers"}
+              </h4>
+              <p className="text-[8.5px] sm:text-[9.5px] md:text-[10px] text-slate-500 font-medium leading-tight max-w-[160px] mx-auto">
+                {lang === "bn" ? "কৃষকের ন্যায্যমূল্যে পণ্য ও প্রাপ্তি নিশ্চিত" : "Ensuring fair farmer prices & authenticity"}
+              </p>
+            </div>
+          </div>
         </div>
       </section>
+      )}
 
-      {/* ================= DOWNLOAD APP BANNER ================= */}
-      <section className="max-w-7xl mx-auto px-4 mt-5 md:mt-10 pb-8 md:pb-16">
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl md:rounded-3xl p-4 sm:p-5 md:p-10 text-white relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-3 md:gap-8 shadow-xl">
-          <div className="absolute top-0 right-0 -translate-y-12 translate-x-12 w-64 h-64 rounded-full bg-emerald-500/10 blur-3xl"></div>
+      {/* ================= DOWNLOAD APP BANNER (COMPACT 50% HEIGHT) ================= */}
+      {(homeConfig?.sectionVisibility?.showMobileApp !== false && homeConfig?.mobileAppConfig?.enabled !== false) && (
+      <section className="max-w-7xl mx-auto px-4 mt-2 md:mt-2.5 pb-1.5 md:pb-2.5">
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl md:rounded-2xl py-2 sm:py-2.5 px-3 sm:px-4 md:px-5 text-white relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4 shadow-sm">
+          <div className="absolute top-0 right-0 -translate-y-12 translate-x-12 w-36 h-36 rounded-full bg-emerald-500/10 blur-2xl"></div>
           
           <div className="flex-1 max-w-lg z-10">
-            <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold tracking-widest uppercase inline-block mb-1 md:mb-2">
+            <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full text-[7.5px] sm:text-[8.5px] font-bold tracking-widest uppercase inline-block mb-0.5">
               {lang === "bn" ? "মোবাইল অ্যাপ্লিকেশন" : "Mobile App Launch"}
             </span>
-            <h3 className="text-base sm:text-lg md:text-3xl font-extrabold leading-tight">
-              {lang === "bn" ? "অর্ডার করুন কাচা বাজার মোবাইল অ্যাপে!" : "Order Smoother inside Mobile Application!"}
-            </h3>
-            <p className="text-[11px] sm:text-xs text-slate-300 mt-1 md:mt-2">
+            <h3 className="text-xs sm:text-sm md:text-base font-extrabold leading-tight">
               {lang === "bn" 
-                ? "অ্যাপ ডাউনলোড করলেই প্রথম ৩টি অর্ডারে পাচ্ছেন ফ্রি হোম ডেলিভারি ও ২০০ টাকা ক্যাশব্যাক অফার! আজই ডাউনলোড করুন।" 
-                : "Unlock exclusive deals, live delivery trackers, and instant cashbacks inside Kacha Bazar app."}
+                ? (homeConfig?.mobileAppConfig?.titleBn || "অর্ডার করুন কাচা বাজার মোবাইল অ্যাপে!") 
+                : (homeConfig?.mobileAppConfig?.titleEn || "Order Smoother inside Mobile Application!")}
+            </h3>
+            <p className="text-[9px] sm:text-[10.5px] text-slate-300 mt-0.5 leading-tight">
+              {lang === "bn" 
+                ? (homeConfig?.mobileAppConfig?.subtitleBn || "অ্যাপ ডাউনলোড করলেই প্রথম ৩টি অর্ডারে পাচ্ছেন ফ্রি হোম ডেলিভারি ও ২০০ টাকা ক্যাশব্যাক অফার! আজই ডাউনলোড করুন।") 
+                : (homeConfig?.mobileAppConfig?.subtitleEn || "Unlock exclusive deals, live delivery trackers, and instant cashbacks inside Kacha Bazar app.")}
             </p>
             
-            <div className="flex flex-wrap items-center gap-2 md:gap-3 mt-3 md:mt-6">
+            <div className="flex flex-wrap items-center gap-1.5 md:gap-2 mt-1.5 md:mt-2">
               <button 
-                onClick={() => triggerToast("গুগল প্লে স্টোর অ্যাপ ডাউনলোড লিংক কপি হয়েছে", "Google Play Store Link Copied")}
-                className="bg-white/10 hover:bg-white/20 border border-white/15 px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg text-left transition flex items-center space-x-1.5 md:space-x-2 cursor-pointer min-h-[40px] md:min-h-0"
+                onClick={() => {
+                  if (homeConfig?.mobileAppConfig?.playStoreUrl) {
+                    window.open(homeConfig.mobileAppConfig.playStoreUrl, "_blank");
+                  } else {
+                    triggerToast("গুগল প্লে স্টোর অ্যাপ ডাউনলোড লিংক কপি হয়েছে", "Google Play Store Link Copied");
+                  }
+                }}
+                className="bg-white/10 hover:bg-white/20 border border-white/15 px-1.5 py-0.5 md:px-2 md:py-1 rounded-md text-left transition flex items-center space-x-1 cursor-pointer"
               >
-                <Smartphone className="w-4 h-4 md:w-5 md:h-5 text-emerald-400 shrink-0" />
+                <Smartphone className="w-3 h-3 md:w-3.5 md:h-3.5 text-emerald-400 shrink-0" />
                 <div className="leading-tight">
-                  <p className="text-[7px] md:text-[8px] text-slate-400 uppercase font-semibold">Get it on</p>
-                  <p className="text-[11px] md:text-xs font-bold">Google Play</p>
+                  <p className="text-[6.5px] text-slate-400 uppercase font-semibold leading-none">Get it on</p>
+                  <p className="text-[9px] md:text-[10px] font-bold leading-tight">Google Play</p>
                 </div>
               </button>
 
               <button 
-                onClick={() => triggerToast("অ্যাপল অ্যাপ স্টোর ডাউনলোড লিংক কপি হয়েছে", "Apple App Store Link Copied")}
-                className="bg-white/10 hover:bg-white/20 border border-white/15 px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg text-left transition flex items-center space-x-1.5 md:space-x-2 cursor-pointer min-h-[40px] md:min-h-0"
+                onClick={() => {
+                  if (homeConfig?.mobileAppConfig?.appStoreUrl) {
+                    window.open(homeConfig.mobileAppConfig.appStoreUrl, "_blank");
+                  } else {
+                    triggerToast("অ্যাপল অ্যাপ স্টোর ডাউনলোড লিংক কপি হয়েছে", "Apple App Store Link Copied");
+                  }
+                }}
+                className="bg-white/10 hover:bg-white/20 border border-white/15 px-1.5 py-0.5 md:px-2 md:py-1 rounded-md text-left transition flex items-center space-x-1 cursor-pointer"
               >
-                <Smartphone className="w-4 h-4 md:w-5 md:h-5 text-emerald-400 shrink-0" />
+                <Smartphone className="w-3 h-3 md:w-3.5 md:h-3.5 text-emerald-400 shrink-0" />
                 <div className="leading-tight">
-                  <p className="text-[7px] md:text-[8px] text-slate-400 uppercase font-semibold">Download on the</p>
-                  <p className="text-[11px] md:text-xs font-bold">App Store</p>
+                  <p className="text-[6.5px] text-slate-400 uppercase font-semibold leading-none">Download on the</p>
+                  <p className="text-[9px] md:text-[10px] font-bold leading-tight">App Store</p>
                 </div>
               </button>
             </div>
           </div>
 
-          <div className="shrink-0 flex items-center space-x-2.5 md:space-x-4 bg-white/5 p-2.5 sm:p-3 md:p-4 rounded-xl md:rounded-2xl border border-white/10 z-10">
-            <QrCode className="w-12 h-12 sm:w-14 sm:h-14 md:w-20 md:h-20 text-white shrink-0" />
-            <div className="max-w-[110px] md:max-w-[120px]">
-              <p className="text-[11px] md:text-xs font-bold leading-tight">{lang === "bn" ? "স্ক্যান করে ডাউনলোড করুন" : "Scan to Download Now"}</p>
-              <p className="text-[8px] md:text-[9px] text-slate-400 mt-0.5 md:mt-1">{lang === "bn" ? "আইওএস এবং অ্যান্ড্রয়েড সংস্করণ সমর্থিত" : "iOS & Android app available"}</p>
+          <div className="shrink-0 flex items-center space-x-1.5 md:space-x-2 bg-white/5 py-1 px-1.5 sm:py-1.5 sm:px-2 md:py-1.5 md:px-2.5 rounded-lg border border-white/10 z-10">
+            {homeConfig?.mobileAppConfig?.qrCodeImage ? (
+              <img 
+                src={homeConfig.mobileAppConfig.qrCodeImage} 
+                alt="QR Code" 
+                className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 object-contain bg-white rounded p-0.5" 
+                onError={(e) => {
+                  (e.target as any).style.display = 'none';
+                }}
+              />
+            ) : (
+              <QrCode className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 text-white shrink-0" />
+            )}
+            <div className="max-w-[105px] md:max-w-[115px]">
+              <p className="text-[9px] md:text-[10.5px] font-bold leading-tight">{lang === "bn" ? "স্ক্যান করে ডাউনলোড করুন" : "Scan to Download Now"}</p>
+              <p className="text-[7px] md:text-[8px] text-slate-400 mt-0.5 leading-tight">{lang === "bn" ? "আইওএস এবং অ্যান্ড্রয়েড সংস্করণ সমর্থিত" : "iOS & Android app available"}</p>
             </div>
           </div>
         </div>
       </section>
+      )}
 
       {/* ================= BEAUTIFUL FOOTER ================= */}
+      {homeConfig?.sectionVisibility?.showFooter !== false && (
       <footer className="bg-slate-900 text-slate-400 pt-12 pb-6 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-12 gap-8 mb-10 text-xs sm:text-sm items-start">
           
@@ -2937,27 +3094,35 @@ export default function App() {
             </div>
             <p className="leading-relaxed mb-4 text-slate-400 text-xs">
               {lang === "bn" 
-                ? "আমাদের মিশন হলো সর্বোচ্চ তাজা ও বিষমুক্ত সবজি, তাজা মাছ, মাংস ও মুদি পণ্য সরাসরি কৃষকদের মাঠ থেকে তুলে গ্রাহকদের ঘরের দরজায় পৌঁছে দেওয়া।" 
-                : "We are committed to delivering 100% formalin-free, organic, and daily harvested food items direct-from-farmers to your kitchen."}
+                ? (homeConfig?.footerConfig?.aboutBn || "আমাদের মিশন হলো সর্বোচ্চ তাজা ও বিষমুক্ত সবজি, তাজা মাছ, মাংস ও মুদি পণ্য সরাসরি কৃষকদের মাঠ থেকে তুলে গ্রাহকদের ঘরের দরজায় পৌঁছে দেওয়া।") 
+                : (homeConfig?.footerConfig?.aboutEn || "We are committed to delivering 100% formalin-free, organic, and daily harvested food items direct-from-farmers to your kitchen.")}
             </p>
             <div className="space-y-1.5 text-xs">
               <p className="font-bold text-white text-xs flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5 text-emerald-400" />
                 <span>{lang === "bn" ? "ইমেইল:" : "Email:"}</span>
-                <a href="mailto:sarkarmdanik14@gmail.com" className="hover:text-emerald-400 transition underline">sarkarmdanik14@gmail.com</a>
+                <a href={`mailto:${homeConfig?.footerConfig?.email || "sarkarmdanik14@gmail.com"}`} className="hover:text-emerald-400 transition underline">
+                  {homeConfig?.footerConfig?.email || "sarkarmdanik14@gmail.com"}
+                </a>
               </p>
               <p className="font-bold text-white text-xs flex items-center gap-1.5">
                 <Phone className="w-3.5 h-3.5 text-emerald-400" />
                 <span>{lang === "bn" ? "হটলাইন:" : "Hotline:"}</span>
-                <a href="tel:+8801722638985" className="hover:text-emerald-400 transition underline">+8801722638985</a>
+                <a href={`tel:${homeConfig?.footerConfig?.phone || "+8801722638985"}`} className="hover:text-emerald-400 transition underline">
+                  {homeConfig?.footerConfig?.phone || "+8801722638985"}
+                </a>
               </p>
               <div className="font-bold text-white text-xs flex items-start gap-1.5 leading-snug">
                 <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <span>{lang === "bn" ? "অফিস ঠিকানা:" : "Office Address:"}</span>
-                  <span className="block font-medium text-slate-300 mt-0.5">{lang === "bn" ? "চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর, বাংলাদেশ" : "Chanchkoir Bazar, Gurudaspur, Natore, Bangladesh"}</span>
+                  <span className="block font-medium text-slate-300 mt-0.5">
+                    {lang === "bn" 
+                      ? (homeConfig?.footerConfig?.addressBn || "চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর, বাংলাদেশ") 
+                      : (homeConfig?.footerConfig?.addressEn || "Chanchkoir Bazar, Gurudaspur, Natore, Bangladesh")}
+                  </span>
                   <a 
-                    href="https://www.google.com/maps/search/?api=1&query=Chanchkoir+Bazar,+Gurudaspur,+Natore,+Bangladesh" 
+                    href={homeConfig?.footerConfig?.mapsUrl || "https://www.google.com/maps/search/?api=1&query=Chanchkoir+Bazar,+Gurudaspur,+Natore,+Bangladesh"} 
                     target="_blank" 
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 bg-emerald-700/50 hover:bg-emerald-600 border border-emerald-600 text-white font-bold text-[9px] px-2 py-0.5 rounded mt-1.5 transition"
@@ -3068,6 +3233,39 @@ export default function App() {
 
         <div className="max-w-7xl mx-auto px-4 pt-6 border-t border-slate-800 text-center text-xs text-slate-500 flex flex-col md:flex-row justify-between items-center gap-4">
           <p>© {new Date().getFullYear()} {lang === "bn" ? "কাচা বাজার লিমিটেড। সর্বস্বত্ব সংরক্ষিত।" : "Kacha Bazar Ltd. All rights reserved."}</p>
+          
+          {/* Bottom Language Switcher */}
+          <div className="flex items-center space-x-2 bg-slate-900 border border-slate-700/80 px-3 py-1.5 rounded-full text-xs" id="footer-lang-switcher">
+            <span className="text-slate-400 font-bold flex items-center gap-1.5">
+              <span>🌐</span>
+              <span>{lang === "bn" ? "ভাষা:" : "Language:"}</span>
+            </span>
+            <div className="flex items-center space-x-1">
+              <button 
+                onClick={() => setLang("bn")}
+                className={`px-2.5 py-1 rounded-full font-bold text-xs transition cursor-pointer ${
+                  lang === "bn" 
+                    ? "bg-emerald-600 text-white shadow-sm" 
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="বাংলা নির্বাচন করুন"
+              >
+                বাংলা
+              </button>
+              <button 
+                onClick={() => setLang("en")}
+                className={`px-2.5 py-1 rounded-full font-bold text-xs transition cursor-pointer ${
+                  lang === "en" 
+                    ? "bg-emerald-600 text-white shadow-sm" 
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="Select English"
+              >
+                English
+              </button>
+            </div>
+          </div>
+
           <div className="flex items-center space-x-3 text-xs text-slate-400">
             <a 
               href="?panel=seller" 
@@ -3111,25 +3309,26 @@ export default function App() {
           <p>{lang === "bn" ? `নেতৃত্বে: চেয়ারম্যান (${leadership.chairman?.nameBn || "এমএসটি হোসনে আরা বেগম"}), ভাইস চেয়ারম্যান (${leadership.viceChairman?.nameBn || "মোঃ আবু হানিফ সরকার"}) এবং প্রতিষ্ঠাতা (${leadership.founder?.nameBn || "মোঃ অনিক সরকার"})` : `Led by ${leadership.chairman?.nameEn || "MST HOSNE ARA BEGUM"} (Chairman), ${leadership.viceChairman?.nameEn || "MD ABU HANIF SARKAR"} (Vice Chairman) & ${leadership.founder?.nameEn || "MD ANIK SARKAR"} (Founder)`}</p>
         </div>
       </footer>
+      )}
 
-      {/* ================= CONTINUE SHOPPING MOBILE FLOAT CONTROLS ================= */}
+      {/* ================= COMPACT FLOATING CHECKOUT BAR ================= */}
       {cart.length > 0 && (
-        <div className="fixed bottom-4 left-4 right-4 z-40 bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-2xl shadow-xl border border-slate-800 flex items-center justify-between transition-all duration-300 md:hidden">
-          <div className="flex items-center space-x-3">
-            <span className="bg-emerald-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center animate-bounce">
+        <div className="fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-xs sm:max-w-sm bg-slate-900/95 backdrop-blur-md text-white py-2 px-3 sm:px-3.5 rounded-xl shadow-lg shadow-slate-950/20 border border-slate-700/70 flex items-center justify-between transition-all duration-300">
+          <div className="flex items-center space-x-2.5 min-w-0">
+            <span className="bg-emerald-600 text-white text-[10px] sm:text-xs font-bold w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full flex items-center justify-center shrink-0">
               {fmtNum(cart.reduce((s, i) => s + i.quantity, 0))}
             </span>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase leading-none">{lang === "bn" ? "মোট পেমেন্ট" : "Total Payment"}</p>
-              <p className="text-sm font-black text-emerald-400 mt-0.5 leading-none">৳{fmtNum(subtotal)}</p>
+            <div className="min-w-0">
+              <p className="text-[9px] sm:text-[10px] text-slate-400 font-medium leading-none truncate">{lang === "bn" ? "মোট পেমেন্ট" : "Total"}</p>
+              <p className="text-xs sm:text-sm font-black text-emerald-400 mt-0.5 leading-none">৳{fmtNum(subtotal)}</p>
             </div>
           </div>
           <button 
             onClick={() => setShowCart(true)}
-            className="bg-emerald-500 hover:bg-emerald-600 font-bold text-xs px-4 py-2 rounded-lg cursor-pointer transition flex items-center space-x-1"
+            className="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold text-xs px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg cursor-pointer transition shadow flex items-center space-x-1 shrink-0 ml-2"
           >
             <span>{lang === "bn" ? "চেকআউট" : "Checkout"}</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
           </button>
         </div>
       )}
@@ -3162,218 +3361,97 @@ export default function App() {
           <div onClick={() => setShowCart(false)} className="flex-1 cursor-pointer"></div>
           
           {/* Drawer Panel */}
-          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col p-4 sm:p-6 animate-in slide-in-from-right duration-300">
+          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col p-3.5 sm:p-5 animate-in slide-in-from-right duration-300">
             
             {/* Drawer Header */}
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100 shrink-0">
+            <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 shrink-0">
               <div className="flex items-center space-x-2">
-                <ShoppingCart className="w-5 h-5 text-emerald-600" />
-                <h3 className="text-base font-bold text-slate-800">{lang === "bn" ? "আমার শপিং কার্ট" : "My Shopping Cart"}</h3>
+                <ShoppingCart className="w-4.5 h-4.5 text-emerald-600" />
+                <h3 className="text-sm sm:text-base font-bold text-slate-800">{lang === "bn" ? "আমার শপিং কার্ট" : "My Shopping Cart"}</h3>
               </div>
               <button 
                 onClick={() => setShowCart(false)}
                 className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4.5 h-4.5" />
               </button>
             </div>
 
             {/* Cart Items List */}
-            <div className="flex-1 overflow-y-auto my-4 space-y-3 pr-1 min-h-0">
+            <div className="flex-1 overflow-y-auto my-2 space-y-2 pr-1 min-h-0">
               {cart.length === 0 ? (
-                <div className="text-center py-10">
-                  <ShoppingCart className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                <div className="text-center py-8">
+                  <ShoppingCart className="w-10 h-10 text-slate-300 mx-auto mb-1.5" />
                   <p className="text-xs font-bold text-slate-500">{lang === "bn" ? "কার্টটি সম্পূর্ণ খালি!" : "Your cart is completely empty!"}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">{lang === "bn" ? "পছন্দসই তাজা পণ্যগুলো কার্টে যুক্ত করুন" : "Browse fresh goods to add them"}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{lang === "bn" ? "পছন্দসই তাজা পণ্যগুলো কার্টে যুক্ত করুন" : "Browse fresh goods to add them"}</p>
                 </div>
               ) : (
-                  cart.map((item, idx) => {
-                    const availableOptions = getProductWeightOptions(item.product);
-                    const currentOpt = item.selectedOption || availableOptions.find(o => o.price === item.product.price) || availableOptions[0];
-                    const itemPrice = currentOpt ? currentOpt.price : item.product.price;
-                    const optStock = typeof currentOpt?.stock === "number" ? currentOpt.stock : (typeof item.product.stock === "number" ? item.product.stock : 50);
-                    const isItemOutOfStock = optStock <= 0 || item.product.isAvailable === false || (typeof item.product.stock === "number" && item.product.stock <= 0);
-                    const isInsufficientStock = isItemOutOfStock || (item.quantity > optStock);
-                    const uniqueKey = `${item.product.id}_${currentOpt?.value || 'def'}_${currentOpt?.unit || 'def'}_${idx}`;
+                cart.map((item, idx) => {
+                  const uniqueKey = `${item.product.id}_${item.selectedOption?.value || 'def'}_${item.selectedOption?.unit || 'def'}_${idx}`;
+                  return (
+                    <CartItemRow
+                      key={uniqueKey}
+                      item={item}
+                      itemIndex={idx}
+                      lang={lang}
+                      fmtNum={fmtNum}
+                      onUpdateOption={updateCartItemOption}
+                      onRemove={removeFromCart}
+                      handleProductImgError={handleProductImgError}
+                    />
+                  );
+                })
+              )}
+            </div>
 
-                    return (
-                      <div key={uniqueKey} className="flex gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100 relative group">
-                        <img src={item.product.image} className="w-12 h-12 object-cover rounded-lg shrink-0 bg-white" onError={handleProductImgError} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start">
-                            <h4 className="text-xs font-bold text-slate-800 truncate pr-4">
-                              {lang === "bn" ? item.product.nameBn : item.product.nameEn}
-                            </h4>
-                            <button 
-                              onClick={() => removeFromCart(item.product.id, item.selectedOption)}
-                              className="text-slate-400 hover:text-red-500 transition shrink-0 ml-1 cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-
-                          {/* Weight / Unit option selector */}
-                          {availableOptions.length > 1 ? (
-                            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[10px] text-slate-500 font-bold shrink-0">
-                                {lang === "bn" ? "ওজন/পরিমাণ:" : "Weight/Unit:"}
-                              </span>
-                              <select
-                                value={currentOpt ? `${currentOpt.value}::${currentOpt.unit}` : ""}
-                                onChange={(e) => {
-                                  const [valStr, unitStr] = e.target.value.split("::");
-                                  const selected = availableOptions.find(o => String(o.value) === valStr && o.unit === unitStr);
-                                  if (selected) {
-                                    updateCartItemOption(idx, selected);
-                                  }
-                                }}
-                                className="bg-white border border-slate-200 text-slate-800 text-[10.5px] font-bold rounded-lg px-2 py-0.5 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-2xs max-w-[150px] truncate"
-                              >
-                                {availableOptions.map((opt, oIdx) => (
-                                  <option key={oIdx} value={`${opt.value}::${opt.unit}`}>
-                                    {getOptionLabel(opt, lang, fmtNum)}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          ) : (
-                            <p className="text-[9px] text-slate-400">
-                              {currentOpt 
-                                ? (lang === "bn" ? `প্যাক: ${currentOpt.value} ${currentOpt.unit}` : `Pack: ${currentOpt.value} ${currentOpt.unit}`) 
-                                : (lang === "bn" ? `ইউনিট: ${item.product.unitBn}` : `Unit: ${item.product.unitEn}`)}
-                            </p>
-                          )}
-
-                          {/* Stock error alert */}
-                          {isInsufficientStock && (
-                            <div className="mt-1 text-[10px] font-extrabold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
-                              <span>⚠️</span>
-                              <span>{lang === "bn" ? "পর্যাপ্ত স্টক নেই (Insufficient Stock)" : "Insufficient Stock"}</span>
-                            </div>
-                          )}
-
-                          <p className="text-xs font-black text-emerald-600 mt-1">৳{fmtNum(itemPrice)}</p>
-                          
-                          <div className="flex justify-between items-center mt-2">
-                            {/* Quantity selectors */}
-                            <div className="flex items-center space-x-2 bg-white rounded-lg border border-slate-200 px-1.5 py-0.5">
-                              <button 
-                                onClick={() => updateCartQuantity(item.product.id, -1, item.selectedOption)}
-                                className="p-0.5 text-slate-500 hover:text-emerald-600 transition cursor-pointer"
-                              >
-                                <Minus className="w-3 h-3" />
-                              </button>
-                              <span className="text-xs font-mono font-bold text-slate-800">{fmtNum(item.quantity)}</span>
-                              <button 
-                                onClick={() => updateCartQuantity(item.product.id, 1, item.selectedOption)}
-                                className="p-0.5 text-slate-500 hover:text-emerald-600 transition cursor-pointer"
-                              >
-                                <Plus className="w-3 h-3" />
-                              </button>
-                            </div>
-                            <span className="text-xs font-black text-slate-700">৳{fmtNum(itemPrice * item.quantity)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-            {/* Cart Footer Price Block */}
+            {/* Cart Footer Action Block (Only 2 Order Options) */}
             {cart.length > 0 && (
-              <div className="border-t border-slate-100 pt-4 mt-4 bg-white z-10">
+              <div className="border-t border-slate-100 pt-3 mt-1 bg-white z-10 shrink-0 space-y-2">
                 
-                {/* Coupon Code interface */}
-                <div className="flex gap-1.5 mb-3">
-                  <input
-                    type="text"
-                    placeholder={lang === "bn" ? "কুপন কোড (যেমন KACHA10)" : "Coupon Code (e.g. KACHA10)"}
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
-                    className="flex-1 bg-slate-50 border border-slate-200 text-xs rounded-lg px-2.5 py-2 outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500"
-                  />
-                  <button 
-                    onClick={handleApplyCoupon}
-                    className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer transition"
-                  >
-                    {lang === "bn" ? "প্রয়োগ" : "Apply"}
-                  </button>
-                </div>
-
-                {appliedCoupon && (
-                  <div className="bg-emerald-50 border border-emerald-100 p-2 rounded-lg flex justify-between items-center mb-3">
-                    <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider">
-                      ✓ কুপন সক্রিয়: {appliedCoupon.code}
-                    </span>
-                    <button 
-                      onClick={() => setAppliedCoupon(null)}
-                      className="text-slate-400 hover:text-slate-800 text-xs font-bold"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-
-                <div className="space-y-1 text-xs mb-4">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">{lang === "bn" ? "সাবটোটাল" : "Subtotal"}</span>
-                    <span className="font-bold text-slate-700">৳{fmtNum(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">{lang === "bn" ? "ডেলিভারি ফি" : "Delivery Fee"}</span>
-                    <span className="font-bold text-slate-700">
-                      {deliveryFee === 0 ? (
-                        <span className="text-emerald-600 uppercase font-black text-[10px]">FREE</span>
-                      ) : (
-                        `৳${fmtNum(deliveryFee)}`
-                      )}
-                    </span>
-                  </div>
-                  {appliedCoupon && appliedCoupon.code !== "FREESHIP" && (
-                    <div className="flex justify-between text-rose-500 font-bold">
-                      <span>{lang === "bn" ? "কুপন ডিসকাউন্ট" : "Coupon Discount"}</span>
-                      <span>-৳{fmtNum(discountAmt)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm font-black text-slate-800 pt-1.5 border-t border-slate-50 mt-1.5">
-                    <span>{lang === "bn" ? "সর্বমোট পরিশোধ" : "Grand Total"}</span>
-                    <span className="text-emerald-600">৳{fmtNum(grandTotal)}</span>
-                  </div>
-                </div>
-
                 {hasInsufficientCartStock && (
-                  <div className="mb-3 p-2 bg-rose-50 border border-rose-200 rounded-xl text-center">
+                  <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-center">
                     <p className="text-xs font-bold text-rose-600">
                       ⚠️ {lang === "bn" ? "পর্যাপ্ত স্টক নেই (Insufficient Stock)" : "Insufficient Stock"}
                     </p>
-                    <p className="text-[10px] text-rose-500 mt-0.5">
+                    <p className="text-[10px] text-rose-500">
                       {lang === "bn" ? "কার্টের পণ্যের সঠিক ওজন বা পরিমাণ সিলেক্ট করুন।" : "Please adjust weight or quantity to proceed to checkout."}
                     </p>
                   </div>
                 )}
 
+                {hasInvalidCustomWeight && (
+                  <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-center">
+                    <p className="text-xs font-bold text-rose-600">
+                      ⚠️ {lang === "bn" ? "সর্বোচ্চ ২ কেজি লিমিট অতিক্রম করেছে" : "Maximum 2kg limit exceeded"}
+                    </p>
+                    <p className="text-[10px] text-rose-500">
+                      {lang === "bn" ? "কার্টের পণ্যের ওজন সর্বোচ্চ ২ কেজির মধ্যে রাখুন।" : "Please keep item weight within 2kg (2000g)."}
+                    </p>
+                  </div>
+                )}
+
+                {/* 1. Checkout Button */}
                 <button 
                   onClick={executeCheckout}
-                  disabled={checkoutStatus === "loading" || hasInsufficientCartStock}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow shadow-emerald-100 flex items-center justify-center space-x-2 cursor-pointer disabled:bg-slate-300 disabled:cursor-not-allowed"
+                  disabled={checkoutStatus === "loading" || hasInsufficientCartStock || hasInvalidCustomWeight}
+                  className="w-full py-2.5 sm:py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl transition shadow-md shadow-emerald-100 flex items-center justify-center space-x-2 cursor-pointer disabled:bg-slate-300 disabled:cursor-not-allowed active:scale-[0.99]"
                 >
                   {checkoutStatus === "loading" ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   ) : (
                     <>
-                      <span>{lang === "bn" ? "অর্ডার সম্পন্ন করুন (চেকআউট)" : "Place Order & Checkout Now"}</span>
-                      <ArrowRight className="w-4.5 h-4.5" />
+                      <span>{lang === "bn" ? "অর্ডার সম্পন্ন করুন (চেকআউট)" : "Place Order & Checkout"}</span>
+                      <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
 
-                {/* Call to Order Button inside Cart Drawer */}
+                {/* 2. Call to Order Button */}
                 <a 
                   href="tel:+8801722638985"
-                  className="mt-2.5 w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs rounded-xl transition shadow flex items-center justify-center space-x-2 cursor-pointer"
+                  className="w-full py-2 sm:py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs sm:text-xs rounded-xl transition shadow flex items-center justify-center space-x-1.5 cursor-pointer active:scale-[0.99]"
                 >
-                  <Phone className="w-4 h-4 animate-pulse shrink-0" />
+                  <Phone className="w-3.5 h-3.5 animate-pulse shrink-0" />
                   <span>{lang === "bn" ? "কল করে অর্ডার করুন (+৮৮০১৭২২-৬৩৮৯৮৫)" : "Call to Order (+8801722638985)"}</span>
                 </a>
 
@@ -3797,6 +3875,15 @@ export default function App() {
         <CustomerLiveChat 
           lang={lang} 
           onOpenPortal={() => setShowPortalModal(true)} 
+          isOpen={showLiveChat}
+          onToggleOpen={(open) => setShowLiveChat(open !== undefined ? open : !showLiveChat)}
+        />
+
+        {/* ================= REAL-TIME WEB VOICE CALL MODAL ================= */}
+        <CustomerVoiceCallModal 
+          lang={lang}
+          isOpen={showVoiceCall}
+          onClose={() => setShowVoiceCall(false)}
         />
       </React.Suspense>
 

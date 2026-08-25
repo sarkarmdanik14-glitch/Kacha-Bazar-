@@ -253,7 +253,7 @@ export default function OrderMemoModal({
         : (Array.isArray(order.cart) ? order.cart : []));
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+    <div className="order-memo-modal-overlay fixed inset-0 z-[1000] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
       {/* CSS stylesheet injected for flawless printing behavior & Unicode Bangla Font Rendering */}
       <style dangerouslySetInnerHTML={{ __html: `
         @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap');
@@ -265,54 +265,80 @@ export default function OrderMemoModal({
         @media print {
           @page {
             size: A4 portrait;
-            margin: 10mm;
+            margin: 8mm;
+          }
+          *, *::before, *::after {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           body, html {
-            background: #fff !important;
-            color: #000 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
             margin: 0 !important;
             padding: 0 !important;
             width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
           }
-          body * {
-            visibility: hidden !important;
-          }
-          .no-print, button {
+          .no-print, button, nav, header, footer {
             display: none !important;
           }
-          .printable-memo-container, .printable-memo-container * {
-            visibility: visible !important;
+          .order-memo-modal-overlay {
+            position: static !important;
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            display: block !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+          }
+          .order-memo-modal-card {
+            box-shadow: none !important;
+            border: none !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            max-height: none !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
           }
           .printable-memo-container {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            display: block !important;
+            position: static !important;
             width: 100% !important;
             padding: 0 !important;
             margin: 0 !important;
-            background: white !important;
+            background: #ffffff !important;
             box-shadow: none !important;
             border: none !important;
             overflow: visible !important;
           }
           .printable-memo-card {
+            display: block !important;
             border: 1px solid #cbd5e1 !important;
             box-shadow: none !important;
             max-width: 100% !important;
             width: 100% !important;
-            margin: 0 !important;
-            padding: 24px !important;
+            margin: 0 auto !important;
+            padding: 20px !important;
             overflow: visible !important;
-            border-radius: 0 !important;
+            border-radius: 6px !important;
+            background: #ffffff !important;
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
         }
       `}} />
 
       {/* On-screen Modal Window */}
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-2xl w-full max-h-[90vh] overflow-y-auto flex flex-col relative animate-scale-up">
+      <div className="order-memo-modal-card bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-2xl w-full max-h-[90vh] overflow-y-auto flex flex-col relative animate-scale-up">
         
         {/* Header Bar with Action Buttons */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10 no-print">
           <div className="flex items-center space-x-2.5">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <FileText className="w-5 h-5" />
@@ -365,7 +391,7 @@ export default function OrderMemoModal({
 
         {/* Optional QR Seal Drawer */}
         {showVerificationDrawer && (
-          <div className="bg-emerald-950 text-white p-4 border-b border-emerald-800 flex items-center justify-between text-xs animate-fade-in">
+          <div className="bg-emerald-950 text-white p-4 border-b border-emerald-800 flex items-center justify-between text-xs animate-fade-in no-print">
             <div className="flex items-center gap-3">
               {qrDataUrl ? (
                 <img src={qrDataUrl} alt="QR Seal" className="w-12 h-12 bg-white p-1 rounded-xl shrink-0" />

@@ -6,3 +6,9 @@
   --font-bangla: "Hind Siliguri", "SolaimanLipi", "Noto Sans Bengali", sans-serif;
   --font-arabic: "Scheherazade New", "Amiri", "Noto Naskh Arabic", serif;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

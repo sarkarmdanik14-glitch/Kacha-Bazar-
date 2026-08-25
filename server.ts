@@ -1,14 +1,25 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import crypto from "crypto";
 import QRCode from "qrcode";
-import { jsPDF } from "jspdf";
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: "10mb" }));
+
+// Health Check Endpoints for Cloud Run & Ingress Probes
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+
+app.get("/healthz", (req, res) => {
+  res.status(200).send("OK");
+});
+
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
 
 // Secret HMAC key for tamper detection
 const MEMO_SECRET = process.env.MEMO_SECRET_KEY || "KANCHA_BAZAR_OFFICIAL_MEMO_SECRET_2026";
@@ -169,18 +180,38 @@ app.post("/api/memo/generate-pdf", async (req, res) => {
 // Vite Middleware & Server Lifecycle
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (err) {
+      console.error("Failed to initialize Vite middleware in development mode:", err);
+    }
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      res.sendFile(path.join(distPath, "index.html"), (err) => {
+        if (err) {
+          console.error("Error serving index.html:", err);
+          if (!res.headersSent) {
+            res.status(500).send("Application is starting up or building. Please refresh in a moment.");
+          }
+        }
+      });
     });
   }
+
+  // Fallback global error handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("Unhandled error:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);

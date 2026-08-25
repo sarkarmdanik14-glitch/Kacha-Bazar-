@@ -226,16 +226,26 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Chats - User accesses ONLY their own live chat session
+    // Chats - Support chat sessions for both registered users and guest visitors, managed by Admin
     match /chats/{chatId} {
-      allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == chatId);
-      allow create: if isSignedIn() && request.auth.uid == chatId;
+      allow read, write: if true;
     }
 
-    // Chat messages - User accesses ONLY messages from their chat session
+    // Chat messages - Support messages for both registered users and guest visitors, managed by Admin
     match /chat_messages/{messageId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.chatId == request.auth.uid);
-      allow create: if isAdmin() || (isSignedIn() && request.resource.data.chatId == request.auth.uid);
+      allow read, write: if true;
+    }
+
+    // WebRTC Voice Calls & Signaling for Customers and Admins
+    match /voice_calls/{callId} {
+      allow read, write: if true;
+
+      match /callerCandidates/{candidateId} {
+        allow read, write: if true;
+      }
+      match /calleeCandidates/{candidateId} {
+        allow read, write: if true;
+      }
     }
   }
 }

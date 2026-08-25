@@ -355,31 +355,28 @@ export default function CheckoutModal({
 
             if (aggItem.selectedOption) {
               // Variant / Option selected
-              if (!dbOptions) {
-                const nameBn = `${aggItem.sampleItem.product.nameBn || aggItem.sampleItem.product.nameEn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
-                const nameEn = `${aggItem.sampleItem.product.nameEn || aggItem.sampleItem.product.nameBn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
-                throw new Error(`INSUFFICIENT_STOCK:${nameBn}/${nameEn}:0`);
+              const optIndex = dbOptions 
+                ? dbOptions.findIndex((opt: any) => opt.value === aggItem.selectedOption?.value && opt.unit === aggItem.selectedOption?.unit)
+                : -1;
+
+              if (optIndex !== -1 && dbOptions) {
+                const currentOptStock = dbOptions[optIndex].stock;
+                if (typeof currentOptStock === "number" && currentOptStock < requestedQty) {
+                  const nameBn = `${aggItem.sampleItem.product.nameBn || aggItem.sampleItem.product.nameEn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
+                  const nameEn = `${aggItem.sampleItem.product.nameEn || aggItem.sampleItem.product.nameBn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
+                  throw new Error(`INSUFFICIENT_STOCK:${nameBn}/${nameEn}:${typeof currentOptStock === "number" ? currentOptStock : 0}`);
+                }
+                if (typeof currentOptStock === "number") {
+                  dbOptions[optIndex].stock = currentOptStock - requestedQty;
+                }
+              } else if (baseStock !== null) {
+                if (typeof baseStock === "number" && baseStock < requestedQty) {
+                  const nameBn = `${aggItem.sampleItem.product.nameBn || aggItem.sampleItem.product.nameEn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
+                  const nameEn = `${aggItem.sampleItem.product.nameEn || aggItem.sampleItem.product.nameBn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
+                  throw new Error(`INSUFFICIENT_STOCK:${nameBn}/${nameEn}:${typeof baseStock === "number" ? baseStock : 0}`);
+                }
+                baseStock = baseStock - requestedQty;
               }
-
-              const optIndex = dbOptions.findIndex(
-                (opt: any) => opt.value === aggItem.selectedOption?.value && opt.unit === aggItem.selectedOption?.unit
-              );
-
-              if (optIndex === -1) {
-                const nameBn = `${aggItem.sampleItem.product.nameBn || aggItem.sampleItem.product.nameEn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
-                const nameEn = `${aggItem.sampleItem.product.nameEn || aggItem.sampleItem.product.nameBn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
-                throw new Error(`INSUFFICIENT_STOCK:${nameBn}/${nameEn}:0`);
-              }
-
-              const currentOptStock = dbOptions[optIndex].stock;
-              if (typeof currentOptStock !== "number" || currentOptStock < requestedQty) {
-                const nameBn = `${aggItem.sampleItem.product.nameBn || aggItem.sampleItem.product.nameEn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
-                const nameEn = `${aggItem.sampleItem.product.nameEn || aggItem.sampleItem.product.nameBn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
-                throw new Error(`INSUFFICIENT_STOCK:${nameBn}/${nameEn}:${typeof currentOptStock === "number" ? currentOptStock : 0}`);
-              }
-
-              // Deduct exact quantity without fallback
-              dbOptions[optIndex].stock = currentOptStock - requestedQty;
             } else {
               // Base product stock (no variant selected)
               if (typeof baseStock !== "number" || baseStock < requestedQty) {
@@ -835,29 +832,36 @@ export default function CheckoutModal({
                   
                   {/* Item List */}
                   <div className="divide-y divide-slate-100 max-h-[300px] overflow-y-auto pr-1 space-y-3">
-                    {cart.map((item) => (
-                      <div key={item.product.id} className="flex justify-between items-center py-2.5 first:pt-0 last:pb-0 text-xs">
-                        <div className="flex items-center space-x-3 min-w-0 flex-1">
-                          <img 
-                            src={item.product.image} 
-                            className="w-12 h-12 object-cover rounded-xl border border-slate-100 shrink-0 bg-slate-50" 
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=450&q=80";
-                            }}
-                          />
-                          <div className="min-w-0">
-                            <p className="font-extrabold text-slate-800 truncate leading-snug">{getTranslation(item.product.nameBn, item.product.nameEn)}</p>
-                            <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                              {getTranslation("ইউনিট:", "Unit:")} {getTranslation(item.product.unitBn, item.product.unitEn)}
-                            </p>
-                            <p className="text-[10px] text-slate-400 font-bold">
-                              ৳{item.product.price} x {item.quantity}
-                            </p>
+                    {cart.map((item, idx) => {
+                      const itemPrice = item.selectedOption ? item.selectedOption.price : item.product.price;
+                      let weightText = item.selectedOption
+                        ? (item.selectedOption.customLabel || `${item.selectedOption.value} ${item.selectedOption.unit === 'g' ? (lang === 'bn' ? 'গ্রাম' : 'g') : item.selectedOption.unit === 'kg' ? (lang === 'bn' ? 'কেজি' : 'kg') : item.selectedOption.unit}`)
+                        : (lang === "bn" ? item.product.unitBn : item.product.unitEn);
+
+                      return (
+                        <div key={`${item.product.id}_${idx}`} className="flex justify-between items-center py-2.5 first:pt-0 last:pb-0 text-xs">
+                          <div className="flex items-center space-x-3 min-w-0 flex-1">
+                            <img 
+                              src={item.product.image} 
+                              className="w-12 h-12 object-cover rounded-xl border border-slate-100 shrink-0 bg-slate-50" 
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=450&q=80";
+                              }}
+                            />
+                            <div className="min-w-0">
+                              <p className="font-extrabold text-slate-800 truncate leading-snug">{getTranslation(item.product.nameBn, item.product.nameEn)}</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                                {getTranslation("ওজন/সাইজ:", "Weight/Size:")} <span className="font-bold text-slate-700">{weightText}</span>
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-bold">
+                                ৳{itemPrice} x {item.quantity}
+                              </p>
+                            </div>
                           </div>
+                          <span className="font-black text-slate-800 ml-4 shrink-0">৳{itemPrice * item.quantity}</span>
                         </div>
-                        <span className="font-black text-slate-800 ml-4 shrink-0">৳{item.product.price * item.quantity}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Price breakdown */}
@@ -952,26 +956,33 @@ export default function CheckoutModal({
               <span>{getTranslation("অর্ডার সারসংক্ষেপ", "Order Summary")}</span>
             </h4>
             <div className="divide-y divide-slate-100 max-h-[160px] overflow-y-auto pr-1 space-y-2">
-              {cart.map((item) => (
-                <div key={item.product.id} className="flex justify-between items-center py-2 first:pt-0 last:pb-0 text-xs">
-                  <div className="flex items-center space-x-2.5 min-w-0 flex-1">
-                    <img 
-                      src={item.product.image} 
-                      className="w-10 h-10 object-cover rounded-lg border border-slate-100 shrink-0 bg-slate-50" 
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=450&q=80";
-                      }}
-                    />
-                    <div className="min-w-0">
-                      <p className="font-bold text-slate-800 truncate">{getTranslation(item.product.nameBn, item.product.nameEn)}</p>
-                      <p className="text-[10px] text-slate-400">
-                        ৳{item.product.price} x {item.quantity}
-                      </p>
+              {cart.map((item, idx) => {
+                const itemPrice = item.selectedOption ? item.selectedOption.price : item.product.price;
+                let weightText = item.selectedOption
+                  ? (item.selectedOption.customLabel || `${item.selectedOption.value} ${item.selectedOption.unit === 'g' ? (lang === 'bn' ? 'গ্রাম' : 'g') : item.selectedOption.unit === 'kg' ? (lang === 'bn' ? 'কেজি' : 'kg') : item.selectedOption.unit}`)
+                  : (lang === "bn" ? item.product.unitBn : item.product.unitEn);
+
+                return (
+                  <div key={`${item.product.id}_${idx}`} className="flex justify-between items-center py-2 first:pt-0 last:pb-0 text-xs">
+                    <div className="flex items-center space-x-2.5 min-w-0 flex-1">
+                      <img 
+                        src={item.product.image} 
+                        className="w-10 h-10 object-cover rounded-lg border border-slate-100 shrink-0 bg-slate-50" 
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=450&q=80";
+                        }}
+                      />
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-800 truncate">{getTranslation(item.product.nameBn, item.product.nameEn)}</p>
+                        <p className="text-[10px] text-slate-500 font-medium">
+                          {weightText} · ৳{itemPrice} x {item.quantity}
+                        </p>
+                      </div>
                     </div>
+                    <span className="font-extrabold text-slate-700 shrink-0 ml-3">৳{itemPrice * item.quantity}</span>
                   </div>
-                  <span className="font-extrabold text-slate-700 shrink-0 ml-3">৳{item.product.price * item.quantity}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
             
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-150 space-y-1.5 text-xs text-slate-600">

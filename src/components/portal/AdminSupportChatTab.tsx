@@ -235,8 +235,15 @@ export default function AdminSupportChatTab({ lang, triggerToast }: AdminSupport
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline mb-0.5">
-                      <h5 className="text-xs font-black text-slate-800 truncate">{c.userDisplayName || "Customer User"}</h5>
-                      <span className="text-[9px] text-slate-400 font-bold shrink-0">
+                      <div className="flex items-center space-x-1.5 truncate">
+                        <h5 className="text-xs font-black text-slate-800 truncate">{c.userDisplayName || "Customer User"}</h5>
+                        {c.isGuest && (
+                          <span className="bg-amber-100 text-amber-800 text-[8px] font-black px-1.5 py-0.2 rounded-md uppercase tracking-wider shrink-0">
+                            {getTranslation("গেস্ট", "Guest")}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[9px] text-slate-400 font-bold shrink-0 ml-1">
                         {c.lastMessageAt ? new Date(c.lastMessageAt?.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
                       </span>
                     </div>

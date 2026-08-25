@@ -33,7 +33,9 @@ import AdminSupportChatTab from "./AdminSupportChatTab";
 import AdminLeadershipTab from "./AdminLeadershipTab";
 import AdminHomePageTab from "./AdminHomePageTab";
 import AdminMemoManagementTab from "./AdminMemoManagementTab";
-import { MessageSquare, Printer, Layout } from "lucide-react";
+import AdminVoiceCallTab from "./AdminVoiceCallTab";
+import AdminIncomingCallModal from "./AdminIncomingCallModal";
+import { MessageSquare, Printer, Layout, PhoneCall } from "lucide-react";
 import OrderMemoModal from "./OrderMemoModal";
 
 interface AdminPanelProps {
@@ -56,7 +58,7 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
     );
   }
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "orders" | "products" | "memo_management" | "users" | "leadership" | "home_management" | "coupons" | "notifications" | "settings" | "support_chat">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "orders" | "products" | "memo_management" | "users" | "leadership" | "home_management" | "coupons" | "notifications" | "settings" | "support_chat" | "voice_calls">("dashboard");
   
   // Real-time states
   const [orders, setOrders] = useState<any[]>([]);
@@ -434,6 +436,7 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
               { id: "users", labelBn: "ইউজার ডাটাবেজ", labelEn: "Role Management", icon: <User className="w-4 h-4" /> },
               { id: "leadership", labelBn: "নেতৃত্ব ব্যবস্থাপনা", labelEn: "Leadership Management", icon: <Award className="w-4 h-4" /> },
               { id: "support_chat", labelBn: "লাইভ কাস্টমার সাপোর্ট", labelEn: "Live Chat Support", icon: <MessageSquare className="w-4 h-4" /> },
+              { id: "voice_calls", labelBn: "ভয়েস কল হেল্পডেস্ক", labelEn: "Voice Call Center", icon: <PhoneCall className="w-4 h-4" /> },
               { id: "coupons", labelBn: "ডিসকাউন্ট কুপনস", labelEn: "Coupons & Discounts", icon: <Percent className="w-4 h-4" /> },
               { id: "notifications", labelBn: "বিজ্ঞপ্তি ব্রডকাস্ট", labelEn: "Notification Broadcast", icon: <Bell className="w-4 h-4" /> },
               { id: "settings", labelBn: "গ্লোবাল সেটিংস", labelEn: "Global Config", icon: <Settings className="w-4 h-4" /> }
@@ -763,6 +766,13 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
               </div>
             )}
 
+            {/* TAB: VOICE CALLS */}
+            {activeTab === "voice_calls" && (
+              <div className="space-y-6 animate-fade-in">
+                <AdminVoiceCallTab lang={lang} triggerToast={triggerToast} />
+              </div>
+            )}
+
             {/* TAB: SETTINGS */}
             {activeTab === "settings" && (
               <div className="space-y-6 animate-fade-in">
@@ -773,6 +783,13 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
           </>
         )}
       </div>
+
+      {/* Global Incoming Voice Call Ringing / Active Modal */}
+      <AdminIncomingCallModal 
+        lang={lang} 
+        triggerToast={triggerToast} 
+        onNavigateToVoiceTab={() => setActiveTab("voice_calls")} 
+      />
 
       {/* Printable Order Memo / Invoice Modal Overlay */}
       <OrderMemoModal

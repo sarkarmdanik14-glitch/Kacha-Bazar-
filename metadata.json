@@ -1,6 +1,6 @@
 {
   "name": "কাচা বাজার - Premium Grocery Store",
   "description": "A world-class, premium, and highly engaging grocery e-commerce homepage for fresh produce, meats, daily essentials, and quick 15-minute deliveries.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

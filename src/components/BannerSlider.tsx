@@ -10,6 +10,7 @@ interface BannerSliderProps {
   onReferralClick: () => void;
   onFlashSaleClick: () => void;
   customBanners?: any[];
+  loading?: boolean;
 }
 
 export const BannerSlider: React.FC<BannerSliderProps> = ({
@@ -19,7 +20,8 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
   timeLeft,
   onReferralClick,
   onFlashSaleClick,
-  customBanners = []
+  customBanners = [],
+  loading = false
 }) => {
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -35,19 +37,38 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
     return lang === "bn" ? toBnNum(num) : num.toString();
   };
 
-  // Combine active custom banners and default templates
+  // Render sleek, compact banner height (reduced by ~50% for optimal balance)
+  const containerHeightClass = "h-[85px] sm:h-[100px] md:h-[110px]";
+
+  // If loading banners from Firebase, show a sleek skeleton
+  if (loading) {
+    return (
+      <section className="max-w-7xl mx-auto px-4 mt-3 relative">
+        <div 
+          className={`w-full relative rounded-2xl overflow-hidden shadow-xs border border-slate-100 bg-slate-100 animate-pulse ${containerHeightClass}`}
+        >
+          <div className="w-full h-full flex items-center justify-between p-3 sm:p-4 bg-gradient-to-r from-slate-200/60 via-slate-100 to-slate-200/60">
+            <div className="space-y-1.5 max-w-[65%]">
+              <div className="h-2.5 w-20 bg-slate-300/70 rounded-md"></div>
+              <div className="h-4 sm:h-5 w-44 sm:w-72 bg-slate-300/80 rounded-lg"></div>
+              <div className="h-2.5 w-32 sm:w-48 bg-slate-300/60 rounded-md"></div>
+            </div>
+            <div className="h-7 sm:h-8 w-20 bg-slate-300/70 rounded-xl"></div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Use only dynamic custom banners from Firestore/Admin.
   const activeCustomBanners = customBanners.filter(b => b.isActive !== false);
 
-  const defaultBanners = [
-    { id: "default_ref", type: "referral" },
-    { id: "default_promo", type: "promo" },
-    { id: "default_mango", type: "mango" },
-    { id: "default_hilsha", type: "hilsha" },
-    { id: "default_flash", type: "flash" },
-    { id: "default_weekly", type: "weekly" },
-  ];
+  // If no banners configured in Firebase, do not show hard-coded fallback banners
+  if (activeCustomBanners.length === 0) {
+    return null;
+  }
 
-  const slides = [...activeCustomBanners, ...defaultBanners];
+  const slides = activeCustomBanners;
   const totalSlides = slides.length;
 
   const nextSlide = () => {
@@ -58,14 +79,11 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
     setActiveIndex((prev) => (prev - 1 + totalSlides) % totalSlides);
   };
 
-  // Render the sliding banners with standard height
-  const containerHeightClass = "h-[145px] sm:h-[170px]";
-
   return (
-    <section className="max-w-7xl mx-auto px-4 mt-4 relative">
+    <section className="max-w-7xl mx-auto px-4 mt-3 relative">
       {/* Slider Container with smooth height transition */}
       <div 
-        className={`w-full relative rounded-2xl overflow-hidden shadow-md transition-all duration-300 ease-out border border-slate-100 ${containerHeightClass}`}
+        className={`w-full relative rounded-2xl overflow-hidden shadow-xs transition-all duration-300 ease-out border border-slate-100 ${containerHeightClass}`}
         id="home-banner-slider"
       >
         {/* Navigation Buttons (Always visible on hover, elegant design) */}
@@ -74,11 +92,11 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
             e.stopPropagation();
             prevSlide();
           }}
-          className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center transition backdrop-blur-xs focus:outline-none cursor-pointer"
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-black/35 hover:bg-black/60 text-white flex items-center justify-center transition backdrop-blur-xs focus:outline-none cursor-pointer shadow-xs"
           aria-label="Previous slide"
           id="btn-slider-prev"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft className="w-3.5 h-3.5" />
         </button>
 
         <button
@@ -86,11 +104,11 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
             e.stopPropagation();
             nextSlide();
           }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center transition backdrop-blur-xs focus:outline-none cursor-pointer"
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-black/35 hover:bg-black/60 text-white flex items-center justify-center transition backdrop-blur-xs focus:outline-none cursor-pointer shadow-xs"
           aria-label="Next slide"
           id="btn-slider-next"
         >
-          <ArrowRight className="w-4 h-4" />
+          <ArrowRight className="w-3.5 h-3.5" />
         </button>
 
         <AnimatePresence mode="wait">
@@ -106,53 +124,52 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
               const slide = slides[activeIndex];
               if (!slide) return null;
 
-              // Check if it's a default template banner
+              // Referral Banner
               if (slide.type === "referral") {
                 return (
                   <div 
                     onClick={onReferralClick}
-                    className="w-full h-full bg-gradient-to-r from-emerald-950 via-emerald-800 to-teal-950 text-white p-4 sm:p-6 flex items-center justify-between relative overflow-hidden cursor-pointer select-none"
+                    className="w-full h-full bg-gradient-to-r from-emerald-950 via-emerald-800 to-teal-950 text-white px-3.5 sm:px-6 py-2 sm:py-3 flex items-center justify-between relative overflow-hidden cursor-pointer select-none"
                   >
-                    {/* Decorative glowing particles */}
-                    <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none"></div>
+                    <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-400/10 rounded-full blur-xl pointer-events-none"></div>
                     
-                    <div className="z-10 space-y-1 sm:space-y-1.5 max-w-[70%]">
+                    <div className="z-10 space-y-0.5 sm:space-y-1 max-w-[70%]">
                       <div className="flex items-center space-x-1.5">
-                        <span className="bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 rounded text-[8px] sm:text-[10px] font-bold tracking-wider text-emerald-300 uppercase">
+                        <span className="bg-emerald-500/20 border border-emerald-500/30 px-1.5 py-0.2 rounded text-[7.5px] sm:text-[9px] font-bold tracking-wider text-emerald-300 uppercase">
                           {lang === "bn" ? "আমন্ত্রণ ও পুরস্কার" : "REFERRAL REWARD"}
                         </span>
                         {userReferralCode && (
-                          <span className="bg-white/10 border border-white/20 rounded px-2 py-0.5 text-[8px] sm:text-[10px] font-mono font-bold tracking-wider text-yellow-300">
+                          <span className="bg-white/10 border border-white/20 rounded px-1.5 py-0.2 text-[7.5px] sm:text-[9px] font-mono font-bold tracking-wider text-yellow-300">
                             {userReferralCode}
                           </span>
                         )}
                       </div>
                       
-                      <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-white leading-tight">
+                      <h3 className="text-xs sm:text-sm md:text-base font-extrabold text-white leading-snug line-clamp-1">
                         {lang === "bn" 
-                          ? "🎉 বন্ধুদের আমন্ত্রণ জানান, ৳৫০ বোনাস জিতুন!" 
-                          : "🎉 Refer Friends, Earn ৳50 Wallet Credit!"}
+                          ? (slide.titleBn || "🎉 বন্ধুদের আমন্ত্রণ জানান, ৳৫০ বোনাস জিতুন!") 
+                          : (slide.titleEn || "🎉 Refer Friends, Earn ৳50 Wallet Credit!")}
                       </h3>
                       
-                      <p className="text-[10px] sm:text-xs text-emerald-100 font-medium truncate">
+                      <p className="text-[9px] sm:text-[11px] text-emerald-100/90 font-medium truncate">
                         {lang === "bn"
-                          ? "বন্ধুরা প্রথম অর্ডারে পাবেন ফ্রি ডেলিভারি এবং আপনার ওয়ালেটে যোগ হবে ৳৫০ ক্যাশব্যাক।"
-                          : "Friends get Free Delivery on first order. You earn BDT 50 wallet cashback."}
+                          ? (slide.subtitleBn || "বন্ধুরা প্রথম অর্ডারে পাবেন ফ্রি ডেলিভারি এবং আপনার ওয়ালেটে যোগ হবে ৳৫০ ক্যাশব্যাক।")
+                          : (slide.subtitleEn || "Friends get Free Delivery on first order. You earn BDT 50 wallet cashback.")}
                       </p>
                     </div>
 
-                    <div className="z-10 shrink-0 flex flex-col items-end gap-1.5">
+                    <div className="z-10 shrink-0 flex flex-col items-end gap-1">
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
                           onReferralClick();
                         }}
-                        className="bg-gradient-to-r from-yellow-400 to-amber-400 hover:from-yellow-300 hover:to-amber-300 text-slate-950 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-extrabold transition-all duration-300 flex items-center space-x-1 shadow hover:scale-105 active:scale-95 cursor-pointer"
+                        className="bg-gradient-to-r from-yellow-400 to-amber-400 hover:from-yellow-300 hover:to-amber-300 text-slate-950 px-2.5 sm:px-3 py-1 sm:py-1.2 rounded-lg text-[9px] sm:text-[11px] font-black transition-all duration-300 flex items-center space-x-1 shadow hover:scale-105 active:scale-95 cursor-pointer"
                       >
                         <span>{lang === "bn" ? "রেফার করুন" : "Refer Now"}</span>
-                        <ArrowRight className="w-3 h-3" />
+                        <ArrowRight className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       </button>
-                      <span className="text-[8px] sm:text-[10px] text-emerald-200/80 font-medium">
+                      <span className="text-[7.5px] sm:text-[9px] text-emerald-200/80 font-medium">
                         {lang === "bn" ? "*শর্ত প্রযোজ্য" : "*T&C Apply"}
                       </span>
                     </div>
@@ -160,184 +177,90 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
                 );
               }
 
-              if (slide.type === "promo") {
-                return (
-                  <div className="w-full h-full bg-gradient-to-r from-emerald-700 via-teal-600 to-green-700 text-white p-4 sm:p-6 flex items-center justify-between relative overflow-hidden select-none">
-                    <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-20 pointer-events-none bg-[url('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80')] bg-cover bg-center"></div>
-                    <div className="z-10 space-y-1 sm:space-y-1.5 max-w-[70%]">
-                      <span className="bg-emerald-800/60 border border-emerald-500/30 px-2 py-0.5 rounded text-[8px] sm:text-[10px] font-bold tracking-wider text-emerald-200 uppercase">
-                        {lang === "bn" ? "ফ্ল্যাশ ক্যাম্পেইন" : "FLASH CAMPAIGN"}
-                      </span>
-                      <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-white leading-tight">
-                        {lang === "bn" ? "সরাসরি মাঠ থেকে আপনার রান্নাঘরে" : "Directly from Farms to Your Kitchen"}
-                      </h3>
-                      <p className="text-[10px] sm:text-xs text-emerald-100 font-medium truncate">
-                        {lang === "bn" ? "⚡ ১ ঘণ্টার মধ্যে ডেলিভারি, একদম সতেজ এবং খাঁটি গ্যারান্টি" : "⚡ 1 Hour Delivery of fresh organic produce"}
-                      </p>
-                      <span className="text-[10px] sm:text-xs text-yellow-300 font-bold block">
-                        {lang === "bn" ? "২৫% পর্যন্ত মেগা ছাড়" : "UP TO 25% MEGA SAVINGS"}
-                      </span>
-                    </div>
-                    <div className="z-10 shrink-0">
-                      <div className="bg-white text-emerald-800 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-extrabold shadow hover:bg-emerald-50 transition cursor-pointer flex items-center gap-1">
-                        <span>{lang === "bn" ? "কিনুন" : "Shop Now"}</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              if (slide.type === "mango") {
-                return (
-                  <div className="w-full h-full bg-gradient-to-r from-orange-600 via-amber-500 to-yellow-600 text-white p-4 sm:p-6 flex items-center justify-between relative overflow-hidden select-none">
-                    <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-20 pointer-events-none bg-[url('https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=400&q=80')] bg-cover bg-center"></div>
-                    <div className="z-10 space-y-1 sm:space-y-1.5 max-w-[70%]">
-                      <span className="bg-amber-700/60 border border-amber-500/30 px-2 py-0.5 rounded text-[8px] sm:text-[10px] font-bold tracking-wider text-amber-100 uppercase">
-                        {lang === "bn" ? "আমের মৌসুম" : "MANGO MANIA"}
-                      </span>
-                      <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-white leading-tight">
-                        {lang === "bn" ? "রাজশাহীর মিষ্টি হিমসাগর আমমেলা" : "Sweet & Luscious Himsagar Mango Fest"}
-                      </h3>
-                      <p className="text-[10px] sm:text-xs text-amber-50 font-medium truncate">
-                        {lang === "bn" ? "১০০% ফরমালিন ও রাসায়নিক মুক্ত গাছের পাকা আম" : "100% chemical-free naturally tree-ripened sweet mangoes"}
-                      </p>
-                      <span className="text-[10px] sm:text-xs text-yellow-200 font-bold block">
-                        {lang === "bn" ? "১৮% সরাসরি মূল্যছাড়" : "UP TO 18% DIRECT CUT"}
-                      </span>
-                    </div>
-                    <div className="z-10 shrink-0">
-                      <div className="bg-white text-amber-700 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-extrabold shadow hover:bg-amber-50 transition cursor-pointer flex items-center gap-1">
-                        <span>{lang === "bn" ? "আম কিনুন" : "Buy Mangoes"}</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              if (slide.type === "hilsha") {
-                return (
-                  <div className="w-full h-full bg-gradient-to-r from-indigo-700 via-blue-600 to-cyan-700 text-white p-4 sm:p-6 flex items-center justify-between relative overflow-hidden select-none">
-                    <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-20 pointer-events-none bg-[url('https://images.unsplash.com/photo-1534604973900-c43ab4c2e0ab?auto=format&fit=crop&w=400&q=80')] bg-cover bg-center"></div>
-                    <div className="z-10 space-y-1 sm:space-y-1.5 max-w-[70%]">
-                      <span className="bg-indigo-800/60 border border-indigo-500/30 px-2 py-0.5 rounded text-[8px] sm:text-[10px] font-bold tracking-wider text-indigo-100 uppercase">
-                        {lang === "bn" ? "সরাসরি সোর্স" : "DIRECTLY SOURCED"}
-                      </span>
-                      <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-white leading-tight">
-                        {lang === "bn" ? "পদ্মার রূপালী ইলিশ উৎসব চলছে!" : "Padma River Hilsha Festival!"}
-                      </h3>
-                      <p className="text-[10px] sm:text-xs text-indigo-50 font-medium truncate">
-                        {lang === "bn" ? "নদী থেকে ধৃত সরাসরি ইলিশ, স্বাদে ও আকৃতিতে শতভাগ খাঁটি" : "Authentic river-caught Silver Hilsha with unmatched flavor"}
-                      </p>
-                      <span className="text-[10px] sm:text-xs text-cyan-200 font-bold block">
-                        {lang === "bn" ? "ফ্ল্যাট ১২% সরাসরি ছাড়" : "FLAT 12% INSTANT DISCOUNT"}
-                      </span>
-                    </div>
-                    <div className="z-10 shrink-0">
-                      <div className="bg-white text-indigo-800 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-extrabold shadow hover:bg-indigo-50 transition cursor-pointer flex items-center gap-1">
-                        <span>{lang === "bn" ? "অর্ডার দিন" : "Order Now"}</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
+              // Flash Sale Banner
               if (slide.type === "flash") {
                 return (
                   <div 
                     onClick={onFlashSaleClick}
-                    className="w-full h-full bg-gradient-to-r from-rose-800 via-red-600 to-orange-600 text-white p-4 sm:p-6 flex items-center justify-between relative overflow-hidden cursor-pointer select-none"
+                    className="w-full h-full bg-gradient-to-r from-rose-800 via-red-600 to-orange-600 text-white px-3.5 sm:px-6 py-2 sm:py-3 flex items-center justify-between relative overflow-hidden cursor-pointer select-none"
                   >
-                    <div className="absolute right-0 top-0 bottom-0 w-1/4 opacity-15 pointer-events-none bg-[url('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=300&q=80')] bg-cover bg-center"></div>
-                    <div className="z-10 space-y-1 sm:space-y-1.5 max-w-[65%]">
+                    <div className="z-10 space-y-0.5 sm:space-y-1 max-w-[65%]">
                       <div className="flex items-center space-x-1">
-                        <span className="bg-black/40 border border-red-400/40 px-2 py-0.5 rounded text-[8px] sm:text-[10px] font-bold tracking-wider text-yellow-300 uppercase flex items-center gap-1 animate-pulse">
-                          <Zap className="w-3 h-3 text-yellow-300 fill-yellow-300" />
+                        <span className="bg-black/40 border border-red-400/40 px-1.5 py-0.2 rounded text-[7.5px] sm:text-[9px] font-bold tracking-wider text-yellow-300 uppercase flex items-center gap-1 animate-pulse">
+                          <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-yellow-300 fill-yellow-300" />
                           <span>{lang === "bn" ? "সীমিত অফার" : "FLASH SALE"}</span>
                         </span>
                       </div>
-                      <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-white leading-tight">
-                        {lang === "bn" ? "⚡ ফ্ল্যাশ সেল মেগা অফার চলছে!" : "⚡ Flash Sale Megadeal is LIVE!"}
+                      <h3 className="text-xs sm:text-sm md:text-base font-extrabold text-white leading-snug line-clamp-1">
+                        {lang === "bn" ? (slide.titleBn || "⚡ ফ্ল্যাশ সেল মেগা অফার চলছে!") : (slide.titleEn || "⚡ Flash Sale Megadeal is LIVE!")}
                       </h3>
-                      <p className="text-[10px] sm:text-xs text-rose-100 font-medium truncate">
-                        {lang === "bn" ? "সেরা মূল্যে সতেজ পণ্য স্টক ফুরানোর আগেই কিনে নিন" : "Unbeatable prices on organic foods. Stock is running out fast!"}
+                      <p className="text-[9px] sm:text-[11px] text-rose-100 font-medium truncate">
+                        {lang === "bn" ? (slide.subtitleBn || "সেরা মূল্যে সতেজ পণ্য স্টক ফুরানোর আগেই কিনে নিন") : (slide.subtitleEn || "Unbeatable prices on organic foods.")}
                       </p>
                     </div>
 
-                    <div className="z-10 flex flex-col items-end shrink-0 bg-black/30 backdrop-blur-xs p-2 rounded-xl border border-white/10">
-                      <span className="text-[8px] sm:text-[10px] font-bold text-rose-200 mb-1 uppercase tracking-wider">
+                    <div className="z-10 flex flex-col items-end shrink-0 bg-black/30 backdrop-blur-xs px-2 py-1 rounded-xl border border-white/10">
+                      <span className="text-[7.5px] sm:text-[9px] font-bold text-rose-200 uppercase tracking-wider">
                         {lang === "bn" ? "সময় বাকি:" : "ENDS IN:"}
                       </span>
-                      <div className="flex items-center space-x-1 text-xs sm:text-sm font-black text-yellow-300 font-mono">
-                        <span className="bg-white/10 px-1.5 py-0.5 rounded">{fmtNum(timeLeft.hours.toString().padStart(2, "0"))}</span>
+                      <div className="flex items-center space-x-0.5 text-[10px] sm:text-xs font-black text-yellow-300 font-mono mt-0.5">
+                        <span className="bg-white/10 px-1 py-0.2 rounded">{fmtNum(timeLeft.hours.toString().padStart(2, "0"))}</span>
                         <span>:</span>
-                        <span className="bg-white/10 px-1.5 py-0.5 rounded">{fmtNum(timeLeft.minutes.toString().padStart(2, "0"))}</span>
+                        <span className="bg-white/10 px-1 py-0.2 rounded">{fmtNum(timeLeft.minutes.toString().padStart(2, "0"))}</span>
                         <span>:</span>
-                        <span className="bg-white/10 px-1.5 py-0.5 rounded">{fmtNum(timeLeft.seconds.toString().padStart(2, "0"))}</span>
+                        <span className="bg-white/10 px-1 py-0.2 rounded">{fmtNum(timeLeft.seconds.toString().padStart(2, "0"))}</span>
                       </div>
                     </div>
                   </div>
                 );
               }
 
-              if (slide.type === "weekly") {
-                return (
-                  <div className="w-full h-full bg-gradient-to-r from-rose-700 via-red-600 to-pink-700 text-white p-4 sm:p-6 flex items-center justify-between relative overflow-hidden select-none">
-                    <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-20 pointer-events-none bg-[url('https://images.unsplash.com/photo-1506617498319-3310023a1a01?auto=format&fit=crop&w=400&q=80')] bg-cover bg-center"></div>
-                    <div className="z-10 space-y-1 sm:space-y-1.5 max-w-[70%]">
-                      <span className="bg-rose-800/60 border border-rose-500/30 px-2 py-0.5 rounded text-[8px] sm:text-[10px] font-bold tracking-wider text-rose-100 uppercase">
-                        {lang === "bn" ? "সাপ্তাহিক বাজার" : "WEEKLY BAZAR"}
-                      </span>
-                      <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-white leading-tight">
-                        {lang === "bn" ? "উইকেন্ড ফ্যামিলি গ্রোসারি মেলা" : "Weekend Family Grocery Fair"}
-                      </h3>
-                      <p className="text-[10px] sm:text-xs text-rose-50 font-medium truncate">
-                        {lang === "bn" ? "চাল, ডাল, তেল ও ডিমের বাজারে বিশেষ ছাড়" : "Massive savings on everyday staple household essentials"}
-                      </p>
-                      <span className="text-[10px] sm:text-xs text-yellow-200 font-bold block">
-                        {lang === "bn" ? "সর্বোচ্চ ৩০০ টাকা ক্যাশব্যাক" : "UP TO BDT 300 CASHBACK"}
-                      </span>
-                    </div>
-                    <div className="z-10 shrink-0">
-                      <div className="bg-white text-rose-700 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-extrabold shadow hover:bg-rose-50 transition cursor-pointer flex items-center gap-1">
-                        <span>{lang === "bn" ? "কিনুন" : "Explore Now"}</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              // Otherwise, it is an active Custom Banner from Firestore!
+              // Dynamic Custom Banner from Firebase Firestore
               return (
-                <div className={`w-full h-full bg-gradient-to-r ${slide.bgGradient || "from-emerald-700 via-teal-600 to-green-700"} text-white p-4 sm:p-6 flex items-center justify-between relative overflow-hidden select-none`}>
+                <div 
+                  onClick={() => {
+                    if (slide.link) {
+                      if (slide.link.startsWith("category:")) {
+                        // Category navigation handled via link
+                      }
+                    }
+                  }}
+                  className={`w-full h-full bg-gradient-to-r ${slide.bgGradient || "from-emerald-800 via-teal-700 to-emerald-900"} text-white px-3.5 sm:px-6 py-2 sm:py-3 flex items-center justify-between relative overflow-hidden select-none`}
+                >
                   {slide.image && (
                     <div 
-                      className="absolute right-0 top-0 bottom-0 w-1/3 opacity-30 pointer-events-none bg-cover bg-center" 
+                      className="absolute right-0 top-0 bottom-0 w-1/3 opacity-25 pointer-events-none bg-cover bg-center" 
                       style={{ backgroundImage: `url(${slide.image})` }}
                     ></div>
                   )}
-                  <div className="z-10 space-y-1 sm:space-y-1.5 max-w-[70%]">
+                  <div className="z-10 space-y-0.5 sm:space-y-1 max-w-[70%]">
                     {(slide.tagEn || slide.tagBn) && (
-                      <span className="bg-emerald-900/60 border border-emerald-500/35 px-2 py-0.5 rounded text-[8px] sm:text-[10px] font-bold tracking-wider text-emerald-200 uppercase">
+                      <span className="bg-black/30 border border-white/20 px-1.5 py-0.2 rounded text-[7.5px] sm:text-[9px] font-bold tracking-wider text-emerald-200 uppercase">
                         {lang === "bn" ? slide.tagBn || slide.tagEn : slide.tagEn || slide.tagBn}
                       </span>
                     )}
-                    <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-white leading-tight">
+                    <h3 className="text-xs sm:text-sm md:text-base font-extrabold text-white leading-snug line-clamp-1">
                       {lang === "bn" ? slide.titleBn || slide.titleEn : slide.titleEn || slide.titleBn}
                     </h3>
-                    {(slide.tagEn || slide.tagBn) && (
-                      <span className="text-[10px] sm:text-xs text-yellow-300 font-bold block">
-                        {lang === "bn" ? slide.tagBn || slide.tagEn : slide.tagEn || slide.tagBn}
+                    {(slide.subtitleBn || slide.subtitleEn) && (
+                      <p className="text-[9px] sm:text-[11px] text-slate-100 font-medium truncate">
+                        {lang === "bn" ? slide.subtitleBn || slide.subtitleEn : slide.subtitleEn || slide.subtitleBn}
+                      </p>
+                    )}
+                    {(slide.highlightBn || slide.highlightEn) && (
+                      <span className="text-[9px] sm:text-[11px] text-yellow-300 font-bold block">
+                        {lang === "bn" ? slide.highlightBn || slide.highlightEn : slide.highlightEn || slide.highlightBn}
                       </span>
                     )}
                   </div>
                   <div className="z-10 shrink-0">
-                    <div className="bg-white text-emerald-800 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-extrabold shadow hover:bg-emerald-50 transition cursor-pointer flex items-center gap-1">
-                      <span>{lang === "bn" ? "কিনুন" : "Shop Now"}</span>
-                      <ArrowRight className="w-3 h-3" />
+                    <div className="bg-white text-emerald-900 px-2.5 sm:px-3 py-1 sm:py-1.2 rounded-lg text-[9px] sm:text-[11px] font-black shadow hover:bg-emerald-50 transition cursor-pointer flex items-center gap-1">
+                      <span>
+                        {lang === "bn" 
+                          ? (slide.buttonTextBn || "কিনুন") 
+                          : (slide.buttonTextEn || "Shop Now")}
+                      </span>
+                      <ArrowRight className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                     </div>
                   </div>
                 </div>
@@ -347,7 +270,7 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
         </AnimatePresence>
 
         {/* Circular Bottom Dot Indicators */}
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex space-x-2">
+        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 flex space-x-1.5">
           {slides.map((_, i) => (
             <button
               key={i}
@@ -355,9 +278,9 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
                 e.stopPropagation();
                 setActiveIndex(i);
               }}
-              className={`w-2 h-2 rounded-full transition-all duration-300 focus:outline-none cursor-pointer ${
+              className={`w-1.5 h-1.5 rounded-full transition-all duration-300 focus:outline-none cursor-pointer ${
                 i === activeIndex 
-                  ? "bg-white w-5" 
+                  ? "bg-white w-4" 
                   : "bg-white/40 hover:bg-white/60"
               }`}
               aria-label={`Go to slide ${i + 1}`}

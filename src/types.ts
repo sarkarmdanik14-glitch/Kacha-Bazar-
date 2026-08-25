@@ -4,6 +4,8 @@ export interface ProductOption {
   unit: string;
   price: number;
   stock?: number;
+  isCustom?: boolean;
+  customLabel?: string;
 }
 
 export interface Product {

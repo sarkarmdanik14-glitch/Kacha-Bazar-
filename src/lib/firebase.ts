@@ -16,10 +16,14 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
   getFirestore, 
   initializeFirestore,
-  enableIndexedDbPersistence,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  memoryLocalCache,
+  setLogLevel,
   collection, 
   doc, 
   getDoc, 
+  getDocFromServer,
   setDoc, 
   getDocs, 
   query, 
@@ -39,6 +43,9 @@ import {
 } from "firebase/firestore";
 import config from "../../firebase-applet-config.json";
 
+// Configure Firestore log level to silent to prevent benign offline/handshake warning spam
+setLogLevel("silent");
+
 // Initialize Firebase App
 const firebaseConfig = {
   apiKey: config.apiKey,
@@ -52,16 +59,32 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Initialize Firestore with auto-detect long polling for optimal connection stability across container proxy environments
-const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
-}, config.firestoreDatabaseId || "(default)");
+// Initialize Firestore with auto-detect long polling and multi-tab local cache
+let db: ReturnType<typeof initializeFirestore>;
 
-// Enable Firestore offline persistence for web clients
-if (typeof window !== "undefined") {
-  enableIndexedDbPersistence(db).catch(() => {
-    // Silently fall back if multiple tabs are open or persistence is unavailable
-  });
+try {
+  db = initializeFirestore(
+    app,
+    {
+      experimentalAutoDetectLongPolling: true,
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    },
+    config.firestoreDatabaseId || "(default)"
+  );
+} catch {
+  try {
+    db = initializeFirestore(
+      app,
+      {
+        localCache: memoryLocalCache(),
+      },
+      config.firestoreDatabaseId || "(default)"
+    );
+  } catch {
+    db = getFirestore(app, config.firestoreDatabaseId || "(default)");
+  }
 }
 
 const googleProvider = new GoogleAuthProvider();
@@ -86,6 +109,7 @@ export {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   setDoc,
   getDocs,
   query,

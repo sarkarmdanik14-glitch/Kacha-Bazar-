@@ -1,4 +1,4 @@
-import html2canvas from "html2canvas";
+import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 
 export const TRANSPARENT_PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -273,7 +273,7 @@ export async function downloadMemoPDF(
     logging: false,
     backgroundColor: "#ffffff",
     imageTimeout: 15000,
-    onclone: (clonedDoc: Document) => {
+    onclone: (clonedDoc: Document, clonedEl?: HTMLElement) => {
       try {
         const fontStyle = clonedDoc.createElement("style");
         fontStyle.textContent = `
@@ -287,15 +287,21 @@ export async function downloadMemoPDF(
         }
       } catch (e) {}
 
-      // Sanitize style tags
+      // Sanitize style tags: strip modern CSS @property blocks and oklch colors that can crash CSS tokenizers
       const styleElements = Array.from(clonedDoc.querySelectorAll("style"));
       styleElements.forEach((styleEl) => {
-        if (styleEl.textContent && styleEl.textContent.includes("oklch")) {
-          styleEl.textContent = replaceOklchInText(styleEl.textContent);
+        if (styleEl.textContent) {
+          let text = styleEl.textContent;
+          // Strip @property blocks
+          text = text.replace(/@property\s+[\s\S]*?\{[\s\S]*?\}/gi, "");
+          if (text.includes("oklch")) {
+            text = replaceOklchInText(text);
+          }
+          styleEl.textContent = text;
         }
       });
 
-      // Sanitize all inline styles
+      // Sanitize all inline styles in cloned document
       const allElements = Array.from(clonedDoc.querySelectorAll("*")) as HTMLElement[];
       allElements.forEach((el) => {
         const styleAttr = el.getAttribute("style");
@@ -304,32 +310,40 @@ export async function downloadMemoPDF(
         }
       });
 
-      const clonedCard = clonedDoc.getElementById("printable-memo-card") || clonedDoc.querySelector(".printable-memo-card");
-      if (clonedCard) {
-        const cardEl = clonedCard as HTMLElement;
-        const isolatedCard = cardEl.cloneNode(true) as HTMLElement;
+      // Find the cloned target element directly in the cloned document
+      const cardEl = (clonedEl || 
+        clonedDoc.getElementById("printable-memo-card") || 
+        clonedDoc.querySelector(".printable-memo-card")) as HTMLElement | null;
 
-        clonedDoc.body.innerHTML = "";
-        clonedDoc.body.style.margin = "0";
-        clonedDoc.body.style.padding = "0";
-        clonedDoc.body.style.backgroundColor = "#ffffff";
+      if (cardEl) {
+        // Ensure card element itself is styled for clean printable output
+        cardEl.style.maxWidth = "794px";
+        cardEl.style.width = "794px";
+        cardEl.style.height = "auto";
+        cardEl.style.maxHeight = "none";
+        cardEl.style.overflow = "visible";
+        cardEl.style.boxShadow = "none";
+        cardEl.style.transform = "none";
+        cardEl.style.display = "block";
+        cardEl.style.visibility = "visible";
+        cardEl.style.opacity = "1";
+        cardEl.style.backgroundColor = "#ffffff";
+        cardEl.style.fontFamily = "'Hind Siliguri', 'Noto Sans Bengali', 'SolaimanLipi', sans-serif";
 
-        isolatedCard.style.maxWidth = "794px";
-        isolatedCard.style.width = "794px";
-        isolatedCard.style.height = "auto";
-        isolatedCard.style.maxHeight = "none";
-        isolatedCard.style.overflow = "visible";
-        isolatedCard.style.boxShadow = "none";
-        isolatedCard.style.transform = "none";
-        isolatedCard.style.display = "block";
-        isolatedCard.style.padding = "32px";
-        isolatedCard.style.margin = "0 auto";
-        isolatedCard.style.backgroundColor = "#ffffff";
-        isolatedCard.style.fontFamily = "'Hind Siliguri', 'Noto Sans Bengali', 'SolaimanLipi', sans-serif";
+        // Walk up all ancestors to ensure no parent container clips or hides the cloned card
+        let parent: HTMLElement | null = cardEl.parentElement;
+        while (parent && parent !== clonedDoc.documentElement) {
+          parent.style.overflow = "visible";
+          parent.style.maxHeight = "none";
+          parent.style.height = "auto";
+          parent.style.transform = "none";
+          parent.style.visibility = "visible";
+          parent.style.opacity = "1";
+          parent = parent.parentElement;
+        }
 
-        clonedDoc.body.appendChild(isolatedCard);
-
-        const cardSubElements = [isolatedCard, ...Array.from(isolatedCard.querySelectorAll("*"))] as HTMLElement[];
+        // Sanitize computed colors on elements within the card
+        const cardSubElements = [cardEl, ...Array.from(cardEl.querySelectorAll("*"))] as HTMLElement[];
         cardSubElements.forEach((el) => {
           try {
             const computed = clonedDoc.defaultView?.getComputedStyle(el) || window.getComputedStyle(el);
@@ -359,7 +373,8 @@ export async function downloadMemoPDF(
           } catch (e) {}
         });
 
-        const clonedImgs = Array.from(isolatedCard.querySelectorAll("img"));
+        // Ensure all images in the card are safe Base64 or Transparent Pixels
+        const clonedImgs = Array.from(cardEl.querySelectorAll("img"));
         clonedImgs.forEach((cImg) => {
           const src = cImg.getAttribute("src");
           if (!src || !src.startsWith("data:image")) {
@@ -371,7 +386,7 @@ export async function downloadMemoPDF(
     },
   });
 
-  let canvas: HTMLCanvasElement;
+  let canvas: HTMLCanvasElement | null = null;
   try {
     canvas = await html2canvas(targetEl, html2canvasOptions(2));
   } catch (e1) {
@@ -383,9 +398,55 @@ export async function downloadMemoPDF(
       try {
         canvas = await html2canvas(targetEl, html2canvasOptions(1.0));
       } catch (e3) {
-        throw new Error(`Memo PDF canvas render failed: ${e3 instanceof Error ? e3.message : String(e3)}`);
+        console.warn("html2canvas scale 1.0 failed, trying SVG foreignObject fallback:", e3);
+        try {
+          // Fallback: render element via SVG foreignObject to canvas
+          const rect = targetEl.getBoundingClientRect();
+          const width = Math.max(794, Math.round(rect.width || 794));
+          const height = Math.max(1000, Math.round(rect.height || 1000));
+          const fallbackCanvas = document.createElement("canvas");
+          fallbackCanvas.width = width * 2;
+          fallbackCanvas.height = height * 2;
+          const ctx = fallbackCanvas.getContext("2d");
+          if (!ctx) throw new Error("Could not get 2D context");
+          
+          ctx.scale(2, 2);
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, width, height);
+
+          const clonedNode = targetEl.cloneNode(true) as HTMLElement;
+          clonedNode.style.width = `${width}px`;
+          clonedNode.style.height = "auto";
+          clonedNode.style.backgroundColor = "#ffffff";
+          
+          const serialized = new XMLSerializer().serializeToString(clonedNode);
+          const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${serialized}</foreignObject></svg>`;
+          const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+          const blobUrl = (window.URL || window.webkitURL).createObjectURL(svgBlob);
+
+          const img = new Image();
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0);
+              (window.URL || window.webkitURL).revokeObjectURL(blobUrl);
+              resolve();
+            };
+            img.onerror = (err) => {
+              (window.URL || window.webkitURL).revokeObjectURL(blobUrl);
+              reject(err);
+            };
+            img.src = blobUrl;
+          });
+          canvas = fallbackCanvas;
+        } catch (fallbackErr) {
+          throw new Error(`Memo PDF canvas render failed: ${e3 instanceof Error ? e3.message : String(e3)}`);
+        }
       }
     }
+  }
+
+  if (!canvas || canvas.width === 0 || canvas.height === 0) {
+    throw new Error("Memo PDF canvas render failed: empty canvas produced");
   }
 
   let imgData = "";
@@ -399,7 +460,7 @@ export async function downloadMemoPDF(
     }
   }
 
-  if (!imgData || !imgData.startsWith("data:image") || imgData.length < 500) {
+  if (!imgData || !imgData.startsWith("data:image") || imgData.length < 50) {
     throw new Error("Failed to render preview canvas into valid image data");
   }
 
