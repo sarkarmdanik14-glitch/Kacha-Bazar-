@@ -279,6 +279,44 @@
       "fields": {
         "items": "array"
       }
+    },
+    {
+      "name": "voice_calls",
+      "description": "Real-time voice calls, queue positions and signaling data",
+      "fields": {
+        "id": "string",
+        "callerId": "string",
+        "callerName": "string",
+        "callerPhone": "string",
+        "callerType": "string",
+        "status": "string",
+        "queuePosition": "number",
+        "assignedAgentId": "string",
+        "assignedAgentName": "string",
+        "offer": "object",
+        "answer": "object",
+        "createdAt": "timestamp",
+        "connectedAt": "timestamp",
+        "endedAt": "timestamp",
+        "durationSeconds": "number",
+        "endedBy": "string",
+        "notes": "string"
+      }
+    },
+    {
+      "name": "call_center_agents",
+      "description": "Call center 20 agent desks roster and real-time statuses",
+      "fields": {
+        "id": "string",
+        "agentNumber": "number",
+        "nameBn": "string",
+        "nameEn": "string",
+        "status": "string",
+        "currentCallId": "string",
+        "activeCallerName": "string",
+        "totalCallsHandled": "number",
+        "lastActiveAt": "timestamp"
+      }
     }
   ]
 }

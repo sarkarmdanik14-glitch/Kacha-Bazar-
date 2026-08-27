@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import crypto from "crypto";
 import QRCode from "qrcode";
 
@@ -175,6 +176,92 @@ app.post("/api/memo/generate-pdf", async (req, res) => {
     status: "client_render_required",
     message: "Order Memo PDF is generated directly from the unified preview component on the client." 
   });
+});
+
+// API ROUTE 4: Automated Bengali Call Welcome Voice Stream
+app.get("/api/voice/welcome-audio", (req, res) => {
+  try {
+    const mp3Path = path.join(process.cwd(), "public", "audio", "bangla-call-welcome.mp3");
+    if (!fs.existsSync(mp3Path)) {
+      return res.status(404).json({ error: "Welcome voice audio file not found" });
+    }
+
+    const stat = fs.statSync(mp3Path);
+    const fileSize = stat.size;
+    const range = req.headers.range;
+
+    if (range) {
+      const parts = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const chunkSize = end - start + 1;
+      const file = fs.createReadStream(mp3Path, { start, end });
+      const head = {
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": chunkSize,
+        "Content-Type": "audio/mpeg",
+        "Cache-Control": "public, max-age=86400",
+      };
+      res.writeHead(206, head);
+      file.pipe(res);
+    } else {
+      const head = {
+        "Content-Length": fileSize,
+        "Content-Type": "audio/mpeg",
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "public, max-age=86400",
+      };
+      res.writeHead(200, head);
+      fs.createReadStream(mp3Path).pipe(res);
+    }
+  } catch (err: any) {
+    console.error("Error serving welcome audio:", err);
+    res.status(500).json({ error: "Failed to stream welcome audio" });
+  }
+});
+
+// API ROUTE 5: Soft Background Music Stream
+app.get("/api/voice/bg-music", (req, res) => {
+  try {
+    const mp3Path = path.join(process.cwd(), "public", "audio", "call-bg-music.mp3");
+    if (!fs.existsSync(mp3Path)) {
+      return res.status(404).json({ error: "Background music audio file not found" });
+    }
+
+    const stat = fs.statSync(mp3Path);
+    const fileSize = stat.size;
+    const range = req.headers.range;
+
+    if (range) {
+      const parts = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const chunkSize = end - start + 1;
+      const file = fs.createReadStream(mp3Path, { start, end });
+      const head = {
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": chunkSize,
+        "Content-Type": "audio/mpeg",
+        "Cache-Control": "public, max-age=86400",
+      };
+      res.writeHead(206, head);
+      file.pipe(res);
+    } else {
+      const head = {
+        "Content-Length": fileSize,
+        "Content-Type": "audio/mpeg",
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "public, max-age=86400",
+      };
+      res.writeHead(200, head);
+      fs.createReadStream(mp3Path).pipe(res);
+    }
+  } catch (err: any) {
+    console.error("Error serving bg music audio:", err);
+    res.status(500).json({ error: "Failed to stream bg music audio" });
+  }
 });
 
 // Vite Middleware & Server Lifecycle

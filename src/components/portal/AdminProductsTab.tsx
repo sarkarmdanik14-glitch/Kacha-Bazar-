@@ -1494,9 +1494,29 @@ export default function AdminProductsTab({ products, categories, lang, triggerTo
 
       {/* ==================== SUBTAB 3: ALL CATEGORIES MANAGEMENT ==================== */}
       {activeCatalogSubTab === "categories" && (() => {
+        const PRIORITY_ORDER_MAP: Record<string, number> = {
+          "vegetables": 1,
+          "staples": 2,
+          "fish": 3,
+          "meat": 4,
+          "spices-oils": 5,
+          "fruits": 6,
+          "dairy-eggs": 7,
+          "snacks-biscuits": 8,
+          "beverages": 9,
+          "frozen": 10,
+          "personal-care": 11,
+          "household": 12,
+          "baby-care": 13,
+          "bakery-sweets": 14,
+          "offers": 15,
+          "organic-herbal": 16,
+          "pet-care": 17,
+          "home-appliances": 18
+        };
         const sortedAllCats = categories.filter(c => c.id !== "all").sort((a, b) => {
-          const orderA = typeof a.displayOrder === "number" ? a.displayOrder : (typeof a.order === "number" ? a.order : 9999);
-          const orderB = typeof b.displayOrder === "number" ? b.displayOrder : (typeof b.order === "number" ? b.order : 9999);
+          const orderA = typeof a.displayOrder === "number" ? a.displayOrder : (typeof a.order === "number" ? a.order : (PRIORITY_ORDER_MAP[a.id] ?? 9999));
+          const orderB = typeof b.displayOrder === "number" ? b.displayOrder : (typeof b.order === "number" ? b.order : (PRIORITY_ORDER_MAP[b.id] ?? 9999));
           return orderA - orderB;
         });
 

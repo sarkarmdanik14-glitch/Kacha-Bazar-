@@ -25,6 +25,7 @@ import {
   Volume2 
 } from "lucide-react";
 import { RTC_CONFIG, callAudioSynth, VoiceCallSession } from "../../lib/webrtcCall";
+import { atomicallyAcceptCall } from "../../lib/callCenterManager";
 
 interface AdminIncomingCallModalProps {
   lang: "bn" | "en";
@@ -58,11 +59,11 @@ export default function AdminIncomingCallModal({
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // 1. Listen for any incoming call with status 'calling'
+  // 1. Listen for any incoming call with status 'waiting' or 'ringing' or 'calling'
   useEffect(() => {
     const q = query(
       collection(db, "voice_calls"),
-      where("status", "==", "calling"),
+      where("status", "in", ["waiting", "calling", "ringing"]),
       orderBy("createdAt", "desc"),
       limit(1)
     );
@@ -72,7 +73,6 @@ export default function AdminIncomingCallModal({
         const docSnap = snapshot.docs[0];
         const data = { id: docSnap.id, ...docSnap.data() } as VoiceCallSession;
         
-        // If we are not currently in a connected call, show this incoming call!
         if (callStatus === "idle") {
           setIncomingCall(data);
           setCallStatus("ringing");
@@ -138,7 +138,15 @@ export default function AdminIncomingCallModal({
       setCallDuration(0);
       durationRef.current = 0;
 
-      // 1. Get Admin Microphone
+      // 1. Atomic lock verification
+      const lockResult = await atomicallyAcceptCall(incomingCall.id, "agent_01", "সেন্ট্রাল এডমিন ডেস্ক");
+      if (!lockResult.success) {
+        alert(lockResult.message || "কলটি গ্রহণ করা সম্ভব হয়নি।");
+        cleanupCall();
+        return;
+      }
+
+      // 2. Get Admin Microphone
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { 
           echoCancellation: true, 
@@ -149,7 +157,7 @@ export default function AdminIncomingCallModal({
       });
       localStreamRef.current = stream;
 
-      // 2. Setup RTCPeerConnection
+      // 3. Setup RTCPeerConnection
       const pc = new RTCPeerConnection(RTC_CONFIG);
       pcRef.current = pc;
 
@@ -172,7 +180,7 @@ export default function AdminIncomingCallModal({
         }
       };
 
-      // 3. Set remote description
+      // 4. Set remote description
       const callDocRef = doc(db, "voice_calls", incomingCall.id);
       const callSnap = await getDoc(callDocRef);
       const callData = callSnap.data();
@@ -183,7 +191,7 @@ export default function AdminIncomingCallModal({
 
       await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
 
-      // 4. Create Answer
+      // 5. Create Answer
       const answerDescription = await pc.createAnswer();
       await pc.setLocalDescription(answerDescription);
 
@@ -192,7 +200,7 @@ export default function AdminIncomingCallModal({
         sdp: answerDescription.sdp
       };
 
-      // 5. Update Firestore
+      // 6. Update Firestore
       await updateDoc(callDocRef, {
         answer: answer,
         status: "connected",
@@ -210,7 +218,7 @@ export default function AdminIncomingCallModal({
         }, 1000);
       }
 
-      // 6. Listen for caller candidates
+      // 7. Listen for caller candidates
       const callerCandidatesCol = collection(db, "voice_calls", incomingCall.id, "callerCandidates");
       const unsubCandidates = onSnapshot(callerCandidatesCol, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
@@ -222,11 +230,11 @@ export default function AdminIncomingCallModal({
       });
       unsubscribeCandidatesRef.current = unsubCandidates;
 
-      // 7. Listen for remote hangup
+      // 8. Listen for remote hangup
       const unsubCall = onSnapshot(callDocRef, (snap) => {
         const data = snap.data();
         if (!data) return;
-        if (data.status === "ended" && callStatus === "connected") {
+        if ((data.status === "ended" || data.status === "cancelled") && callStatus === "connected") {
           callAudioSynth.playDisconnectTone();
           if (triggerToast) triggerToast("গ্রাহক কলটি শেষ করেছেন।", "Customer ended the call.");
           cleanupCall();

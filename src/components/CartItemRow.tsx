@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Trash2, RotateCcw, AlertTriangle } from "lucide-react";
 import { CartItem, ProductOption } from "../types";
 import { 
@@ -27,6 +27,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
   onRemove,
   handleProductImgError,
 }) => {
+  const isFocusedRef = useRef<boolean>(false);
   const availableOptions = getProductWeightOptions(item.product);
   const currentOpt = item.selectedOption || availableOptions.find(o => o.price === item.product.price) || availableOptions[0];
   
@@ -44,7 +45,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
     currentOpt ? currentOpt.unit : (availableOptions[0]?.unit || "g")
   );
 
-  // Sync state if external item changes
+  // Sync state only if external item changes and user is NOT actively typing
   useEffect(() => {
     if (currentOpt) {
       const isCustom = Boolean(
@@ -52,13 +53,16 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
         !availableOptions.some(o => o.value === currentOpt.value && o.unit === currentOpt.unit)
       );
       setIsCustomMode(isCustom);
-      setCustomValue(String(currentOpt.value));
-      setCustomUnit(currentOpt.unit);
+      if (!isFocusedRef.current) {
+        setCustomValue(String(currentOpt.value));
+        setCustomUnit(currentOpt.unit);
+      }
     }
   }, [currentOpt?.value, currentOpt?.unit, currentOpt?.isCustom]);
 
   // Validation
-  const numVal = parseFloat(customValue);
+  const normalizedNum = customValue.replace(/[০-৯]/g, d => "০১২৩৪৫৬৭৮৯".indexOf(d).toString());
+  const numVal = parseFloat(normalizedNum);
   const validation = validateWeightLimit(numVal, customUnit);
   const isCustomInvalid = isCustomMode && !validation.isValid;
 
@@ -102,7 +106,8 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
   // Handle custom value input
   const handleCustomValueChange = (valStr: string) => {
     setCustomValue(valStr);
-    const parsed = parseFloat(valStr);
+    const normalized = valStr.replace(/[০-৯]/g, d => "০১২৩৪৫৬৭৮৯".indexOf(d).toString());
+    const parsed = parseFloat(normalized);
     const validCheck = validateWeightLimit(parsed, customUnit);
     
     if (validCheck.isValid) {
@@ -114,25 +119,33 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
         stock: optStock,
         isCustom: true
       });
+    } else {
+      onUpdateOption(itemIndex, {
+        value: isNaN(parsed) ? 0 : parsed,
+        unit: customUnit,
+        price: calculateProductPriceForWeight(item.product, 1, customUnit),
+        stock: optStock,
+        isCustom: true
+      });
     }
   };
 
   // Handle custom unit toggle
   const handleCustomUnitChange = (unitStr: string) => {
     setCustomUnit(unitStr);
-    const parsed = parseFloat(customValue);
+    const normalized = customValue.replace(/[০-৯]/g, d => "০১২৩৪৫৬৭৮৯".indexOf(d).toString());
+    const parsed = parseFloat(normalized);
     const validCheck = validateWeightLimit(parsed, unitStr);
+    const valForCalc = validCheck.isValid ? parsed : 1;
+    const calcPrice = calculateProductPriceForWeight(item.product, valForCalc, unitStr);
     
-    if (validCheck.isValid) {
-      const calcPrice = calculateProductPriceForWeight(item.product, parsed, unitStr);
-      onUpdateOption(itemIndex, {
-        value: parsed,
-        unit: unitStr,
-        price: calcPrice,
-        stock: optStock,
-        isCustom: true
-      });
-    }
+    onUpdateOption(itemIndex, {
+      value: isNaN(parsed) ? 0 : parsed,
+      unit: unitStr,
+      price: calcPrice,
+      stock: optStock,
+      isCustom: true
+    });
   };
 
   // Switch back to preset list
@@ -212,23 +225,36 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] sm:text-[11px] text-slate-600 font-bold shrink-0">
                   {lang === "bn" ? "ওজন:" : "Weight:"}
                 </span>
 
-                {/* Custom input with number & unit toggle */}
-                <div className="flex items-center gap-1 flex-1 min-w-0 bg-white border border-slate-300 rounded-lg p-0.5 shadow-2xs focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500">
+                {/* Custom input with continuous typing support & unit toggle */}
+                <div className={`flex items-center gap-1 flex-1 min-w-0 bg-white border rounded-lg p-0.5 shadow-2xs ${
+                  isCustomInvalid 
+                    ? "border-rose-400 ring-1 ring-rose-300" 
+                    : "border-slate-300 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500"
+                }`}>
                   <input
-                    type="number"
-                    step="any"
-                    min="1"
-                    max={customUnit === "kg" || customUnit === "L" ? 2 : 2000}
-                    placeholder={customUnit === "g" ? "৭৫০" : "১.৫"}
+                    type="text"
+                    inputMode="decimal"
+                    placeholder={customUnit === "g" ? "৩৫০" : "১.৫"}
                     value={customValue}
+                    onFocus={() => {
+                      isFocusedRef.current = true;
+                    }}
+                    onBlur={() => {
+                      isFocusedRef.current = false;
+                      const normalized = customValue.replace(/[০-৯]/g, d => "০১২৩৪৫৬৭৮৯".indexOf(d).toString());
+                      const parsed = parseFloat(normalized);
+                      if (!isNaN(parsed) && parsed > 0) {
+                        setCustomValue(String(parsed));
+                      }
+                    }}
                     onChange={(e) => handleCustomValueChange(e.target.value)}
-                    className="w-full min-w-[42px] px-1.5 py-0.5 text-[11px] sm:text-xs font-bold text-slate-800 outline-none bg-transparent"
+                    className="w-full min-w-[44px] px-1.5 py-0.5 text-[11px] sm:text-xs font-bold text-slate-800 outline-none bg-transparent"
                   />
 
                   {/* Unit Selector */}
@@ -248,11 +274,9 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
                         <option value="kg">{lang === "bn" ? "কেজি (kg)" : "kg"}</option>
                       </>
                     ) : (
-                      <>
-                        <option value={availableOptions[0]?.unit || "unit"}>
-                          {availableOptions[0]?.unit || "unit"}
-                        </option>
-                      </>
+                      <option value={availableOptions[0]?.unit || "unit"}>
+                        {availableOptions[0]?.unit || "unit"}
+                      </option>
                     )}
                   </select>
                 </div>
@@ -261,10 +285,11 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
                 <button
                   type="button"
                   onClick={handleSwitchToPreset}
-                  className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-white rounded-md transition border border-transparent hover:border-slate-200 cursor-pointer shrink-0"
-                  title={lang === "bn" ? "পূর্বনির্ধারিত তালিকায় ফিরুন" : "Switch to preset weights"}
+                  className="px-1.5 py-1 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-md transition border border-slate-200 hover:border-emerald-200 cursor-pointer shrink-0 flex items-center gap-1 text-[10px] font-semibold"
+                  title={lang === "bn" ? "তালিকায় ফিরুন" : "Switch to preset weights"}
                 >
                   <RotateCcw className="w-3 h-3" />
+                  <span className="hidden sm:inline">{lang === "bn" ? "ড্রপডাউন" : "Presets"}</span>
                 </button>
               </div>
             </div>
@@ -276,21 +301,21 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
           <span className="text-[10.5px] sm:text-xs text-slate-600 font-bold shrink-0">
             {lang === "bn" ? "দাম:" : "Price:"}
           </span>
-          <div className="bg-emerald-50 border border-emerald-300 text-emerald-700 font-black text-xs sm:text-sm px-2.5 py-1 rounded-lg shadow-2xs min-w-[58px] text-center">
-            {isCustomInvalid ? (
-              <span className="text-rose-500 font-bold text-[11px]">⚠️ —</span>
-            ) : (
-              `৳${fmtNum(itemPrice)}`
-            )}
+          <div className={`font-black text-xs sm:text-sm px-2.5 py-1 rounded-lg shadow-2xs min-w-[58px] text-center border ${
+            isCustomInvalid
+              ? "bg-rose-50 border-rose-300 text-rose-700"
+              : "bg-emerald-50 border-emerald-300 text-emerald-700"
+          }`}>
+            ৳{fmtNum(itemPrice)}
           </div>
         </div>
 
       </div>
 
-      {/* Validation alert message if Custom weight > 2kg or invalid */}
+      {/* Validation alert message if Custom weight is invalid (0 or empty) */}
       {isCustomInvalid && (
-        <div className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-1 rounded-lg animate-in fade-in">
-          <AlertTriangle className="w-3 h-3 shrink-0 text-rose-500" />
+        <div className="mt-2 flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-lg animate-in fade-in">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
           <span>{lang === "bn" ? validation.errorMsgBn : validation.errorMsgEn}</span>
         </div>
       )}

@@ -247,5 +247,10 @@ service cloud.firestore {
         allow read, write: if true;
       }
     }
+
+    // Call Center 20 Agent desks roster and status
+    match /call_center_agents/{agentId} {
+      allow read, write: if true;
+    }
   }
 }

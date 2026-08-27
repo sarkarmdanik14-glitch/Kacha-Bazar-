@@ -436,7 +436,7 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
               { id: "users", labelBn: "ইউজার ডাটাবেজ", labelEn: "Role Management", icon: <User className="w-4 h-4" /> },
               { id: "leadership", labelBn: "নেতৃত্ব ব্যবস্থাপনা", labelEn: "Leadership Management", icon: <Award className="w-4 h-4" /> },
               { id: "support_chat", labelBn: "লাইভ কাস্টমার সাপোর্ট", labelEn: "Live Chat Support", icon: <MessageSquare className="w-4 h-4" /> },
-              { id: "voice_calls", labelBn: "ভয়েস কল হেল্পডেস্ক", labelEn: "Voice Call Center", icon: <PhoneCall className="w-4 h-4" /> },
+              { id: "voice_calls", labelBn: "কল সেন্টার (২০ এজেন্ট)", labelEn: "Call Center (20 Agents)", icon: <PhoneCall className="w-4 h-4" /> },
               { id: "coupons", labelBn: "ডিসকাউন্ট কুপনস", labelEn: "Coupons & Discounts", icon: <Percent className="w-4 h-4" /> },
               { id: "notifications", labelBn: "বিজ্ঞপ্তি ব্রডকাস্ট", labelEn: "Notification Broadcast", icon: <Bell className="w-4 h-4" /> },
               { id: "settings", labelBn: "গ্লোবাল সেটিংস", labelEn: "Global Config", icon: <Settings className="w-4 h-4" /> }
