@@ -54,7 +54,7 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
   const maxCategorySales = categorySales.length > 0 ? categorySales[0].amount : 1;
 
   return (
-    <div className="space-y-6 overflow-y-auto max-h-[75vh] p-4 sm:p-6 text-slate-700">
+    <div className="space-y-6 text-slate-700">
       
       {/* Real-time Monitor Header */}
       <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 p-4 rounded-2xl">

@@ -761,7 +761,7 @@ export default function AdminProductsTab({ products, categories, lang, triggerTo
   );
 
   return (
-    <div className="space-y-6 overflow-y-auto max-h-[78vh] p-4 sm:p-6 text-slate-700 font-sans">
+    <div className="space-y-6 text-slate-700 font-sans">
       
       {/* Catalog Sub Navigation */}
       <div className="flex flex-wrap border-b border-slate-200 shrink-0 gap-1 sm:gap-2">

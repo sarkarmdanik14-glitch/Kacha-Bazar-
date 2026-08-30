@@ -354,6 +354,41 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
 
     try {
       if (isLogin) {
+        // First check if user is logging into Admin/Staff portal via Staff API
+        if (role === "admin") {
+          try {
+            const staffRes = await fetch("/api/staff/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ identifier: email, password: password })
+            });
+            const staffData = await staffRes.json();
+            if (staffRes.ok && staffData.success && staffData.staff) {
+              const staffUser = staffData.staff;
+              const formattedUser = {
+                uid: staffUser.id || staffUser.staffId,
+                id: staffUser.id,
+                staffId: staffUser.staffId,
+                email: staffUser.email,
+                displayName: staffUser.fullName,
+                fullName: staffUser.fullName,
+                mobile: staffUser.mobile,
+                role: staffUser.role,
+                isSuperAdmin: staffUser.isSuperAdmin,
+                permissions: staffUser.permissions,
+                assignedAgentDesk: staffUser.assignedAgentDesk,
+                sessionId: staffData.sessionId,
+                photoURL: staffUser.photoURL
+              };
+              onAuthSuccess(formattedUser, staffUser.role);
+              setLoading(false);
+              return;
+            }
+          } catch (staffErr) {
+            console.warn("Staff API check bypass, falling back to Firebase:", staffErr);
+          }
+        }
+
         // Sign in using real Firebase Authentication
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;

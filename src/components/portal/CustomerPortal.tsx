@@ -473,73 +473,73 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   };
 
   return (
-    <div className="w-full bg-slate-50 min-h-screen rounded-3xl overflow-hidden flex flex-col md:flex-row border border-slate-100">
+    <div className="w-full h-full bg-slate-50 overflow-hidden flex flex-col md:flex-row">
       
       {/* Sidebar Navigation */}
-      <div className="w-full md:w-64 bg-white border-r border-slate-100 p-5 shrink-0 flex flex-col justify-between">
-        <div>
-          {/* Customer Avatar & Profile info */}
-          <div className="flex items-center space-x-3 mb-8 pb-5 border-b border-slate-100">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold overflow-hidden border border-slate-200 shrink-0">
-              {photoUrlInput || dbUser?.photoURL || user?.photoURL ? (
-                <img 
-                  src={photoUrlInput || dbUser?.photoURL || user?.photoURL} 
-                  alt={dbUser?.displayName || user?.displayName} 
-                  className="w-full h-full object-cover" 
-                />
-              ) : (
-                <User className="w-5 h-5 text-emerald-600" />
-              )}
-            </div>
-            <div className="truncate">
-              <h3 className="font-black text-slate-800 text-sm leading-tight">{dbUser?.displayName || user?.displayName}</h3>
-              <p className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider">{dbUser?.role || user?.role || "customer"}</p>
-            </div>
+      <aside className="w-full md:w-64 lg:w-72 bg-white border-b md:border-b-0 md:border-r border-slate-100 p-4 sm:p-5 shrink-0 flex flex-col h-auto md:h-full z-10">
+        {/* Customer Avatar & Profile info */}
+        <div className="flex items-center space-x-3 pb-4 mb-3 border-b border-slate-100 shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold overflow-hidden border border-slate-200 shrink-0">
+            {photoUrlInput || dbUser?.photoURL || user?.photoURL ? (
+              <img 
+                src={photoUrlInput || dbUser?.photoURL || user?.photoURL} 
+                alt={dbUser?.displayName || user?.displayName} 
+                className="w-full h-full object-cover" 
+              />
+            ) : (
+              <User className="w-5 h-5 text-emerald-600" />
+            )}
           </div>
-
-          <nav className="space-y-1.5">
-            {[
-              { id: "dashboard", labelBn: "ড্যাশবোর্ড", labelEn: "Dashboard", icon: <User className="w-4 h-4" /> },
-              { id: "orders", labelBn: "অর্ডার ট্র্যাকিং", labelEn: "Order Tracking", icon: <ShoppingBag className="w-4 h-4" /> },
-              { id: "wallet", labelBn: "আমার ওয়ালেট", labelEn: "My Wallet", icon: <CreditCard className="w-4 h-4" /> },
-              { id: "referral", labelBn: "রেফার অ্যান্ড আর্ন", labelEn: "Refer & Earn", icon: <Gift className="w-4 h-4" /> },
-              { id: "notifications", labelBn: "নোটিফিকেশনস", labelEn: "Notifications", icon: <Bell className="w-4 h-4" /> }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id as any);
-                  setSelectedOrder(null);
-                }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  activeTab === tab.id 
-                    ? "bg-emerald-50 text-emerald-700" 
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
-                }`}
-              >
-                <div className="flex items-center space-x-2.5">
-                  {tab.icon}
-                  <span>{getTranslation(tab.labelBn, tab.labelEn)}</span>
-                </div>
-                {tab.id === "notifications" && notifications.filter(n => !n.isRead).length > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
-                )}
-              </button>
-            ))}
-          </nav>
+          <div className="min-w-0">
+            <h3 className="font-black text-slate-800 text-sm leading-tight truncate">{dbUser?.displayName || user?.displayName}</h3>
+            <p className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider truncate">{dbUser?.role || user?.role || "customer"}</p>
+          </div>
         </div>
 
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center space-x-2 px-3.5 py-2.5 text-red-600 hover:bg-red-50 rounded-xl text-xs font-bold mt-10 transition cursor-pointer"
-        >
-          <LogOut className="w-4 h-4" />
-          <span>{getTranslation("লগআউট", "Logout")}</span>
-        </button>
-      </div>
+        <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 py-1">
+          {[
+            { id: "dashboard", labelBn: "ড্যাশবোর্ড", labelEn: "Dashboard", icon: <User className="w-4 h-4" /> },
+            { id: "orders", labelBn: "অর্ডার ট্র্যাকিং", labelEn: "Order Tracking", icon: <ShoppingBag className="w-4 h-4" /> },
+            { id: "wallet", labelBn: "আমার ওয়ালেট", labelEn: "My Wallet", icon: <CreditCard className="w-4 h-4" /> },
+            { id: "referral", labelBn: "রেফার অ্যান্ড আর্ন", labelEn: "Refer & Earn", icon: <Gift className="w-4 h-4" /> },
+            { id: "notifications", labelBn: "নোটিফিকেশনস", labelEn: "Notifications", icon: <Bell className="w-4 h-4" /> }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id as any);
+                setSelectedOrder(null);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+                activeTab === tab.id 
+                  ? "bg-emerald-600 text-white shadow shadow-emerald-950 font-black" 
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <span className="shrink-0">{tab.icon}</span>
+                <span className="truncate">{getTranslation(tab.labelBn, tab.labelEn)}</span>
+              </div>
+              {tab.id === "notifications" && notifications.filter(n => !n.isRead).length > 0 && (
+                <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+              )}
+            </button>
+          ))}
+        </nav>
+
+        <div className="pt-3 border-t border-slate-100 shrink-0">
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center justify-center space-x-2 px-3.5 py-2.5 text-red-600 hover:bg-red-50 rounded-xl text-xs font-bold transition cursor-pointer border border-red-100"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>{getTranslation("লগআউট", "Logout")}</span>
+          </button>
+        </div>
+      </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 p-5 sm:p-8 overflow-y-auto max-h-[85vh]">
+      <main className="flex-1 h-full min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-7 xl:p-8 bg-slate-50 focus:outline-none">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
@@ -1441,7 +1441,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             )}
           </>
         )}
-      </div>
+      </main>
 
       <OrderMemoModal
         isOpen={showMemoModal}

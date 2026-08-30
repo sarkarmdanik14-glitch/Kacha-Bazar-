@@ -330,64 +330,66 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
   };
 
   return (
-    <div className="w-full bg-slate-50 min-h-screen rounded-3xl overflow-hidden flex flex-col md:flex-row border border-slate-100">
+    <div className="w-full h-full bg-slate-50 overflow-hidden flex flex-col md:flex-row">
       
       {/* Sidebar Navigation */}
-      <div className="w-full md:w-64 bg-slate-900 text-white p-5 shrink-0 flex flex-col justify-between">
-        <div>
-          {/* Seller shop branding */}
-          <div className="flex items-center space-x-3 mb-8 pb-5 border-b border-slate-800">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-md">
+      <aside className="w-full md:w-64 lg:w-72 bg-slate-950 text-white shrink-0 flex flex-col h-auto md:h-full z-10 border-b md:border-b-0 md:border-r border-slate-850">
+        {/* Seller shop branding */}
+        <div className="p-4 sm:p-5 pb-3 sm:pb-4 border-b border-slate-850 shrink-0">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-md shrink-0">
               <Store className="w-5 h-5" />
             </div>
-            <div className="truncate">
-              <h3 className="font-black text-white text-sm leading-tight">{sellerProfile?.shopName || "Seller Shop"}</h3>
-              <p className="text-[10px] text-emerald-400 font-bold mt-0.5 uppercase tracking-wider">
+            <div className="min-w-0">
+              <h3 className="font-black text-white text-sm leading-tight truncate">{sellerProfile?.shopName || "Seller Shop"}</h3>
+              <p className="text-[10px] text-emerald-400 font-bold mt-0.5 uppercase tracking-wider truncate">
                 {getTranslation("অনুমোদিত মার্চেন্ট", "Approved Merchant")}
               </p>
             </div>
           </div>
-
-          <nav className="space-y-1">
-            {[
-              { id: "dashboard", labelBn: "সেলস ড্যাশবোর্ড", labelEn: "Seller Dashboard", icon: <PieChart className="w-4 h-4" /> },
-              { id: "products", labelBn: "পণ্য ব্যবস্থাপনা", labelEn: "Product Inventory", icon: <Layers className="w-4 h-4" /> },
-              { id: "orders", labelBn: "অর্ডার রিকোয়েস্ট", labelEn: "Customer Orders", icon: <ShoppingBag className="w-4 h-4" /> },
-              { id: "withdraw", labelBn: "আয় ও উত্তোলন", labelEn: "Earnings & Payout", icon: <DollarSign className="w-4 h-4" /> },
-              { id: "notifications", labelBn: "বিজ্ঞপ্তি", labelEn: "Shop Alerts", icon: <Bell className="w-4 h-4" /> }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id as any);
-                  setShowProductForm(false);
-                }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  activeTab === tab.id 
-                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-950" 
-                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
-                }`}
-              >
-                <div className="flex items-center space-x-2.5">
-                  {tab.icon}
-                  <span>{getTranslation(tab.labelBn, tab.labelEn)}</span>
-                </div>
-              </button>
-            ))}
-          </nav>
         </div>
 
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center space-x-2 px-3.5 py-2.5 text-red-400 hover:bg-slate-800 rounded-xl text-xs font-bold mt-10 transition cursor-pointer"
-        >
-          <X className="w-4 h-4" />
-          <span>{getTranslation("লগআউট", "Logout")}</span>
-        </button>
-      </div>
+        <nav className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-1">
+          {[
+            { id: "dashboard", labelBn: "সেলস ড্যাশবোর্ড", labelEn: "Seller Dashboard", icon: <PieChart className="w-4 h-4" /> },
+            { id: "products", labelBn: "পণ্য ব্যবস্থাপনা", labelEn: "Product Inventory", icon: <Layers className="w-4 h-4" /> },
+            { id: "orders", labelBn: "অর্ডার রিকোয়েস্ট", labelEn: "Customer Orders", icon: <ShoppingBag className="w-4 h-4" /> },
+            { id: "withdraw", labelBn: "আয় ও উত্তোলন", labelEn: "Earnings & Payout", icon: <DollarSign className="w-4 h-4" /> },
+            { id: "notifications", labelBn: "বিজ্ঞপ্তি", labelEn: "Shop Alerts", icon: <Bell className="w-4 h-4" /> }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id as any);
+                setShowProductForm(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+                activeTab === tab.id 
+                  ? "bg-emerald-600 text-white shadow shadow-emerald-950 font-black" 
+                  : "text-slate-400 hover:bg-slate-850 hover:text-white"
+              }`}
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <span className="shrink-0">{tab.icon}</span>
+                <span className="truncate">{getTranslation(tab.labelBn, tab.labelEn)}</span>
+              </div>
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-3 sm:p-4 border-t border-slate-850 shrink-0 bg-slate-950">
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center justify-center space-x-2 px-3.5 py-2.5 text-red-400 hover:bg-red-950/40 hover:text-red-300 rounded-xl text-xs font-bold transition cursor-pointer border border-red-900/30"
+          >
+            <X className="w-4 h-4" />
+            <span>{getTranslation("লগআউট", "Logout")}</span>
+          </button>
+        </div>
+      </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 p-5 sm:p-8 overflow-y-auto max-h-[85vh]">
+      <main className="flex-1 h-full min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-7 xl:p-8 bg-slate-50 focus:outline-none">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
@@ -899,7 +901,7 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
 
           </>
         )}
-      </div>
+      </main>
 
     </div>
   );

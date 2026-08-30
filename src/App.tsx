@@ -6,23 +6,25 @@ import {
   ChevronLeft, ChevronRight, Share2, Eye, Plus, Minus, Trash2, X, 
   MapPin, Bell, User, Check, Send, Tag, Gift, Award, Smartphone, 
   QrCode, ArrowRight, ArrowLeft, ThumbsUp, Info, ChevronDown, ChevronUp, CheckCircle, Percent, Volume2,
-  Phone, PhoneCall, Mail, ExternalLink, Navigation, Locate, Copy, Zap, Printer, Download, FileText, Loader2, Wifi, WifiOff, MessageSquare, Globe
+  Phone, PhoneCall, Mail, ExternalLink, Navigation, Locate, Copy, Zap, Printer, Download, FileText, Loader2, Wifi, WifiOff, MessageSquare, Globe, Home
 } from "lucide-react";
 import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { Product, Category, CartItem, Review, ProductOption } from "./types";
 import { CATEGORIES } from "./data";
 
-const PortalModal = React.lazy(() => import("./components/portal/PortalModal"));
-const CheckoutModal = React.lazy(() => import("./components/CheckoutModal"));
-const CustomerLiveChat = React.lazy(() => import("./components/CustomerLiveChat"));
-const CustomerVoiceCallModal = React.lazy(() => import("./components/CustomerVoiceCallModal"));
+import PortalModal from "./components/portal/PortalModal";
+import CheckoutModal from "./components/CheckoutModal";
+import CustomerLiveChat from "./components/CustomerLiveChat";
+import CustomerVoiceCallModal from "./components/CustomerVoiceCallModal";
 import { seedDatabase, db, collection, onSnapshot, auth, onAuthStateChanged, doc, getDoc, setDoc, query, where, limit, orderBy, or, addDoc, deleteDoc, serverTimestamp } from "./lib/firebase";
 import { calculateDeliveryFeeFromSettings } from "./lib/delivery";
-import { initVoiceWelcome } from "./lib/voiceWelcome";
+
 import { BannerSlider } from "./components/BannerSlider";
 import { CartItemRow } from "./components/CartItemRow";
 import { ProductCard } from "./components/ProductCard";
+import { PWAInstallBanner } from "./components/PWAInstallBanner";
+import { openPWAQRCodeModal, openPWAInstallModal } from "./utils/pwa";
 import { motion, AnimatePresence } from "motion/react";
 
 import makkahImg from "./assets/images/makkah.jpg";
@@ -379,9 +381,55 @@ export default function App() {
     };
   }, []);
 
-  // Voice Welcome Greeting (Plays once per session: "আসসালামু আলাইকুম, কাঁচা বাজারে আপনাকে স্বাগতম।")
+
+
+  // Dynamic Category Navigation handler (1 Click -> Dedicated Category Page with browser history sync)
+  const navigateToCategory = useCallback((catId: string) => {
+    setSelectedCategory(catId);
+    setSelectedSubcategory("all");
+    setShowFlashSaleOnly(false);
+
+    // Sync URL search params without page reload
+    const searchParams = new URLSearchParams(window.location.search);
+    if (catId === "all") {
+      searchParams.delete("category");
+    } else {
+      searchParams.set("category", catId);
+    }
+    const newQuery = searchParams.toString();
+    const basePath = window.location.pathname.startsWith("/admin") || window.location.pathname.startsWith("/seller") || window.location.pathname.startsWith("/rider") 
+      ? window.location.pathname 
+      : "/";
+    const newUrl = newQuery ? `?${newQuery}` : basePath;
+    window.history.pushState({ category: catId }, "", newUrl);
+
+    // Smooth scroll to top
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  const handleBackToHome = useCallback(() => {
+    navigateToCategory("all");
+  }, [navigateToCategory]);
+
+  // Category URL routing listener for browser back / forward buttons and direct links
   useEffect(() => {
-    initVoiceWelcome();
+    const checkCategoryRoute = () => {
+      const search = new URLSearchParams(window.location.search);
+      const catParam = search.get("category");
+      if (catParam && catParam !== "all") {
+        setSelectedCategory(catParam);
+        setSelectedSubcategory("all");
+        setShowFlashSaleOnly(false);
+      } else {
+        setSelectedCategory("all");
+      }
+    };
+
+    checkCategoryRoute();
+    window.addEventListener("popstate", checkCategoryRoute);
+    return () => {
+      window.removeEventListener("popstate", checkCategoryRoute);
+    };
   }, []);
 
   const [showCheckoutModal, setShowCheckoutModal] = useState<boolean>(false);
@@ -1276,24 +1324,22 @@ export default function App() {
   if (showCheckoutModal) {
     return (
       <div className="min-h-screen w-full overflow-x-hidden bg-slate-50 font-sans text-slate-800 antialiased selection:bg-emerald-500 selection:text-white flex flex-col" id="checkout-view-root">
-        <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500 font-bold">Loading Secure Checkout...</div>}>
-          <CheckoutModal 
-            isOpen={true} 
-            onClose={() => {
-              setShowCheckoutModal(false);
-            }} 
-            cart={cart} 
-            subtotal={subtotal} 
-            deliveryFee={deliveryFee} 
-            discount={discountAmt} 
-            grandTotal={grandTotal} 
-            appliedCoupon={appliedCoupon} 
-            lang={lang} 
-            onSuccess={handleCheckoutSuccess} 
-            triggerToast={triggerToast} 
-            isFullScreen={true}
-          />
-        </React.Suspense>
+        <CheckoutModal 
+          isOpen={true} 
+          onClose={() => {
+            setShowCheckoutModal(false);
+          }} 
+          cart={cart} 
+          subtotal={subtotal} 
+          deliveryFee={deliveryFee} 
+          discount={discountAmt} 
+          grandTotal={grandTotal} 
+          appliedCoupon={appliedCoupon} 
+          lang={lang} 
+          onSuccess={handleCheckoutSuccess} 
+          triggerToast={triggerToast} 
+          isFullScreen={true}
+        />
         
         {/* ================= TOAST FLOATING BANNER ================= */}
         {toast && (
@@ -1611,17 +1657,20 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-1 sm:gap-4">
           
           {/* Logo */}
-          <div className="flex items-center space-x-1 sm:space-x-2 min-w-0 shrink">
+          <div 
+            onClick={handleBackToHome}
+            className="flex items-center space-x-1 sm:space-x-2 min-w-0 shrink cursor-pointer group"
+          >
             {logoImg ? (
               <img 
                 src={logoImg} 
                 alt="Kacha Bazar Logo" 
-                className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 object-contain rounded-full border border-emerald-100 bg-white shadow-md shadow-emerald-50 shrink-0"
+                className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 object-contain rounded-full border border-emerald-100 bg-white shadow-md shadow-emerald-50 shrink-0 group-hover:scale-105 transition"
                 referrerPolicy="no-referrer"
               />
             ) : null}
             <div className="min-w-0">
-              <h1 className="text-xs sm:text-lg md:text-xl font-black text-emerald-700 tracking-tight leading-none truncate">
+              <h1 className="text-xs sm:text-lg md:text-xl font-black text-emerald-700 tracking-tight leading-none truncate group-hover:text-emerald-800 transition">
                 {lang === "bn" ? "কাচা বাজার" : "Kacha Bazar"}
               </h1>
               <p className="text-[7px] sm:text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 truncate">
@@ -1631,7 +1680,20 @@ export default function App() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center space-x-1.5 sm:space-x-2 md:space-x-3 shrink-0">
+          <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-3 shrink-0">
+
+            {/* PWA App Install & QR Code Trigger Button */}
+            <button
+              onClick={() => openPWAQRCodeModal()}
+              className="flex items-center space-x-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 sm:px-2.5 py-1 sm:py-2 rounded-full transition cursor-pointer text-xs font-bold shrink-0 shadow-2xs"
+              title={lang === "bn" ? "অ্যাপ ইনস্টল ও কিউআর কোড" : "Install App & QR Code"}
+              id="header-pwa-btn"
+            >
+              <QrCode className="w-4 h-4 text-emerald-600 animate-pulse" />
+              <span className="hidden sm:inline text-[11px] font-black">
+                {lang === "bn" ? "অ্যাপ QR" : "App QR"}
+              </span>
+            </button>
 
             {/* Shopping Cart Button */}
             <button 
@@ -1730,7 +1792,7 @@ export default function App() {
           <button 
             type="button"
             onClick={() => setShowLiveChat(prev => !prev)}
-            className="w-full h-[36px] sm:h-[40px] md:h-[44px] px-1 sm:px-2.5 md:px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-full transition-all cursor-pointer shadow-xs border border-emerald-500 flex items-center justify-center gap-1 sm:gap-1.5 select-none"
+            className="w-full h-[36px] sm:h-[40px] md:h-[44px] px-1.5 sm:px-2.5 md:px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-full transition-all cursor-pointer shadow-xs border border-emerald-500 flex items-center justify-center gap-1 sm:gap-1.5 select-none"
             id="middle-live-chat-btn"
             title={lang === "bn" ? "চ্যাট করুন" : "Live Chat"}
           >
@@ -1739,24 +1801,24 @@ export default function App() {
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 bg-emerald-300"></span>
             </span>
             <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-            <span className="text-[9px] xs:text-[10px] sm:text-xs md:text-sm font-bold tracking-tighter xs:tracking-tight whitespace-nowrap leading-none">
+            <span className="text-[11px] xs:text-[12px] sm:text-[13px] md:text-[14px] font-bold tracking-tight whitespace-nowrap leading-none">
               {lang === "bn" ? "অর্ডার মেসেজ করুন" : "Message Order"}
             </span>
           </button>
 
-          {/* 3. Free Call to Order Pill Button (1/3 Equal Column) */}
+          {/* 3. Call to Order Pill Button (1/3 Equal Column) */}
           <button 
             type="button"
             onClick={() => setShowVoiceCall(true)}
-            className="w-full h-[36px] sm:h-[40px] md:h-[44px] px-1 sm:px-2 md:px-3 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 hover:from-amber-600 hover:to-orange-600 active:scale-98 text-white rounded-full transition-all cursor-pointer shadow-xs border border-amber-400 flex items-center justify-center gap-1 sm:gap-1.5 select-none group"
+            className="w-full h-[36px] sm:h-[40px] md:h-[44px] px-1.5 sm:px-2.5 md:px-3 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 hover:from-amber-600 hover:to-orange-600 active:scale-98 text-white rounded-full transition-all cursor-pointer shadow-xs border border-amber-400 flex items-center justify-center gap-1 sm:gap-1.5 select-none group"
             id="call-to-order-bar"
-            title={lang === "bn" ? "অর্ডারের জন্য ফ্রি কল করুন" : "Free Call for Order"}
+            title={lang === "bn" ? "অর্ডার কল করুন" : "Call to Order"}
           >
             <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 rounded-full bg-white/25 flex items-center justify-center shrink-0 border border-white/20 shadow-inner group-hover:scale-110 transition-transform">
               <Phone className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 text-white animate-bounce" />
             </div>
-            <span className="text-[9px] xs:text-[10px] sm:text-xs md:text-sm font-black tracking-tighter xs:tracking-tight whitespace-nowrap leading-none">
-              {lang === "bn" ? "অর্ডারের জন্য ফ্রি কল" : "Free Call for Order"}
+            <span className="text-[11px] xs:text-[12px] sm:text-[13px] md:text-[14px] font-black tracking-tight whitespace-nowrap leading-none">
+              {lang === "bn" ? "অর্ডার কল করুন" : "Call to Order"}
             </span>
           </button>
 
@@ -1783,103 +1845,85 @@ export default function App() {
               window.scrollTo({ top: 350, behavior: "smooth" });
             }
           }}
+          onCategoryClick={navigateToCategory}
           customBanners={homeConfig?.heroBanners || banners}
           loading={loadingBanners}
         />
       )}
 
-      {/* ================= 4. CATEGORIES ================= */}
-      <section className="max-w-7xl mx-auto px-4 mt-8">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h3 className="text-lg md:text-xl font-bold text-slate-800 flex items-center gap-1.5">
-              <span className="w-2.5 h-6 bg-emerald-600 rounded-full inline-block"></span>
-              {lang === "bn" ? "প্রয়োজনীয় ক্যাটাগরি সমূহ" : "Explore Beautiful Categories"}
-            </h3>
-            <p className="text-xs text-slate-400">{lang === "bn" ? "এক ক্লিকেই পছন্দমতো বাজার করুন" : "Browse items by department smoothly"}</p>
+      {/* ================= 4. CATEGORIES (HOME PAGE VIEW) ================= */}
+      {selectedCategory === "all" && (
+        <section className="max-w-7xl mx-auto px-4 mt-8">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-lg md:text-xl font-bold text-slate-800 flex items-center gap-1.5">
+                <span className="w-2.5 h-6 bg-emerald-600 rounded-full inline-block"></span>
+                {lang === "bn" ? "প্রয়োজনীয় ক্যাটাগরি সমূহ" : "Explore Beautiful Categories"}
+              </h3>
+              <p className="text-xs text-slate-400">{lang === "bn" ? "এক ক্লিকেই পছন্দমতো বাজার করুন" : "Browse items by department smoothly"}</p>
+            </div>
           </div>
-          {selectedCategory !== "all" && (
-            <button 
-              onClick={() => {
-                setSelectedCategory("all");
-                setSelectedSubcategory("all");
-              }}
-              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-emerald-200 shadow-xs"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span>{lang === "bn" ? "সব ক্যাটাগরি" : "All Categories"}</span>
-            </button>
+          
+          {/* All Categories displayed directly in a premium, responsive grid */}
+          {loadingCategories ? (
+            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-10 gap-3 md:gap-4">
+              {Array.from({ length: 10 }).map((_, idx) => (
+                <div key={idx} className="flex flex-col items-center p-3 rounded-2xl border border-slate-100 bg-white animate-pulse">
+                  <div className="w-11 h-11 rounded-full bg-slate-100 mb-1.5"></div>
+                  <div className="h-2.5 w-14 bg-slate-100 rounded mt-1"></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-10 gap-3 md:gap-4">
+              {categories.filter(c => c.id !== "all" && c.isAvailable !== false && (c as any).disabled !== true && !(homeConfig?.categoryConfig?.hiddenCategoryIds || []).includes(c.id)).map((cat, idx) => {
+                const isHiddenOnMobile = idx >= 6 && !showAllMobile;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => navigateToCategory(cat.id)}
+                    className={`flex-col items-center p-3 rounded-2xl border cursor-pointer transition-all duration-300 shadow-xs hover:shadow-md hover:-translate-y-0.5 border-slate-100 bg-white hover:border-emerald-500 hover:ring-2 hover:ring-emerald-500/20 ${isHiddenOnMobile ? "hidden sm:flex" : "flex"}`}
+                  >
+                    <div className={`w-11 h-11 rounded-full flex items-center justify-center mb-1.5 transition overflow-hidden ${cat.colorClass}`}>
+                      {(cat as any).image || (cat as any).imageUrl ? (
+                        <img src={(cat as any).image || (cat as any).imageUrl} alt={cat.nameEn} className="w-full h-full object-cover" />
+                      ) : (
+                        renderCatIcon(cat.iconName)
+                      )}
+                    </div>
+                    <p className="text-[10px] sm:text-xs font-bold text-slate-700 text-center leading-tight mt-1">
+                      {lang === "bn" ? cat.nameBn : cat.nameEn}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
           )}
-        </div>
-        
-        {/* All Categories displayed directly in a premium, responsive grid */}
-        {loadingCategories ? (
-          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-10 gap-3 md:gap-4">
-            {Array.from({ length: 10 }).map((_, idx) => (
-              <div key={idx} className="flex flex-col items-center p-3 rounded-2xl border border-slate-100 bg-white animate-pulse">
-                <div className="w-11 h-11 rounded-full bg-slate-100 mb-1.5"></div>
-                <div className="h-2.5 w-14 bg-slate-100 rounded mt-1"></div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-10 gap-3 md:gap-4">
-            {categories.filter(c => c.id !== "all" && c.isAvailable !== false && (c as any).disabled !== true && !(homeConfig?.categoryConfig?.hiddenCategoryIds || []).includes(c.id)).map((cat, idx) => {
-              const isHiddenOnMobile = idx >= 6 && !showAllMobile;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => {
-                    if (selectedCategory === cat.id) {
-                      setSelectedCategory("all");
-                      setSelectedSubcategory("all");
-                    } else {
-                      setSelectedCategory(cat.id);
-                      setSelectedSubcategory("all");
-                      setShowFlashSaleOnly(false);
-                    }
-                  }}
-                  className={`flex-col items-center p-3 rounded-2xl border cursor-pointer transition-all duration-300 shadow-xs hover:shadow-md hover:-translate-y-0.5 ${isHiddenOnMobile ? "hidden sm:flex" : "flex"} ${selectedCategory === cat.id ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-white" : "border-slate-100 bg-white"}`}
-                >
-                  <div className={`w-11 h-11 rounded-full flex items-center justify-center mb-1.5 transition overflow-hidden ${selectedCategory === cat.id ? "bg-emerald-600 text-white" : cat.colorClass}`}>
-                    {(cat as any).image || (cat as any).imageUrl ? (
-                      <img src={(cat as any).image || (cat as any).imageUrl} alt={cat.nameEn} className="w-full h-full object-cover" />
-                    ) : (
-                      renderCatIcon(cat.iconName)
-                    )}
-                  </div>
-                  <p className="text-[10px] sm:text-xs font-bold text-slate-700 text-center leading-tight mt-1">
-                    {lang === "bn" ? cat.nameBn : cat.nameEn}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        )}
 
-        {/* Mobile Show All/Less Button placed at the very end of the category list, not as the 6th item */}
-        {!loadingCategories && (
-          <div className="flex justify-center mt-4 sm:hidden">
-            {!showAllMobile ? (
-              <button
-                onClick={() => setShowAllMobile(true)}
-                className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 hover:border-emerald-500 rounded-full text-xs font-bold text-slate-700 hover:text-emerald-600 shadow-sm transition cursor-pointer"
-              >
-                <span>{lang === "bn" ? "সব ক্যাটাগরি দেখুন" : "Show All Categories"}</span>
-                <ChevronDown className="w-4 h-4 text-slate-400" />
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowAllMobile(false)}
-                className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 hover:border-emerald-500 rounded-full text-xs font-bold text-slate-700 hover:text-emerald-600 shadow-sm transition cursor-pointer"
-              >
-                <span>{lang === "bn" ? "কম ক্যাটাগরি দেখুন" : "Show Less"}</span>
-                <ChevronUp className="w-4 h-4 text-slate-400" />
-              </button>
-            )}
-          </div>
-        )}
-      </section>
+          {/* Mobile Show All/Less Button placed at the very end of the category list, not as the 6th item */}
+          {!loadingCategories && (
+            <div className="flex justify-center mt-4 sm:hidden">
+              {!showAllMobile ? (
+                <button
+                  onClick={() => setShowAllMobile(true)}
+                  className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 hover:border-emerald-500 rounded-full text-xs font-bold text-slate-700 hover:text-emerald-600 shadow-sm transition cursor-pointer"
+                >
+                  <span>{lang === "bn" ? "সব ক্যাটাগরি দেখুন" : "Show All Categories"}</span>
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowAllMobile(false)}
+                  className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 hover:border-emerald-500 rounded-full text-xs font-bold text-slate-700 hover:text-emerald-600 shadow-sm transition cursor-pointer"
+                >
+                  <span>{lang === "bn" ? "কম ক্যাটাগরি দেখুন" : "Show Less"}</span>
+                  <ChevronUp className="w-4 h-4 text-slate-400" />
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {selectedCategory === "all" ? (
         showFlashSaleOnly ? (
@@ -2188,8 +2232,9 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 mt-6">
           {/* Category Page Header Banner */}
           {(() => {
-            const cat = categories.find(c => c.id === selectedCategory);
-            if (!cat) return null;
+            const cat = categories.find(c => c.id === selectedCategory) || 
+                        CATEGORIES.find(c => c.id === selectedCategory) || 
+                        { id: selectedCategory, nameBn: selectedCategory, nameEn: selectedCategory, colorClass: "from-emerald-500 to-teal-600", borderColor: "border-emerald-200", iconName: "Salad" };
 
             // Filter products
             const catProducts = availableProducts.filter((product) => {
@@ -2222,6 +2267,31 @@ export default function App() {
 
             return (
               <>
+                {/* Dedicated Category Page Breadcrumbs */}
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <button 
+                      onClick={handleBackToHome}
+                      className="hover:text-emerald-600 font-bold flex items-center gap-1.5 cursor-pointer text-slate-600 hover:underline"
+                    >
+                      <Home className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{lang === "bn" ? "হোম পেজ" : "Home"}</span>
+                    </button>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+                    <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                      {lang === "bn" ? cat.nameBn : cat.nameEn}
+                    </span>
+                  </div>
+
+                  <button 
+                    onClick={handleBackToHome}
+                    className="bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 px-3.5 py-1.5 rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0 hover:border-emerald-500 hover:text-emerald-700"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{lang === "bn" ? "সকল ক্যাটাগরি (হোম)" : "All Categories (Home)"}</span>
+                  </button>
+                </div>
+
                 <div className={`p-6 sm:p-8 rounded-2xl bg-gradient-to-br ${cat.colorClass.split(" ")[0]} border ${cat.borderColor} flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm`}>
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-md shrink-0 animate-fade-in overflow-hidden">
@@ -2252,10 +2322,7 @@ export default function App() {
                   </div>
 
                   <button 
-                    onClick={() => {
-                      setSelectedCategory("all");
-                      setSelectedSubcategory("all");
-                    }}
+                    onClick={handleBackToHome}
                     className="bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5 cursor-pointer shrink-0"
                   >
                     <ChevronLeft className="w-4 h-4 text-emerald-600" />
@@ -2489,126 +2556,48 @@ export default function App() {
       </section>
       )}
 
-      {/* ================= DOWNLOAD APP BANNER (COMPACT 50% HEIGHT) ================= */}
-      {(homeConfig?.sectionVisibility?.showMobileApp !== false && homeConfig?.mobileAppConfig?.enabled !== false) && (
-      <section className="max-w-7xl mx-auto px-4 mt-2 md:mt-2.5 pb-1.5 md:pb-2.5">
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl md:rounded-2xl py-2 sm:py-2.5 px-3 sm:px-4 md:px-5 text-white relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4 shadow-sm">
-          <div className="absolute top-0 right-0 -translate-y-12 translate-x-12 w-36 h-36 rounded-full bg-emerald-500/10 blur-2xl"></div>
-          
-          <div className="flex-1 max-w-lg z-10">
-            <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-full text-[7.5px] sm:text-[8.5px] font-bold tracking-widest uppercase inline-block mb-0.5">
-              {lang === "bn" ? "মোবাইল অ্যাপ্লিকেশন" : "Mobile App Launch"}
-            </span>
-            <h3 className="text-xs sm:text-sm md:text-base font-extrabold leading-tight">
-              {lang === "bn" 
-                ? (homeConfig?.mobileAppConfig?.titleBn || "অর্ডার করুন কাচা বাজার মোবাইল অ্যাপে!") 
-                : (homeConfig?.mobileAppConfig?.titleEn || "Order Smoother inside Mobile Application!")}
-            </h3>
-            <p className="text-[9px] sm:text-[10.5px] text-slate-300 mt-0.5 leading-tight">
-              {lang === "bn" 
-                ? (homeConfig?.mobileAppConfig?.subtitleBn || "অ্যাপ ডাউনলোড করলেই প্রথম ৩টি অর্ডারে পাচ্ছেন ফ্রি হোম ডেলিভারি ও ২০০ টাকা ক্যাশব্যাক অফার! আজই ডাউনলোড করুন।") 
-                : (homeConfig?.mobileAppConfig?.subtitleEn || "Unlock exclusive deals, live delivery trackers, and instant cashbacks inside Kacha Bazar app.")}
-            </p>
-            
-            <div className="flex flex-wrap items-center gap-1.5 md:gap-2 mt-1.5 md:mt-2">
-              <button 
-                onClick={() => {
-                  if (homeConfig?.mobileAppConfig?.playStoreUrl) {
-                    window.open(homeConfig.mobileAppConfig.playStoreUrl, "_blank");
-                  } else {
-                    triggerToast("গুগল প্লে স্টোর অ্যাপ ডাউনলোড লিংক কপি হয়েছে", "Google Play Store Link Copied");
-                  }
-                }}
-                className="bg-white/10 hover:bg-white/20 border border-white/15 px-1.5 py-0.5 md:px-2 md:py-1 rounded-md text-left transition flex items-center space-x-1 cursor-pointer"
-              >
-                <Smartphone className="w-3 h-3 md:w-3.5 md:h-3.5 text-emerald-400 shrink-0" />
-                <div className="leading-tight">
-                  <p className="text-[6.5px] text-slate-400 uppercase font-semibold leading-none">Get it on</p>
-                  <p className="text-[9px] md:text-[10px] font-bold leading-tight">Google Play</p>
-                </div>
-              </button>
 
-              <button 
-                onClick={() => {
-                  if (homeConfig?.mobileAppConfig?.appStoreUrl) {
-                    window.open(homeConfig.mobileAppConfig.appStoreUrl, "_blank");
-                  } else {
-                    triggerToast("অ্যাপল অ্যাপ স্টোর ডাউনলোড লিংক কপি হয়েছে", "Apple App Store Link Copied");
-                  }
-                }}
-                className="bg-white/10 hover:bg-white/20 border border-white/15 px-1.5 py-0.5 md:px-2 md:py-1 rounded-md text-left transition flex items-center space-x-1 cursor-pointer"
-              >
-                <Smartphone className="w-3 h-3 md:w-3.5 md:h-3.5 text-emerald-400 shrink-0" />
-                <div className="leading-tight">
-                  <p className="text-[6.5px] text-slate-400 uppercase font-semibold leading-none">Download on the</p>
-                  <p className="text-[9px] md:text-[10px] font-bold leading-tight">App Store</p>
-                </div>
-              </button>
-            </div>
-          </div>
 
-          <div className="shrink-0 flex items-center space-x-1.5 md:space-x-2 bg-white/5 py-1 px-1.5 sm:py-1.5 sm:px-2 md:py-1.5 md:px-2.5 rounded-lg border border-white/10 z-10">
-            {homeConfig?.mobileAppConfig?.qrCodeImage ? (
-              <img 
-                src={homeConfig.mobileAppConfig.qrCodeImage} 
-                alt="QR Code" 
-                className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 object-contain bg-white rounded p-0.5" 
-                onError={(e) => {
-                  (e.target as any).style.display = 'none';
-                }}
-              />
-            ) : (
-              <QrCode className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 text-white shrink-0" />
-            )}
-            <div className="max-w-[105px] md:max-w-[115px]">
-              <p className="text-[9px] md:text-[10.5px] font-bold leading-tight">{lang === "bn" ? "স্ক্যান করে ডাউনলোড করুন" : "Scan to Download Now"}</p>
-              <p className="text-[7px] md:text-[8px] text-slate-400 mt-0.5 leading-tight">{lang === "bn" ? "আইওএস এবং অ্যান্ড্রয়েড সংস্করণ সমর্থিত" : "iOS & Android app available"}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-      )}
-
-      {/* ================= BEAUTIFUL FOOTER ================= */}
+      {/* ================= BEAUTIFUL FOOTER (COMPACT 40% REDUCED) ================= */}
       {homeConfig?.sectionVisibility?.showFooter !== false && (
-      <footer className="bg-slate-950 text-slate-400 pt-6 pb-4 sm:pt-8 sm:pb-5 border-t border-slate-800 text-xs">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-6 mb-5 items-start">
+      <footer className="bg-slate-950 text-slate-400 pt-3 pb-2 sm:pt-4 sm:pb-3 border-t border-slate-800 text-[10px] sm:text-xs">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 mb-2.5 items-start">
           
           {/* Leftmost Kacha Bazar Branding Area */}
-          <div className="md:col-span-5 lg:col-span-5 space-y-2">
-            <div className="flex items-center space-x-2 text-white">
+          <div className="md:col-span-5 lg:col-span-5 space-y-1">
+            <div className="flex items-center space-x-1.5 text-white">
               {logoImg ? (
                 <img 
                   src={logoImg} 
                   alt="Kacha Bazar Logo" 
-                  className="w-7 h-7 sm:w-8 sm:h-8 object-contain rounded-full border border-slate-700 bg-white"
+                  className="w-5 h-5 sm:w-6 sm:h-6 object-contain rounded-full border border-slate-700 bg-white"
                   referrerPolicy="no-referrer"
                 />
               ) : null}
-              <span className="text-base sm:text-lg font-black tracking-tight">{lang === "bn" ? "কাচা বাজার" : "Kacha Bazar"}</span>
+              <span className="text-sm sm:text-base font-black tracking-tight">{lang === "bn" ? "কাচা বাজার" : "Kacha Bazar"}</span>
             </div>
-            <p className="leading-relaxed text-slate-400 text-[11px] sm:text-xs">
+            <p className="leading-snug text-slate-400 text-[9.5px] sm:text-[10.5px] line-clamp-2">
               {lang === "bn" 
                 ? (homeConfig?.footerConfig?.aboutBn || "আমাদের মিশন হলো সর্বোচ্চ তাজা ও বিষমুক্ত সবজি, তাজা মাছ, মাংস ও মুদি পণ্য সরাসরি কৃষকদের মাঠ থেকে তুলে গ্রাহকদের ঘরের দরজায় পৌঁছে দেওয়া।") 
                 : (homeConfig?.footerConfig?.aboutEn || "We are committed to delivering 100% formalin-free, organic, and daily harvested food items direct-from-farmers to your kitchen.")}
             </p>
-            <div className="space-y-1 text-[11px] sm:text-xs pt-0.5">
+            <div className="space-y-0.5 text-[9.5px] sm:text-[10.5px] pt-0.5">
               <p className="font-medium text-slate-300 flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <Mail className="w-3 h-3 text-emerald-400 shrink-0" />
                 <span className="text-slate-400">{lang === "bn" ? "ইমেইল:" : "Email:"}</span>
                 <a href={`mailto:${homeConfig?.footerConfig?.email || "sarkarmdanik14@gmail.com"}`} className="hover:text-emerald-400 transition truncate underline">
                   {homeConfig?.footerConfig?.email || "sarkarmdanik14@gmail.com"}
                 </a>
               </p>
               <p className="font-medium text-slate-300 flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <Phone className="w-3 h-3 text-emerald-400 shrink-0" />
                 <span className="text-slate-400">{lang === "bn" ? "হটলাইন:" : "Hotline:"}</span>
                 <a href={`tel:${homeConfig?.footerConfig?.phone || "+8801722638985"}`} className="hover:text-emerald-400 transition font-bold text-white">
                   {homeConfig?.footerConfig?.phone || "+8801722638985"}
                 </a>
               </p>
               <div className="font-medium text-slate-300 flex items-center gap-1.5 flex-wrap">
-                <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
                 <span className="text-slate-400">{lang === "bn" ? "ঠিকানা:" : "Address:"}</span>
                 <span>
                   {lang === "bn" 
@@ -2619,20 +2608,20 @@ export default function App() {
                   href={homeConfig?.footerConfig?.mapsUrl || "https://www.google.com/maps/search/?api=1&query=Chanchkoir+Bazar,+Gurudaspur,+Natore,+Bangladesh"} 
                   target="_blank" 
                   rel="noreferrer"
-                  className="inline-flex items-center gap-0.5 bg-emerald-900/60 hover:bg-emerald-800 border border-emerald-600/60 text-emerald-300 hover:text-white font-bold text-[9px] px-1.5 py-0.5 rounded transition ml-1"
+                  className="inline-flex items-center gap-0.5 bg-emerald-900/60 hover:bg-emerald-800 border border-emerald-600/60 text-emerald-300 hover:text-white font-bold text-[8.5px] px-1 py-0.2 rounded transition ml-0.5"
                 >
                   <span>{lang === "bn" ? "ম্যাপ" : "Map"}</span>
-                  <ExternalLink className="w-2.5 h-2.5" />
+                  <ExternalLink className="w-2 h-2" />
                 </a>
               </div>
             </div>
           </div>
 
-          {/* Cleared Area: Leadership Section */}
-          <div className="md:col-span-7 lg:col-span-7 bg-slate-900/70 border border-slate-800 rounded-xl p-2.5 sm:p-3">
-            <div className="flex items-center gap-1.5 mb-2 pb-1.5 border-b border-slate-800/80">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              <h3 className="text-[10.5px] sm:text-xs font-bold text-white uppercase tracking-wider">
+          {/* Leadership Section */}
+          <div className="md:col-span-7 lg:col-span-7 bg-slate-900/70 border border-slate-800 rounded-lg p-1.5 sm:p-2">
+            <div className="flex items-center gap-1 mb-1 pb-1 border-b border-slate-800/80">
+              <Sparkles className="w-3 h-3 text-emerald-400" />
+              <h3 className="text-[9.5px] sm:text-[10.5px] font-bold text-white uppercase tracking-wider">
                 {lang === "bn" ? "বোর্ড অফ ডিরেক্টর্স ও নেতৃত্ব" : "Board of Directors & Leadership"}
               </h3>
             </div>
@@ -2694,27 +2683,27 @@ export default function App() {
               ];
 
               return (
-                <div className={`grid grid-cols-3 ${allMembers.length <= 3 ? "sm:grid-cols-3" : "sm:grid-cols-3 md:grid-cols-4"} gap-1.5 sm:gap-2`}>
+                <div className={`grid grid-cols-3 ${allMembers.length <= 3 ? "sm:grid-cols-3" : "sm:grid-cols-3 md:grid-cols-4"} gap-1 sm:gap-1.5`}>
                   {allMembers.map((member) => (
-                    <div key={member.id} className="bg-slate-950/70 border border-slate-800 hover:border-emerald-500/40 transition rounded-lg p-1.5 sm:p-2 text-center flex flex-col items-center justify-between min-w-0">
-                      <div className="relative mb-1">
+                    <div key={member.id} className="bg-slate-950/70 border border-slate-800 hover:border-emerald-500/40 transition rounded-md p-1 sm:p-1.5 text-center flex flex-col items-center justify-between min-w-0">
+                      <div className="relative mb-0.5">
                         <img 
                           src={member.image} 
                           alt={`${member.nameEn} - ${member.roleEn}`} 
-                          className={`w-9 h-9 sm:w-12 sm:h-12 rounded-full object-cover border-1.5 ${member.borderColor} shadow-2xs`}
+                          className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full object-cover border ${member.borderColor} shadow-2xs`}
                           referrerPolicy="no-referrer"
                         />
                         <span className={`absolute -bottom-0.5 -right-0.5 ${member.iconBg} text-white p-0.5 rounded-full border border-slate-900 shadow-2xs`}>
-                          <User className="w-1.5 h-1.5 sm:w-2 sm:h-2" />
+                          <User className="w-1.5 h-1.5" />
                         </span>
                       </div>
-                      <span className={`text-[7px] sm:text-[8px] font-bold uppercase tracking-wider px-1 py-0.2 rounded border mb-0.5 max-w-full truncate ${member.badgeColor}`}>
+                      <span className={`text-[6.5px] sm:text-[7.5px] font-bold uppercase tracking-wider px-1 py-0.2 rounded border mb-0.5 max-w-full truncate ${member.badgeColor}`}>
                         {lang === "bn" ? member.roleBn : member.roleEn}
                       </span>
-                      <h4 className="text-[8.5px] sm:text-[10px] font-bold text-white leading-tight uppercase truncate w-full">
+                      <h4 className="text-[7.5px] sm:text-[9px] font-bold text-white leading-tight uppercase truncate w-full">
                         {lang === "bn" ? member.nameBn : member.nameEn}
                       </h4>
-                      <p className="text-[7.5px] sm:text-[8.5px] text-slate-400 mt-0.5 leading-tight truncate w-full">{lang === "bn" ? member.titleBn : member.titleEn}</p>
+                      <p className="text-[6.5px] sm:text-[7.5px] text-slate-400 mt-0.5 leading-tight truncate w-full">{lang === "bn" ? member.titleBn : member.titleEn}</p>
                     </div>
                   ))}
                 </div>
@@ -2725,115 +2714,111 @@ export default function App() {
         </div>
 
         {/* Bottom Bar: Copyright, Language, Portals & Credits */}
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 pt-3 sm:pt-4 border-t border-slate-800/80 flex flex-col items-center justify-center gap-2.5 text-center">
-          
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] sm:text-xs">
-            {/* Copyright */}
-            <span className="text-slate-500 font-medium">
-              © {new Date().getFullYear()} {lang === "bn" ? "কাচা বাজার লিমিটেড।" : "Kacha Bazar Ltd."}
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 pt-2 sm:pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-center text-[10px] sm:text-[11px]">
+          {/* Copyright */}
+          <span className="text-slate-500 font-medium">
+            © {new Date().getFullYear()} {lang === "bn" ? "কাচা বাজার লিমিটেড।" : "Kacha Bazar Ltd."}
+          </span>
+
+          {/* Smart Language Switcher Pill */}
+          <div className="inline-flex items-center bg-slate-900 border border-slate-800 rounded-full p-0.5 shadow-2xs" id="footer-lang-switcher">
+            <span className="text-[9px] text-slate-400 pl-1.5 pr-0.5 flex items-center gap-0.5 font-semibold">
+              <Globe className="w-2.5 h-2.5 text-emerald-400" />
+              <span className="hidden xs:inline">{lang === "bn" ? "ভাষা" : "Lang"}</span>
             </span>
-
-            {/* Smart Language Switcher Pill */}
-            <div className="inline-flex items-center bg-slate-900 border border-slate-800 rounded-full p-0.5 shadow-2xs" id="footer-lang-switcher">
-              <span className="text-[10px] text-slate-400 pl-2 pr-1 flex items-center gap-1 font-semibold">
-                <Globe className="w-3 h-3 text-emerald-400" />
-                <span className="hidden xs:inline">{lang === "bn" ? "ভাষা" : "Lang"}</span>
-              </span>
-              <button 
-                onClick={() => setLang("bn")}
-                className={`px-2 py-0.5 rounded-full font-bold text-[10px] sm:text-[11px] transition-all cursor-pointer ${
-                  lang === "bn" 
-                    ? "bg-emerald-600 text-white shadow-xs" 
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-                title="বাংলা নির্বাচন করুন"
-              >
-                বাংলা
-              </button>
-              <button 
-                onClick={() => setLang("en")}
-                className={`px-2 py-0.5 rounded-full font-bold text-[10px] sm:text-[11px] transition-all cursor-pointer ${
-                  lang === "en" 
-                    ? "bg-emerald-600 text-white shadow-xs" 
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-                title="Select English"
-              >
-                English
-              </button>
-            </div>
-
-            {/* Portal Navigation Badges */}
-            <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px]">
-              <a 
-                href="?panel=seller" 
-                onClick={(e) => {
-                  e.preventDefault();
-                  setForcedPortalRole("seller");
-                  setShowPortalModal(true);
-                  window.history.pushState({}, "", "?panel=seller");
-                }}
-                className="px-2 py-0.5 rounded-md bg-slate-900/90 hover:bg-emerald-950/70 border border-slate-800 hover:border-emerald-700/60 text-slate-400 hover:text-emerald-300 transition-all cursor-pointer"
-              >
-                {lang === "bn" ? "বিক্রেতা" : "Seller"}
-              </a>
-              <a 
-                href="?panel=rider" 
-                onClick={(e) => {
-                  e.preventDefault();
-                  setForcedPortalRole("rider");
-                  setShowPortalModal(true);
-                  window.history.pushState({}, "", "?panel=rider");
-                }}
-                className="px-2 py-0.5 rounded-md bg-slate-900/90 hover:bg-emerald-950/70 border border-slate-800 hover:border-emerald-700/60 text-slate-400 hover:text-emerald-300 transition-all cursor-pointer"
-              >
-                {lang === "bn" ? "রাইডার" : "Rider"}
-              </a>
-              <a 
-                href="?panel=admin" 
-                onClick={(e) => {
-                  e.preventDefault();
-                  setForcedPortalRole("admin");
-                  setShowPortalModal(true);
-                  window.history.pushState({}, "", "?panel=admin");
-                }}
-                className="px-2 py-0.5 rounded-md bg-slate-900/90 hover:bg-emerald-950/70 border border-slate-800 hover:border-emerald-700/60 text-slate-400 hover:text-emerald-300 transition-all cursor-pointer"
-              >
-                {lang === "bn" ? "এডমিন" : "Admin"}
-              </a>
-            </div>
+            <button 
+              onClick={() => setLang("bn")}
+              className={`px-1.5 py-0.2 rounded-full font-bold text-[9.5px] sm:text-[10px] transition-all cursor-pointer ${
+                lang === "bn" 
+                  ? "bg-emerald-600 text-white shadow-xs" 
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+              title="বাংলা নির্বাচন করুন"
+            >
+              বাংলা
+            </button>
+            <button 
+              onClick={() => setLang("en")}
+              className={`px-1.5 py-0.2 rounded-full font-bold text-[9.5px] sm:text-[10px] transition-all cursor-pointer ${
+                lang === "en" 
+                  ? "bg-emerald-600 text-white shadow-xs" 
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+              title="Select English"
+            >
+              English
+            </button>
           </div>
 
-          {/* Subdued Leadership note */}
-          <p className="text-[10px] text-slate-500 max-w-2xl leading-normal">
-            {lang === "bn" 
-              ? `নেতৃত্বে: চেয়ারম্যান (${leadership.chairman?.nameBn || "এমএসটি হোসনে আরা বেগম"}), ভাইস চেয়ারম্যান (${leadership.viceChairman?.nameBn || "মোঃ আবু হানিফ সরকার"}), প্রতিষ্ঠাতা (${leadership.founder?.nameBn || "মোঃ অনিক সরকার"})`
-              : `Led by ${leadership.chairman?.nameEn || "MST HOSNE ARA BEGUM"} (Chairman), ${leadership.viceChairman?.nameEn || "MD ABU HANIF SARKAR"} (Vice Chairman) & ${leadership.founder?.nameEn || "MD ANIK SARKAR"} (Founder)`}
-          </p>
+          {/* Portal Navigation Badges */}
+          <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px]">
+            <a 
+              href="?panel=seller" 
+              onClick={(e) => {
+                e.preventDefault();
+                setForcedPortalRole("seller");
+                setShowPortalModal(true);
+                window.history.pushState({}, "", "?panel=seller");
+              }}
+              className="px-1.5 py-0.2 rounded-md bg-slate-900/90 hover:bg-emerald-950/70 border border-slate-800 hover:border-emerald-700/60 text-slate-400 hover:text-emerald-300 transition-all cursor-pointer"
+            >
+              {lang === "bn" ? "বিক্রেতা" : "Seller"}
+            </a>
+            <a 
+              href="?panel=rider" 
+              onClick={(e) => {
+                e.preventDefault();
+                setForcedPortalRole("rider");
+                setShowPortalModal(true);
+                window.history.pushState({}, "", "?panel=rider");
+              }}
+              className="px-1.5 py-0.2 rounded-md bg-slate-900/90 hover:bg-emerald-950/70 border border-slate-800 hover:border-emerald-700/60 text-slate-400 hover:text-emerald-300 transition-all cursor-pointer"
+            >
+              {lang === "bn" ? "রাইডার" : "Rider"}
+            </a>
+            <a 
+              href="?panel=admin" 
+              onClick={(e) => {
+                e.preventDefault();
+                setForcedPortalRole("admin");
+                setShowPortalModal(true);
+                window.history.pushState({}, "", "?panel=admin");
+              }}
+              className="px-1.5 py-0.2 rounded-md bg-slate-900/90 hover:bg-emerald-950/70 border border-slate-800 hover:border-emerald-700/60 text-slate-400 hover:text-emerald-300 transition-all cursor-pointer"
+            >
+              {lang === "bn" ? "এডমিন" : "Admin"}
+            </a>
+            <button
+              type="button"
+              onClick={() => openPWAQRCodeModal()}
+              className="px-1.5 py-0.2 rounded-md bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 hover:text-emerald-200 transition-all cursor-pointer flex items-center gap-0.5 font-bold"
+            >
+              <QrCode className="w-2.5 h-2.5" />
+              <span>{lang === "bn" ? "অ্যাপ QR" : "App QR"}</span>
+            </button>
+          </div>
         </div>
       </footer>
       )}
 
-      {/* ================= COMPACT FLOATING CHECKOUT BAR ================= */}
+      {/* ================= COMPACT FLOATING CHECKOUT BUTTON ================= */}
       {cart.length > 0 && !showCart && !showPortalModal && !showLiveChat && (
-        <div className="fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-xs sm:max-w-sm bg-slate-900/95 backdrop-blur-md text-white py-2 px-3 sm:px-3.5 rounded-xl shadow-lg shadow-slate-950/20 border border-slate-700/70 flex items-center justify-between transition-all duration-300">
-          <div className="flex items-center space-x-2.5 min-w-0">
-            <span className="bg-emerald-600 text-white text-[10px] sm:text-xs font-bold w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full flex items-center justify-center shrink-0">
-              {fmtNum(cart.reduce((s, i) => s + i.quantity, 0))}
-            </span>
-            <div className="min-w-0">
-              <p className="text-[9px] sm:text-[10px] text-slate-400 font-medium leading-none truncate">{lang === "bn" ? "মোট পেমেন্ট" : "Total"}</p>
-              <p className="text-xs sm:text-sm font-black text-emerald-400 mt-0.5 leading-none">৳{fmtNum(subtotal)}</p>
-            </div>
-          </div>
-          <button 
-            onClick={() => setShowCart(true)}
-            className="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold text-xs px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg cursor-pointer transition shadow flex items-center space-x-1 shrink-0 ml-2"
-          >
-            <span>{lang === "bn" ? "চেকআউট" : "Checkout"}</span>
-            <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-          </button>
-        </div>
+        <button 
+          onClick={() => setShowCart(true)}
+          className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm py-1.5 px-3 sm:py-2 sm:px-3.5 rounded-full shadow-lg shadow-slate-950/30 border border-emerald-400/40 flex items-center gap-1.5 sm:gap-2 cursor-pointer transition-all duration-200"
+          title={lang === "bn" ? "কার্ট ও চেকআউট দেখুন" : "View Cart & Checkout"}
+        >
+          <span className="bg-emerald-900/80 text-emerald-200 text-[10px] sm:text-xs font-black px-1.5 py-0.5 rounded-full leading-none">
+            {fmtNum(cart.reduce((s, i) => s + i.quantity, 0))}
+          </span>
+          <span className="text-xs sm:text-sm font-black text-emerald-100">
+            ৳{fmtNum(subtotal)}
+          </span>
+          <span className="text-xs sm:text-sm font-bold text-white border-l border-emerald-500/50 pl-1.5 sm:pl-2">
+            {lang === "bn" ? "চেকআউট" : "Checkout"}
+          </span>
+          <ArrowRight className="w-3.5 h-3.5 text-white shrink-0" />
+        </button>
       )}
 
       {/* ================= VOICE SEARCH SIMULATION MODAL ================= */}
@@ -2858,19 +2843,22 @@ export default function App() {
 
       {/* ================= CART DRAWER SHEET ================= */}
       {showCart && (
-        <div className="fixed inset-0 z-50 flex justify-end">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs transition-opacity duration-300">
           
           {/* Backing */}
           <div onClick={() => setShowCart(false)} className="flex-1 cursor-pointer"></div>
           
           {/* Drawer Panel */}
-          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col p-3.5 sm:p-5 animate-in slide-in-from-right duration-300">
+          <div className="w-full max-w-md bg-white h-full max-h-[100dvh] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
             
-            {/* Drawer Header */}
-            <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 shrink-0">
+            {/* Drawer Header (Fixed top) */}
+            <div className="flex justify-between items-center px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-100 bg-white shrink-0">
               <div className="flex items-center space-x-2">
                 <ShoppingCart className="w-4.5 h-4.5 text-emerald-600" />
                 <h3 className="text-sm sm:text-base font-bold text-slate-800">{lang === "bn" ? "আমার শপিং কার্ট" : "My Shopping Cart"}</h3>
+                <span className="bg-emerald-100 text-emerald-700 text-[10px] sm:text-xs font-extrabold px-2 py-0.5 rounded-full leading-none">
+                  {fmtNum(cart.reduce((s, i) => s + i.quantity, 0))}
+                </span>
               </div>
               <button 
                 onClick={() => setShowCart(false)}
@@ -2880,11 +2868,11 @@ export default function App() {
               </button>
             </div>
 
-            {/* Cart Items List */}
-            <div className="flex-1 overflow-y-auto my-2 space-y-2 pr-1 min-h-0">
+            {/* Cart Items List (Dedicated Scrollable Area) */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-2 space-y-2 overscroll-contain">
               {cart.length === 0 ? (
-                <div className="text-center py-8">
-                  <ShoppingCart className="w-10 h-10 text-slate-300 mx-auto mb-1.5" />
+                <div className="text-center py-12">
+                  <ShoppingCart className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                   <p className="text-xs font-bold text-slate-500">{lang === "bn" ? "কার্টটি সম্পূর্ণ খালি!" : "Your cart is completely empty!"}</p>
                   <p className="text-[10px] text-slate-400 mt-0.5">{lang === "bn" ? "পছন্দসই তাজা পণ্যগুলো কার্টে যুক্ত করুন" : "Browse fresh goods to add them"}</p>
                 </div>
@@ -2906,33 +2894,33 @@ export default function App() {
               )}
             </div>
 
-            {/* Cart Footer Action Block with Bill Breakdown & Actions */}
+            {/* Cart Footer Action Block with Bill Breakdown & Checkout (Fixed Bottom Section) */}
             {cart.length > 0 && (
-              <div className="border-t border-slate-200/80 pt-2.5 mt-1 bg-white z-10 shrink-0 space-y-2">
+              <div className="border-t border-slate-200 bg-white px-3 sm:px-4 py-2.5 shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] space-y-2">
                 
                 {/* Bill Breakdown Summary Box */}
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 space-y-1.5 text-xs">
-                  <div className="flex justify-between text-slate-600">
+                <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-2 sm:p-2.5 space-y-1 text-xs">
+                  <div className="flex justify-between text-slate-600 text-[11px] sm:text-xs">
                     <span>{lang === "bn" ? "পণ্যের মোট মূল্য:" : "Subtotal:"}</span>
                     <span className="font-bold text-slate-800">৳{fmtNum(subtotal)}</span>
                   </div>
-                  <div className="flex justify-between text-slate-600">
+                  <div className="flex justify-between text-slate-600 text-[11px] sm:text-xs">
                     <span>{lang === "bn" ? "ডেলিভারি চার্জ:" : "Delivery Fee:"}</span>
                     <span className="font-bold text-slate-800">
                       {deliveryFee === 0 ? (
-                        <span className="text-emerald-600 font-bold">{lang === "bn" ? "ফ্রি (Free)" : "Free"}</span>
+                        <span className="text-emerald-600 font-bold">{lang === "bn" ? "ফ্রি" : "Free"}</span>
                       ) : (
                         `৳${fmtNum(deliveryFee)}`
                       )}
                     </span>
                   </div>
                   {discountAmt > 0 && (
-                    <div className="flex justify-between text-emerald-600 font-bold">
+                    <div className="flex justify-between text-emerald-600 font-bold text-[11px] sm:text-xs">
                       <span>{lang === "bn" ? "ডিসকাউন্ট:" : "Discount:"}</span>
                       <span>-৳{fmtNum(discountAmt)}</span>
                     </div>
                   )}
-                  <div className="border-t border-slate-200/70 pt-1 flex justify-between items-center">
+                  <div className="border-t border-slate-200 pt-1 flex justify-between items-center">
                     <span className="font-extrabold text-slate-800 text-xs sm:text-sm">{lang === "bn" ? "সর্বমোট বিল:" : "Grand Total:"}</span>
                     <span className="font-black text-sm sm:text-base text-emerald-600">৳{fmtNum(grandTotal)}</span>
                   </div>
@@ -2941,7 +2929,7 @@ export default function App() {
                 {hasInsufficientCartStock && (
                   <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-center">
                     <p className="text-xs font-bold text-rose-600">
-                      ⚠️ {lang === "bn" ? "পর্যাপ্ত স্টক নেই (Insufficient Stock)" : "Insufficient Stock"}
+                      ⚠️ {lang === "bn" ? "পর্যাপ্ত স্টক নেই" : "Insufficient Stock"}
                     </p>
                     <p className="text-[10px] text-rose-500">
                       {lang === "bn" ? "কার্টের পণ্যের সঠিক ওজন বা পরিমাণ সিলেক্ট করুন।" : "Please adjust weight or quantity to proceed to checkout."}
@@ -2975,15 +2963,6 @@ export default function App() {
                     </>
                   )}
                 </button>
-
-                {/* 2. Call to Order Button */}
-                <a 
-                  href="tel:+8801722638985"
-                  className="w-full py-2 sm:py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs rounded-xl transition shadow flex items-center justify-center space-x-1.5 cursor-pointer active:scale-[0.99] px-2 text-center"
-                >
-                  <Phone className="w-3.5 h-3.5 animate-pulse shrink-0" />
-                  <span className="truncate">{lang === "bn" ? "কল করে অর্ডার: +৮৮০১৭২২-৬৩৮৯৮৫" : "Call to Order: +8801722638985"}</span>
-                </a>
 
               </div>
             )}
@@ -3187,15 +3166,6 @@ export default function App() {
                       {lang === "bn" ? "কিনুন এখনই" : "Buy Now"}
                     </button>
                   </div>
-
-                  {/* Call to Order Button inside Product Details Quick View Modal */}
-                  <a 
-                    href="tel:+8801722638985"
-                    className="mt-3 w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs rounded-xl transition shadow flex items-center justify-center space-x-2 cursor-pointer"
-                  >
-                    <Phone className="w-4 h-4 animate-pulse shrink-0" />
-                    <span>{lang === "bn" ? "সরাসরি ফোন করে অর্ডার দিন: ০১৭২২-৬৩৮৯৮৫" : "Call to Order Now: +8801722638985"}</span>
-                  </a>
                 </div>
 
               </div>
@@ -3384,7 +3354,7 @@ export default function App() {
       )}
 
       {/* ================= CUSTOM PORTAL MODALS ================= */}
-      <React.Suspense fallback={<div className="fixed inset-0 bg-slate-50 flex items-center justify-center text-slate-500 font-bold z-50 text-sm">Loading...</div>}>
+      {showPortalModal && (
         <PortalModal 
           isOpen={showPortalModal} 
           onClose={() => {
@@ -3400,22 +3370,24 @@ export default function App() {
           initialTab={portalInitialTab}
           forcedRole={forcedPortalRole}
         />
+      )}
 
-        {/* ================= REAL-TIME CUSTOMER LIVE SUPPORT CHAT ================= */}
-        <CustomerLiveChat 
-          lang={lang} 
-          onOpenPortal={() => setShowPortalModal(true)} 
-          isOpen={showLiveChat}
-          onToggleOpen={(open) => setShowLiveChat(open !== undefined ? open : !showLiveChat)}
-        />
+      {/* ================= REAL-TIME CUSTOMER LIVE SUPPORT CHAT ================= */}
+      <CustomerLiveChat 
+        lang={lang} 
+        onOpenPortal={() => setShowPortalModal(true)} 
+        isOpen={showLiveChat}
+        onToggleOpen={(open) => setShowLiveChat(open !== undefined ? open : !showLiveChat)}
+      />
 
-        {/* ================= REAL-TIME WEB VOICE CALL MODAL ================= */}
+      {/* ================= REAL-TIME WEB VOICE CALL MODAL ================= */}
+      {showVoiceCall && (
         <CustomerVoiceCallModal 
           lang={lang}
           isOpen={showVoiceCall}
           onClose={() => setShowVoiceCall(false)}
         />
-      </React.Suspense>
+      )}
 
       {/* ================= ABOUT US MODAL ================= */}
       {showAboutModal && (
@@ -3538,15 +3510,6 @@ export default function App() {
                   ? "আমাদের পণ্য বা সেবা সম্পর্কে জিজ্ঞাসা, পরামর্শ বা মতামত জানাতে নিচের কন্টাক্ট নাম্বারে সরাসরি ফোন করুন অথবা ইমেইল করুন। আমাদের কাস্টমার সার্ভিস টিম চব্বিশ ঘণ্টা আপনার সহায়তায় নিয়োজিত রয়েছে।"
                   : "For any inquiries, feedback, or concerns regarding our products or services, please call or email us directly. Our customer support representatives are available around the clock to assist you."}
               </p>
-
-              {/* Call to Order Premium Banner inside Contact Modal */}
-              <a 
-                href="tel:+8801722638985"
-                className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-sm rounded-xl transition shadow flex items-center justify-center space-x-2.5 cursor-pointer animate-pulse shrink-0"
-              >
-                <Phone className="w-5 h-5 animate-bounce shrink-0" />
-                <span>{lang === "bn" ? "সরাসরি ফোন করে অর্ডার করতে কল করুন (+৮৮০১৭২২-৬৩৮৯৮৫)" : "Call Directly to Order Now (+8801722638985)"}</span>
-              </a>
               
               <div className="bg-emerald-50/20 border border-emerald-100 rounded-xl p-4 space-y-3.5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3689,6 +3652,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* PWA App Install Banner & Prompt */}
+      <PWAInstallBanner lang={lang} />
 
     </div>
   );

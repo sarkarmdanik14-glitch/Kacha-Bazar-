@@ -164,7 +164,7 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
   };
 
   return (
-    <div className="space-y-6 overflow-y-auto max-h-[75vh] p-4 sm:p-6 text-slate-700">
+    <div className="space-y-6 text-slate-700">
       
       {/* User subtabs */}
       <div className="flex border-b border-slate-100 shrink-0">

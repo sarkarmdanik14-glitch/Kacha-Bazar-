@@ -9,6 +9,7 @@ interface BannerSliderProps {
   timeLeft: { hours: number; minutes: number; seconds: number };
   onReferralClick: () => void;
   onFlashSaleClick: () => void;
+  onCategoryClick?: (categoryId: string) => void;
   customBanners?: any[];
   loading?: boolean;
 }
@@ -20,6 +21,7 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
   timeLeft,
   onReferralClick,
   onFlashSaleClick,
+  onCategoryClick,
   customBanners = [],
   loading = false
 }) => {
@@ -221,7 +223,8 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
                   onClick={() => {
                     if (slide.link) {
                       if (slide.link.startsWith("category:")) {
-                        // Category navigation handled via link
+                        const targetCat = slide.link.replace("category:", "");
+                        onCategoryClick?.(targetCat);
                       }
                     }
                   }}

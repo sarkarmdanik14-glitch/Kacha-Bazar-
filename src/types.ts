@@ -111,3 +111,86 @@ export interface Review {
   commentEn: string;
   date: string;
 }
+
+export type StaffRole = 
+  | "super_admin" 
+  | "admin" 
+  | "order_manager" 
+  | "product_manager" 
+  | "call_center_agent" 
+  | "customer_support" 
+  | "delivery_manager" 
+  | "accounts_manager"
+  | "custom";
+
+export type StaffStatus = "active" | "inactive";
+export type StaffOnlineStatus = "online" | "away" | "offline";
+
+export type PermissionModule = 
+  | "dashboard"
+  | "orders"
+  | "products"
+  | "categories"
+  | "memo_management"
+  | "home_management"
+  | "users"
+  | "staff_management"
+  | "leadership"
+  | "support_chat"
+  | "voice_calls"
+  | "coupons"
+  | "notifications"
+  | "settings"
+  | "accounts";
+
+export type PermissionAction = "view" | "add" | "edit" | "delete";
+
+export type PermissionsMap = Record<string, boolean>;
+
+export interface StaffMember {
+  id: string;
+  staffId: string; // e.g. "KB-STF-001"
+  fullName: string;
+  mobile: string;
+  email: string;
+  photoURL?: string;
+  role: StaffRole;
+  status: StaffStatus;
+  onlineStatus?: StaffOnlineStatus;
+  lastActiveAt?: any;
+  passwordHash?: string;
+  passwordSalt?: string;
+  permissions?: PermissionsMap;
+  createdBy?: string;
+  createdAt?: any;
+  updatedAt?: any;
+  sessionId?: string;
+  lastLoginAt?: any;
+  assignedAgentDesk?: number;
+  isSuperAdmin?: boolean;
+}
+
+export interface StaffActivityLog {
+  id: string;
+  staffId: string;
+  staffName: string;
+  staffRole: string;
+  action: string;
+  module: string;
+  details: string;
+  targetId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: any;
+}
+
+export interface RoleDefinition {
+  id: StaffRole;
+  nameBn: string;
+  nameEn: string;
+  icon: string;
+  badgeColor: string;
+  descriptionBn: string;
+  descriptionEn: string;
+  defaultPermissions: PermissionsMap;
+}

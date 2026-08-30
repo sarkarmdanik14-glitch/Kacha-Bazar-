@@ -521,7 +521,7 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
 
                     <input
                       type="file"
-                      ref={(el) => (fileInputRefMap.current[key] = el)}
+                      ref={(el) => { fileInputRefMap.current[key] = el; }}
                       accept="image/*"
                       onChange={(e) => handleDefaultImageUpload(key, e)}
                       className="hidden"
@@ -707,7 +707,7 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
 
                       <input
                         type="file"
-                        ref={(el) => (fileInputRefMap.current[member.id] = el)}
+                        ref={(el) => { fileInputRefMap.current[member.id] = el; }}
                         accept="image/*"
                         onChange={(e) => handleAdditionalMemberImageUpload(member.id, e)}
                         className="hidden"

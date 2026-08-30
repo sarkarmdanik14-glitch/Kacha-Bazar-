@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { 
   Settings, Check, RefreshCw, MapPin, Building, Phone, Mail, 
-  ToggleLeft, ToggleRight, ImageIcon, Plus, Trash2, Edit, Upload, Navigation, ShieldAlert, Info
+  ToggleLeft, ToggleRight, ImageIcon, Plus, Trash2, Edit, Upload, Navigation, ShieldAlert, Info,
+  QrCode, Smartphone, Download, Copy, ExternalLink, Sparkles, CheckCircle2, Globe, Printer
 } from "lucide-react";
+import QRCode from "qrcode";
+import logoImg from "../../assets/images/logo_1783882658678.jpg";
 import { db, doc, setDoc, deleteDoc, collection } from "../../lib/firebase";
 import { DeliveryZone, DEFAULT_DELIVERY_ZONES, DEFAULT_STORE_LOCATION } from "../../lib/delivery";
 
@@ -16,7 +19,7 @@ interface AdminSettingsTabProps {
 export default function AdminSettingsTab({ settings, banners, lang, triggerToast }: AdminSettingsTabProps) {
   const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
 
-  const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "delivery" | "banners">("global");
+  const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "delivery" | "banners" | "pwa">("global");
   const [savingSettings, setSavingSettings] = useState<boolean>(false);
 
   // Global Config Form states
@@ -106,6 +109,35 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
   const [banImage, setBanImage] = useState<string>("");
   const [banActive, setBanActive] = useState<boolean>(true);
   const [savingBanner, setSavingBanner] = useState<boolean>(false);
+
+  // PWA Subtab states
+  const [adminPwaUrl, setAdminPwaUrl] = useState<string>(
+    typeof window !== "undefined" ? `${window.location.origin}/?pwa_install=true` : ""
+  );
+  const [adminQrDataUrl, setAdminQrDataUrl] = useState<string>("");
+  const [adminQrGenerating, setAdminQrGenerating] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!adminPwaUrl) return;
+    setAdminQrGenerating(true);
+    QRCode.toDataURL(adminPwaUrl, {
+      width: 400,
+      margin: 2,
+      color: {
+        dark: "#064e3b",
+        light: "#ffffff",
+      },
+      errorCorrectionLevel: "H",
+    })
+      .then((url) => {
+        setAdminQrDataUrl(url);
+        setAdminQrGenerating(false);
+      })
+      .catch((err) => {
+        console.error("Failed to generate Admin QR:", err);
+        setAdminQrGenerating(false);
+      });
+  }, [adminPwaUrl]);
 
   // Cloudinary refs/states
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -409,7 +441,7 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
   };
 
   return (
-    <div className="space-y-6 overflow-y-auto max-h-[75vh] p-4 sm:p-6 text-slate-700">
+    <div className="space-y-6 text-slate-700">
       
       {/* Settings Sub Navigation */}
       <div className="flex border-b border-slate-100 shrink-0">
@@ -436,6 +468,15 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
           }`}
         >
           {getTranslation("ব্যানার এডিটর", "Home Promo Banners")}
+        </button>
+        <button 
+          onClick={() => setActiveSettingsSubTab("pwa")}
+          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 flex items-center gap-1.5 ${
+            activeSettingsSubTab === "pwa" ? "border-emerald-600 text-emerald-600" : "border-transparent text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          <QrCode className="w-3.5 h-3.5" />
+          <span>{getTranslation("PWA ও QR কোড", "PWA & QR Posters")}</span>
         </button>
       </div>
 
@@ -984,6 +1025,174 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 4. PWA & Dynamic QR Code Management Subtab */}
+      {activeSettingsSubTab === "pwa" && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Header Card */}
+          <div className="bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-700 rounded-2xl p-5 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Smartphone className="w-5 h-5 text-emerald-200" />
+                <h3 className="text-base sm:text-lg font-black tracking-tight">
+                  {getTranslation("PWA ও ডাইনামিক QR কোড সিস্টেম", "PWA & Dynamic QR Code System")}
+                </h3>
+              </div>
+              <p className="text-xs text-emerald-100 font-medium max-w-xl">
+                {getTranslation(
+                  "ক্রেতারা যেকোনো মোবাইল ক্যামেরা দিয়ে এই QR কোড স্ক্যান করলেই স্বয়ংক্রিয়ভাবে ওয়েবসাইট ওপেন হবে এবং ‘কাচা বাজার অ্যাপ’ ইনস্টল করার প্রম্পট পাবেন।",
+                  "Customers can scan this QR code with any mobile camera to open the store and receive an instant 1-click app install prompt."
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.open(adminPwaUrl, "_blank")}
+              className="px-4 py-2 bg-white text-emerald-800 hover:bg-emerald-50 active:scale-95 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>{getTranslation("ইনস্টল পেজ টেস্ট করুন", "Test Install Page")}</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column: Printable QR Code Poster */}
+            <div className="lg:col-span-5 bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col items-center text-center space-y-4">
+              <div className="w-full bg-gradient-to-b from-emerald-50 to-slate-50 border-2 border-emerald-200 rounded-2xl p-5 shadow-inner flex flex-col items-center">
+                <div className="flex items-center space-x-2 mb-3">
+                  <img src={logoImg} alt="Logo" className="w-7 h-7 rounded-full border border-emerald-300 object-cover" />
+                  <span className="text-emerald-800 font-black text-sm">কাচা বাজার অনলাইন শপ</span>
+                </div>
+                
+                <div className="p-3 bg-white rounded-2xl shadow-md border border-slate-100 relative">
+                  {adminQrGenerating ? (
+                    <div className="w-48 h-48 flex items-center justify-center text-xs text-slate-400">
+                      {getTranslation("QR তৈরি হচ্ছে...", "Generating QR...")}
+                    </div>
+                  ) : adminQrDataUrl ? (
+                    <div className="relative">
+                      <img src={adminQrDataUrl} alt="PWA QR Code" className="w-48 h-48 sm:w-52 sm:h-52 object-contain rounded-lg" />
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-10 h-10 rounded-full bg-white p-0.5 shadow border border-emerald-500 flex items-center justify-center">
+                          <img src={logoImg} alt="Logo" className="w-full h-full rounded-full object-cover" />
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <p className="text-[11px] font-bold text-slate-600 mt-3 bg-white px-3 py-1 rounded-full border border-slate-100 shadow-2xs">
+                  📱 {getTranslation("স্ক্যান করে অ্যাপ ইনস্টল করুন", "Scan to Install App")}
+                </p>
+              </div>
+
+              {/* Download & Print Buttons */}
+              <div className="w-full grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!adminQrDataUrl) return;
+                    const a = document.createElement("a");
+                    a.href = adminQrDataUrl;
+                    a.download = "kacha-bazar-qr-code.png";
+                    a.click();
+                    triggerToast("QR কোড ডাউনলোড হয়েছে!", "QR Code downloaded!");
+                  }}
+                  className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>{getTranslation("ডাউনলোড QR", "Download QR")}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 active:scale-98 text-slate-700 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>{getTranslation("প্রিন্ট পোস্টার", "Print Poster")}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Right Column: Configuration & Status */}
+            <div className="lg:col-span-7 space-y-4">
+              {/* Dynamic Target Link Customizer */}
+              <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-3">
+                <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-emerald-600" />
+                  <span>{getTranslation("QR কোডের টার্গেট লিংক (URL)", "Target QR Code URL")}</span>
+                </h4>
+                <p className="text-xs text-slate-500">
+                  {getTranslation(
+                    "আপনার কাস্টম ডোমেইন থাকলে এখানে লিংক আপডেট করতে পারেন। সাথে সাথেই QR কোড স্বয়ংক্রিয়ভাবে আপডেট হয়ে যাবে।",
+                    "Update this URL if using a custom domain. The QR code updates automatically in real-time."
+                  )}
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={adminPwaUrl}
+                    onChange={(e) => setAdminPwaUrl(e.target.value)}
+                    className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 font-mono text-slate-700 bg-slate-50 focus:bg-white transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(adminPwaUrl);
+                        triggerToast("লিংক কপি হয়েছে!", "URL copied to clipboard!");
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{getTranslation("কপি", "Copy")}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* PWA Manifest Specifications Spec List */}
+              <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-3">
+                <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>{getTranslation("PWA কনফিগারেশন স্ট্যাটাস", "PWA Configuration Status")}</span>
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">App Name</span>
+                    <span className="font-bold text-slate-800 truncate block">কাচা বাজার</span>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Theme Color</span>
+                    <span className="font-bold text-emerald-600 block">#059669 (Emerald)</span>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Display Mode</span>
+                    <span className="font-bold text-slate-800 block">Standalone</span>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Service Worker</span>
+                    <span className="font-bold text-emerald-600 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-500" /> Active (v1)
+                    </span>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Adaptive Icon</span>
+                    <span className="font-bold text-slate-800 block">512x512 Maskable</span>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase">Platforms</span>
+                    <span className="font-bold text-slate-800 block">Android, iOS, PC</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

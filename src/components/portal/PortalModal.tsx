@@ -2,11 +2,11 @@ import React, { useState, useEffect } from "react";
 import { auth, db, doc, getDoc, signOut, onAuthStateChanged, collection, query, where, getDocs } from "../../lib/firebase";
 import { X, RefreshCw, Key, Shield, LogOut } from "lucide-react";
 
-const AuthView = React.lazy(() => import("./AuthView"));
-const CustomerPortal = React.lazy(() => import("./CustomerPortal"));
-const SellerPanel = React.lazy(() => import("./SellerPanel"));
-const RiderPanel = React.lazy(() => import("./RiderPanel"));
-const AdminPanel = React.lazy(() => import("./AdminPanel"));
+import AuthView from "./AuthView";
+import CustomerPortal from "./CustomerPortal";
+import SellerPanel from "./SellerPanel";
+import RiderPanel from "./RiderPanel";
+import AdminPanel from "./AdminPanel";
 
 interface PortalModalProps {
   isOpen: boolean;
@@ -299,7 +299,7 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-0 md:p-6" id="portal-modal-overlay">
+    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xs z-50 flex items-center justify-center p-0 md:p-2 lg:p-3" id="portal-modal-overlay">
       
       {/* Floating toasts */}
       <div className="fixed top-5 right-5 space-y-2 z-[2000] max-w-sm">
@@ -311,21 +311,21 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
         ))}
       </div>
 
-      <div className="bg-white w-full h-full md:h-[92vh] md:max-h-[92vh] max-w-6xl md:rounded-3xl rounded-none overflow-hidden shadow-2xl relative flex flex-col animate-scale-up">
+      <div className="bg-white w-full h-full md:h-[96vh] md:max-h-[96vh] max-w-[98vw] 2xl:max-w-[1720px] md:rounded-2xl rounded-none overflow-hidden shadow-2xl relative flex flex-col animate-scale-up">
         
         {/* Portal Header controller */}
-        <div className="bg-slate-50 border-b border-slate-100 px-5 py-3.5 flex items-center justify-between shrink-0">
+        <div className="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between shrink-0 text-white">
           <div className="flex items-center space-x-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-            <h1 className="font-black text-slate-800 text-xs sm:text-sm tracking-tight flex items-center gap-1.5 uppercase">
-              <Shield className="w-4 h-4 text-emerald-600" />
+            <h1 className="font-black text-slate-100 text-xs sm:text-sm tracking-tight flex items-center gap-1.5 uppercase">
+              <Shield className="w-4 h-4 text-emerald-400" />
               <span>{getTranslation("কাচা বাজার ক্লাউড পোর্টাল", "Kacha Bazar System Portal")}</span>
             </h1>
           </div>
           
           <button 
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-slate-150 text-slate-400 hover:text-slate-700 transition cursor-pointer flex items-center space-x-1 border border-slate-100 bg-white"
+            className="p-1.5 px-2.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer flex items-center space-x-1.5 border border-slate-750 bg-slate-850"
           >
             <X className="w-4 h-4" />
             <span className="text-[10px] font-black hidden sm:inline uppercase">{getTranslation("বন্ধ করুন", "Return to Store")}</span>
@@ -333,9 +333,9 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
         </div>
 
         {/* Content body */}
-        <div className="flex-1 bg-slate-50 overflow-hidden">
+        <div className="flex-1 min-h-0 bg-slate-50 overflow-hidden flex flex-col">
           {loading ? (
-            <div className="flex flex-col items-center justify-center h-96 space-y-3">
+            <div className="flex flex-col items-center justify-center h-full space-y-3">
               <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
               <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Loading Cloud Session...</p>
             </div>
@@ -346,11 +346,11 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
               </React.Suspense>
             </div>
           ) : (
-            <div className="h-full flex flex-col">
+            <div className="h-full flex-1 min-h-0 flex flex-col overflow-hidden">
               {/* Role selector tabs - only show if user has elevated permissions AND no specific forced role */}
               {userRole !== "customer" && !forcedRole && (
-                <div className="bg-white border-b border-slate-100 px-6 py-2.5 flex items-center space-x-2 shrink-0 overflow-x-auto scrollbar-none">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase mr-2 tracking-wider">
+                <div className="bg-white border-b border-slate-100 px-6 py-2 flex items-center space-x-2 shrink-0 overflow-x-auto scrollbar-none">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase mr-2 tracking-wider shrink-0">
                     {getTranslation("প্যানেল স্যুইচ করুন:", "Switch Panel:")}
                   </span>
                   {tabsList
@@ -359,7 +359,7 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
                       <button
                         key={tab.id}
                         onClick={() => setActivePortalTab(tab.id)}
-                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
+                        className={`px-3.5 py-1 rounded-full text-xs font-bold transition cursor-pointer shrink-0 ${
                           activePortalTab === tab.id
                             ? "bg-emerald-600 text-white shadow-sm"
                             : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -371,7 +371,7 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
                 </div>
               )}
 
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-hidden">
                 {!isTabAllowed(activePortalTab, userRole) ? (
                   <div className="p-8 text-center bg-red-50 border border-red-200 rounded-2xl m-4 flex flex-col items-center justify-center space-y-3">
                     <Shield className="w-12 h-12 text-red-600 animate-bounce" />
@@ -380,29 +380,27 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
                     </p>
                   </div>
                 ) : (
-                  <div className="h-full">
-                    <React.Suspense fallback={<div className="flex flex-col items-center justify-center h-full p-8"><RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" /><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Loading Panel...</p></div>}>
-                      {activePortalTab === "admin" && (
-                        <AdminPanel user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} />
-                      )}
-                      {activePortalTab === "seller" && (
-                        currentUser?.profileStatus === "approved" ? (
-                          <SellerPanel user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} />
-                        ) : (
-                          <RestrictedPanelStatus role="seller" status={currentUser?.profileStatus} onLogout={handleLogout} lang={lang} />
-                        )
-                      )}
-                      {activePortalTab === "rider" && (
-                        currentUser?.profileStatus === "approved" ? (
-                          <RiderPanel user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} />
-                        ) : (
-                          <RestrictedPanelStatus role="rider" status={currentUser?.profileStatus} onLogout={handleLogout} lang={lang} />
-                        )
-                      )}
-                      {activePortalTab === "customer" && (
-                        <CustomerPortal user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} initialTab={initialTab} />
-                      )}
-                    </React.Suspense>
+                  <div className="h-full w-full min-h-0">
+                    {activePortalTab === "admin" && (
+                      <AdminPanel user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} />
+                    )}
+                    {activePortalTab === "seller" && (
+                      currentUser?.profileStatus === "approved" ? (
+                        <SellerPanel user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} />
+                      ) : (
+                        <RestrictedPanelStatus role="seller" status={currentUser?.profileStatus} onLogout={handleLogout} lang={lang} />
+                      )
+                    )}
+                    {activePortalTab === "rider" && (
+                      currentUser?.profileStatus === "approved" ? (
+                        <RiderPanel user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} />
+                      ) : (
+                        <RestrictedPanelStatus role="rider" status={currentUser?.profileStatus} onLogout={handleLogout} lang={lang} />
+                      )
+                    )}
+                    {activePortalTab === "customer" && (
+                      <CustomerPortal user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} initialTab={initialTab} />
+                    )}
                   </div>
                 )}
               </div>

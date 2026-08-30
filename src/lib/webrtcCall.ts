@@ -202,7 +202,7 @@ class CallBackgroundMusicPlayer {
     if (typeof window === "undefined") return;
     this.isPlaying = true;
 
-    const targetVolume = ducked ? 0.12 : 0.18;
+    const targetVolume = ducked ? 0.18 : 0.28;
 
     // 1. Primary Method: High quality ambient MP3 loop
     try {
@@ -247,7 +247,7 @@ class CallBackgroundMusicPlayer {
   }
 
   setDucked(ducked: boolean) {
-    const targetVolume = ducked ? 0.12 : 0.18;
+    const targetVolume = ducked ? 0.18 : 0.28;
     if (this.audioElement) {
       this.audioElement.volume = targetVolume;
     }
@@ -278,7 +278,7 @@ class CallBackgroundMusicPlayer {
         const now = this.audioCtx.currentTime;
         const currentChord = chords[chordIndex % chords.length];
         chordIndex++;
-        const vol = ducked ? 0.025 : 0.045;
+        const vol = ducked ? 0.035 : 0.060;
 
         currentChord.forEach((freq, idx) => {
           if (!this.audioCtx) return;
@@ -349,17 +349,10 @@ class BanglaCallWelcomePlayer {
   private WELCOME_SPEECH = "আসসালামু আলাইকুম। কাঁচা বাজারে আপনাকে স্বাগতম। আমাদেরকে কল করার জন্য আপনাকে ধন্যবাদ। আমাদের প্রতিনিধি বর্তমানে একটু ব্যস্ত আছেন। অনুগ্রহ করে অপেক্ষা করুন। খুব শীঘ্রই একজন প্রতিনিধি আপনার কলটি গ্রহণ করবেন। ধন্যবাদ।";
 
   /**
-   * Pre-warm audio on user click to guarantee instant playback on mobile/desktop
+   * Pre-warm and start audio immediately on direct user click to guarantee instant playback on all mobile/desktop browsers
    */
-  prewarmAudio() {
-    try {
-      if (typeof window === "undefined") return;
-      const dummyAudio = new Audio("/audio/bangla-welcome-with-bg.mp3");
-      dummyAudio.volume = 0;
-      dummyAudio.play().then(() => {
-        dummyAudio.pause();
-      }).catch(() => {});
-    } catch {}
+  startOnUserClick(onEnd?: () => void) {
+    this.playWelcomeGreeting(onEnd);
   }
 
   playWelcomeGreeting(onEnd?: () => void) {
@@ -376,12 +369,12 @@ class BanglaCallWelcomePlayer {
     try {
       const audio = new Audio();
       audio.src = "/audio/bangla-welcome-with-bg.mp3";
-      audio.volume = 1.0; // Voice is master 100%, background music is already harmonically mixed at 18%
+      audio.volume = 1.0; // Voice is master 100%, background music is harmonically mixed at clean audible 22%
       audio.preload = "auto";
 
       audio.onended = () => {
         this.isSpeaking = false;
-        // Start continuous soft waiting music loop while in queue
+        // Start continuous soft waiting music loop while customer is in queue
         this.playWaitingMusicLoop();
         if (this.onEndCallback) {
           const cb = this.onEndCallback;
@@ -391,7 +384,7 @@ class BanglaCallWelcomePlayer {
       };
 
       audio.onerror = (e) => {
-        console.warn("Unified audio file playback error, falling back to dynamic audio layers:", e);
+        console.warn("Unified audio playback failed, falling back to separate layers:", e);
         this.fallbackToSeparateLayers();
       };
 
@@ -402,20 +395,20 @@ class BanglaCallWelcomePlayer {
             this.audioElement = audio;
           })
           .catch((err) => {
-            console.warn("Autoplay promise notice for unified track, falling back:", err);
+            console.warn("Autoplay notice for unified track, trying separate layers:", err);
             this.fallbackToSeparateLayers();
           });
       } else {
         this.audioElement = audio;
       }
     } catch (err) {
-      console.warn("Audio initialization error, trying fallback layers:", err);
+      console.warn("Audio initialization error, trying separate layers:", err);
       this.fallbackToSeparateLayers();
     }
   }
 
   private fallbackToSeparateLayers() {
-    // Start background music layer
+    // Start background music layer at pleasant audible volume (15%)
     callBgMusic.play(true);
 
     try {
@@ -465,7 +458,7 @@ class BanglaCallWelcomePlayer {
 
       const waitingAudio = new Audio();
       waitingAudio.src = "/audio/call-waiting-music-loop.mp3";
-      waitingAudio.volume = 0.20; // gentle, relaxing waiting level
+      waitingAudio.volume = 0.32; // clearly audible, soothing waiting melody
       waitingAudio.loop = true;
       waitingAudio.preload = "auto";
 

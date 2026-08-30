@@ -445,10 +445,10 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
   // Calculate live statistics
   const totalIncoming = activeCalls.length + callHistory.length;
   const waitingCalls = activeCalls.filter(c => c.status === "waiting" || c.status === "calling");
-  const liveInCalls = activeCalls.filter(c => c.status === "connected" || c.status === "in_call");
+  const liveInCalls = activeCalls.filter(c => c.status === "connected");
   const availableAgentsCount = agents.filter(a => a.status === "available").length;
   const busyAgentsCount = agents.filter(a => a.status === "in_call" || a.status === "ringing").length;
-  const completedCallsCount = callHistory.filter(c => c.status === "ended" || c.status === "completed").length;
+  const completedCallsCount = callHistory.filter(c => c.status === "ended").length;
   const missedCallsCount = callHistory.filter(c => c.status === "missed" || c.status === "cancelled" || c.status === "rejected").length;
 
   return (
@@ -964,7 +964,7 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
                         {log.assignedAgentName || "N/A"}
                       </td>
                       <td className="py-3 px-3">
-                        {(log.status === "ended" || log.status === "completed") && (
+                        {log.status === "ended" && (
                           <span className="inline-flex items-center space-x-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md text-[10px] font-bold">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             <span>{getTranslation("সম্পন্ন", "Completed")}</span>

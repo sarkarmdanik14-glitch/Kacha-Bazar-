@@ -35,8 +35,10 @@ import AdminHomePageTab from "./AdminHomePageTab";
 import AdminMemoManagementTab from "./AdminMemoManagementTab";
 import AdminVoiceCallTab from "./AdminVoiceCallTab";
 import AdminIncomingCallModal from "./AdminIncomingCallModal";
-import { MessageSquare, Printer, Layout, PhoneCall } from "lucide-react";
+import AdminStaffManagementTab from "./AdminStaffManagementTab";
+import { MessageSquare, Printer, Layout, PhoneCall, Users } from "lucide-react";
 import OrderMemoModal from "./OrderMemoModal";
+import { hasPermission, logStaffActivity, sendStaffHeartbeat, DEFAULT_ROLES } from "../../lib/staffManager";
 
 interface AdminPanelProps {
   user: any;
@@ -46,8 +48,20 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({ user, onLogout, lang, triggerToast }: AdminPanelProps) {
-  // Ensure strict authorization before rendering anything
-  if (user?.role !== "admin" && user?.role !== "founder") {
+  // Check authorization for all staff roles
+  const isAuthorized = 
+    user?.role === "admin" || 
+    user?.role === "super_admin" || 
+    user?.role === "founder" || 
+    user?.role === "order_manager" || 
+    user?.role === "product_manager" || 
+    user?.role === "call_center_agent" || 
+    user?.role === "customer_support" || 
+    user?.role === "delivery_manager" || 
+    user?.role === "accounts_manager" || 
+    user?.isSuperAdmin === true;
+
+  if (!isAuthorized) {
     return (
       <div className="p-8 text-center bg-red-50 border border-red-200 rounded-2xl m-4 flex flex-col items-center justify-center space-y-3 text-slate-700">
         <ShieldAlert className="w-12 h-12 text-red-600 animate-bounce" />
@@ -58,7 +72,36 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
     );
   }
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "orders" | "products" | "memo_management" | "users" | "leadership" | "home_management" | "coupons" | "notifications" | "settings" | "support_chat" | "voice_calls">("dashboard");
+  // All menu tabs with their corresponding module
+  const ALL_MENU_TABS = [
+    { id: "dashboard", module: "dashboard", labelBn: "সিস্টেম ড্যাশবোর্ড", labelEn: "System Analytics", icon: <TrendingUp className="w-4 h-4" /> },
+    { id: "orders", module: "orders", labelBn: "অর্ডার ট্র্যাকিং", labelEn: "All Orders", icon: <ShoppingBag className="w-4 h-4" /> },
+    { id: "products", module: "products", labelBn: "পণ্য সম্ভার", labelEn: "All Products", icon: <Layers className="w-4 h-4" /> },
+    { id: "memo_management", module: "memo_management", labelBn: "মেমো ম্যানেজমেন্ট", labelEn: "Memo Management", icon: <Printer className="w-4 h-4" /> },
+    { id: "staff_management", module: "staff_management", labelBn: "👥 স্টাফ ম্যানেজমেন্ট", labelEn: "Staff Management", icon: <Users className="w-4 h-4" /> },
+    { id: "home_management", module: "home_management", labelBn: "হোম পেজ ম্যানেজমেন্ট", labelEn: "Home Page Management", icon: <Layout className="w-4 h-4" /> },
+    { id: "users", module: "users", labelBn: "ইউজার ডাটাবেজ", labelEn: "Role Management", icon: <User className="w-4 h-4" /> },
+    { id: "leadership", module: "leadership", labelBn: "নেতৃত্ব ব্যবস্থাপনা", labelEn: "Leadership Management", icon: <Award className="w-4 h-4" /> },
+    { id: "support_chat", module: "support_chat", labelBn: "লাইভ কাস্টমার সাপোর্ট", labelEn: "Live Chat Support", icon: <MessageSquare className="w-4 h-4" /> },
+    { id: "voice_calls", module: "voice_calls", labelBn: "কল সেন্টার (২০ এজেন্ট)", labelEn: "Call Center (20 Agents)", icon: <PhoneCall className="w-4 h-4" /> },
+    { id: "coupons", module: "coupons", labelBn: "ডিসকাউন্ট কুপনস", labelEn: "Coupons & Discounts", icon: <Percent className="w-4 h-4" /> },
+    { id: "notifications", module: "notifications", labelBn: "বিজ্ঞপ্তি ব্রডকাস্ট", labelEn: "Notification Broadcast", icon: <Bell className="w-4 h-4" /> },
+    { id: "settings", module: "settings", labelBn: "গ্লোবাল সেটিংস", labelEn: "Global Config", icon: <Settings className="w-4 h-4" /> }
+  ];
+
+  // Filter allowed tabs based on user permissions
+  const allowedTabs = ALL_MENU_TABS.filter(tab => hasPermission(user, tab.module as any, "view"));
+
+  const getInitialTab = () => {
+    if (user?.role === "call_center_agent") return "voice_calls";
+    if (user?.role === "customer_support") return "support_chat";
+    if (user?.role === "order_manager") return "orders";
+    if (user?.role === "product_manager") return "products";
+    if (allowedTabs.length > 0) return allowedTabs[0].id;
+    return "dashboard";
+  };
+
+  const [activeTab, setActiveTab] = useState<string>(getInitialTab());
   
   // Real-time states
   const [orders, setOrders] = useState<any[]>([]);
@@ -89,6 +132,28 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
   const [showCouponForm, setShowCouponForm] = useState<boolean>(false);
 
   const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+
+  // Real-time Staff Heartbeat
+  useEffect(() => {
+    const sId = user?.staffId || user?.uid;
+    if (sId) {
+      sendStaffHeartbeat(sId, "online");
+      const interval = setInterval(() => {
+        sendStaffHeartbeat(sId, "online");
+      }, 25000);
+      return () => {
+        clearInterval(interval);
+        sendStaffHeartbeat(sId, "offline");
+      };
+    }
+  }, [user]);
+
+  // Adjust activeTab if current is unauthorized
+  useEffect(() => {
+    if (allowedTabs.length > 0 && !allowedTabs.some(t => t.id === activeTab)) {
+      setActiveTab(allowedTabs[0].id);
+    }
+  }, [user]);
 
   useEffect(() => {
     setLoading(true);
@@ -411,65 +476,61 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
   const activeRidersList = users.filter(u => u.role === "rider");
 
   return (
-    <div className="w-full bg-slate-50 min-h-screen rounded-3xl overflow-hidden flex flex-col md:flex-row border border-slate-100">
+    <div className="w-full h-full bg-slate-50 overflow-hidden flex flex-col md:flex-row">
       
       {/* Sidebar Navigation */}
-      <div className="w-full md:w-64 bg-slate-950 text-white p-5 shrink-0 flex flex-col justify-between">
-        <div>
-          <div className="flex items-center space-x-3 mb-8 pb-5 border-b border-slate-850">
+      <aside className="w-full md:w-64 lg:w-72 bg-slate-950 text-white shrink-0 flex flex-col h-auto md:h-full z-10 border-b md:border-b-0 md:border-r border-slate-850">
+        {/* Sidebar Header */}
+        <div className="p-4 sm:p-5 pb-3 sm:pb-4 border-b border-slate-850 shrink-0">
+          <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-md shadow-emerald-900 shrink-0">
               <ShieldAlert className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="font-black text-white text-sm leading-tight">{getTranslation("এডমিন প্যানেল", "Admin Portal")}</h3>
-              <p className="text-[10px] text-emerald-400 font-bold mt-0.5 uppercase tracking-wider">Super Administrator</p>
+            <div className="min-w-0">
+              <h3 className="font-black text-white text-sm leading-tight truncate">
+                {user?.fullName || user?.displayName || getTranslation("এডমিন প্যানেল", "Admin Portal")}
+              </h3>
+              <p className="text-[10px] text-emerald-400 font-bold mt-0.5 uppercase tracking-wider truncate">
+                {user?.role === "super_admin" || user?.isSuperAdmin ? "👑 Super Admin" : (user?.role || "Staff Member")}
+              </p>
             </div>
           </div>
-
-          <nav className="space-y-1">
-            {[
-              { id: "dashboard", labelBn: "সিস্টেম ড্যাশবোর্ড", labelEn: "System Analytics", icon: <TrendingUp className="w-4 h-4" /> },
-              { id: "orders", labelBn: "অর্ডার ট্র্যাকিং", labelEn: "All Orders", icon: <ShoppingBag className="w-4 h-4" /> },
-              { id: "products", labelBn: "পণ্য সম্ভার", labelEn: "All Products", icon: <Layers className="w-4 h-4" /> },
-              { id: "memo_management", labelBn: "মেমো ম্যানেজমেন্ট", labelEn: "Memo Management", icon: <Printer className="w-4 h-4" /> },
-              { id: "home_management", labelBn: "হোম পেজ ম্যানেজমেন্ট", labelEn: "Home Page Management", icon: <Layout className="w-4 h-4" /> },
-              { id: "users", labelBn: "ইউজার ডাটাবেজ", labelEn: "Role Management", icon: <User className="w-4 h-4" /> },
-              { id: "leadership", labelBn: "নেতৃত্ব ব্যবস্থাপনা", labelEn: "Leadership Management", icon: <Award className="w-4 h-4" /> },
-              { id: "support_chat", labelBn: "লাইভ কাস্টমার সাপোর্ট", labelEn: "Live Chat Support", icon: <MessageSquare className="w-4 h-4" /> },
-              { id: "voice_calls", labelBn: "কল সেন্টার (২০ এজেন্ট)", labelEn: "Call Center (20 Agents)", icon: <PhoneCall className="w-4 h-4" /> },
-              { id: "coupons", labelBn: "ডিসকাউন্ট কুপনস", labelEn: "Coupons & Discounts", icon: <Percent className="w-4 h-4" /> },
-              { id: "notifications", labelBn: "বিজ্ঞপ্তি ব্রডকাস্ট", labelEn: "Notification Broadcast", icon: <Bell className="w-4 h-4" /> },
-              { id: "settings", labelBn: "গ্লোবাল সেটিংস", labelEn: "Global Config", icon: <Settings className="w-4 h-4" /> }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  activeTab === tab.id 
-                    ? "bg-emerald-600 text-white shadow shadow-emerald-950" 
-                    : "text-slate-400 hover:bg-slate-850 hover:text-white"
-                }`}
-              >
-                <div className="flex items-center space-x-2.5">
-                  {tab.icon}
-                  <span>{getTranslation(tab.labelBn, tab.labelEn)}</span>
-                </div>
-              </button>
-            ))}
-          </nav>
         </div>
 
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center space-x-2 px-3.5 py-2.5 text-red-400 hover:bg-slate-850 rounded-xl text-xs font-bold mt-10 transition cursor-pointer"
-        >
-          <X className="w-4 h-4" />
-          <span>{getTranslation("লগআউট", "Logout")}</span>
-        </button>
-      </div>
+        {/* Sidebar Menu with smooth independent scrolling & Dynamic RBAC */}
+        <nav className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-1">
+          {allowedTabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+                activeTab === tab.id 
+                  ? "bg-emerald-600 text-white shadow shadow-emerald-950 font-black" 
+                  : "text-slate-400 hover:bg-slate-850 hover:text-white"
+              }`}
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <span className="shrink-0">{tab.icon}</span>
+                <span className="truncate">{getTranslation(tab.labelBn, tab.labelEn)}</span>
+              </div>
+            </button>
+          ))}
+        </nav>
 
-      {/* Main Content Area */}
-      <div className="flex-1 p-5 sm:p-8 overflow-y-auto max-h-[85vh]">
+        {/* Sidebar Footer */}
+        <div className="p-3 sm:p-4 border-t border-slate-850 shrink-0 bg-slate-950">
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center justify-center space-x-2 px-3.5 py-2.5 text-red-400 hover:bg-red-950/40 hover:text-red-300 rounded-xl text-xs font-bold transition cursor-pointer border border-red-900/30"
+          >
+            <X className="w-4 h-4" />
+            <span>{getTranslation("লগআউট", "Logout")}</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content Area - Single Unified Scrollable Container */}
+      <main className="flex-1 h-full min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-7 xl:p-8 bg-slate-50 focus:outline-none">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
@@ -759,6 +820,13 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
               </div>
             )}
 
+            {/* TAB: STAFF MANAGEMENT */}
+            {activeTab === "staff_management" && (
+              <div className="space-y-6 animate-fade-in">
+                <AdminStaffManagementTab currentUser={user} lang={lang} triggerToast={triggerToast} />
+              </div>
+            )}
+
             {/* TAB: LIVE SUPPORT CHAT */}
             {activeTab === "support_chat" && (
               <div className="space-y-6 animate-fade-in">
@@ -782,7 +850,7 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
 
           </>
         )}
-      </div>
+      </main>
 
       {/* Global Incoming Voice Call Ringing / Active Modal */}
       <AdminIncomingCallModal 

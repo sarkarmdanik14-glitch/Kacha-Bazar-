@@ -137,12 +137,35 @@ export default function CustomerVoiceCallModal({
       setAssignedAgentName("");
       setQueuePosition(1);
 
-      // Pre-warm audio in the user click gesture stack
-      banglaCallWelcome.prewarmAudio();
+      // Start Bangla automated voice + soft ambient background music immediately inside user gesture
+      setIsWelcomeSpeaking(true);
+      banglaCallWelcome.playWelcomeGreeting(() => {
+        setIsWelcomeSpeaking(false);
+      });
 
-      // 1. Get Local Microphone Stream (Requested ONLY on call trigger)
+      // 1. Check OS/Browser microphone permission state & acquire local microphone stream
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error(getTranslation("আপনার ব্রাউজারে মাইক্রোফোন সাপোর্ট নেই।", "Microphone not supported on this browser."));
+      }
+
+      // Check permissions API if available
+      if (typeof navigator.permissions !== "undefined" && navigator.permissions.query) {
+        try {
+          const permStatus = await navigator.permissions.query({ name: "microphone" as PermissionName });
+          if (permStatus.state === "denied") {
+            setIsPermissionDenied(true);
+            throw new Error(getTranslation(
+              "মাইক্রোফোন পারমিশন ব্লক করা আছে। অনুগ্রহ করে ব্রাউজারের অ্যাড্রেস বারের লক (🔒) আইকন বা সাইট সেটিংস থেকে Microphone 'Allow' করুন।",
+              "Microphone access is blocked. Please allow microphone access from browser address bar (🔒 icon) or site settings."
+            ));
+          }
+        } catch (permQueryErr: any) {
+          // If query throws because state is denied, rethrow
+          if (permQueryErr?.message?.includes("Microphone access is blocked") || permQueryErr?.message?.includes("মাইক্রোফোন পারমিশন")) {
+            throw permQueryErr;
+          }
+          // Safari or unsupported browsers may throw on { name: 'microphone' }, continue to getUserMedia safely
+        }
       }
 
       let stream: MediaStream;
@@ -156,11 +179,11 @@ export default function CustomerVoiceCallModal({
           video: false 
         });
       } catch (micErr: any) {
-        if (micErr.name === "NotAllowedError" || micErr.name === "PermissionDeniedError") {
+        if (micErr.name === "NotAllowedError" || micErr.name === "PermissionDeniedError" || micErr.name === "SecurityError") {
           setIsPermissionDenied(true);
           throw new Error(getTranslation(
-            "মাইক্রোফোন অ্যাক্সেস ডিনাই করা হয়েছে। অনুগ্রহ করে ব্রাউজার অ্যাড্রেস বার থেকে পারমিশন Allow করুন।",
-            "Microphone permission was denied. Please allow microphone access from browser address bar or settings."
+            "মাইক্রোফোন অ্যাক্সেস পাওয়া যায়নি। অনুগ্রহ করে ব্রাউজার অ্যাড্রেস বার থেকে মাইক্রোফোন পারমিশন Allow করে পুনরায় চেষ্টা করুন।",
+            "Microphone permission was denied. Please allow microphone access from browser address bar or settings, then try again."
           ));
         }
         throw micErr;
@@ -243,14 +266,6 @@ export default function CustomerVoiceCallModal({
       });
 
       setCallStatus("waiting");
-
-      // Play Automated Bangla Welcome Voice Announcement
-      setIsWelcomeSpeaking(true);
-      banglaCallWelcome.playWelcomeGreeting(() => {
-        setIsWelcomeSpeaking(false);
-        // Once speech completes, play soft queue waiting chime if still waiting for agent
-        callAudioSynth.playQueueWaitingChime();
-      });
 
       // Check if an agent is immediately available to route without unnecessary queue delay
       tryImmediateAgentRouting(newCallId, callerName).then((routed) => {
@@ -422,243 +437,148 @@ export default function CustomerVoiceCallModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
-      {/* Hidden Remote Audio Element */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-lg animate-fade-in">
+      {/* Hidden Remote Audio Element for WebRTC Live Stream */}
       <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
 
-      {/* Main Call Modal */}
-      <div className="bg-slate-900 text-white w-full max-w-sm rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-800 flex flex-col items-center text-center relative overflow-hidden animate-scale-up">
+      {/* Main Clean Call Interface */}
+      <div className="bg-slate-900 text-white w-full max-w-xs sm:max-w-sm rounded-[32px] p-7 shadow-2xl border border-slate-800/90 flex flex-col items-center text-center relative overflow-hidden animate-scale-up">
         
-        {/* Background Ambient Glow */}
-        <div className={`absolute -top-24 left-1/2 -translate-x-1/2 w-64 h-64 rounded-full blur-3xl pointer-events-none transition-all duration-700 ${
+        {/* Subtle Ambient Glow */}
+        <div className={`absolute -top-24 left-1/2 -translate-x-1/2 w-60 h-60 rounded-full blur-3xl pointer-events-none transition-all duration-700 ${
           callStatus === "connected" 
-            ? "bg-emerald-500/20" 
+            ? "bg-emerald-500/25" 
             : callStatus === "rejected" || callStatus === "error"
             ? "bg-rose-500/20"
-            : callStatus === "waiting"
-            ? "bg-amber-500/20"
             : "bg-teal-500/20 animate-pulse"
         }`} />
 
-        {/* Close / Minimize Button */}
+        {/* Close Button in top corner */}
         <button 
           onClick={handleEndOrCancelCall}
-          className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+          className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-800/80 transition cursor-pointer"
           title={getTranslation("বন্ধ করুন", "Close")}
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Top Header Badge */}
-        <div className="inline-flex items-center space-x-1.5 bg-slate-800/90 border border-slate-700/80 px-3 py-1 rounded-full text-[11px] font-bold text-emerald-400 mb-6">
-          <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-          <span>{getTranslation("ফ্রি সরাসরি ভয়েস কল সাপোর্ট", "Free Direct Voice Call Support")}</span>
-        </div>
+        {/* Center Animated Calling Visual */}
+        <div className="relative mt-4 mb-6 flex items-center justify-center">
+          {/* Animated Pulsing Concentric Rings while calling / waiting */}
+          {(callStatus === "initiating" || callStatus === "waiting" || callStatus === "ringing") && (
+            <>
+              <div className="absolute w-32 h-32 rounded-full border border-emerald-500/20 animate-ping" style={{ animationDuration: "2s" }} />
+              <div className="absolute w-28 h-28 rounded-full border border-teal-400/30 animate-pulse" style={{ animationDuration: "1.5s" }} />
+            </>
+          )}
 
-        {/* Center Avatar & Animated Rings */}
-        <div className="relative mb-5 flex items-center justify-center">
-          {callStatus === "ringing" || callStatus === "initiating" || callStatus === "waiting" ? (
-            <div className="absolute w-28 h-28 rounded-full border-2 border-emerald-500/40 animate-ping" />
-          ) : null}
-          {callStatus === "connected" ? (
-            <div className="absolute w-28 h-28 rounded-full border-2 border-emerald-400/50 animate-pulse" />
-          ) : null}
+          {callStatus === "connected" && (
+            <div className="absolute w-28 h-28 rounded-full border-2 border-emerald-400/40 animate-pulse" />
+          )}
 
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center shadow-xl border-2 transition-all duration-500 ${
+          {/* Central Call Icon Bubble */}
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center shadow-2xl border-2 transition-all duration-500 z-10 ${
             callStatus === "connected"
               ? "bg-emerald-600 border-emerald-400 text-white scale-105"
               : callStatus === "rejected" || callStatus === "error"
               ? "bg-rose-600 border-rose-400 text-white"
-              : callStatus === "waiting"
-              ? "bg-gradient-to-br from-amber-600 to-teal-700 border-amber-400/50 text-white"
-              : "bg-gradient-to-br from-emerald-600 to-teal-700 border-emerald-400/50 text-white"
+              : "bg-gradient-to-br from-emerald-600 to-teal-700 border-emerald-400/40 text-white shadow-emerald-950/50"
           }`}>
             {callStatus === "connected" ? (
               <Headphones className="w-9 h-9 animate-pulse" />
-            ) : callStatus === "waiting" ? (
-              <Users className="w-9 h-9 animate-pulse" />
+            ) : callStatus === "rejected" || callStatus === "error" ? (
+              <AlertCircle className="w-9 h-9" />
             ) : (
-              <Phone className={`w-9 h-9 ${callStatus === "ringing" ? "animate-bounce" : ""}`} />
+              <Phone className="w-9 h-9 animate-bounce" />
             )}
           </div>
         </div>
 
-        {/* Desk Title */}
-        <h3 className="text-base sm:text-lg font-black text-white tracking-tight mb-1">
-          {assignedAgentName || getTranslation("কাঁচা বাজার কাস্টমার কেয়ার", "Kacha Bazar Customer Care")}
-        </h3>
-        
-        {/* Status / Live Queue / Timer Display */}
-        <div className="mb-6 w-full">
-          {/* Automated Voice Message Active Banner */}
-          {(isWelcomeSpeaking || callStatus === "waiting" || callStatus === "ringing") && callStatus !== "connected" && (
-            <div className="bg-emerald-950/80 border border-emerald-500/50 rounded-2xl p-3.5 mb-3 text-left shadow-inner">
-              <div className="flex items-center justify-between text-emerald-400 text-xs font-bold mb-1.5">
-                <div className="flex items-center space-x-1.5">
-                  <Volume2 className="w-4 h-4 animate-bounce text-emerald-400" />
-                  <span>{getTranslation("স্বয়ংক্রিয় বাংলা ভয়েস ও ব্যাকগ্রাউন্ড টিউন বাজছে", "Automated Voice & Soft Melody Active")}</span>
-                </div>
-                <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-              </div>
-              
-              <p className="text-[11px] text-emerald-200/90 leading-relaxed font-medium">
-                “আসসালামু আলাইকুম। কাঁচা বাজারে আপনাকে স্বাগতম। আমাদেরকে কল করার জন্য আপনাকে ধন্যবাদ। আমাদের প্রতিনিধি বর্তমানে একটু ব্যস্ত আছেন। অনুগ্রহ করে অপেক্ষা করুন। খুব শীঘ্রই একজন প্রতিনিধি আপনার কলটি গ্রহণ করবেন। ধন্যবাদ।”
-              </p>
+        {/* Timer (When Connected) or Minimal Calling Indicator */}
+        <div className="mb-6 w-full flex flex-col items-center justify-center">
+          {callStatus === "connected" ? (
+            <div className="space-y-3">
+              <span className="inline-block bg-emerald-500/20 text-emerald-300 font-mono text-base font-black px-4 py-1.5 rounded-full border border-emerald-500/30 tracking-wider">
+                {formatTime(callDuration)}
+              </span>
 
-              {/* Sound wave bars */}
-              <div className="flex items-center justify-center space-x-1.5 mt-2.5 h-4">
-                {[30, 70, 45, 95, 60, 85, 40, 90, 55, 80, 35, 65].map((h, idx) => (
+              {/* Dynamic Sound Wave Indicator */}
+              <div className="flex items-center justify-center space-x-1.5 h-6">
+                {[35, 75, 45, 90, 60, 85, 40, 70, 50].map((h, i) => (
                   <span
-                    key={idx}
+                    key={i}
                     className="w-1 bg-emerald-400 rounded-full animate-pulse"
                     style={{
                       height: `${h}%`,
-                      animationDelay: `${idx * 0.07}s`,
+                      animationDelay: `${i * 0.08}s`,
                       animationDuration: "0.7s"
                     }}
                   />
                 ))}
               </div>
             </div>
-          )}
-
-          {callStatus === "initiating" && (
-            <p className="text-xs text-slate-400 font-medium flex items-center justify-center space-x-1.5">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
-              <span>{getTranslation("কল সংযোগ স্থাপন করা হচ্ছে...", "Connecting to helpdesk...")}</span>
-            </p>
-          )}
-
-          {callStatus === "waiting" && (
-            <div className="space-y-3 bg-slate-800/80 border border-slate-700/80 rounded-2xl p-4 animate-in fade-in">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 font-medium">{getTranslation("কল কিউ স্ট্যাটাস", "Queue Status")}:</span>
-                <span className="bg-amber-500/20 text-amber-300 font-bold px-2.5 py-0.5 rounded-full border border-amber-500/30">
-                  {getTranslation("অপেক্ষারত", "Waiting")}
-                </span>
-              </div>
-              
-              <div className="bg-slate-900/90 rounded-xl p-3 border border-slate-800">
-                <p className="text-[11px] text-slate-400 font-medium mb-1">
-                  {getTranslation("কিউতে আপনার সিরিয়াল অবস্থান", "Your Current Queue Position")}
-                </p>
-                <div className="text-2xl font-black text-emerald-400">
-                  {lang === "bn" ? `অবস্থান: ${toBanglaDigits(queuePosition)}` : `Position: #${queuePosition}`}
-                </div>
-              </div>
-
-              <p className="text-[11px] text-slate-300 leading-relaxed">
-                {getTranslation(
-                  "প্রতিনিধি ব্যস্ত থাকায় স্বাগতম ভয়েস বার্তা বাজছে। খুব শীঘ্রই প্রতিনিধি কলটি গ্রহণ করবেন।",
-                  "Automated welcome voice is playing. An agent will accept your call shortly."
-                )}
-              </p>
-            </div>
-          )}
-
-          {callStatus === "ringing" && (
-            <div className="space-y-2 bg-slate-800/80 border border-emerald-500/30 rounded-2xl p-3.5">
-              <p className="text-xs text-emerald-400 font-bold uppercase tracking-wider animate-pulse flex items-center justify-center space-x-1.5">
-                <PhoneCall className="w-4 h-4 animate-bounce" />
-                <span>{getTranslation("প্রতিনিধিকে কল পাঠানো হয়েছে...", "Call Dispatched to Support Agent...")}</span>
-              </p>
-              <p className="text-[11px] text-slate-300">
-                {getTranslation("এজেন্ট রিসিভ করার সাথে সাথে লাইভ কথা শুরু হবে।", "Live conversation will start as soon as agent accepts.")}
-              </p>
-            </div>
-          )}
-
-          {callStatus === "connected" && (
-            <div className="space-y-1.5">
-              <span className="inline-block bg-emerald-500/20 text-emerald-300 font-mono text-sm font-black px-3.5 py-1 rounded-full border border-emerald-500/30">
-                ⏱ {formatTime(callDuration)}
-              </span>
-              <p className="text-[11px] text-slate-300 font-medium">
-                {getTranslation("কথা বলুন, প্রতিনিধি লাইনে আছেন", "Connected! You are speaking with support.")}
-              </p>
-            </div>
-          )}
-
-          {callStatus === "rejected" && (
-            <div className="space-y-1 text-rose-400">
-              <p className="text-xs font-bold">
-                {getTranslation("এই মুহূর্তে কলটি রিসিভ করা সম্ভব হয়নি।", "Could not connect at this moment.")}
-              </p>
-              <p className="text-[11px] text-slate-400">
-                {getTranslation("অনুগ্রহ করে লাইভ চ্যাটে আপনার অর্ডার মেসেজ দিন।", "Please send your order via Live Chat.")}
-              </p>
-            </div>
-          )}
-
-          {callStatus === "ended" && (
-            <p className="text-xs text-slate-300 font-bold">
-              {getTranslation("কল সমাপ্ত হয়েছে", "Call Ended")} ({formatTime(callDuration)})
-            </p>
-          )}
-
-          {callStatus === "cancelled" && (
-            <p className="text-xs text-slate-400 font-bold">
-              {getTranslation("কল বাতিল করা হয়েছে।", "Call was cancelled.")}
-            </p>
-          )}
-
-          {callStatus === "error" && (
-            <div className="space-y-3 max-w-xs mx-auto animate-in fade-in">
-              <div className="text-rose-400 text-xs px-3.5 py-2.5 bg-rose-950/60 rounded-xl border border-rose-800/80 text-center">
-                <AlertCircle className="w-5 h-5 mx-auto mb-1.5 text-rose-400" />
+          ) : callStatus === "error" ? (
+            <div className="space-y-3 w-full px-2">
+              <div className="text-rose-400 text-xs p-3 bg-rose-950/60 rounded-2xl border border-rose-800/80">
                 <p className="font-semibold">{errorMessage}</p>
                 {isPermissionDenied && (
-                  <p className="text-[10px] text-slate-300 mt-2 bg-slate-800/80 p-2 rounded-lg border border-slate-700 leading-relaxed text-left">
+                  <p className="text-[11px] text-slate-300 mt-1.5 leading-relaxed">
                     💡 {getTranslation(
-                      "টিপস: ব্রাউজারের অ্যাড্রেস বারের সাইট সেটিংস/লক আইকনে গিয়ে Microphone এক্সেস Allow করে নিচে 'পুনরায় চেষ্টা করুন' চাপুন।",
-                      "Tip: Go to your browser address bar/site settings, set Microphone to Allow, then click 'Try Again' below."
+                      "ব্রাউজারের অ্যাড্রেস বার থেকে মাইক্রোফোন Allow করে পুনরায় চেষ্টা করুন।",
+                      "Please allow microphone access from browser address bar and try again."
                     )}
                   </p>
                 )}
               </div>
-              
               <button
                 type="button"
                 onClick={startCall}
-                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-extrabold rounded-xl transition shadow flex items-center justify-center space-x-1.5 cursor-pointer"
+                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-2xl transition shadow cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <Phone className="w-3.5 h-3.5" />
-                <span>{getTranslation("পুনরায় চেষ্টা করুন", "Try Call Again")}</span>
+                <span>{getTranslation("পুনরায় চেষ্টা করুন", "Try Again")}</span>
               </button>
+            </div>
+          ) : callStatus === "rejected" ? (
+            <p className="text-xs text-rose-400 font-bold">
+              {getTranslation("এই মুহূর্তে কলটি রিসিভ করা সম্ভব হয়নি।", "Could not connect at this moment.")}
+            </p>
+          ) : callStatus === "ended" ? (
+            <p className="text-xs text-slate-300 font-bold">
+              {getTranslation("কল সমাপ্ত হয়েছে", "Call Ended")} ({formatTime(callDuration)})
+            </p>
+          ) : callStatus === "cancelled" ? (
+            <p className="text-xs text-slate-400 font-bold">
+              {getTranslation("কল বাতিল করা হয়েছে", "Call Cancelled")}
+            </p>
+          ) : (
+            /* Gentle sound wave visualizer while automated voice & music are playing */
+            <div className="flex items-center justify-center space-x-1.5 h-6">
+              {[30, 65, 45, 85, 55, 75, 40, 80, 50].map((h, i) => (
+                <span
+                  key={i}
+                  className="w-1 bg-emerald-400/80 rounded-full animate-pulse"
+                  style={{
+                    height: `${h}%`,
+                    animationDelay: `${i * 0.1}s`,
+                    animationDuration: "0.8s"
+                  }}
+                />
+              ))}
             </div>
           )}
         </div>
 
-        {/* Audio Wave Visualizer (When Connected) */}
-        {callStatus === "connected" && (
-          <div className="flex items-center justify-center space-x-1.5 h-6 mb-6">
-            {[40, 75, 50, 90, 60, 80, 45, 70, 55].map((h, i) => (
-              <span
-                key={i}
-                className="w-1 bg-emerald-400 rounded-full animate-pulse"
-                style={{
-                  height: `${h}%`,
-                  animationDelay: `${i * 0.1}s`,
-                  animationDuration: "0.8s"
-                }}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Action Controls Bar */}
-        <div className="flex items-center justify-center space-x-4 w-full pt-2 border-t border-slate-800/80">
+        {/* Action Controls */}
+        <div className="flex items-center justify-center space-x-4 w-full pt-3 border-t border-slate-800/80">
           
-          {/* Mute / Unmute Button */}
+          {/* Mute / Unmute Button (When Connected) */}
           {callStatus === "connected" && (
             <button
               onClick={handleToggleMute}
-              className={`p-3.5 rounded-full transition-all cursor-pointer ${
+              className={`p-4 rounded-full transition-all cursor-pointer shadow-lg ${
                 isMuted 
-                  ? "bg-amber-500 text-slate-950 hover:bg-amber-400 font-bold" 
+                  ? "bg-amber-500 text-slate-950 hover:bg-amber-400" 
                   : "bg-slate-800 text-white hover:bg-slate-700"
               }`}
               title={isMuted ? getTranslation("আনমিউট করুন", "Unmute") : getTranslation("মিউট করুন", "Mute")}
@@ -670,21 +590,12 @@ export default function CustomerVoiceCallModal({
           {/* End Call / Cancel Button */}
           <button
             onClick={handleEndOrCancelCall}
-            className="flex items-center space-x-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold px-6 py-3.5 rounded-full shadow-lg shadow-rose-950 transition cursor-pointer"
+            className="flex items-center justify-center p-4 rounded-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white shadow-xl shadow-rose-950/60 transition cursor-pointer w-14 h-14"
+            title={callStatus === "connected" ? getTranslation("কল কাটুন", "End Call") : getTranslation("বাতিল করুন", "Cancel")}
           >
-            <PhoneOff className="w-5 h-5" />
-            <span className="text-xs uppercase tracking-wider">
-              {callStatus === "connected" 
-                ? getTranslation("কল কাটুন", "End Call") 
-                : getTranslation("বাতিল করুন", "Cancel Call")}
-            </span>
+            <PhoneOff className="w-6 h-6" />
           </button>
         </div>
-
-        {/* Privacy Note */}
-        <p className="text-[10px] text-slate-500 font-medium mt-4">
-          🔒 {getTranslation("ওয়েব-ভিত্তিক নিরাপদ কল • কোনো ফোন নম্বর প্রয়োজন নেই", "Web-based secure call • No phone number required")}
-        </p>
 
       </div>
     </div>

@@ -911,15 +911,6 @@ export default function CheckoutModal({
                   </div>
                 </div>
 
-                {/* Shortcut links inside summary column */}
-                <a 
-                  href="tel:+8801722638985"
-                  className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs rounded-2xl transition shadow flex items-center justify-center space-x-2 cursor-pointer"
-                >
-                  <Phone className="w-4 h-4 animate-pulse" />
-                  <span>{getTranslation("কল করে সরাসরি অর্ডার করুন (+৮৮০১৭২২-৬৩৮৯৮৫)", "Call to Order Directly (+8801722638985)")}</span>
-                </a>
-
               </div>
 
             </form>
@@ -1297,17 +1288,6 @@ export default function CheckoutModal({
               </div>
             )}
           </div>
-
-          {/* Call to Order Quick Shortcut */}
-          <a 
-            href="tel:+8801722638985"
-            className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs rounded-2xl transition shadow flex items-center justify-center space-x-2 cursor-pointer"
-          >
-            <Phone className="w-4 h-4 animate-pulse" />
-            <span>{getTranslation("কল করে সরাসরি অর্ডার করুন (+৮৮০১৭২২-৬৩৮৯৮৫)", "Call to Order Directly (+8801722638985)")}</span>
-          </a>
-
-
 
         </div>
 

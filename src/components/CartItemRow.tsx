@@ -161,25 +161,25 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
   const isWeight = availableOptions.some(o => o.unit === "kg" || o.unit === "g");
 
   return (
-    <div className="bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-100 relative group transition-all hover:border-slate-200">
+    <div className="bg-slate-50/80 hover:bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200/80 relative transition-all">
       
       {/* Top row: Product image, name & Delete button */}
-      <div className="flex gap-2.5 items-start">
+      <div className="flex gap-2 items-center">
         <img 
           src={item.product.image} 
-          className="w-12 h-12 object-cover rounded-lg shrink-0 bg-white border border-slate-100" 
+          className="w-10 h-10 sm:w-11 sm:h-11 object-cover rounded-lg shrink-0 bg-white border border-slate-100" 
           onError={handleProductImgError} 
           alt={item.product.nameEn}
         />
         
         <div className="flex-1 min-w-0">
-          <div className="flex justify-between items-start">
-            <h4 className="text-xs font-bold text-slate-800 truncate pr-2 leading-tight">
+          <div className="flex justify-between items-center">
+            <h4 className="text-xs font-bold text-slate-800 truncate pr-1.5 leading-tight">
               {lang === "bn" ? item.product.nameBn : item.product.nameEn}
             </h4>
             <button 
               onClick={() => onRemove(item.product.id, item.selectedOption)}
-              className="text-slate-400 hover:text-red-500 transition shrink-0 p-0.5 cursor-pointer"
+              className="text-slate-400 hover:text-red-500 transition shrink-0 p-1 cursor-pointer rounded hover:bg-red-50"
               title={lang === "bn" ? "মুছে ফেলুন" : "Remove"}
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -188,7 +188,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
 
           {/* Out of stock error alert */}
           {isItemOutOfStock && (
-            <div className="mt-1 text-[10px] font-extrabold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+            <div className="mt-0.5 text-[9.5px] font-extrabold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded inline-flex items-center gap-1">
               <span>⚠️</span>
               <span>{lang === "bn" ? "পর্যাপ্ত স্টক নেই" : "Out of Stock"}</span>
             </div>
@@ -197,21 +197,21 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
       </div>
 
       {/* Side-by-side Weight selection Box (Left) and Price Box (Right) on the SAME LINE */}
-      <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+      <div className="mt-1.5 pt-1.5 border-t border-slate-200/60 flex items-center justify-between gap-2">
         
         {/* LEFT BOX: Weight / Quantity Selection */}
         <div className="flex-1 min-w-0">
           {!isCustomMode ? (
             <div className="flex items-center gap-1.5">
-              <span className="text-[10.5px] sm:text-xs text-slate-600 font-bold shrink-0">
-                {lang === "bn" ? "ওজন/পরিমাণ:" : "Weight/Qty:"}
+              <span className="text-[10px] sm:text-[11px] text-slate-600 font-bold shrink-0">
+                {lang === "bn" ? "পরিমাণ:" : "Qty:"}
               </span>
               
               <div className="relative flex-1 min-w-0">
                 <select
                   value={currentOpt ? `${currentOpt.value}::${currentOpt.unit}` : ""}
                   onChange={handleDropdownChange}
-                  className="w-full bg-white border border-slate-300 text-slate-800 text-[11px] sm:text-xs font-bold rounded-lg px-2 py-1 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-2xs truncate"
+                  className="w-full bg-white border border-slate-300 text-slate-800 text-[11px] font-bold rounded-lg px-2 py-1 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-2xs truncate leading-tight"
                 >
                   {availableOptions.map((opt, oIdx) => (
                     <option key={oIdx} value={`${opt.value}::${opt.unit}`}>
@@ -225,7 +225,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] sm:text-[11px] text-slate-600 font-bold shrink-0">
                   {lang === "bn" ? "ওজন:" : "Weight:"}
@@ -254,14 +254,14 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
                       }
                     }}
                     onChange={(e) => handleCustomValueChange(e.target.value)}
-                    className="w-full min-w-[44px] px-1.5 py-0.5 text-[11px] sm:text-xs font-bold text-slate-800 outline-none bg-transparent"
+                    className="w-full min-w-[40px] px-1.5 py-0.5 text-[11px] font-bold text-slate-800 outline-none bg-transparent"
                   />
 
                   {/* Unit Selector */}
                   <select
                     value={customUnit}
                     onChange={(e) => handleCustomUnitChange(e.target.value)}
-                    className="bg-slate-100 text-slate-700 text-[10px] sm:text-[11px] font-bold rounded px-1 py-0.5 border-none outline-none cursor-pointer shrink-0"
+                    className="bg-slate-100 text-slate-700 text-[10px] font-bold rounded px-1 py-0.5 border-none outline-none cursor-pointer shrink-0"
                   >
                     {isLiquid ? (
                       <>
@@ -270,8 +270,8 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
                       </>
                     ) : isWeight ? (
                       <>
-                        <option value="g">{lang === "bn" ? "গ্রাম (g)" : "g"}</option>
-                        <option value="kg">{lang === "bn" ? "কেজি (kg)" : "kg"}</option>
+                        <option value="g">{lang === "bn" ? "গ্রাম" : "g"}</option>
+                        <option value="kg">{lang === "bn" ? "কেজি" : "kg"}</option>
                       </>
                     ) : (
                       <option value={availableOptions[0]?.unit || "unit"}>
@@ -298,10 +298,10 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
 
         {/* RIGHT BOX: Dedicated Price Box (Beside Weight Box on the same line) */}
         <div className="shrink-0 flex items-center gap-1.5">
-          <span className="text-[10.5px] sm:text-xs text-slate-600 font-bold shrink-0">
+          <span className="text-[10px] sm:text-[11px] text-slate-600 font-bold shrink-0">
             {lang === "bn" ? "দাম:" : "Price:"}
           </span>
-          <div className={`font-black text-xs sm:text-sm px-2.5 py-1 rounded-lg shadow-2xs min-w-[58px] text-center border ${
+          <div className={`font-black text-xs px-2 py-0.5 rounded-lg shadow-2xs min-w-[52px] text-center border ${
             isCustomInvalid
               ? "bg-rose-50 border-rose-300 text-rose-700"
               : "bg-emerald-50 border-emerald-300 text-emerald-700"
@@ -314,7 +314,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
 
       {/* Validation alert message if Custom weight is invalid (0 or empty) */}
       {isCustomInvalid && (
-        <div className="mt-2 flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-lg animate-in fade-in">
+        <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-1 rounded-lg animate-in fade-in">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
           <span>{lang === "bn" ? validation.errorMsgBn : validation.errorMsgEn}</span>
         </div>
