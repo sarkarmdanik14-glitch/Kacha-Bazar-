@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { 
   LayoutGrid, Salad, Apple, Beef, Egg, Wheat, Flame, Cookie, 
   Droplet, Heart, Baby, Candy, Snowflake, Coffee, Dog, Star, Search, 
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
+import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, CartItem, Review, ProductOption } from "./types";
 import { CATEGORIES } from "./data";
 
@@ -321,24 +322,74 @@ export default function App() {
   const [showMemoModal, setShowMemoModal] = useState<boolean>(false);
   const [downloadingPDF, setDownloadingPDF] = useState<boolean>(false);
 
+  const isDownloadingOrderPDFRef = useRef<boolean>(false);
+  const isPrintingOrderRef = useRef<boolean>(false);
+
+  const handlePrintOrder = async () => {
+    if (isPrintingOrderRef.current || !completedOrder) return;
+    isPrintingOrderRef.current = true;
+    setShowMemoModal(true);
+
+    try {
+      let el = document.getElementById("printable-memo-card");
+      if (!el) {
+        for (let i = 0; i < 10; i++) {
+          await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 25)));
+          el = document.getElementById("printable-memo-card");
+          if (el) break;
+        }
+      }
+      if (el) {
+        await printOrderMemo(el, {
+          orderId: completedOrder.id,
+          storeName: "KachaBazar Store",
+          lang,
+          onPopupBlocked: () => {
+            triggerToast(
+              "ব্রাউজারের পপ-আপ ব্লক করা আছে। অনুগ্রহ করে পপ-আপ অনুমোদন করুন।",
+              "Pop-ups are blocked. Please allow pop-ups for direct printing."
+            );
+          },
+        });
+      }
+    } catch (e) {
+      console.error("Print error:", e);
+    } finally {
+      setTimeout(() => {
+        isPrintingOrderRef.current = false;
+      }, 500);
+    }
+  };
+
   const handleDownloadOrderPDF = async () => {
-    if (downloadingPDF || !completedOrder) return;
+    if (downloadingPDF || isDownloadingOrderPDFRef.current || !completedOrder) return;
+    isDownloadingOrderPDFRef.current = true;
     setDownloadingPDF(true);
     setShowMemoModal(true);
-    setTimeout(async () => {
-      const el = document.getElementById("printable-memo-card");
-      try {
-        await downloadMemoPDF(el, completedOrder);
-        triggerToast("পিডিএফ মেমো ডাউনলোড সফল হয়েছে!", "PDF Memo downloaded successfully!");
-      } catch (err) {
-        console.error("PDF download error:", err);
-        triggerToast(
-          "মেমো ডাউনলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
-          "Failed to generate PDF memo. Please try again."
-        );
+
+    try {
+      // Find printable-memo-card quickly with minimal frame delay
+      let el = document.getElementById("printable-memo-card");
+      if (!el) {
+        for (let i = 0; i < 10; i++) {
+          await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 25)));
+          el = document.getElementById("printable-memo-card");
+          if (el) break;
+        }
       }
+
+      await downloadMemoPDF(el, completedOrder);
+      triggerToast("পিডিএফ মেমো ডাউনলোড সফল হয়েছে!", "PDF Memo downloaded successfully!");
+    } catch (err) {
+      console.error("PDF download error:", err);
+      triggerToast(
+        "মেমো ডাউনলোড করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
+        "Failed to generate PDF memo. Please try again."
+      );
+    } finally {
+      isDownloadingOrderPDFRef.current = false;
       setDownloadingPDF(false);
-    }, 400);
+    }
   };
 
   // Portal and Checkout modals
@@ -1513,10 +1564,7 @@ export default function App() {
                 <span>{downloadingPDF ? (lang === "bn" ? "তৈরি হচ্ছে..." : "Generating...") : (lang === "bn" ? "মেমো ডাউনলোড করুন (PDF)" : "Download Memo (PDF)")}</span>
               </button>
               <button
-                onClick={() => {
-                  setShowMemoModal(true);
-                  setTimeout(() => window.print(), 300);
-                }}
+                onClick={handlePrintOrder}
                 className="py-2 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-[11px] rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5 text-slate-600" />

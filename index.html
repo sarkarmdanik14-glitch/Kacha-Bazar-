@@ -3,6 +3,83 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function() {
+        // Intercept noisy third-party browser extension console messages (e.g. MetaMask, ChromeTransport)
+        const isExtensionNoise = function(args) {
+          try {
+            const str = Array.from(args).map(function(a) {
+              if (a === null || a === undefined) return '';
+              if (typeof a === 'string') return a;
+              if (a instanceof Error) return (a.message || '') + ' ' + (a.stack || '');
+              if (typeof a === 'object') {
+                try { return JSON.stringify(a); } catch(e) { return String(a); }
+              }
+              return String(a);
+            }).join(' ');
+            return (
+              str.includes('MetaMask') ||
+              str.includes('ChromeTransport') ||
+              str.includes('connectChrome') ||
+              str.includes('chrome-extension://') ||
+              str.includes('moz-extension://') ||
+              str.includes('Extension context invalidated') ||
+              str.includes('inpage.js') ||
+              str.includes('evmProvider') ||
+              str.includes('ethereum')
+            );
+          } catch(e) {
+            return false;
+          }
+        };
+
+        const methods = ['error', 'warn', 'info', 'debug', 'log'];
+        methods.forEach(function(method) {
+          const orig = console[method];
+          if (orig) {
+            console[method] = function() {
+              if (isExtensionNoise(arguments)) return;
+              orig.apply(console, arguments);
+            };
+          }
+        });
+
+        window.addEventListener('error', function(event) {
+          const msg = event.message || '';
+          const src = event.filename || '';
+          const errStr = event.error ? (event.error.message || String(event.error)) : '';
+          if (
+            msg.includes('MetaMask') ||
+            msg.includes('ChromeTransport') ||
+            msg.includes('connectChrome') ||
+            errStr.includes('MetaMask') ||
+            errStr.includes('ChromeTransport') ||
+            errStr.includes('connectChrome') ||
+            src.includes('chrome-extension://') ||
+            src.includes('moz-extension://') ||
+            src.includes('inpage.js')
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            return true;
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(event) {
+          const reason = event.reason ? String(event.reason.message || event.reason) : '';
+          if (
+            reason.includes('MetaMask') ||
+            reason.includes('ChromeTransport') ||
+            reason.includes('connectChrome') ||
+            reason.includes('Extension context invalidated') ||
+            reason.includes('inpage.js')
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+      })();
+    </script>
     <meta name="description" content="A world-class, premium, and highly engaging grocery e-commerce homepage for fresh produce, meats, daily essentials, and quick 15-minute deliveries." />
     <title>কাচা বাজার - Premium Grocery Store</title>
     

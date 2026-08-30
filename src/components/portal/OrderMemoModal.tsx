@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import { downloadMemoPDF, imageToDataUrl } from "../../lib/pdfUtils";
+import { printOrderMemo } from "../../lib/printUtils";
 import { db, doc, getDoc } from "../../lib/firebase";
 import defaultLogoImg from "../../assets/images/logo_1783882658678.jpg";
 import defaultFounderImg from "../../assets/images/founder_md_anik_1784735314684.jpg";
@@ -30,6 +31,8 @@ export default function OrderMemoModal({
 }: OrderMemoModalProps) {
   const memoRef = useRef<HTMLDivElement>(null);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const isDownloadingRef = useRef(false);
+  const isPrintingRef = useRef(false);
   const [memoConfig, setMemoConfig] = useState<any>(propSettings || {});
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [verificationCode, setVerificationCode] = useState<string>("");
@@ -208,12 +211,35 @@ export default function OrderMemoModal({
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    if (isPrintingRef.current || !memoRef.current) return;
+    isPrintingRef.current = true;
+    try {
+      await printOrderMemo(memoRef.current, {
+        orderId: order.id,
+        storeName,
+        lang,
+        onPopupBlocked: () => {
+          if (triggerToast) {
+            triggerToast(
+              "ব্রাউজারের পপ-আপ ব্লক করা আছে। অনুগ্রহ করে পপ-আপ অনুমোদন করুন।",
+              "Pop-ups are blocked. Please allow pop-ups for direct printing."
+            );
+          }
+        },
+      });
+    } catch (err) {
+      console.error("Print execution error:", err);
+    } finally {
+      setTimeout(() => {
+        isPrintingRef.current = false;
+      }, 500);
+    }
   };
 
   const handleDownloadPDF = async () => {
-    if (!memoRef.current || downloadingPDF) return;
+    if (!memoRef.current || downloadingPDF || isDownloadingRef.current) return;
+    isDownloadingRef.current = true;
     setDownloadingPDF(true);
     try {
       const fullConfig = {
@@ -241,6 +267,7 @@ export default function OrderMemoModal({
         );
       }
     } finally {
+      isDownloadingRef.current = false;
       setDownloadingPDF(false);
     }
   };
@@ -254,86 +281,6 @@ export default function OrderMemoModal({
 
   return (
     <div className="order-memo-modal-overlay fixed inset-0 z-[1000] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      {/* CSS stylesheet injected for flawless printing behavior & Unicode Bangla Font Rendering */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap');
-
-        .printable-memo-card, .printable-memo-card * {
-          font-family: 'Hind Siliguri', 'Noto Sans Bengali', 'SolaimanLipi', system-ui, -apple-system, BlinkMacSystemFont, sans-serif !important;
-        }
-
-        @media print {
-          @page {
-            size: A4 portrait;
-            margin: 8mm;
-          }
-          *, *::before, *::after {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          body, html {
-            background: #ffffff !important;
-            color: #000000 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            overflow: visible !important;
-          }
-          .no-print, button, nav, header, footer {
-            display: none !important;
-          }
-          .order-memo-modal-overlay {
-            position: static !important;
-            background: transparent !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            display: block !important;
-            width: 100% !important;
-            height: auto !important;
-            overflow: visible !important;
-            backdrop-filter: none !important;
-            -webkit-backdrop-filter: none !important;
-          }
-          .order-memo-modal-card {
-            box-shadow: none !important;
-            border: none !important;
-            max-width: 100% !important;
-            width: 100% !important;
-            max-height: none !important;
-            overflow: visible !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            border-radius: 0 !important;
-          }
-          .printable-memo-container {
-            display: block !important;
-            position: static !important;
-            width: 100% !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            background: #ffffff !important;
-            box-shadow: none !important;
-            border: none !important;
-            overflow: visible !important;
-          }
-          .printable-memo-card {
-            display: block !important;
-            border: 1px solid #cbd5e1 !important;
-            box-shadow: none !important;
-            max-width: 100% !important;
-            width: 100% !important;
-            margin: 0 auto !important;
-            padding: 20px !important;
-            overflow: visible !important;
-            border-radius: 6px !important;
-            background: #ffffff !important;
-            page-break-inside: avoid;
-            break-inside: avoid;
-          }
-        }
-      `}} />
-
       {/* On-screen Modal Window */}
       <div className="order-memo-modal-card bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-2xl w-full max-h-[90vh] overflow-y-auto flex flex-col relative animate-scale-up">
         

@@ -10,12 +10,17 @@ if (typeof window !== 'undefined') {
   window.addEventListener('error', (event) => {
     const msg = event.message || '';
     const src = event.filename || '';
+    const errStr = event.error ? (event.error.message || String(event.error)) : '';
     if (
       msg.includes('MetaMask') ||
       msg.includes('ChromeTransport') ||
       msg.includes('connectChrome') ||
+      errStr.includes('MetaMask') ||
+      errStr.includes('ChromeTransport') ||
+      errStr.includes('connectChrome') ||
       src.includes('chrome-extension://') ||
-      src.includes('moz-extension://')
+      src.includes('moz-extension://') ||
+      src.includes('inpage.js')
     ) {
       event.preventDefault();
       event.stopPropagation();
@@ -29,7 +34,8 @@ if (typeof window !== 'undefined') {
       reason.includes('MetaMask') ||
       reason.includes('ChromeTransport') ||
       reason.includes('connectChrome') ||
-      reason.includes('Extension context invalidated')
+      reason.includes('Extension context invalidated') ||
+      reason.includes('inpage.js')
     ) {
       event.preventDefault();
       event.stopPropagation();

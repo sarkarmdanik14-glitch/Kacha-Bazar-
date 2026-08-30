@@ -266,12 +266,20 @@ export default function AdminMemoManagementTab({
 
   // Direct PDF Download for an order
   const handleDirectDownloadPDF = async (order: any) => {
+    if (downloadingOrderId) return;
     setDownloadingOrderId(order.id);
     try {
       setSelectedMemoOrder(order);
       setShowMemoModal(true);
       
-      await new Promise((res) => setTimeout(res, 300));
+      let el = document.getElementById("printable-memo-card");
+      if (!el) {
+        for (let i = 0; i < 8; i++) {
+          await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 25)));
+          el = document.getElementById("printable-memo-card");
+          if (el) break;
+        }
+      }
       
       const currentConfig = {
         storeLogo,
@@ -285,7 +293,6 @@ export default function AdminMemoManagementTab({
         termsAndConditions,
       };
 
-      const el = document.getElementById("printable-memo-card");
       await downloadMemoPDF(el, order, currentConfig);
       
       triggerToast("মেমো পিডিএফ ডাউনলোড সম্পন্ন হয়েছে!", "Order Memo PDF downloaded successfully!");
