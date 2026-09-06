@@ -59,33 +59,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Initialize Firestore with auto-detect long polling and multi-tab local cache
-let db: ReturnType<typeof initializeFirestore>;
-
-try {
-  db = initializeFirestore(
-    app,
-    {
-      experimentalAutoDetectLongPolling: true,
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
-    },
-    config.firestoreDatabaseId || "(default)"
-  );
-} catch {
-  try {
-    db = initializeFirestore(
-      app,
-      {
-        localCache: memoryLocalCache(),
-      },
-      config.firestoreDatabaseId || "(default)"
-    );
-  } catch {
-    db = getFirestore(app, config.firestoreDatabaseId || "(default)");
-  }
-}
+// Initialize Firestore using the standard database connection
+const db = getFirestore(app, config.firestoreDatabaseId || "(default)");
 
 const googleProvider = new GoogleAuthProvider();
 const storage = getStorage(app);

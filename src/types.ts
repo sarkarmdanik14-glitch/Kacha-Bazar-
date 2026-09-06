@@ -8,6 +8,18 @@ export interface ProductOption {
   customLabel?: string;
 }
 
+export interface PartnerShopAvailability {
+  shopId: string;
+  partnerId: string; // e.g. "KB-SHOP-001"
+  shopName: string;
+  logo?: string;
+  price: number;
+  stock: number;
+  address?: string;
+  rating?: number;
+  commissionRate?: number;
+}
+
 export interface Product {
   id: string;
   nameBn: string;
@@ -32,6 +44,11 @@ export interface Product {
   isBuyMoreSaveMore?: boolean;
   brand?: string;
   reviewCount?: number;
+  // Partner shop association
+  partnerShopId?: string;
+  partnerShopName?: string;
+  partnerId?: string; // e.g. "KB-SHOP-001"
+  availableShops?: PartnerShopAvailability[];
   // New production-ready catalog fields
   sku?: string;
   subcategory?: string;
@@ -128,6 +145,7 @@ export type StaffOnlineStatus = "online" | "away" | "offline";
 
 export type PermissionModule = 
   | "dashboard"
+  | "daily_sales"
   | "orders"
   | "products"
   | "categories"
@@ -147,14 +165,38 @@ export type PermissionAction = "view" | "add" | "edit" | "delete";
 
 export type PermissionsMap = Record<string, boolean>;
 
+export interface SalaryPaymentRecord {
+  id: string;
+  month: string; // e.g. "March 2026" / "মার্চ ২০২৬"
+  amount: number;
+  paymentDate: string;
+  paidAt?: string;
+  paymentMethod: "Cash" | "bKash" | "Nagad" | "Bank Transfer" | "Other" | string;
+  status: "paid" | "partial";
+  transactionRef?: string;
+  note?: string;
+  paidBy?: string;
+  createdAt: string;
+}
+
 export interface StaffMember {
   id: string;
-  staffId: string; // e.g. "KB-STF-001"
+  staffId: string; // e.g. "CFI-KB-001"
+  username?: string; // e.g. "anik_admin", "rahim02"
   fullName: string;
   mobile: string;
   email: string;
   photoURL?: string;
   role: StaffRole;
+  designation?: string;
+  department?: string;
+  joiningDate?: string;
+  bloodGroup?: string;
+  emergencyContact?: string;
+  monthlySalary?: number; // Base salary in BDT
+  salaryStatus?: "paid" | "unpaid" | "due";
+  lastPaymentDate?: string;
+  salaryHistory?: SalaryPaymentRecord[];
   status: StaffStatus;
   onlineStatus?: StaffOnlineStatus;
   lastActiveAt?: any;
@@ -166,7 +208,7 @@ export interface StaffMember {
   updatedAt?: any;
   sessionId?: string;
   lastLoginAt?: any;
-  assignedAgentDesk?: number;
+  assignedAgentDesk?: number | null;
   isSuperAdmin?: boolean;
 }
 
@@ -194,3 +236,46 @@ export interface RoleDefinition {
   descriptionEn: string;
   defaultPermissions: PermissionsMap;
 }
+
+export type PartnerShopStatus = "active" | "suspended" | "pending";
+
+export interface PartnerShop {
+  id: string; // Document ID or internal ID
+  partnerId: string; // Formatted unique ID e.g. "KB-SHOP-001"
+  shopName: string;
+  logo: string;
+  ownerName: string;
+  mobile: string;
+  email: string;
+  address: string;
+  category: string;
+  joiningDate: string;
+  commissionRate: number; // Configurable percentage, e.g. 10 for 10%
+  status: PartnerShopStatus;
+  plainPassword?: string;
+  passwordHash?: string;
+  passwordSalt?: string;
+  paymentMethod?: string;
+  accountNumber?: string;
+  balance?: number;
+  totalSales?: number;
+  totalOrders?: number;
+  totalCommission?: number;
+  netEarnings?: number;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export interface PartnerOrderAssignment {
+  partnerId: string;
+  partnerShopId: string;
+  partnerShopName: string;
+  itemCount: number;
+  subtotal: number;
+  commissionRate: number;
+  commissionAmount: number;
+  partnerEarnings: number;
+  status?: "pending" | "processing" | "ready" | "shipped" | "delivered" | "cancelled";
+  items?: any[];
+}
+

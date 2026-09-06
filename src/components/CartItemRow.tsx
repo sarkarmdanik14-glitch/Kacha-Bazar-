@@ -6,7 +6,7 @@ import {
   getWeightOnlyLabel, 
   calculateProductPriceForWeight, 
   validateWeightLimit 
-} from "../App";
+} from "../lib/productWeightUtils";
 
 interface CartItemRowProps {
   item: CartItem;

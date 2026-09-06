@@ -274,6 +274,13 @@ export default function CheckoutModal({
     // Clean items payload (strips undefined properties which cause Firestore setDoc/transaction failures)
     const cleanItems = JSON.parse(JSON.stringify(cart));
 
+    // Extract Partner Shop IDs from ordered items
+    const partnerShopIds = Array.from(new Set(
+      cleanItems
+        .map((it: any) => it.product?.partnerShopId)
+        .filter((id: any) => typeof id === "string" && id.length > 0)
+    ));
+
     // Create Order Object (with double-mapping fields for 100% compatibility across Admin, Seller, Rider and Customer portals)
     const orderPayload = {
       id: orderId,
@@ -289,6 +296,8 @@ export default function CheckoutModal({
       totalAmount: computedGrandTotal || 0,
 
       items: cleanItems,
+      partnerShopIds: partnerShopIds,
+      partnerShopId: partnerShopIds.length > 0 ? partnerShopIds[0] : "",
       subtotal: subtotal || 0,
       discount: discount || 0,
       deliveryCharge: activeDeliveryFee || 0,

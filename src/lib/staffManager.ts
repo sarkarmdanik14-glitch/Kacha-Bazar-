@@ -23,7 +23,8 @@ import {
   orderBy, 
   limit, 
   serverTimestamp, 
-  addDoc 
+  addDoc,
+  onSnapshot 
 } from "./firebase";
 
 // Module registry with descriptions
@@ -36,6 +37,32 @@ export interface ModuleInfo {
   supportedActions: PermissionAction[];
 }
 
+/**
+ * Safely sanitizes an object before writing to Firestore:
+ * - Omits any keys whose value is undefined
+ * - Recursively processes nested plain objects and arrays
+ * - Guarantees Firestore setDoc/updateDoc never encounters 'Unsupported field value: undefined'
+ */
+export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): Record<string, any> {
+  if (!obj || typeof obj !== "object") return obj;
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      clean[key] = value
+        .filter(item => item !== undefined)
+        .map(item => (item !== null && typeof item === "object" && !(item instanceof Date)) ? sanitizeForFirestore(item) : item);
+    } else if (value !== null && typeof value === "object" && !(value instanceof Date)) {
+      clean[key] = sanitizeForFirestore(value);
+    } else {
+      clean[key] = value;
+    }
+  }
+  return clean;
+}
+
 export const PERMISSION_MODULES: ModuleInfo[] = [
   {
     id: "dashboard",
@@ -43,6 +70,14 @@ export const PERMISSION_MODULES: ModuleInfo[] = [
     nameEn: "System Analytics & Dashboard",
     descriptionBn: "স্টোর এনালিটিক্স, সেলস চার্ট ও গ্রাফ দেখার অনুমতি",
     descriptionEn: "Access to store metrics, charts, and live operational stats",
+    supportedActions: ["view"]
+  },
+  {
+    id: "daily_sales",
+    nameBn: "দৈনিক সেলস ওভারভিউ",
+    nameEn: "Daily Sales Overview",
+    descriptionBn: "প্রতিদিনের বিক্রয় হিসাব, মোট কেজি/গ্রাম, পণ্যভিত্তিক বিক্রয় ও সময়ভিত্তিক চার্ট",
+    descriptionEn: "Daily sales analytics, kg/gram sold metrics, hourly sales charts and product breakdowns",
     supportedActions: ["view"]
   },
   {
@@ -99,6 +134,14 @@ export const PERMISSION_MODULES: ModuleInfo[] = [
     nameEn: "Staff Management & RBAC",
     descriptionBn: "নতুন স্টাফ তৈরি, রোল ও পারমিশন নির্ধারণ, পাসওয়ার্ড রিসেট ও লগ",
     descriptionEn: "Manage team members, roles, granular permissions, and audit logs",
+    supportedActions: ["view", "add", "edit", "delete"]
+  },
+  {
+    id: "partner_shops",
+    nameBn: "পার্টনার শপস ও কমিশন কন্ট্রোল",
+    nameEn: "Partner Shops & Commission Control",
+    descriptionBn: "পার্টনার শপ অনুমোদন, কমিশন রেট ও সেলস রিপোর্ট ব্যবস্থাপনা",
+    descriptionEn: "Manage verified merchant partner shops, commission rates and financial payouts",
     supportedActions: ["view", "add", "edit", "delete"]
   },
   {
@@ -192,6 +235,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
     descriptionEn: "Full operational access to store inventory, orders, customers, and configs",
     defaultPermissions: {
       "dashboard.view": true,
+      "daily_sales.view": true,
       "orders.view": true,
       "orders.add": true,
       "orders.edit": true,
@@ -217,6 +261,10 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       "users.edit": true,
       "users.delete": true,
       "staff_management.view": true,
+      "partner_shops.view": true,
+      "partner_shops.add": true,
+      "partner_shops.edit": true,
+      "partner_shops.delete": true,
       "leadership.view": true,
       "leadership.add": true,
       "leadership.edit": true,
@@ -250,6 +298,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
     descriptionEn: "Manage orders flow, rider assignments, memo downloads and fulfillment",
     defaultPermissions: {
       "dashboard.view": true,
+      "daily_sales.view": true,
       "orders.view": true,
       "orders.add": true,
       "orders.edit": true,
@@ -349,6 +398,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
     descriptionEn: "Financial ledgers, revenue audits, payment verification and refund credits",
     defaultPermissions: {
       "dashboard.view": true,
+      "daily_sales.view": true,
       "accounts.view": true,
       "accounts.add": true,
       "accounts.edit": true,
@@ -412,6 +462,110 @@ export function hasPermission(
   return false;
 }
 
+// Helper to calculate sequential Staff ID (Format: CFI-KB-001, CFI-KB-002, etc.)
+export function generateNextStaffId(staffList: StaffMember[]): string {
+  let maxNum = 0;
+  if (Array.isArray(staffList)) {
+    for (const s of staffList) {
+      if (s && s.staffId) {
+        const match = s.staffId.match(/\d+/g);
+        if (match && match.length > 0) {
+          const num = parseInt(match[match.length - 1], 10);
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num;
+          }
+        }
+      }
+    }
+  }
+  const nextNum = maxNum + 1;
+  return `CFI-KB-${String(nextNum).padStart(3, "0")}`;
+}
+
+/**
+ * Format staff username strictly according to rule:
+ * CFI-KB-001 → cfikb001
+ * CFI-KB-002 → cfikb002
+ * Strips '@', removes all hyphens/spaces, strictly lowercase.
+ */
+export function formatStaffUsername(input?: string): string {
+  if (!input) return "";
+  return input.trim().replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+export const DEPARTMENTS = [
+  { id: "Executive Administration", nameBn: "নির্বাহী প্রশাসন ও ম্যানেজমেন্ট", nameEn: "Executive Administration" },
+  { id: "Order Fulfillment & Logistics", nameBn: "অর্ডার প্রসেসিং ও লজিস্টিকস", nameEn: "Order Fulfillment & Logistics" },
+  { id: "Inventory & Catalog", nameBn: "পণ্য সম্ভার ও ইনভেন্টরি", nameEn: "Inventory & Catalog" },
+  { id: "Customer Care & Voice Support", nameBn: "কল সেন্টার ও ভয়েস সাপোর্ট", nameEn: "Customer Care & Voice Support" },
+  { id: "Live Chat Support", nameBn: "কাস্টমার সাপোর্ট ও লাইভ চ্যাট", nameEn: "Live Chat Support" },
+  { id: "Rider & Delivery Fleet", nameBn: "ডেলিভারি রাইডার ও ফ্লিট", nameEn: "Rider & Delivery Fleet" },
+  { id: "Finance & Accounts", nameBn: "হিসাবরক্ষণ ও অডিট বিভাগ", nameEn: "Finance & Accounts" },
+  { id: "Store Operations", nameBn: "স্টোর অপারেশনস", nameEn: "Store Operations" }
+];
+
+export const BLOOD_GROUPS = ["A (+ve)", "A (-ve)", "B (+ve)", "B (-ve)", "O (+ve)", "O (-ve)", "AB (+ve)", "AB (-ve)"];
+
+// Format joining date helper
+export function formatStaffJoiningDate(dateStr?: string, lang: "bn" | "en" = "bn"): string {
+  if (!dateStr) return lang === "bn" ? "০১ জানুয়ারি, ২০২৬" : "01 Jan 2026";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    
+    if (lang === "bn") {
+      const bnMonths = ["জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন", "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"];
+      const toBnDigits = (n: number | string) => {
+        const bnDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
+        return String(n).replace(/\d/g, d => bnDigits[parseInt(d, 10)]);
+      };
+      const day = toBnDigits(String(d.getDate()).padStart(2, "0"));
+      const month = bnMonths[d.getMonth()];
+      const year = toBnDigits(d.getFullYear());
+      return `${day} ${month}, ${year}`;
+    } else {
+      return d.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
+    }
+  } catch (e) {
+    return dateStr;
+  }
+}
+
+/**
+ * Returns authentication headers for Staff/Admin API calls.
+ * Automatically injects active session token, staff ID, and email.
+ */
+export function getStaffAuthHeaders(user?: any): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json"
+  };
+
+  try {
+    const sessionId = user?.sessionId || 
+      (typeof window !== "undefined" ? (localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session")) : null);
+    
+    if (sessionId) {
+      headers["Authorization"] = `Bearer ${sessionId}`;
+      headers["x-session-id"] = sessionId;
+    }
+
+    if (user?.email) {
+      headers["x-user-email"] = user.email;
+    } else if (typeof window !== "undefined") {
+      const storedEmail = localStorage.getItem("kb_staff_email");
+      if (storedEmail) headers["x-user-email"] = storedEmail;
+    }
+
+    if (user?.staffId) {
+      headers["x-staff-id"] = user.staffId;
+    }
+  } catch (e) {
+    // Graceful fallback if storage is unavailable
+  }
+
+  return headers;
+}
+
 // Activity Logging helper
 export async function logStaffActivity(params: {
   staffUser: any;
@@ -429,7 +583,7 @@ export async function logStaffActivity(params: {
     // 1. Post to Server API (which persists and ensures server audit integrity)
     fetch("/api/staff/activity-logs", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getStaffAuthHeaders(staffUser),
       body: JSON.stringify({
         staffId,
         staffName,
@@ -465,10 +619,595 @@ export async function sendStaffHeartbeat(staffId: string, status: StaffOnlineSta
   try {
     await fetch("/api/staff/heartbeat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getStaffAuthHeaders({ staffId }),
       body: JSON.stringify({ staffId, status })
     });
+    // Also update onlineStatus in Firestore if staffId exists
+    const q = query(collection(db, "staff"), where("staffId", "==", staffId), limit(1));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const staffDoc = snap.docs[0];
+      await updateDoc(doc(db, "staff", staffDoc.id), {
+        onlineStatus: status,
+        lastActiveAt: new Date().toISOString()
+      }).catch(() => {});
+    }
   } catch (err) {
     console.warn("Staff heartbeat notice:", err);
   }
 }
+
+// ============================================================================
+// FIREBASE FIRESTORE AS PRIMARY SOURCE OF TRUTH FOR STAFF MANAGEMENT
+// ============================================================================
+
+/**
+ * Fetch all staff members using Firebase Firestore as the primary source of truth.
+ * If the Firestore collection is empty (e.g. initial deployment or migration),
+ * it bootstraps the default staff records from the server store into Firestore.
+ */
+export async function fetchStaffFromFirestore(): Promise<StaffMember[]> {
+  try {
+    const staffColRef = collection(db, "staff");
+    const snapshot = await getDocs(staffColRef);
+
+    if (!snapshot.empty) {
+      const list: StaffMember[] = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        list.push({
+          id: docSnap.id,
+          staffId: data.staffId || docSnap.id,
+          username: data.username || "",
+          fullName: data.fullName || "Staff Member",
+          mobile: data.mobile || "",
+          email: data.email || "",
+          photoURL: data.photoURL || "",
+          role: (data.role as StaffRole) || "order_manager",
+          designation: data.designation || "Staff Executive",
+          department: data.department || "General Operations",
+          joiningDate: data.joiningDate || new Date().toISOString().split("T")[0],
+          bloodGroup: data.bloodGroup || "N/A",
+          emergencyContact: data.emergencyContact || data.mobile || "",
+          monthlySalary: data.monthlySalary !== undefined && data.monthlySalary !== null ? Number(data.monthlySalary) : undefined,
+          salaryStatus: data.salaryStatus || "due",
+          lastPaymentDate: data.lastPaymentDate || "",
+          salaryHistory: Array.isArray(data.salaryHistory) ? data.salaryHistory : [],
+          status: (data.status as StaffStatus) || "active",
+          onlineStatus: (data.onlineStatus as StaffOnlineStatus) || "offline",
+          lastActiveAt: data.lastActiveAt || new Date().toISOString(),
+          isSuperAdmin: !!data.isSuperAdmin || data.role === "super_admin",
+          permissions: data.permissions || {},
+          assignedAgentDesk: (data.role === "call_center_agent" && data.assignedAgentDesk) ? Number(data.assignedAgentDesk) : null,
+          createdAt: data.createdAt || new Date().toISOString(),
+          updatedAt: data.updatedAt || new Date().toISOString()
+        });
+      });
+
+      // Sort staff members by staffId (e.g. CFI-KB-001, CFI-KB-002)
+      list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
+      return list;
+    }
+
+    // If Firestore collection is currently empty, seed from server store
+    console.info("Firestore staff collection is empty. Initializing and syncing seed data to Firestore...");
+    const res = await fetch("/api/staff/list", {
+      headers: getStaffAuthHeaders()
+    });
+    const data = await res.json();
+    if (data.success && Array.isArray(data.staff) && data.staff.length > 0) {
+      for (const s of data.staff) {
+        const docRef = doc(db, "staff", s.id || `staff-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`);
+        const safeSeedData = sanitizeForFirestore({
+          ...s,
+          assignedAgentDesk: s.role === "call_center_agent" ? (Number(s.assignedAgentDesk) || 1) : null,
+          id: docRef.id,
+          updatedAt: new Date().toISOString()
+        });
+        await setDoc(docRef, safeSeedData, { merge: true }).catch(err => console.warn("Firestore staff seed doc warning:", err));
+      }
+      return data.staff;
+    }
+
+    return [];
+  } catch (err) {
+    console.error("Error fetching staff from Firestore, falling back to server API:", err);
+    try {
+      const res = await fetch("/api/staff/list", {
+        headers: getStaffAuthHeaders()
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.staff)) {
+        return data.staff;
+      }
+    } catch (e) {
+      console.error("Fallback server fetch also failed:", e);
+    }
+    return [];
+  }
+}
+
+/**
+ * Real-time listener for the Firestore staff collection.
+ * Triggers callback immediately on changes across all sessions and devices.
+ */
+export function subscribeToStaffCollection(callback: (staff: StaffMember[]) => void): () => void {
+  try {
+    const staffColRef = collection(db, "staff");
+    const unsubscribe = onSnapshot(staffColRef, (snapshot) => {
+      const list: StaffMember[] = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        list.push({
+          id: docSnap.id,
+          staffId: data.staffId || docSnap.id,
+          username: data.username || "",
+          fullName: data.fullName || "Staff Member",
+          mobile: data.mobile || "",
+          email: data.email || "",
+          photoURL: data.photoURL || "",
+          role: (data.role as StaffRole) || "order_manager",
+          designation: data.designation || "Staff Executive",
+          department: data.department || "General Operations",
+          joiningDate: data.joiningDate || new Date().toISOString().split("T")[0],
+          bloodGroup: data.bloodGroup || "N/A",
+          emergencyContact: data.emergencyContact || data.mobile || "",
+          monthlySalary: data.monthlySalary !== undefined && data.monthlySalary !== null ? Number(data.monthlySalary) : undefined,
+          salaryStatus: data.salaryStatus || "due",
+          lastPaymentDate: data.lastPaymentDate || "",
+          salaryHistory: Array.isArray(data.salaryHistory) ? data.salaryHistory : [],
+          status: (data.status as StaffStatus) || "active",
+          onlineStatus: (data.onlineStatus as StaffOnlineStatus) || "offline",
+          lastActiveAt: data.lastActiveAt || new Date().toISOString(),
+          isSuperAdmin: !!data.isSuperAdmin || data.role === "super_admin",
+          permissions: data.permissions || {},
+          assignedAgentDesk: (data.role === "call_center_agent" && data.assignedAgentDesk) ? Number(data.assignedAgentDesk) : null,
+          createdAt: data.createdAt || new Date().toISOString(),
+          updatedAt: data.updatedAt || new Date().toISOString()
+        });
+      });
+      list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
+      callback(list);
+    }, (error) => {
+      console.warn("Staff real-time listener notice:", error.message);
+    });
+
+    return unsubscribe;
+  } catch (err) {
+    console.error("Failed to subscribe to Firestore staff collection:", err);
+    return () => {};
+  }
+}
+
+/**
+ * Create a new staff member with instant Firestore document creation
+ * and server-side synchronization.
+ */
+export async function createStaffInFirestore(params: {
+  fullName: string;
+  mobile: string;
+  email: string;
+  username?: string;
+  staffId?: string;
+  password?: string;
+  role: StaffRole;
+  designation?: string;
+  department?: string;
+  joiningDate?: string;
+  bloodGroup?: string;
+  emergencyContact?: string;
+  monthlySalary?: number;
+  salaryStatus?: "paid" | "due" | "pending";
+  status?: StaffStatus;
+  photoURL?: string;
+  assignedAgentDesk?: number | null;
+  permissions?: PermissionsMap;
+  creatorUser?: any;
+}): Promise<StaffMember> {
+  const {
+    fullName,
+    mobile,
+    email,
+    username,
+    staffId,
+    password,
+    role,
+    designation,
+    department,
+    joiningDate,
+    bloodGroup,
+    emergencyContact,
+    monthlySalary,
+    salaryStatus = "due",
+    status = "active",
+    photoURL = "",
+    assignedAgentDesk,
+    permissions = {},
+    creatorUser
+  } = params;
+
+  // Validate assignedAgentDesk for call_center_agent vs other roles
+  const cleanDesk = role === "call_center_agent"
+    ? (assignedAgentDesk ? Number(assignedAgentDesk) : 1)
+    : null;
+
+  // 1. Sync with backend API to safely store credentials hash and retrieve computed ID
+  const res = await fetch("/api/staff/create", {
+    method: "POST",
+    headers: getStaffAuthHeaders(creatorUser),
+    body: JSON.stringify({
+      fullName: (fullName || "").trim(),
+      mobile: (mobile || "").replace(/\s+/g, ""),
+      email: (email || "").trim().toLowerCase(),
+      username: username ? username.trim().toLowerCase() : undefined,
+      staffId: staffId ? staffId.trim().toUpperCase() : undefined,
+      password,
+      role,
+      designation: (designation || "").trim() || undefined,
+      department: (department || "").trim() || undefined,
+      joiningDate: joiningDate || undefined,
+      bloodGroup: bloodGroup || undefined,
+      emergencyContact: (emergencyContact || "").trim() || undefined,
+      monthlySalary: monthlySalary !== undefined ? Number(monthlySalary) : undefined,
+      salaryStatus,
+      status,
+      photoURL: photoURL || "",
+      assignedAgentDesk: cleanDesk,
+      permissions,
+      creatorName: creatorUser?.fullName || creatorUser?.displayName || "Super Admin"
+    })
+  });
+
+  const apiData = await res.json();
+  if (!res.ok) {
+    throw new Error(apiData.error || "Failed to create staff");
+  }
+
+  const createdStaff: StaffMember = apiData.staff;
+  const staffDocId = createdStaff.id || `staff-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+  // 2. Immediately write/update the document in Firebase Firestore
+  const staffDocRef = doc(db, "staff", staffDocId);
+  const firestoreData = sanitizeForFirestore({
+    id: staffDocId,
+    staffId: createdStaff.staffId || staffId || staffDocId,
+    username: formatStaffUsername(createdStaff.username || username || createdStaff.staffId || staffId),
+    fullName: (createdStaff.fullName || fullName || "").trim(),
+    mobile: (createdStaff.mobile || mobile || "").replace(/\s+/g, ""),
+    email: (createdStaff.email || email || "").trim().toLowerCase(),
+    photoURL: createdStaff.photoURL || photoURL || "",
+    role: createdStaff.role || role || "order_manager",
+    designation: (createdStaff.designation || designation || "Staff Executive").trim(),
+    department: (createdStaff.department || department || "General Operations").trim(),
+    joiningDate: createdStaff.joiningDate || joiningDate || new Date().toISOString().split("T")[0],
+    bloodGroup: createdStaff.bloodGroup || bloodGroup || "N/A",
+    emergencyContact: (createdStaff.emergencyContact || emergencyContact || mobile || "").trim(),
+    monthlySalary: createdStaff.monthlySalary !== undefined ? Number(createdStaff.monthlySalary) : (monthlySalary ? Number(monthlySalary) : null),
+    salaryStatus: createdStaff.salaryStatus || salaryStatus || "due",
+    salaryHistory: createdStaff.salaryHistory || [],
+    status: createdStaff.status || status || "active",
+    onlineStatus: createdStaff.onlineStatus || "offline",
+    lastActiveAt: createdStaff.lastActiveAt || new Date().toISOString(),
+    isSuperAdmin: Boolean(createdStaff.isSuperAdmin || (createdStaff.role || role) === "super_admin"),
+    permissions: createdStaff.permissions || permissions || {},
+    assignedAgentDesk: cleanDesk,
+    createdAt: createdStaff.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    updatedBy: creatorUser?.fullName || creatorUser?.displayName || "Super Admin"
+  });
+
+  await setDoc(staffDocRef, firestoreData, { merge: true });
+
+  // 3. Log activity in Firestore
+  await logStaffActivity({
+    staffUser: creatorUser || { fullName: "Super Admin", role: "super_admin" },
+    action: "staff_created",
+    module: "staff_management",
+    details: `নতুন স্টাফ Firestore-এ যুক্ত করা হয়েছে: ${createdStaff.fullName} (${createdStaff.staffId})`,
+    targetId: createdStaff.staffId
+  });
+
+  return createdStaff;
+}
+
+/**
+ * Update staff member in Firebase Firestore immediately.
+ * Handles editing information, toggling status, changing roles and granular permissions.
+ */
+export async function updateStaffInFirestore(
+  staffIdOrDocId: string,
+  updateData: Partial<StaffMember> & {
+    updaterName?: string;
+    updaterRole?: string;
+    updaterUser?: any;
+  }
+): Promise<StaffMember> {
+  const { updaterName, updaterRole, updaterUser, ...fieldsToUpdate } = updateData;
+
+  // 1. Clean and normalize payload fields to ensure NO undefined values reach any step
+  const cleanedFields: Record<string, any> = {};
+  for (const [key, val] of Object.entries(fieldsToUpdate)) {
+    if (val !== undefined) {
+      cleanedFields[key] = val;
+    }
+  }
+
+  // Validate and normalize assignedAgentDesk
+  if ("role" in cleanedFields || "assignedAgentDesk" in cleanedFields) {
+    if (cleanedFields.role === "call_center_agent") {
+      cleanedFields.assignedAgentDesk = (cleanedFields.assignedAgentDesk !== undefined && cleanedFields.assignedAgentDesk !== null)
+        ? (Number(cleanedFields.assignedAgentDesk) || 1)
+        : 1;
+    } else if (cleanedFields.role) {
+      cleanedFields.assignedAgentDesk = null;
+    } else if (cleanedFields.assignedAgentDesk === undefined) {
+      cleanedFields.assignedAgentDesk = null;
+    }
+  }
+
+  // 2. Sync with server API
+  const res = await fetch("/api/staff/update", {
+    method: "POST",
+    headers: getStaffAuthHeaders(updaterUser),
+    body: JSON.stringify({
+      id: staffIdOrDocId,
+      ...cleanedFields,
+      updaterName: updaterName || updaterUser?.fullName || updaterUser?.displayName || "Super Admin",
+      updaterRole: updaterRole || updaterUser?.role || "super_admin"
+    })
+  });
+
+  const apiData = await res.json();
+  if (!res.ok) {
+    throw new Error(apiData.error || "Failed to update staff");
+  }
+
+  const updatedStaff: StaffMember = apiData.staff;
+  const targetDocId = updatedStaff.id || staffIdOrDocId;
+
+  // 3. Immediately update the document in Firebase Firestore
+  const staffDocRef = doc(db, "staff", targetDocId);
+  const rawPayload: Record<string, any> = {
+    ...cleanedFields,
+    id: targetDocId,
+    updatedAt: new Date().toISOString(),
+    updatedBy: updaterName || updaterUser?.fullName || "Super Admin"
+  };
+
+  // Prevent overriding immutable fields
+  if (updatedStaff.staffId) {
+    rawPayload.staffId = updatedStaff.staffId;
+  }
+
+  // Ensure assignedAgentDesk is strictly number or null (NEVER undefined)
+  const finalRole = updatedStaff.role || cleanedFields.role;
+  if (finalRole === "call_center_agent") {
+    const d = rawPayload.assignedAgentDesk !== undefined ? rawPayload.assignedAgentDesk : updatedStaff.assignedAgentDesk;
+    rawPayload.assignedAgentDesk = (d !== undefined && d !== null) ? Number(d) : 1;
+  } else {
+    rawPayload.assignedAgentDesk = null;
+  }
+
+  // Sanitize full payload to guarantee zero undefined values are passed to Firestore setDoc
+  const firestorePayload = sanitizeForFirestore(rawPayload);
+  for (const k of Object.keys(firestorePayload)) {
+    if (firestorePayload[k] === undefined) {
+      delete firestorePayload[k];
+    }
+  }
+
+  await setDoc(staffDocRef, firestorePayload, { merge: true });
+
+  // 4. Log activity in Firestore
+  await logStaffActivity({
+    staffUser: updaterUser || { fullName: updaterName || "Super Admin", role: updaterRole || "super_admin" },
+    action: "staff_updated",
+    module: "staff_management",
+    details: `স্টাফ তথ্য Firestore-এ আপডেট করা হয়েছে: ${updatedStaff.fullName} (${updatedStaff.staffId})`,
+    targetId: updatedStaff.staffId
+  });
+
+  return updatedStaff;
+}
+
+/**
+ * Record a salary payment in Firestore and sync with server API.
+ */
+export async function payStaffSalaryInFirestore(params: {
+  staffId: string;
+  month: string;
+  amount: number;
+  paymentMethod: string;
+  transactionRef?: string;
+  note?: string;
+  adminUser?: any;
+}): Promise<StaffMember> {
+  const { staffId, month, amount, paymentMethod, transactionRef, note, adminUser } = params;
+
+  // 1. Call server API
+  const res = await fetch("/api/staff/salary/pay", {
+    method: "POST",
+    headers: getStaffAuthHeaders(adminUser),
+    body: JSON.stringify({
+      staffId,
+      month,
+      amount,
+      paymentMethod,
+      transactionRef,
+      note,
+      adminName: adminUser?.fullName || adminUser?.displayName || "Super Admin"
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || "বেতন পরিশোধ সম্পন্ন করা যায়নি");
+  }
+
+  const updatedStaff: StaffMember = data.staff;
+  const paymentRecord = data.payment;
+
+  // 2. Sync Firestore
+  const staffDocRef = doc(db, "staff", updatedStaff.id || staffId);
+  const payload = sanitizeForFirestore({
+    salaryStatus: "paid",
+    lastPaymentDate: paymentRecord.paymentDate,
+    salaryHistory: updatedStaff.salaryHistory || [],
+    updatedAt: new Date().toISOString()
+  });
+
+  await setDoc(staffDocRef, payload, { merge: true }).catch(err => console.warn("Firestore salary sync warning:", err));
+
+  // 3. Log activity in Firestore
+  await logStaffActivity({
+    staffUser: adminUser || { fullName: "Super Admin", role: "super_admin" },
+    action: "salary_paid",
+    module: "salary_management",
+    details: `${updatedStaff.fullName} (${updatedStaff.staffId})-কে ${month} মাসের বেতন ৳${amount} পরিশোধ করা হয়েছে [পদ্ধতি: ${paymentMethod}]`,
+    targetId: updatedStaff.staffId
+  });
+
+  return updatedStaff;
+}
+
+/**
+ * Update staff monthly salary base in Firestore and server.
+ */
+export async function updateStaffSalaryBaseInFirestore(params: {
+  staffId: string;
+  monthlySalary: number;
+  adminUser?: any;
+}): Promise<StaffMember> {
+  const { staffId, monthlySalary, adminUser } = params;
+
+  const res = await fetch("/api/staff/salary/update-base", {
+    method: "POST",
+    headers: getStaffAuthHeaders(adminUser),
+    body: JSON.stringify({
+      staffId,
+      monthlySalary,
+      adminName: adminUser?.fullName || adminUser?.displayName || "Super Admin"
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || "বেতন আপডেট করা যায়নি");
+  }
+
+  const updatedStaff: StaffMember = data.staff;
+  const staffDocRef = doc(db, "staff", updatedStaff.id || staffId);
+  const payload = sanitizeForFirestore({
+    monthlySalary: Number(monthlySalary),
+    updatedAt: new Date().toISOString()
+  });
+
+  await setDoc(staffDocRef, payload, { merge: true }).catch(err => console.warn("Firestore salary base sync warning:", err));
+
+  return updatedStaff;
+}
+
+/**
+ * Delete a staff member from Firebase Firestore and server store with Super Admin protection.
+ */
+export async function deleteStaffFromFirestore(
+  staffIdOrDocId: string,
+  deleterUser?: any
+): Promise<void> {
+  // 1. Call server API for validation and password hash removal
+  const res = await fetch("/api/staff/delete", {
+    method: "POST",
+    headers: getStaffAuthHeaders(deleterUser),
+    body: JSON.stringify({
+      id: staffIdOrDocId,
+      deleterName: deleterUser?.fullName || deleterUser?.displayName || "Super Admin"
+    })
+  });
+
+  const apiData = await res.json();
+  if (!res.ok) {
+    throw new Error(apiData.error || "Failed to delete staff");
+  }
+
+  // 2. Immediately delete from Firebase Firestore
+  const staffDocRef = doc(db, "staff", staffIdOrDocId);
+  await deleteDoc(staffDocRef).catch(async (e) => {
+    // If keyed by staffId instead of doc id, try finding doc by staffId
+    const q = query(collection(db, "staff"), where("staffId", "==", staffIdOrDocId), limit(1));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      await deleteDoc(doc(db, "staff", snap.docs[0].id));
+    }
+  });
+
+  // 3. Log activity in Firestore
+  await logStaffActivity({
+    staffUser: deleterUser || { fullName: "Super Admin", role: "super_admin" },
+    action: "staff_deleted",
+    module: "staff_management",
+    details: `স্টাফ অ্যাকাউন্ট Firestore থেকে মুছে ফেলা হয়েছে: ${staffIdOrDocId}`,
+    targetId: staffIdOrDocId
+  });
+}
+
+/**
+ * Fetch staff activity logs from Firestore with fallback to server API.
+ */
+export async function fetchStaffLogsFromFirestore(limitCount: number = 150): Promise<StaffActivityLog[]> {
+  try {
+    const logsCol = collection(db, "staff_activity_logs");
+    const q = query(logsCol, orderBy("createdAt", "desc"), limit(limitCount));
+    const snapshot = await getDocs(q);
+
+    if (!snapshot.empty) {
+      const logs: StaffActivityLog[] = [];
+      snapshot.forEach(docSnap => {
+        const d = docSnap.data();
+        let createdAtStr = new Date().toISOString();
+        if (d.createdAt) {
+          if (typeof d.createdAt.toDate === "function") {
+            createdAtStr = d.createdAt.toDate().toISOString();
+          } else if (typeof d.createdAt === "string") {
+            createdAtStr = d.createdAt;
+          }
+        }
+        logs.push({
+          id: docSnap.id,
+          staffId: d.staffId || "",
+          staffName: d.staffName || "Staff Member",
+          staffRole: d.staffRole || "admin",
+          action: d.action || "",
+          module: d.module || "staff_management",
+          details: d.details || "",
+          targetId: d.targetId || "",
+          createdAt: createdAtStr,
+          ipAddress: d.ipAddress || ""
+        });
+      });
+      return logs;
+    }
+
+    // Fallback to server endpoint
+    const res = await fetch(`/api/staff/activity-logs?limit=${limitCount}`, {
+      headers: getStaffAuthHeaders()
+    });
+    const data = await res.json();
+    if (data.success && Array.isArray(data.logs)) {
+      return data.logs;
+    }
+    return [];
+  } catch (err) {
+    console.warn("Firestore logs fetch notice, falling back to server API:", err);
+    try {
+      const res = await fetch(`/api/staff/activity-logs?limit=${limitCount}`, {
+        headers: getStaffAuthHeaders()
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.logs)) {
+        return data.logs;
+      }
+    } catch (e) {}
+    return [];
+  }
+}
+

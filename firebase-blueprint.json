@@ -55,6 +55,30 @@
       }
     },
     {
+      "name": "partner_shops",
+      "description": "Verified Partner Shops on Kacha Bazar with unique partnerId, commission, and earnings tracking",
+      "fields": {
+        "id": "string",
+        "partnerId": "string",
+        "shopName": "string",
+        "logo": "string",
+        "ownerName": "string",
+        "mobile": "string",
+        "email": "string",
+        "address": "string",
+        "category": "string",
+        "joiningDate": "string",
+        "commissionRate": "number",
+        "status": "string",
+        "balance": "number",
+        "totalSales": "number",
+        "totalOrders": "number",
+        "totalCommission": "number",
+        "netEarnings": "number",
+        "createdAt": "timestamp"
+      }
+    },
+    {
       "name": "categories",
       "description": "Product categories matching data.ts",
       "fields": {
@@ -316,6 +340,48 @@
         "activeCallerName": "string",
         "totalCallsHandled": "number",
         "lastActiveAt": "timestamp"
+      }
+    },
+    {
+      "name": "staff",
+      "description": "Staff members, RBAC roles, departments and granular permissions",
+      "fields": {
+        "id": "string",
+        "staffId": "string",
+        "fullName": "string",
+        "mobile": "string",
+        "email": "string",
+        "photoURL": "string",
+        "role": "string",
+        "designation": "string",
+        "department": "string",
+        "joiningDate": "string",
+        "bloodGroup": "string",
+        "emergencyContact": "string",
+        "status": "string",
+        "onlineStatus": "string",
+        "lastActiveAt": "string",
+        "permissions": "object",
+        "assignedAgentDesk": "number",
+        "isSuperAdmin": "boolean",
+        "createdAt": "string",
+        "updatedAt": "string",
+        "updatedBy": "string"
+      }
+    },
+    {
+      "name": "staff_activity_logs",
+      "description": "Comprehensive immutable audit trail of staff actions and management changes",
+      "fields": {
+        "id": "string",
+        "staffId": "string",
+        "staffName": "string",
+        "staffRole": "string",
+        "action": "string",
+        "module": "string",
+        "details": "string",
+        "targetId": "string",
+        "createdAt": "timestamp"
       }
     }
   ]

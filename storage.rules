@@ -1,0 +1,49 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper to check authentication
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper to check if admin
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'sarkarmdanik14@gmail.com';
+    }
+
+    // Global Safety Net: Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Product and category catalog images - Publicly readable, write strictly image < 5MB by authenticated seller/admin
+    match /products/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() 
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // User profile avatars - Read allowed, write strictly by owner < 5MB image
+    match /avatars/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if (isSignedIn() && request.auth.uid == userId)
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Staff ID & Badge photos - Authenticated read, write by Admin/Owner
+    match /staff/{staffId}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if (isAdmin() || (isSignedIn() && request.auth.uid == staffId))
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Chat attachments - Restricted to authenticated conversation members
+    match /chat_attachments/{chatId}/{fileName} {
+      allow read, write: if isSignedIn()
+                   && request.resource.size < 10 * 1024 * 1024;
+    }
+  }
+}

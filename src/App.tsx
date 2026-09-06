@@ -25,6 +25,7 @@ import { BannerSlider } from "./components/BannerSlider";
 import { CartItemRow } from "./components/CartItemRow";
 import { ProductCard } from "./components/ProductCard";
 import { PWAInstallBanner } from "./components/PWAInstallBanner";
+import { DailyAlarmBanner } from "./components/common/DailyAlarmBanner";
 import { openPWAQRCodeModal, openPWAInstallModal } from "./utils/pwa";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -37,249 +38,25 @@ import founderImg from "./assets/images/founder_md_anik_1784735314684.jpg";
 import chairmanImg from "./assets/images/chairman_hosne_ara_1784735275933.jpg";
 import viceChairmanImg from "./assets/images/vice_chairman_abu_hanif_1784735297437.jpg";
 
-// Helper to translate numbers to Bangla script (pure stateless helper moved outside to avoid re-creation)
-const toBnNum = (num: number | string): string => {
-  const digits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
-  return num.toString().split("").map(char => {
-    const p = parseInt(char, 10);
-    return isNaN(p) ? char : digits[p];
-  }).join("");
-};
-
-// Helper to map Firestore doc data to Product type (stateless mapping moved outside)
-const mapDocToProduct = (docId: string, data: any): Product => {
-  return {
-    id: data.id || docId,
-    nameBn: data.nameBn,
-    nameEn: data.nameEn,
-    price: Number(data.price),
-    originalPrice: data.originalPrice ? Number(data.originalPrice) : undefined,
-    unitBn: data.unitBn,
-    unitEn: data.unitEn,
-    category: data.category,
-    image: data.image,
-    isFlashSale: !!data.isFlashSale,
-    discount: Number(data.discount || 0),
-    rating: Number(data.rating || 4.5),
-    stock: typeof data.stock === "number" && !isNaN(data.stock)
-      ? data.stock
-      : (data.stock !== undefined && data.stock !== null && data.stock !== "" ? Number(data.stock) : 50),
-    descriptionBn: data.descriptionBn || "",
-    descriptionEn: data.descriptionEn || "",
-    isBestSelling: !!data.isBestSelling,
-    isNewArrival: !!data.isNewArrival,
-    isPopular: !!data.isPopular,
-    isSeasonal: !!data.isSeasonal,
-    isCombo: !!data.isCombo,
-    isBuyMoreSaveMore: !!data.isBuyMoreSaveMore,
-    brand: data.brand || "Kacha Bazar",
-    reviewCount: Number(data.reviewCount || 1),
-    sellerId: data.sellerId || "admin",
-    sku: data.sku || `KB-${data.category?.substring(0, 3).toUpperCase()}-${data.id}`,
-    subcategory: data.subcategory || "General",
-    options: data.options || [],
-    isAvailable: data.isAvailable !== false,
-    displayOrder: typeof data.displayOrder === "number" ? data.displayOrder : (typeof data.order === "number" ? data.order : undefined),
-    order: typeof data.order === "number" ? data.order : (typeof data.displayOrder === "number" ? data.displayOrder : undefined)
-  } as Product;
-};
-
-// Helper to extract or generate available weight/unit options for a product
-export const getProductWeightOptions = (product: Product): ProductOption[] => {
-  if (product.options && Array.isArray(product.options) && product.options.length > 0) {
-    return product.options;
-  }
-
-  const basePrice = product.price || 0;
-  const baseStock = typeof product.stock === "number" ? product.stock : 50;
-  const unitEn = (product.unitEn || "").toLowerCase().trim();
-  const unitBn = (product.unitBn || "").trim();
-
-  const makeOpt = (value: number, unit: string, priceRatio: number, stock?: number): ProductOption => ({
-    value,
-    unit,
-    price: Math.max(1, Math.round(basePrice * priceRatio)),
-    stock: stock !== undefined ? stock : baseStock
-  });
-
-  const isKg = unitEn.includes("kg") || unitBn.includes("কেজি");
-  const isG = unitEn.includes("g") || unitBn.includes("গ্রাম");
-
-  if (isKg || isG) {
-    let baseInKg = 1;
-    if (unitEn.includes("500") || unitBn.includes("৫০০")) baseInKg = 0.5;
-    else if (unitEn.includes("250") || unitBn.includes("২৫০")) baseInKg = 0.25;
-    else if (unitEn.includes("1.5") || unitBn.includes("১.৫")) baseInKg = 1.5;
-    else if (unitEn.includes("2") || unitBn.includes("২")) baseInKg = 2;
-    else if (isG && !isKg) baseInKg = 0.5;
-
-    return [
-      makeOpt(250, "g", 0.25 / baseInKg),
-      makeOpt(500, "g", 0.5 / baseInKg),
-      makeOpt(1, "kg", 1 / baseInKg),
-      makeOpt(1.5, "kg", 1.5 / baseInKg),
-      makeOpt(2, "kg", 2 / baseInKg),
-    ];
-  }
-
-  const isL = unitEn.includes("liter") || unitEn.includes("litre") || unitEn.includes(" l") || unitEn === "l" || unitBn.includes("লিটার");
-  const isMl = unitEn.includes("ml") || unitBn.includes("মিলি");
-
-  if (isL || isMl) {
-    let baseInL = 1;
-    if (unitEn.includes("500") || unitBn.includes("৫০০")) baseInL = 0.5;
-    else if (unitEn.includes("250") || unitBn.includes("২৫০")) baseInL = 0.25;
-    else if (unitEn.includes("2") || unitBn.includes("২")) baseInL = 2;
-
-    return [
-      makeOpt(250, "ml", 0.25 / baseInL),
-      makeOpt(500, "ml", 0.5 / baseInL),
-      makeOpt(1, "L", 1 / baseInL),
-      makeOpt(2, "L", 2 / baseInL),
-      makeOpt(5, "L", 5 / baseInL),
-    ];
-  }
-
-  if (Array.isArray(product.weightSizeOptions) && product.weightSizeOptions.length > 1) {
-    return product.weightSizeOptions.map((optStr) => {
-      const match = optStr.match(/([\d.]+)\s*([a-zA-Z]+)/);
-      if (match) {
-        const val = parseFloat(match[1]);
-        const u = match[2];
-        return makeOpt(val, u, 1);
-      }
-      return makeOpt(1, optStr, 1);
-    });
-  }
-
-  return [
-    makeOpt(1, product.unitEn || "unit", 1, baseStock)
-  ];
-};
-
-export const getOptionLabel = (opt: ProductOption, lang: "bn" | "en", fmtNum: (n: number | string) => string) => {
-  let unitText = opt.unit;
-  let valText = String(opt.value);
-  if (lang === "bn") {
-    valText = fmtNum(opt.value);
-    if (opt.unit === "g") unitText = "গ্রাম";
-    else if (opt.unit === "kg") unitText = "কেজি";
-    else if (opt.unit === "ml") unitText = "মি.লি.";
-    else if (opt.unit === "L") unitText = "লিটার";
-    else if (opt.unit.toLowerCase() === "pc" || opt.unit.toLowerCase() === "pcs") unitText = "টি";
-  }
-  return `${valText} ${unitText} - ৳${fmtNum(opt.price)}`;
-};
-
-export const getWeightOnlyLabel = (opt: ProductOption, lang: "bn" | "en", fmtNum: (n: number | string) => string) => {
-  let unitText = opt.unit;
-  let valText = String(opt.value);
-  if (lang === "bn") {
-    valText = fmtNum(opt.value);
-    if (opt.unit === "g") unitText = "গ্রাম";
-    else if (opt.unit === "kg") unitText = "কেজি";
-    else if (opt.unit === "ml") unitText = "মি.লি.";
-    else if (opt.unit === "L") unitText = "লিটার";
-    else if (opt.unit.toLowerCase() === "pc" || opt.unit.toLowerCase() === "pcs") unitText = "টি";
-  }
-  return `${valText} ${unitText}`;
-};
-
-export const calculateProductPriceForWeight = (
-  product: Product,
-  val: number,
-  unit: string
-): number => {
-  if (typeof val !== "number" || isNaN(val) || val <= 0) {
-    return product.price || 0;
-  }
-  const availableOptions = getProductWeightOptions(product);
-  const normalizedUnit = (unit || "").toLowerCase().trim();
-
-  // 1. Exact match in preconfigured options
-  const exact = availableOptions.find(
-    o => o.value === val && (
-      o.unit.toLowerCase().trim() === normalizedUnit || 
-      (normalizedUnit === "গ্রাম" && o.unit === "g") || 
-      (normalizedUnit === "কেজি" && o.unit === "kg")
-    )
-  );
-  if (exact) {
-    return exact.price;
-  }
-
-  const basePrice = product.price || 0;
-  const unitEn = (product.unitEn || "").toLowerCase().trim();
-  const unitBn = (product.unitBn || "").trim();
-
-  const isKg = normalizedUnit === "kg" || normalizedUnit === "কেজি";
-  const isG = normalizedUnit === "g" || normalizedUnit === "গ্রাম";
-
-  if (isKg || isG) {
-    const valInKg = isKg ? val : val / 1000;
-    
-    // Check if 1kg option exists in available options
-    const kgOpt = availableOptions.find(o => o.unit.toLowerCase() === "kg" && o.value === 1);
-    let pricePerKg = kgOpt ? kgOpt.price : basePrice;
-
-    if (!kgOpt) {
-      let baseInKg = 1;
-      if (unitEn.includes("500") || unitBn.includes("৫০০")) baseInKg = 0.5;
-      else if (unitEn.includes("250") || unitBn.includes("২৫০")) baseInKg = 0.25;
-      else if (unitEn.includes("1.5") || unitBn.includes("১.৫")) baseInKg = 1.5;
-      else if (unitEn.includes("2") || unitBn.includes("২")) baseInKg = 2;
-      else if (isG && !isKg) baseInKg = 0.5;
-      pricePerKg = basePrice / baseInKg;
-    }
-
-    return Math.max(1, Math.round(pricePerKg * valInKg));
-  }
-
-  const isL = normalizedUnit === "l" || normalizedUnit === "liter" || normalizedUnit === "লিটার";
-  const isMl = normalizedUnit === "ml" || normalizedUnit === "মি.লি." || normalizedUnit === "মিলি";
-
-  if (isL || isMl) {
-    const valInL = isL ? val : val / 1000;
-    const lOpt = availableOptions.find(o => o.unit.toLowerCase() === "l" && o.value === 1);
-    let pricePerL = lOpt ? lOpt.price : basePrice;
-
-    if (!lOpt) {
-      let baseInL = 1;
-      if (unitEn.includes("500") || unitBn.includes("৫০০")) baseInL = 0.5;
-      else if (unitEn.includes("250") || unitBn.includes("২৫০")) baseInL = 0.25;
-      else if (unitEn.includes("2") || unitBn.includes("২")) baseInL = 2;
-      pricePerL = basePrice / baseInL;
-    }
-
-    return Math.max(1, Math.round(pricePerL * valInL));
-  }
-
-  return Math.max(1, Math.round(basePrice * val));
-};
-
-export const validateWeightLimit = (
-  value: number,
-  _unit?: string
-): { isValid: boolean; errorMsgBn?: string; errorMsgEn?: string } => {
-  if (typeof value !== "number" || isNaN(value) || value <= 0) {
-    return {
-      isValid: false,
-      errorMsgBn: "সঠিক ওজন বা পরিমাণ লিখুন",
-      errorMsgEn: "Enter a valid weight or quantity"
-    };
-  }
-
-  return { isValid: true };
-};
+// Import weight, unit, and product mapping helpers from productWeightUtils
+import {
+  toBnNum,
+  mapDocToProduct,
+  getProductWeightOptions,
+  getOptionLabel,
+  getWeightOnlyLabel,
+  calculateProductPriceForWeight,
+  validateWeightLimit
+} from "./lib/productWeightUtils";
 
 export default function App() {
   // Localization: 'bn' (Bangla) or 'en' (English)
   const [lang, setLang] = useState<"bn" | "en">("bn");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [popularLimit, setPopularLimit] = useState<number>(6);
-  const [newArrivalsLimit, setNewArrivalsLimit] = useState<number>(6);
-  const [bestSellersLimit, setBestSellersLimit] = useState<number>(6);
-  const [categoryLimit, setCategoryLimit] = useState<number>(9);
+  const [popularLimit, setPopularLimit] = useState<number>(8);
+  const [newArrivalsLimit, setNewArrivalsLimit] = useState<number>(8);
+  const [bestSellersLimit, setBestSellersLimit] = useState<number>(8);
+  const [categoryLimit, setCategoryLimit] = useState<number>(8);
   const [showFlashSaleOnly, setShowFlashSaleOnly] = useState<boolean>(false);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("default");
@@ -289,18 +66,30 @@ export default function App() {
   
   // Interactive E-commerce state
   const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem("kb_cart");
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem("kb_cart");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
   
   const [wishlist, setWishlist] = useState<string[]>(() => {
-    const saved = localStorage.getItem("kb_wishlist");
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem("kb_wishlist");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [recentlyViewed, setRecentlyViewed] = useState<Product[]>(() => {
-    const saved = localStorage.getItem("kb_recent_viewed");
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem("kb_recent_viewed");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   // UI Drawers & Modals
@@ -395,22 +184,24 @@ export default function App() {
   // Portal and Checkout modals
   const [showPortalModal, setShowPortalModal] = useState<boolean>(false);
   const [portalInitialTab, setPortalInitialTab] = useState<"dashboard" | "orders" | "wallet" | "referral" | "notifications">("dashboard");
-  const [forcedPortalRole, setForcedPortalRole] = useState<"customer" | "admin" | "seller" | "rider">("customer");
+  const [forcedPortalRole, setForcedPortalRole] = useState<"customer" | "admin" | "seller" | "rider" | "partner">("customer");
   const [loggedInUser, setLoggedInUser] = useState<any | null>(null);
   const [userRole, setUserRole] = useState<string>("customer");
   const [userReferralCode, setUserReferralCode] = useState<string>("");
 
-  // Listen for URL panel routes (/admin, /seller, /rider, ?panel=admin, #admin, etc.)
+  // Listen for URL panel routes (/admin, /partner, /seller, /rider, ?panel=admin, #admin, etc.)
   useEffect(() => {
     const checkPanelRoute = () => {
       const path = window.location.pathname.toLowerCase();
       const search = new URLSearchParams(window.location.search);
       const hash = window.location.hash.toLowerCase();
 
-      let matchedRole: "admin" | "seller" | "rider" | null = null;
+      let matchedRole: "admin" | "seller" | "rider" | "partner" | null = null;
 
       if (path === "/admin" || path.startsWith("/admin/") || search.get("panel") === "admin" || search.get("portal") === "admin" || hash === "#admin" || hash.startsWith("#admin")) {
         matchedRole = "admin";
+      } else if (path === "/partner" || path.startsWith("/partner/") || search.get("panel") === "partner" || search.get("portal") === "partner" || hash === "#partner" || hash.startsWith("#partner")) {
+        matchedRole = "partner";
       } else if (path === "/seller" || path.startsWith("/seller/") || search.get("panel") === "seller" || search.get("portal") === "seller" || hash === "#seller" || hash.startsWith("#seller")) {
         matchedRole = "seller";
       } else if (path === "/rider" || path.startsWith("/rider/") || search.get("panel") === "rider" || search.get("portal") === "rider" || hash === "#rider" || hash.startsWith("#rider")) {
@@ -582,8 +373,10 @@ export default function App() {
               setUserRole("customer");
             }
           }
-        } catch (err) {
-          console.error("Error fetching user role:", err);
+        } catch (err: any) {
+          if (!err?.message?.includes("offline")) {
+            console.warn("Notice fetching user role:", err?.message || err);
+          }
           setUserRole("customer");
         }
 
@@ -595,8 +388,10 @@ export default function App() {
           } else {
             setUserReferralCode("REF" + user.uid.substring(0, 5).toUpperCase());
           }
-        } catch (err) {
-          console.error("Error loading referral code in App.tsx:", err);
+        } catch (err: any) {
+          if (!err?.message?.includes("offline")) {
+            console.warn("Notice loading referral code in App.tsx:", err?.message || err);
+          }
           setUserReferralCode("REF" + user.uid.substring(0, 5).toUpperCase());
         }
 
@@ -639,8 +434,10 @@ export default function App() {
             setCart(dbCart);
             localStorage.setItem("kb_cart", JSON.stringify(dbCart));
           }
-        } catch (e) {
-          console.error("Error merging guest cart on login:", e);
+        } catch (e: any) {
+          if (!e?.message?.includes("offline")) {
+            console.warn("Notice merging guest cart on login:", e?.message || e);
+          }
         }
       } else {
         setLoggedInUser(null);
@@ -1917,7 +1714,7 @@ export default function App() {
             <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-10 gap-3 md:gap-4">
               {Array.from({ length: 10 }).map((_, idx) => (
                 <div key={idx} className="flex flex-col items-center p-3 rounded-2xl border border-slate-100 bg-white animate-pulse">
-                  <div className="w-11 h-11 rounded-full bg-slate-100 mb-1.5"></div>
+                  <div className="w-14 h-14 sm:w-11 sm:h-11 rounded-none bg-slate-100 mb-1.5"></div>
                   <div className="h-2.5 w-14 bg-slate-100 rounded mt-1"></div>
                 </div>
               ))}
@@ -1926,15 +1723,22 @@ export default function App() {
             <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-10 gap-3 md:gap-4">
               {categories.filter(c => c.id !== "all" && c.isAvailable !== false && (c as any).disabled !== true && !(homeConfig?.categoryConfig?.hiddenCategoryIds || []).includes(c.id)).map((cat, idx) => {
                 const isHiddenOnMobile = idx >= 6 && !showAllMobile;
+                const isSecondCard = idx === 1 || cat.id === "staples";
                 return (
                   <button
                     key={cat.id}
                     onClick={() => navigateToCategory(cat.id)}
                     className={`flex-col items-center p-3 rounded-2xl border cursor-pointer transition-all duration-300 shadow-xs hover:shadow-md hover:-translate-y-0.5 border-slate-100 bg-white hover:border-emerald-500 hover:ring-2 hover:ring-emerald-500/20 ${isHiddenOnMobile ? "hidden sm:flex" : "flex"}`}
                   >
-                    <div className={`w-11 h-11 rounded-full flex items-center justify-center mb-1.5 transition overflow-hidden ${cat.colorClass}`}>
+                    {/* Category Image - 2nd category card covers full available inner space */}
+                    <div className={`${isSecondCard ? "w-full aspect-square rounded-xl" : "w-14 h-14 sm:w-11 sm:h-11 rounded-none"} flex items-center justify-center mb-1.5 transition overflow-hidden ${cat.colorClass}`}>
                       {(cat as any).image || (cat as any).imageUrl ? (
-                        <img src={(cat as any).image || (cat as any).imageUrl} alt={cat.nameEn} className="w-full h-full object-cover" />
+                        <img
+                          src={(cat as any).image || (cat as any).imageUrl}
+                          alt={cat.nameEn}
+                          className={`w-full h-full object-cover ${isSecondCard ? "rounded-xl" : "rounded-none"}`}
+                          style={{ objectFit: "cover" }}
+                        />
                       ) : (
                         renderCatIcon(cat.iconName)
                       )}
@@ -2013,18 +1817,18 @@ export default function App() {
 
             {/* Grid of All Flash Sale Products with BOTH buttons */}
             {loadingProducts ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs">
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <div key={i} className={`bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs ${i === 8 ? "md:hidden" : ""}`}>
                     <div className="w-full aspect-[4/3] bg-slate-100 rounded-xl mb-2"></div>
                     <div className="h-2.5 w-3/4 bg-slate-100 rounded mb-1"></div>
                     <div className="h-2 w-1/2 bg-slate-100 rounded mb-2"></div>
-                    <div className="h-5 w-full bg-slate-100 rounded"></div>
+                    <div className="h-6 w-full bg-slate-100 rounded"></div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
                 {availableProducts.filter(p => p.isFlashSale).map((product) => (
                   <ProductCard
                     key={product.id}
@@ -2035,6 +1839,8 @@ export default function App() {
                     toggleWishlist={toggleWishlist}
                     cart={cart}
                     addToCart={addToCart}
+                    updateCartQuantity={updateCartQuantity}
+                    removeFromCart={removeFromCart}
                     handleBuyNow={handleBuyNow}
                     openQuickView={openQuickView}
                     handleProductImgError={handleProductImgError}
@@ -2059,26 +1865,26 @@ export default function App() {
                 </p>
               </div>
               <button
-                onClick={() => setPopularLimit(prev => prev === 6 ? 50 : 6)}
+                onClick={() => setPopularLimit(prev => prev === 8 ? 50 : 8)}
                 className="text-xs text-emerald-600 hover:text-emerald-700 font-bold hover:underline cursor-pointer"
               >
-                {popularLimit === 6 ? (lang === "bn" ? "সবগুলো দেখুন" : "See All") : (lang === "bn" ? "কম দেখুন" : "See Less")}
+                {popularLimit === 8 ? (lang === "bn" ? "সবগুলো দেখুন" : "See All") : (lang === "bn" ? "কম দেখুন" : "See Less")}
               </button>
             </div>
             {loadingProducts ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs">
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <div key={i} className={`bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs ${i === 8 ? "md:hidden" : ""}`}>
                     <div className="w-full aspect-[4/3] bg-slate-100 rounded-xl mb-2"></div>
                     <div className="h-2.5 w-3/4 bg-slate-100 rounded mb-1"></div>
                     <div className="h-2 w-1/2 bg-slate-100 rounded mb-2"></div>
-                    <div className="h-5 w-full bg-slate-100 rounded"></div>
+                    <div className="h-6 w-full bg-slate-100 rounded"></div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
-                {availableProducts.filter(p => p.isPopular || (homeConfig?.featuredProducts?.popularProductIds || []).includes(p.id)).slice(0, popularLimit).map((product) => (
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                {availableProducts.filter(p => p.isPopular || (homeConfig?.featuredProducts?.popularProductIds || []).includes(p.id)).slice(0, popularLimit === 8 ? 9 : popularLimit).map((product, idx) => (
                   <ProductCard
                     key={product.id}
                     product={product}
@@ -2088,9 +1894,12 @@ export default function App() {
                     toggleWishlist={toggleWishlist}
                     cart={cart}
                     addToCart={addToCart}
+                    updateCartQuantity={updateCartQuantity}
+                    removeFromCart={removeFromCart}
                     handleBuyNow={handleBuyNow}
                     openQuickView={openQuickView}
                     handleProductImgError={handleProductImgError}
+                    className={popularLimit === 8 && idx === 8 ? "md:hidden" : ""}
                   />
                 ))}
               </div>
@@ -2112,27 +1921,27 @@ export default function App() {
                 </p>
               </div>
               <button
-                onClick={() => setNewArrivalsLimit(prev => prev === 6 ? 50 : 6)}
+                onClick={() => setNewArrivalsLimit(prev => prev === 8 ? 50 : 8)}
                 className="text-xs text-emerald-600 hover:text-emerald-700 font-bold hover:underline cursor-pointer"
               >
-                {newArrivalsLimit === 6 ? (lang === "bn" ? "সবগুলো দেখুন" : "See All") : (lang === "bn" ? "কম দেখুন" : "See Less")}
+                {newArrivalsLimit === 8 ? (lang === "bn" ? "সবগুলো দেখুন" : "See All") : (lang === "bn" ? "কম দেখুন" : "See Less")}
               </button>
             </div>
 
             {loadingProducts ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs">
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <div key={i} className={`bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs ${i === 8 ? "md:hidden" : ""}`}>
                     <div className="w-full aspect-[4/3] bg-slate-100 rounded-xl mb-2"></div>
                     <div className="h-2.5 w-3/4 bg-slate-100 rounded mb-1"></div>
                     <div className="h-2 w-1/2 bg-slate-100 rounded mb-2"></div>
-                    <div className="h-5 w-full bg-slate-100 rounded"></div>
+                    <div className="h-6 w-full bg-slate-100 rounded"></div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
-                {availableProducts.filter(p => p.isNewArrival).slice(0, newArrivalsLimit).map((product) => (
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                {availableProducts.filter(p => p.isNewArrival).slice(0, newArrivalsLimit === 8 ? 9 : newArrivalsLimit).map((product, idx) => (
                   <ProductCard
                     key={product.id}
                     product={product}
@@ -2142,9 +1951,12 @@ export default function App() {
                     toggleWishlist={toggleWishlist}
                     cart={cart}
                     addToCart={addToCart}
+                    updateCartQuantity={updateCartQuantity}
+                    removeFromCart={removeFromCart}
                     handleBuyNow={handleBuyNow}
                     openQuickView={openQuickView}
                     handleProductImgError={handleProductImgError}
+                    className={newArrivalsLimit === 8 && idx === 8 ? "md:hidden" : ""}
                   />
                 ))}
               </div>
@@ -2165,27 +1977,27 @@ export default function App() {
                 </p>
               </div>
               <button
-                onClick={() => setBestSellersLimit(prev => prev === 6 ? 50 : 6)}
+                onClick={() => setBestSellersLimit(prev => prev === 8 ? 50 : 8)}
                 className="text-xs text-emerald-600 hover:text-emerald-700 font-bold hover:underline cursor-pointer"
               >
-                {bestSellersLimit === 6 ? (lang === "bn" ? "সবগুলো দেখুন" : "See All") : (lang === "bn" ? "কম দেখুন" : "See Less")}
+                {bestSellersLimit === 8 ? (lang === "bn" ? "সবগুলো দেখুন" : "See All") : (lang === "bn" ? "কম দেখুন" : "See Less")}
               </button>
             </div>
 
             {loadingProducts ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs">
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <div key={i} className={`bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs ${i === 8 ? "md:hidden" : ""}`}>
                     <div className="w-full aspect-[4/3] bg-slate-100 rounded-xl mb-2"></div>
                     <div className="h-2.5 w-3/4 bg-slate-100 rounded mb-1"></div>
                     <div className="h-2 w-1/2 bg-slate-100 rounded mb-2"></div>
-                    <div className="h-5 w-full bg-slate-100 rounded"></div>
+                    <div className="h-6 w-full bg-slate-100 rounded"></div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3">
-                {availableProducts.filter(p => p.isBestSelling).slice(0, bestSellersLimit).map((product) => (
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                {availableProducts.filter(p => p.isBestSelling).slice(0, bestSellersLimit === 8 ? 9 : bestSellersLimit).map((product, idx) => (
                   <ProductCard
                     key={product.id}
                     product={product}
@@ -2195,9 +2007,12 @@ export default function App() {
                     toggleWishlist={toggleWishlist}
                     cart={cart}
                     addToCart={addToCart}
+                    updateCartQuantity={updateCartQuantity}
+                    removeFromCart={removeFromCart}
                     handleBuyNow={handleBuyNow}
                     openQuickView={openQuickView}
                     handleProductImgError={handleProductImgError}
+                    className={bestSellersLimit === 8 && idx === 8 ? "md:hidden" : ""}
                   />
                 ))}
               </div>
@@ -2315,75 +2130,20 @@ export default function App() {
 
             return (
               <>
-                {/* Dedicated Category Page Breadcrumbs */}
-                <div className="flex items-center justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <button 
-                      onClick={handleBackToHome}
-                      className="hover:text-emerald-600 font-bold flex items-center gap-1.5 cursor-pointer text-slate-600 hover:underline"
-                    >
-                      <Home className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>{lang === "bn" ? "হোম পেজ" : "Home"}</span>
-                    </button>
-                    <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-                    <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                      {lang === "bn" ? cat.nameBn : cat.nameEn}
-                    </span>
-                  </div>
-
-                  <button 
-                    onClick={handleBackToHome}
-                    className="bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 px-3.5 py-1.5 rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0 hover:border-emerald-500 hover:text-emerald-700"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{lang === "bn" ? "সকল ক্যাটাগরি (হোম)" : "All Categories (Home)"}</span>
-                  </button>
-                </div>
-
-                <div className={`p-6 sm:p-8 rounded-2xl bg-gradient-to-br ${cat.colorClass.split(" ")[0]} border ${cat.borderColor} flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm`}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-md shrink-0 animate-fade-in overflow-hidden">
-                      {(cat as any).image || (cat as any).imageUrl ? (
-                        <img src={(cat as any).image || (cat as any).imageUrl} alt={cat.nameEn} className="w-full h-full object-cover" />
-                      ) : (
-                        renderCatIcon(cat.iconName)
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                          {lang === "bn" ? "ডিপার্টমেন্ট" : "Department"}
-                        </span>
-                        <span className="text-xs text-slate-400 font-mono">
-                          {allCatProducts.length} {lang === "bn" ? "টি পণ্য" : "products"}
-                        </span>
-                      </div>
-                      <h2 className="text-xl sm:text-3xl font-black text-slate-800 mt-1">
-                        {lang === "bn" ? cat.nameBn : cat.nameEn}
-                      </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {lang === "bn" 
-                          ? "শতভাগ বিষমুক্ত, প্রাকৃতিকভাবে চাষকৃত সতেজ ও সরাসরি সোর্সড গ্রোসারি পণ্য" 
-                          : "100% organic, naturally cultivated and direct-sourced fresh premium products"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <button 
-                    onClick={handleBackToHome}
-                    className="bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 px-4 py-2 rounded-xl transition shadow-sm flex items-center gap-1.5 cursor-pointer shrink-0"
-                  >
-                    <ChevronLeft className="w-4 h-4 text-emerald-600" />
-                    <span>{lang === "bn" ? "সব ক্যাটাগরি (হোম)" : "All Categories (Home)"}</span>
-                  </button>
-                </div>
-
                 {/* Filtering, Subcategory, & Sorting Bar */}
-                <div className="mt-6 flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
-                  <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none max-w-full snap-x">
-                    <span className="text-xs font-bold text-slate-400 shrink-0 uppercase tracking-wider mr-1">
-                      {lang === "bn" ? "সাব-ক্যাটাগরি:" : "Sub-Category:"}
-                    </span>
+                <div className="flex flex-col lg:flex-row gap-3 justify-between items-start lg:items-center">
+                  <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none max-w-full snap-x">
+                    <button
+                      onClick={handleBackToHome}
+                      title={lang === "bn" ? "সব ক্যাটাগরি (হোম)" : "All Categories (Home)"}
+                      className="px-3 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer snap-start border bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-2xs flex items-center gap-1.5 shrink-0 hover:border-emerald-500 hover:text-emerald-700"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{lang === "bn" ? "সব ক্যাটাগরি" : "All Categories"}</span>
+                    </button>
+
+                    <div className="h-4 w-[1px] bg-slate-200 shrink-0 mx-0.5"></div>
+
                     {subcategories.map((sub: string) => (
                       <button
                         key={sub}
@@ -2396,8 +2156,8 @@ export default function App() {
                         }}
                         className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer snap-start border ${
                           selectedSubcategory === sub
-                            ? "bg-emerald-600 text-white border-emerald-600 shadow"
-                            : "bg-white text-slate-600 border-slate-150 hover:bg-slate-50"
+                            ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                         }`}
                       >
                         {sub === "all" ? (lang === "bn" ? "সব পণ্য" : "All Products") : sub}
@@ -2406,8 +2166,9 @@ export default function App() {
                   </div>
 
                   <div className="flex items-center space-x-3 shrink-0 w-full lg:w-auto justify-between lg:justify-end">
-                    <span className="text-xs font-bold text-slate-400 hidden sm:inline">
-                      {lang === "bn" ? `${sortedProducts.length}টি পণ্য প্রদর্শিত হচ্ছে` : `Showing ${sortedProducts.length} items`}
+                    <span className="text-xs font-bold text-slate-500 hidden sm:inline">
+                      <span className="text-emerald-700 font-extrabold">{lang === "bn" ? cat.nameBn : cat.nameEn}: </span>
+                      {lang === "bn" ? `${sortedProducts.length}টি পণ্য` : `${sortedProducts.length} items`}
                     </span>
                     <div className="flex items-center space-x-2">
                       <span className="text-xs text-slate-400 font-bold whitespace-nowrap">
@@ -2416,7 +2177,7 @@ export default function App() {
                       <select
                         value={sortBy}
                         onChange={(e) => setSortBy(e.target.value)}
-                        className="p-2 text-xs bg-white border border-slate-200 rounded-xl font-bold outline-none text-slate-700 cursor-pointer hover:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                        className="p-1.5 px-2.5 text-xs bg-white border border-slate-200 rounded-xl font-bold outline-none text-slate-700 cursor-pointer hover:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition shadow-2xs"
                       >
                         <option value="default">{lang === "bn" ? "ডিফল্ট / প্রাসঙ্গিকতা" : "Default / Relevance"}</option>
                         <option value="price-low">{lang === "bn" ? "মূল্য: কম থেকে বেশি" : "Price: Low to High"}</option>
@@ -2430,13 +2191,13 @@ export default function App() {
 
                 {/* Loading Skeleton */}
                 {loadingProducts && (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3 mt-6">
-                    {Array.from({ length: 12 }).map((_, i) => (
-                      <div key={i} className="bg-white rounded-2xl overflow-hidden border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs">
+                  <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mt-6">
+                    {Array.from({ length: 9 }).map((_, i) => (
+                      <div key={i} className={`bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs ${i === 8 ? "md:hidden" : ""}`}>
                         <div className="w-full aspect-[4/3] bg-slate-100 rounded-xl mb-2"></div>
                         <div className="h-2.5 w-3/4 bg-slate-100 rounded mb-1"></div>
                         <div className="h-2 w-1/2 bg-slate-100 rounded mb-2"></div>
-                        <div className="h-5 w-full bg-slate-100 rounded"></div>
+                        <div className="h-6 w-full bg-slate-100 rounded"></div>
                       </div>
                     ))}
                   </div>
@@ -2466,7 +2227,7 @@ export default function App() {
 
                 {/* Grid */}
                 {!loadingProducts && sortedProducts.length > 0 && (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3 mt-5">
+                  <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mt-5">
                     {sortedProducts.map((product) => (
                       <ProductCard
                         key={product.id}
@@ -2477,6 +2238,8 @@ export default function App() {
                         toggleWishlist={toggleWishlist}
                         cart={cart}
                         addToCart={addToCart}
+                        updateCartQuantity={updateCartQuantity}
+                        removeFromCart={removeFromCart}
                         handleBuyNow={handleBuyNow}
                         openQuickView={openQuickView}
                         handleProductImgError={handleProductImgError}
@@ -2800,6 +2563,19 @@ export default function App() {
 
           {/* Portal Navigation Badges */}
           <div className="flex items-center gap-1 text-[9.5px] sm:text-[10px]">
+            <a 
+              href="?panel=partner" 
+              onClick={(e) => {
+                e.preventDefault();
+                setForcedPortalRole("partner");
+                setShowPortalModal(true);
+                window.history.pushState({}, "", "?panel=partner");
+              }}
+              className="px-1.5 py-0.2 rounded-md bg-slate-900/90 hover:bg-emerald-950/70 border border-slate-800 hover:border-emerald-700/60 text-slate-400 hover:text-emerald-300 transition-all cursor-pointer flex items-center gap-1"
+            >
+              <span className="text-[10px]">🏪</span>
+              <span>{lang === "bn" ? "পার্টনার শপ" : "Partner Shop"}</span>
+            </a>
             <a 
               href="?panel=seller" 
               onClick={(e) => {
@@ -3126,6 +2902,67 @@ export default function App() {
                   <p className="text-xs text-slate-500 font-bold mt-2">
                     {lang === "bn" ? `পরিমাপ: ${selectedProduct.unitBn}` : `Measurement: ${selectedProduct.unitEn}`}
                   </p>
+
+                  {/* Partner Shop Supplier Badge & Selection */}
+                  {(selectedProduct.partnerShopName || (selectedProduct.availableShops && selectedProduct.availableShops.length > 0)) && (
+                    <div className="mt-3 p-2.5 bg-emerald-50/80 border border-emerald-200/90 rounded-xl">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="text-base shrink-0">🏪</span>
+                          <div className="min-w-0">
+                            <p className="text-[9.5px] text-slate-500 font-bold uppercase tracking-wider leading-none">
+                              {lang === "bn" ? "সরবরাহকারী পার্টনার শপ" : "Partner Store Seller"}
+                            </p>
+                            <p className="text-xs font-black text-emerald-900 truncate mt-0.5">
+                              {selectedProduct.partnerShopName || (lang === "bn" ? "কাচা বাজার সেন্ট্রাল শপ" : "Kacha Bazar Central Shop")}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="inline-flex items-center gap-1 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-xs shrink-0">
+                          <span>✓</span>
+                          <span>{lang === "bn" ? "ভেরিফাইড পার্টনার" : "Verified Partner"}</span>
+                        </span>
+                      </div>
+
+                      {/* Multi-Partner Shop Selection Option */}
+                      {selectedProduct.availableShops && selectedProduct.availableShops.length > 1 && (
+                        <div className="mt-2.5 pt-2 border-t border-emerald-200/60">
+                          <p className="text-[10.5px] font-bold text-slate-700 mb-1.5">
+                            {lang === "bn" ? "পছন্দমতো পার্টনার শপ নির্বাচন করুন:" : "Choose your preferred Partner Shop:"}
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            {selectedProduct.availableShops.map((shop) => (
+                              <button
+                                key={shop.shopId}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedProduct((prev) => prev ? {
+                                    ...prev,
+                                    partnerShopId: shop.shopId,
+                                    partnerShopName: shop.shopName,
+                                    price: shop.price || prev.price,
+                                  } : null);
+                                }}
+                                className={`flex items-center justify-between p-2 rounded-lg text-xs font-semibold border transition cursor-pointer text-left ${
+                                  selectedProduct.partnerShopId === shop.shopId
+                                    ? "bg-white border-emerald-600 shadow-xs text-emerald-950 font-bold ring-1 ring-emerald-500"
+                                    : "bg-emerald-50/40 border-emerald-200/60 hover:bg-white text-slate-700"
+                                }`}
+                              >
+                                <div className="min-w-0 pr-1">
+                                  <p className="truncate text-[11px] font-bold">{shop.shopName}</p>
+                                  {shop.location && <p className="text-[9px] text-slate-400 truncate">{shop.location}</p>}
+                                </div>
+                                <span className="text-emerald-700 font-extrabold text-[11px] shrink-0">
+                                  ৳{fmtNum(shop.price || selectedProduct.price)}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {selectedProduct.options && selectedProduct.options.length > 0 && (
                     <div className="mt-4">
@@ -3703,6 +3540,9 @@ export default function App() {
 
       {/* PWA App Install Banner & Prompt */}
       <PWAInstallBanner lang={lang} />
+
+      {/* Daily Automatic Alarm & Notification System (9:00 AM & 9:00 PM) */}
+      <DailyAlarmBanner lang={lang} />
 
     </div>
   );

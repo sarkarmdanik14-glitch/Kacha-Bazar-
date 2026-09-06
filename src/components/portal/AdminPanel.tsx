@@ -20,12 +20,15 @@ import {
   ShieldAlert, Settings, Layers, ShoppingBag, User, 
   Store, Bike, CreditCard, Gift, Percent, Bell, 
   TrendingUp, DollarSign, Plus, Edit, Trash2, CheckCircle, 
-  X, RefreshCw, Eye, Star, Info, ChevronRight, FileText, Check, Award
+  X, RefreshCw, Eye, Star, Info, ChevronRight, FileText, Check, Award,
+  BarChart3
 } from "lucide-react";
 import { checkAndRewardReferral } from "../../lib/referral";
 
 // Import modular sub-panels
 import AdminDashboardReport from "./AdminDashboardReport";
+import AdminDailySalesTab from "./AdminDailySalesTab";
+import AdminOrdersTab from "./AdminOrdersTab";
 import AdminProductsTab from "./AdminProductsTab";
 import AdminUsersTab from "./AdminUsersTab";
 import AdminSettingsTab from "./AdminSettingsTab";
@@ -36,6 +39,7 @@ import AdminMemoManagementTab from "./AdminMemoManagementTab";
 import AdminVoiceCallTab from "./AdminVoiceCallTab";
 import AdminIncomingCallModal from "./AdminIncomingCallModal";
 import AdminStaffManagementTab from "./AdminStaffManagementTab";
+import AdminPartnerShopsTab from "./AdminPartnerShopsTab";
 import { MessageSquare, Printer, Layout, PhoneCall, Users } from "lucide-react";
 import OrderMemoModal from "./OrderMemoModal";
 import { hasPermission, logStaffActivity, sendStaffHeartbeat, DEFAULT_ROLES } from "../../lib/staffManager";
@@ -75,10 +79,12 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
   // All menu tabs with their corresponding module
   const ALL_MENU_TABS = [
     { id: "dashboard", module: "dashboard", labelBn: "সিস্টেম ড্যাশবোর্ড", labelEn: "System Analytics", icon: <TrendingUp className="w-4 h-4" /> },
+    { id: "daily_sales", module: "daily_sales", labelBn: "দৈনিক সেলস ওভারভিউ", labelEn: "Daily Sales Overview", icon: <BarChart3 className="w-4 h-4" /> },
     { id: "orders", module: "orders", labelBn: "অর্ডার ট্র্যাকিং", labelEn: "All Orders", icon: <ShoppingBag className="w-4 h-4" /> },
     { id: "products", module: "products", labelBn: "পণ্য সম্ভার", labelEn: "All Products", icon: <Layers className="w-4 h-4" /> },
     { id: "memo_management", module: "memo_management", labelBn: "মেমো ম্যানেজমেন্ট", labelEn: "Memo Management", icon: <Printer className="w-4 h-4" /> },
     { id: "staff_management", module: "staff_management", labelBn: "👥 স্টাফ ম্যানেজমেন্ট", labelEn: "Staff Management", icon: <Users className="w-4 h-4" /> },
+    { id: "partner_shops", module: "partner_shops", labelBn: "🏪 পার্টনার শপস", labelEn: "Partner Shops", icon: <Store className="w-4 h-4" /> },
     { id: "home_management", module: "home_management", labelBn: "হোম পেজ ম্যানেজমেন্ট", labelEn: "Home Page Management", icon: <Layout className="w-4 h-4" /> },
     { id: "users", module: "users", labelBn: "ইউজার ডাটাবেজ", labelEn: "Role Management", icon: <User className="w-4 h-4" /> },
     { id: "leadership", module: "leadership", labelBn: "নেতৃত্ব ব্যবস্থাপনা", labelEn: "Leadership Management", icon: <Award className="w-4 h-4" /> },
@@ -530,7 +536,7 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
       </aside>
 
       {/* Main Content Area - Single Unified Scrollable Container */}
-      <main className="flex-1 h-full min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-7 xl:p-8 bg-slate-50 focus:outline-none">
+      <main className="flex-1 min-w-0 h-full min-h-0 overflow-y-auto p-3 sm:p-5 lg:p-6 bg-slate-50 focus:outline-none">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
@@ -554,134 +560,34 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
               </div>
             )}
 
+            {/* TAB: DAILY SALES OVERVIEW */}
+            {activeTab === "daily_sales" && (
+              <div className="space-y-6 animate-fade-in">
+                <AdminDailySalesTab
+                  orders={orders}
+                  products={products}
+                  lang={lang}
+                  triggerToast={triggerToast}
+                />
+              </div>
+            )}
+
             {/* TAB: ORDERS */}
             {activeTab === "orders" && (
               <div className="space-y-6 animate-fade-in">
-                <div className="bg-white border border-slate-100 rounded-3xl p-5 sm:p-6 shadow-sm">
-                  <h3 className="font-black text-slate-800 text-sm mb-4">{getTranslation("অর্ডার তালিকা ও অ্যাকশন হাব", "Central Order Desk")}</h3>
-                  
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 uppercase text-[10px] font-black">
-                          <th className="p-4">{getTranslation("অর্ডার আইডি", "Order ID")}</th>
-                          <th className="p-4">{getTranslation("তারিখ / সময়", "Timestamp")}</th>
-                          <th className="p-4">{getTranslation("গ্রাহক তথ্য", "Customer Info")}</th>
-                          <th className="p-4">{getTranslation("মোট বিল", "Total Bill")}</th>
-                          <th className="p-4">{getTranslation("বর্তমান স্থিতি", "Order Status")}</th>
-                          <th className="p-4">{getTranslation("রাইডার নিযুক্ত করুন", "Assign Rider")}</th>
-                          <th className="p-4 text-center">{getTranslation("অ্যাকশন", "Change Status")}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50 font-medium">
-                        {orders.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="text-center p-8 text-slate-400 font-bold">
-                              {getTranslation("কোন অর্ডার পাওয়া যায়নি।", "No customer orders logged yet.")}
-                            </td>
-                          </tr>
-                        ) : (
-                          orders.map((o) => (
-                            <tr key={o.id} className="hover:bg-slate-50/30 text-slate-600">
-                              <td className="p-4 font-bold text-slate-800 font-mono">#{o.id.slice(-6).toUpperCase()}</td>
-                              <td className="p-4 text-[10px] text-slate-400 font-bold">
-                                {o.createdAt ? new Date(o.createdAt?.seconds * 1000).toLocaleString() : "Live"}
-                              </td>
-                              <td className="p-4">
-                                <div className="font-extrabold text-slate-800">{o.name || "Guest Customer"}</div>
-                                <div className="text-[10px] text-indigo-500 font-bold">{o.phone}</div>
-                                <div className="text-[10px] text-slate-400 truncate max-w-xs">{o.address}</div>
-                              </td>
-                              <td className="p-4">
-                                <div className="font-extrabold text-slate-800">৳{o.totalAmount}</div>
-                                <div className="flex flex-col gap-1 mt-1">
-                                  <span className="text-[10px] uppercase font-bold text-slate-400">{o.paymentMethod || "COD"}</span>
-                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold w-max ${
-                                    o.paymentStatus === "paid" ? "bg-emerald-50 text-emerald-600" :
-                                    o.paymentStatus === "refunded" ? "bg-red-50 text-red-600" :
-                                    o.paymentStatus === "failed" ? "bg-slate-100 text-slate-500" :
-                                    "bg-amber-50 text-amber-600"
-                                  }`}>
-                                    {o.paymentStatus || "pending"}
-                                  </span>
-                                  <select
-                                    value={o.paymentStatus || "pending"}
-                                    onChange={(e) => handleUpdatePaymentStatus(o.id, e.target.value)}
-                                    className="bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-[9px] font-bold text-slate-500 outline-none w-max mt-0.5"
-                                  >
-                                    <option value="pending">{getTranslation("পেন্ডিং", "Pending")}</option>
-                                    <option value="paid">{getTranslation("পরিশোধিত", "Paid")}</option>
-                                    <option value="failed">{getTranslation("ব্যর্থ", "Failed")}</option>
-                                    <option value="refunded">{getTranslation("ফেরত", "Refunded")}</option>
-                                  </select>
-                                </div>
-                              </td>
-                              <td className="p-4 capitalize">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                                  o.orderStatus === "delivered" ? "bg-emerald-50 text-emerald-600" :
-                                  o.orderStatus === "picked up" ? "bg-indigo-50 text-indigo-600" :
-                                  o.orderStatus === "confirmed" ? "bg-blue-50 text-blue-600" :
-                                  o.orderStatus === "pending" ? "bg-amber-50 text-amber-600 animate-pulse" : "bg-red-50 text-red-600"
-                                }`}>
-                                  {o.orderStatus || "pending"}
-                                </span>
-                              </td>
-                              <td className="p-4">
-                                {o.riderId ? (
-                                  <div className="flex items-center gap-1">
-                                    <Bike className="w-3.5 h-3.5 text-emerald-600" />
-                                    <span className="text-xs font-bold text-slate-700 capitalize">{o.riderName || "Rider Assigned"}</span>
-                                  </div>
-                                ) : (
-                                  <select 
-                                    onChange={(e) => handleAssignRider(o.id, e.target.value)}
-                                    defaultValue=""
-                                    className="bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 text-[10px] font-bold text-slate-500 outline-none"
-                                  >
-                                    <option value="" disabled>{getTranslation("রাইডার বাছাই করুন", "Select Rider")}</option>
-                                    {activeRidersList.map(r => (
-                                      <option key={r.id || r.uid} value={r.uid || r.id}>{r.displayName || r.name}</option>
-                                    ))}
-                                  </select>
-                                )}
-                              </td>
-                              <td className="p-4 text-center">
-                                <div className="flex items-center justify-center gap-1.5 flex-wrap md:flex-nowrap">
-                                  {["confirmed", "delivered", "cancelled"].map((status) => (
-                                    <button
-                                      key={status}
-                                      onClick={() => handleUpdateOrderStatus(o.id, status)}
-                                      className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase cursor-pointer ${
-                                        o.orderStatus === status 
-                                          ? "bg-slate-800 text-white" 
-                                          : "bg-slate-100 hover:bg-slate-200 text-slate-600"
-                                      }`}
-                                    >
-                                      {status === "confirmed" ? getTranslation("নিশ্চিত", "Confirm") :
-                                       status === "delivered" ? getTranslation("ডেলিভার", "Deliver") : getTranslation("বাতিল", "Cancel")}
-                                    </button>
-                                  ))}
-
-                                  <button
-                                    onClick={() => {
-                                      setSelectedMemoOrder(o);
-                                      setShowMemoModal(true);
-                                    }}
-                                    className="px-2 py-1 rounded-lg text-[10px] font-black uppercase cursor-pointer bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center gap-1 transition shadow-sm border border-emerald-200/50"
-                                    title="View / Print Memo"
-                                  >
-                                    <Printer className="w-3 h-3 text-emerald-600" />
-                                    <span>{getTranslation("চালান", "Memo")}</span>
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <AdminOrdersTab
+                  orders={orders}
+                  users={users}
+                  lang={lang}
+                  triggerToast={triggerToast}
+                  onSelectMemoOrder={(order) => {
+                    setSelectedMemoOrder(order);
+                    setShowMemoModal(true);
+                  }}
+                  handleUpdateOrderStatus={handleUpdateOrderStatus}
+                  handleUpdatePaymentStatus={handleUpdatePaymentStatus}
+                  handleAssignRider={handleAssignRider}
+                />
               </div>
             )}
 
@@ -824,6 +730,13 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
             {activeTab === "staff_management" && (
               <div className="space-y-6 animate-fade-in">
                 <AdminStaffManagementTab currentUser={user} lang={lang} triggerToast={triggerToast} />
+              </div>
+            )}
+
+            {/* TAB: PARTNER SHOPS */}
+            {activeTab === "partner_shops" && (
+              <div className="space-y-6 animate-fade-in">
+                <AdminPartnerShopsTab currentUser={user} lang={lang} triggerToast={triggerToast} />
               </div>
             )}
 

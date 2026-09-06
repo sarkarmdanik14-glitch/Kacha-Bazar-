@@ -91,8 +91,31 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Message Event - Skip Waiting on demand
+// Notification Click Event - Focus or open Kacha Bazar app
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
+    })
+  );
+});
+
+// Message Event - Skip Waiting on demand or Show Notification
 self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+    const { title, options } = event.data;
+    if (self.registration && self.registration.showNotification) {
+      self.registration.showNotification(title, options);
+    }
+  }
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }

@@ -12,16 +12,32 @@ import {
 import { 
   DEFAULT_ROLES, 
   PERMISSION_MODULES, 
+  DEPARTMENTS,
+  BLOOD_GROUPS,
+  generateNextStaffId,
   hasPermission, 
-  logStaffActivity 
+  logStaffActivity,
+  fetchStaffFromFirestore,
+  subscribeToStaffCollection,
+  createStaffInFirestore,
+  updateStaffInFirestore,
+  deleteStaffFromFirestore,
+  fetchStaffLogsFromFirestore,
+  payStaffSalaryInFirestore,
+  updateStaffSalaryBaseInFirestore,
+  formatStaffUsername,
+  getStaffAuthHeaders
 } from "../../lib/staffManager";
 import { 
   Users, UserPlus, Shield, ShieldCheck, History, 
   Search, Filter, Plus, Edit2, Trash2, Key, LogOut, 
   CheckCircle2, XCircle, Clock, AlertTriangle, Phone, 
   Mail, Eye, EyeOff, RefreshCw, Download, Check, 
-  UserCheck, ShieldAlert, Laptop, PhoneCall, Sparkles
+  UserCheck, ShieldAlert, Laptop, PhoneCall, Sparkles,
+  CreditCard, QrCode, Printer, Lock, DollarSign, Wallet,
+  Calendar, Building
 } from "lucide-react";
+import StaffIdCardModal from "./StaffIdCardModal";
 
 interface AdminStaffManagementTabProps {
   currentUser: any;
@@ -71,6 +87,20 @@ export default function AdminStaffManagementTab({
   const [selectedStaffForPerms, setSelectedStaffForPerms] = useState<StaffMember | null>(null);
   const [selectedStaffForPassword, setSelectedStaffForPassword] = useState<StaffMember | null>(null);
   const [selectedStaffForDelete, setSelectedStaffForDelete] = useState<StaffMember | null>(null);
+  const [selectedStaffForIdCard, setSelectedStaffForIdCard] = useState<StaffMember | null>(null);
+  const [selectedStaffForSalary, setSelectedStaffForSalary] = useState<StaffMember | null>(null);
+
+  // Salary & Payment state
+  const [salaryMonth, setSalaryMonth] = useState<string>(() => {
+    return new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
+  });
+  const [salaryAmount, setSalaryAmount] = useState<number>(0);
+  const [salaryPaymentMethod, setSalaryPaymentMethod] = useState<string>("bKash");
+  const [salaryTrxId, setSalaryTrxId] = useState<string>("");
+  const [salaryNote, setSalaryNote] = useState<string>("Monthly Salary Disbursement");
+  const [salaryLoading, setSalaryLoading] = useState<boolean>(false);
+  const [newBaseSalary, setNewBaseSalary] = useState<number>(0);
+  const [updatingBaseSalary, setUpdatingBaseSalary] = useState<boolean>(false);
 
   // Password reset state
   const [newPassword, setNewPassword] = useState<string>("");
@@ -79,12 +109,20 @@ export default function AdminStaffManagementTab({
 
   // Add Form state
   const [formFullName, setFormFullName] = useState<string>("");
+  const [formUsername, setFormUsername] = useState<string>("");
   const [formMobile, setFormMobile] = useState<string>("");
   const [formEmail, setFormEmail] = useState<string>("");
   const [formStaffId, setFormStaffId] = useState<string>("");
+  const [formDesignation, setFormDesignation] = useState<string>("");
+  const [formDepartment, setFormDepartment] = useState<string>("Order Fulfillment & Logistics");
+  const [formJoiningDate, setFormJoiningDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [formBloodGroup, setFormBloodGroup] = useState<string>("B (+ve)");
+  const [formEmergencyContact, setFormEmergencyContact] = useState<string>("");
   const [formPassword, setFormPassword] = useState<string>("");
   const [formRole, setFormRole] = useState<StaffRole>("order_manager");
   const [formStatus, setFormStatus] = useState<StaffStatus>("active");
+  const [formMonthlySalary, setFormMonthlySalary] = useState<number>(20000);
+  const [formSalaryStatus, setFormSalaryStatus] = useState<"paid" | "due">("due");
   const [formPhotoURL, setFormPhotoURL] = useState<string>(PRESET_AVATARS[0]);
   const [formDesk, setFormDesk] = useState<number>(1);
   const [formPermissions, setFormPermissions] = useState<PermissionsMap>({});
@@ -94,33 +132,31 @@ export default function AdminStaffManagementTab({
   // Edit Permissions Modal local state
   const [tempPermissions, setTempPermissions] = useState<PermissionsMap>({});
 
-  // Fetch Staff List from Server API
+  // Fetch Staff List with Firebase Firestore as Primary Source of Truth
   const fetchStaff = async () => {
     setLoadingStaff(true);
     try {
-      const res = await fetch("/api/staff/list");
-      const data = await res.json();
-      if (data.success && Array.isArray(data.staff)) {
-        setStaffList(data.staff);
+      const list = await fetchStaffFromFirestore();
+      if (Array.isArray(list)) {
+        setStaffList(list);
       }
     } catch (err) {
-      console.error("Error loading staff list:", err);
+      console.error("Error loading staff list from Firestore:", err);
     } finally {
       setLoadingStaff(false);
     }
   };
 
-  // Fetch Activity Logs
+  // Fetch Activity Logs from Firestore
   const fetchLogs = async () => {
     setLoadingLogs(true);
     try {
-      const res = await fetch("/api/staff/activity-logs?limit=150");
-      const data = await res.json();
-      if (data.success && Array.isArray(data.logs)) {
-        setActivityLogs(data.logs);
+      const logs = await fetchStaffLogsFromFirestore(150);
+      if (Array.isArray(logs)) {
+        setActivityLogs(logs);
       }
     } catch (err) {
-      console.error("Error loading activity logs:", err);
+      console.error("Error loading activity logs from Firestore:", err);
     } finally {
       setLoadingLogs(false);
     }
@@ -129,6 +165,17 @@ export default function AdminStaffManagementTab({
   useEffect(() => {
     fetchStaff();
     fetchLogs();
+
+    // Subscribe to real-time updates from Firebase Firestore
+    const unsubscribe = subscribeToStaffCollection((updatedStaff) => {
+      if (Array.isArray(updatedStaff) && updatedStaff.length > 0) {
+        setStaffList(updatedStaff);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   // Update permissions when form role changes
@@ -139,11 +186,20 @@ export default function AdminStaffManagementTab({
     }
   }, [formRole]);
 
-  // Handle Add Staff Submit
+  // Handle Add Staff Submit with immediate Firestore synchronization
   const handleAddStaffSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formFullName || !formMobile || !formEmail || !formPassword) {
+    const cleanFullName = formFullName.trim();
+    const cleanPhone = formMobile.replace(/\s+/g, "");
+    const cleanEmail = formEmail.trim().toLowerCase();
+
+    if (!cleanFullName || !cleanPhone || !cleanEmail || !formPassword) {
       triggerToast("অনুগ্রহ করে সকল তথ্য পূরণ করুন!", "Please fill in all required fields!");
+      return;
+    }
+
+    if (cleanPhone.length < 10) {
+      triggerToast("সঠিক মোবাইল নম্বর প্রদান করুন!", "Please enter a valid mobile phone number!");
       return;
     }
 
@@ -154,38 +210,51 @@ export default function AdminStaffManagementTab({
 
     setSubmittingAdd(true);
     try {
-      const res = await fetch("/api/staff/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName: formFullName,
-          mobile: formMobile,
-          email: formEmail,
-          staffId: formStaffId || `KB-STF-${String(staffList.length + 1).padStart(3, "0")}`,
-          password: formPassword,
-          role: formRole,
-          status: formStatus,
-          photoURL: formPhotoURL,
-          assignedAgentDesk: formRole === "call_center_agent" ? formDesk : undefined,
-          permissions: formPermissions,
-          creatorName: currentUser?.fullName || currentUser?.displayName || "Super Admin"
-        })
+      const computedStaffId = formStaffId.trim() || generateNextStaffId(staffList);
+      const safeDesk = formRole === "call_center_agent" ? (Number(formDesk) || 1) : null;
+      const cleanUsername = formUsername.trim() 
+        ? formatStaffUsername(formUsername) 
+        : formatStaffUsername(computedStaffId);
+
+      const createdStaff = await createStaffInFirestore({
+        fullName: cleanFullName,
+        username: cleanUsername,
+        mobile: cleanPhone,
+        email: cleanEmail,
+        staffId: computedStaffId,
+        designation: formDesignation.trim(),
+        department: formDepartment.trim(),
+        joiningDate: formJoiningDate || new Date().toISOString().split("T")[0],
+        bloodGroup: formBloodGroup || "N/A",
+        emergencyContact: (formEmergencyContact && formEmergencyContact.trim()) || cleanPhone,
+        password: formPassword,
+        role: formRole,
+        status: formStatus || "active",
+        monthlySalary: Number(formMonthlySalary) || 0,
+        salaryStatus: formSalaryStatus || "due",
+        photoURL: formPhotoURL || "",
+        assignedAgentDesk: safeDesk,
+        permissions: formPermissions,
+        creatorUser: currentUser
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to create staff");
-      }
-
-      triggerToast("নতুন স্টাফ সফলভাবে যুক্ত করা হয়েছে!", "New staff created successfully!");
+      triggerToast(
+        `নতুন স্টাফ (${createdStaff.staffId || computedStaffId}) Firestore-এ সফলভাবে যুক্ত হয়েছে!`,
+        `New staff (${createdStaff.staffId || computedStaffId}) created and synchronized with Firestore!`
+      );
       // Reset form
       setFormFullName("");
+      setFormUsername("");
       setFormMobile("");
       setFormEmail("");
       setFormStaffId("");
+      setFormDesignation("");
+      setFormEmergencyContact("");
       setFormPassword("");
       setFormRole("order_manager");
       setFormStatus("active");
+      setFormMonthlySalary(20000);
+      setFormSalaryStatus("due");
       
       // Refresh list & switch to list tab
       await fetchStaff();
@@ -198,35 +267,63 @@ export default function AdminStaffManagementTab({
     }
   };
 
-  // Handle Edit Staff info submit
+  // Handle Edit Staff info submit with immediate Firestore synchronization
   const handleEditStaffSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStaffForEdit) return;
 
+    // Validate required fields
+    const cleanFullName = (selectedStaffForEdit.fullName || "").trim();
+    const cleanPhone = (selectedStaffForEdit.mobile || "").replace(/\s+/g, "");
+    const cleanEmail = (selectedStaffForEdit.email || "").trim().toLowerCase();
+
+    if (!cleanFullName || !cleanPhone || !cleanEmail) {
+      triggerToast(
+        "অনুগ্রহ করে পূর্ণ নাম, মোবাইল ও ইমেইল সঠিকভাবে পূরণ করুন!",
+        "Please provide full name, mobile, and email!"
+      );
+      return;
+    }
+
+    if (cleanPhone.length < 10) {
+      triggerToast(
+        "সঠিক মোবাইল নম্বর প্রদান করুন!",
+        "Please enter a valid mobile phone number!"
+      );
+      return;
+    }
+
+    // Determine assignedAgentDesk safely: if call_center_agent, use desk number; else use null
+    const safeDesk = selectedStaffForEdit.role === "call_center_agent"
+      ? (Number(selectedStaffForEdit.assignedAgentDesk) || 1)
+      : null;
+
     try {
-      const res = await fetch("/api/staff/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: selectedStaffForEdit.id,
-          fullName: selectedStaffForEdit.fullName,
-          mobile: selectedStaffForEdit.mobile,
-          email: selectedStaffForEdit.email,
-          photoURL: selectedStaffForEdit.photoURL,
-          role: selectedStaffForEdit.role,
-          status: selectedStaffForEdit.status,
-          assignedAgentDesk: selectedStaffForEdit.assignedAgentDesk,
-          updaterName: currentUser?.fullName || currentUser?.displayName || "Super Admin",
-          updaterRole: currentUser?.role || "super_admin"
-        })
+      await updateStaffInFirestore(selectedStaffForEdit.id, {
+        fullName: cleanFullName,
+        username: (selectedStaffForEdit.username || "").trim().toLowerCase(),
+        mobile: cleanPhone,
+        email: cleanEmail,
+        photoURL: selectedStaffForEdit.photoURL || "",
+        role: selectedStaffForEdit.role,
+        designation: (selectedStaffForEdit.designation || "").trim(),
+        department: (selectedStaffForEdit.department || "").trim(),
+        joiningDate: selectedStaffForEdit.joiningDate || new Date().toISOString().split("T")[0],
+        bloodGroup: selectedStaffForEdit.bloodGroup || "N/A",
+        emergencyContact: (selectedStaffForEdit.emergencyContact || "").trim() || cleanPhone,
+        status: selectedStaffForEdit.status || "active",
+        monthlySalary: Number(selectedStaffForEdit.monthlySalary) || 0,
+        salaryStatus: selectedStaffForEdit.salaryStatus || "due",
+        assignedAgentDesk: safeDesk,
+        updaterUser: currentUser,
+        updaterName: currentUser?.fullName || currentUser?.displayName || "Super Admin",
+        updaterRole: currentUser?.role || "super_admin"
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to update staff");
-      }
-
-      triggerToast("স্টাফ তথ্য সফলভাবে আপডেট হয়েছে!", "Staff information updated successfully!");
+      triggerToast(
+        "স্টাফ তথ্য সফলভাবে Firestore-এ আপডেট ও সিঙ্ক হয়েছে!",
+        "Staff information updated and synchronized with Firestore!"
+      );
       setSelectedStaffForEdit(null);
       await fetchStaff();
       await fetchLogs();
@@ -235,28 +332,78 @@ export default function AdminStaffManagementTab({
     }
   };
 
-  // Handle Save Custom Permissions
+  // Handle Pay Salary submit
+  const handlePaySalary = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStaffForSalary) return;
+    setSalaryLoading(true);
+    try {
+      const payAmount = Number(salaryAmount) || Number(selectedStaffForSalary.monthlySalary) || 0;
+      await payStaffSalaryInFirestore({
+        staffId: selectedStaffForSalary.id,
+        month: salaryMonth,
+        amount: payAmount,
+        paymentMethod: salaryPaymentMethod,
+        transactionRef: salaryTrxId || `TRX-${Date.now().toString().slice(-6)}`,
+        note: salaryNote,
+        adminUser: currentUser
+      });
+      triggerToast(
+        `${selectedStaffForSalary.fullName}-এর ${salaryMonth} মাসের বেতন (৳${payAmount.toLocaleString()}) সফলভাবে পরিশোধ ও রেকর্ড করা হয়েছে!`,
+        `Salary for ${selectedStaffForSalary.fullName} (${salaryMonth}) recorded successfully!`
+      );
+      setSelectedStaffForSalary(null);
+      await fetchStaff();
+      await fetchLogs();
+    } catch (err: any) {
+      triggerToast(err.message, err.message);
+    } finally {
+      setSalaryLoading(false);
+    }
+  };
+
+  // Handle Update Salary Base submit
+  const handleUpdateSalaryBase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStaffForSalary) return;
+    setUpdatingBaseSalary(true);
+    try {
+      const numBase = Number(newBaseSalary) || 0;
+      await updateStaffSalaryBaseInFirestore({
+        staffId: selectedStaffForSalary.id,
+        monthlySalary: numBase,
+        adminUser: currentUser
+      });
+      triggerToast(
+        `মাসিক মূল বেতন সফলভাবে ৳${numBase.toLocaleString()} নির্ধারণ করা হয়েছে!`,
+        `Monthly base salary updated to ৳${numBase.toLocaleString()} successfully!`
+      );
+      await fetchStaff();
+      await fetchLogs();
+      setSelectedStaffForSalary(prev => prev ? { ...prev, monthlySalary: numBase } : null);
+    } catch (err: any) {
+      triggerToast(err.message, err.message);
+    } finally {
+      setUpdatingBaseSalary(false);
+    }
+  };
+
+  // Handle Save Custom Permissions with immediate Firestore synchronization
   const handleSavePermissions = async () => {
     if (!selectedStaffForPerms) return;
 
     try {
-      const res = await fetch("/api/staff/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: selectedStaffForPerms.id,
-          permissions: tempPermissions,
-          updaterName: currentUser?.fullName || currentUser?.displayName || "Super Admin",
-          updaterRole: currentUser?.role || "super_admin"
-        })
+      await updateStaffInFirestore(selectedStaffForPerms.id, {
+        permissions: tempPermissions,
+        updaterUser: currentUser,
+        updaterName: currentUser?.fullName || currentUser?.displayName || "Super Admin",
+        updaterRole: currentUser?.role || "super_admin"
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to update permissions");
-      }
-
-      triggerToast("পারমিশন সফলভাবে সেভ করা হয়েছে!", "Permissions customized and saved successfully!");
+      triggerToast(
+        "পারমিশন সফলভাবে Firestore-এ সংরক্ষিত হয়েছে!",
+        "Permissions updated and synchronized with Firestore!"
+      );
       setSelectedStaffForPerms(null);
       await fetchStaff();
       await fetchLogs();
@@ -265,7 +412,7 @@ export default function AdminStaffManagementTab({
     }
   };
 
-  // Handle Status Toggle (Active / Inactive)
+  // Handle Status Toggle (Active / Inactive) with immediate Firestore synchronization
   const handleToggleStatus = async (staff: StaffMember) => {
     if (staff.isSuperAdmin || staff.role === "super_admin") {
       triggerToast("সুপার এডমিন অ্যাকাউন্ট নিষ্ক্রিয় করা যাবে না!", "Super Admin account cannot be deactivated!");
@@ -274,23 +421,16 @@ export default function AdminStaffManagementTab({
 
     const nextStatus: StaffStatus = staff.status === "active" ? "inactive" : "active";
     try {
-      const res = await fetch("/api/staff/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: staff.id,
-          status: nextStatus,
-          updaterName: currentUser?.fullName || currentUser?.displayName || "Super Admin",
-          updaterRole: currentUser?.role || "super_admin"
-        })
+      await updateStaffInFirestore(staff.id, {
+        status: nextStatus,
+        updaterUser: currentUser,
+        updaterName: currentUser?.fullName || currentUser?.displayName || "Super Admin",
+        updaterRole: currentUser?.role || "super_admin"
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
       triggerToast(
-        `স্টাফ স্ট্যাটাস: ${nextStatus === "active" ? "সক্রিয়" : "নিষ্ক্রিয়"} করা হয়েছে!`,
-        `Staff status updated to ${nextStatus}!`
+        `স্টাফ স্ট্যাটাস: ${nextStatus === "active" ? "সক্রিয়" : "নিষ্ক্রিয়"} করা হয়েছে (Firestore Sync)!`,
+        `Staff status updated to ${nextStatus} and synchronized with Firestore!`
       );
       await fetchStaff();
       await fetchLogs();
@@ -313,7 +453,7 @@ export default function AdminStaffManagementTab({
     try {
       const res = await fetch("/api/staff/reset-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getStaffAuthHeaders(currentUser),
         body: JSON.stringify({
           id: selectedStaffForPassword.id,
           newPassword: newPassword,
@@ -324,9 +464,17 @@ export default function AdminStaffManagementTab({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      triggerToast("পাসওয়ার্ড সফলভাবে রিসেট করা হয়েছে!", "Password reset successfully!");
+      // Sync update timestamp in Firestore
+      await updateStaffInFirestore(selectedStaffForPassword.id, {
+        updaterUser: currentUser,
+        updaterName: currentUser?.fullName || currentUser?.displayName || "Super Admin",
+        updaterRole: currentUser?.role || "super_admin"
+      }).catch(() => {});
+
+      triggerToast("পাসওয়ার্ড সফলভাবে রিসেট ও সিঙ্ক করা হয়েছে!", "Password reset and synced successfully!");
       setSelectedStaffForPassword(null);
       setNewPassword("");
+      await fetchStaff();
       await fetchLogs();
     } catch (err: any) {
       triggerToast(err.message, err.message);
@@ -345,7 +493,7 @@ export default function AdminStaffManagementTab({
     try {
       const res = await fetch("/api/staff/logout-session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getStaffAuthHeaders(currentUser),
         body: JSON.stringify({
           staffId: staff.staffId,
           adminName: currentUser?.fullName || currentUser?.displayName || "Super Admin"
@@ -355,7 +503,15 @@ export default function AdminStaffManagementTab({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      triggerToast("সেশন ফোর্স লগআউট করা হয়েছে!", "Staff active session terminated successfully!");
+      // Update Firestore onlineStatus to offline immediately
+      await updateStaffInFirestore(staff.id, {
+        onlineStatus: "offline",
+        updaterUser: currentUser,
+        updaterName: currentUser?.fullName || currentUser?.displayName || "Super Admin",
+        updaterRole: currentUser?.role || "super_admin"
+      }).catch(() => {});
+
+      triggerToast("সেশন ফোর্স লগআউট ও সিঙ্ক করা হয়েছে!", "Staff active session terminated and synced with Firestore!");
       await fetchStaff();
       await fetchLogs();
     } catch (err: any) {
@@ -363,24 +519,17 @@ export default function AdminStaffManagementTab({
     }
   };
 
-  // Handle Delete Staff
+  // Handle Delete Staff with immediate Firestore synchronization
   const handleDeleteStaffConfirm = async () => {
     if (!selectedStaffForDelete) return;
 
     try {
-      const res = await fetch("/api/staff/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: selectedStaffForDelete.id,
-          deleterName: currentUser?.fullName || currentUser?.displayName || "Super Admin"
-        })
-      });
+      await deleteStaffFromFirestore(selectedStaffForDelete.id, currentUser);
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      triggerToast("স্টাফ সফলভাবে ডিলিট করা হয়েছে!", "Staff deleted successfully!");
+      triggerToast(
+        "স্টাফ সদস্য সফলভাবে Firestore থেকে মুছে ফেলা হয়েছে!",
+        "Staff member deleted and synchronized from Firestore successfully!"
+      );
       setSelectedStaffForDelete(null);
       await fetchStaff();
       await fetchLogs();
@@ -671,7 +820,10 @@ export default function AdminStaffManagementTab({
                               <span>{staff.fullName}</span>
                               {isSuper && <span title="Super Admin">👑</span>}
                             </h4>
-                            <div className="flex items-center space-x-2 mt-0.5">
+                            <p className="text-[11px] font-mono font-bold text-slate-600 truncate">
+                              {formatStaffUsername(staff.username || staff.staffId)}
+                            </p>
+                            <div className="flex items-center space-x-2 mt-1">
                               <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
                                 {staff.staffId}
                               </span>
@@ -690,6 +842,22 @@ export default function AdminStaffManagementTab({
                         <div className={`px-2.5 py-1 rounded-xl text-[10px] font-black shrink-0 ${roleDef.badgeColor}`}>
                           <span>{roleDef.icon} {getTranslation(roleDef.nameBn, roleDef.nameEn)}</span>
                         </div>
+                      </div>
+
+                      {/* Salary Summary Badge */}
+                      <div className="mt-3 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-xs">
+                        <div className="flex items-center space-x-1.5">
+                          <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-[11px] text-slate-500 font-bold">{getTranslation("মূল বেতন:", "Salary:")}</span>
+                          <span className="font-black text-slate-800">৳{(staff.monthlySalary || 0).toLocaleString()}</span>
+                        </div>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                          staff.salaryStatus === "paid"
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            : "bg-amber-100 text-amber-800 border border-amber-200"
+                        }`}>
+                          {staff.salaryStatus === "paid" ? getTranslation("পরিশোধিত", "Paid") : getTranslation("বকেয়া", "Due")}
+                        </span>
                       </div>
 
                       {/* Contact Info Details */}
@@ -719,8 +887,32 @@ export default function AdminStaffManagementTab({
                     </div>
 
                     {/* Action Buttons Toolbar */}
-                    <div className="mt-5 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5">
+                    <div className="mt-5 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center space-x-1">
+                        {/* ID Card Action Button */}
+                        <button
+                          onClick={() => setSelectedStaffForIdCard(staff)}
+                          className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-black transition shadow-xs cursor-pointer"
+                          title={getTranslation("স্টাফ আইডি কার্ড প্রিভিউ ও প্রিন্ট করুন", "Preview & Print Staff ID Card")}
+                        >
+                          <CreditCard className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>{getTranslation("আইডি কার্ড", "ID Card")}</span>
+                        </button>
+
+                        {/* Salary Management Button */}
+                        <button
+                          onClick={() => {
+                            setSelectedStaffForSalary(staff);
+                            setSalaryAmount(staff.monthlySalary || 0);
+                            setNewBaseSalary(staff.monthlySalary || 0);
+                          }}
+                          className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-black transition shadow-xs cursor-pointer"
+                          title={getTranslation("বেতন পরিশোধ ও ম্যানেজমেন্ট", "Manage & Pay Salary")}
+                        >
+                          <Wallet className="w-3.5 h-3.5 text-amber-700" />
+                          <span>{getTranslation("বেতন", "Salary")}</span>
+                        </button>
+
                         {/* View Details */}
                         <button
                           onClick={() => setSelectedStaffForView(staff)}
@@ -876,18 +1068,110 @@ export default function AdminStaffManagementTab({
                 />
               </div>
 
-              {/* Staff ID */}
+              {/* Username / Login ID */}
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>{getTranslation("ইউজারনেম / লগইন আইডি *", "Username / Login ID *")}</span>
+                  <span className="text-[10px] text-slate-400 font-normal">লগইনে ব্যবহার হবে</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formUsername}
+                    onChange={(e) => setFormUsername(formatStaffUsername(e.target.value))}
+                    placeholder={formatStaffUsername(formStaffId || generateNextStaffId(staffList))}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono font-medium"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {getTranslation("ফাঁকা রাখলে স্টাফ আইডি অনুযায়ী স্বয়ংক্রিয়ভাবে তৈরি হবে (যেমন: cfikb002)।", "Leave blank to auto-generate from Staff ID (e.g. cfikb002).")}
+                </p>
+              </div>
+
+              {/* Sequential Staff ID (Auto Generated & Immutable) */}
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>{getTranslation("স্টাফ আইডি (স্বয়ংক্রিয় ইউনিক)", "Staff ID (Auto-Sequential)")}</span>
+                  <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    {getTranslation("স্থায়ী ও অপরিবর্তনীয়", "Permanent")}
+                  </span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formStaffId || generateNextStaffId(staffList)}
+                    onChange={(e) => setFormStaffId(e.target.value)}
+                    placeholder={generateNextStaffId(staffList)}
+                    className="w-full px-4 py-2.5 bg-emerald-50/50 border border-emerald-200 rounded-2xl text-xs font-black text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-600 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                    CFI-KB-XXX
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {getTranslation("ফাঁকা রাখলে পরবর্তী ক্রমানুযায়ী আইডি যেমন CFI-KB-001 স্বয়ংক্রিয়ভাবে তৈরি হবে।", "Leaves blank to auto-generate the next sequential ID (e.g. CFI-KB-001).")}
+                </p>
+              </div>
+
+              {/* Designation / পদবী */}
               <div>
                 <label className="block text-xs font-black text-slate-700 mb-1.5">
-                  {getTranslation("স্টাফ আইডি (ঐচ্ছিক)", "Staff ID (Optional)")}
+                  {getTranslation("পদবী (Designation) *", "Designation *")}
                 </label>
                 <input
                   type="text"
-                  value={formStaffId}
-                  onChange={(e) => setFormStaffId(e.target.value)}
-                  placeholder={`e.g. KB-STF-${String(staffList.length + 1).padStart(3, "0")}`}
+                  value={formDesignation}
+                  onChange={(e) => setFormDesignation(e.target.value)}
+                  placeholder={getTranslation("যেমন: Senior Executive, Delivery Lead, Order Manager", "e.g. Senior Executive, Delivery Lead")}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                 />
+              </div>
+
+              {/* Department / বিভাগ */}
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1.5">
+                  {getTranslation("বিভাগ (Department)", "Department")}
+                </label>
+                <select
+                  value={formDepartment}
+                  onChange={(e) => setFormDepartment(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  {DEPARTMENTS.map((dept) => (
+                    <option key={dept.id} value={dept.nameEn}>
+                      {getTranslation(dept.nameBn, dept.nameEn)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Joining Date & Blood Group */}
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1.5">
+                  {getTranslation("যোগদানের তারিখ (Joining Date)", "Joining Date")}
+                </label>
+                <input
+                  type="date"
+                  value={formJoiningDate}
+                  onChange={(e) => setFormJoiningDate(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1.5">
+                  {getTranslation("রক্তের গ্রুপ (Blood Group)", "Blood Group")}
+                </label>
+                <select
+                  value={formBloodGroup}
+                  onChange={(e) => setFormBloodGroup(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  {BLOOD_GROUPS.map((bg) => (
+                    <option key={bg} value={bg}>{bg}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Mobile Number */}
@@ -901,6 +1185,20 @@ export default function AdminStaffManagementTab({
                   value={formMobile}
                   onChange={(e) => setFormMobile(e.target.value)}
                   placeholder="017XXXXXXXX"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                />
+              </div>
+
+              {/* Emergency Contact */}
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1.5">
+                  {getTranslation("জরুরী যোগাযোগের নম্বর", "Emergency Contact")}
+                </label>
+                <input
+                  type="tel"
+                  value={formEmergencyContact}
+                  onChange={(e) => setFormEmergencyContact(e.target.value)}
+                  placeholder="018XXXXXXXX"
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                 />
               </div>
@@ -942,6 +1240,24 @@ export default function AdminStaffManagementTab({
                   >
                     {showFormPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
+                </div>
+              </div>
+
+              {/* Monthly Salary */}
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1.5">
+                  {getTranslation("মাসিক মূল বেতন (৳ Monthly Base Salary)", "Monthly Base Salary (৳)")}
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-black">৳</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formMonthlySalary}
+                    onChange={(e) => setFormMonthlySalary(Number(e.target.value) || 0)}
+                    placeholder="20000"
+                    className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-emerald-900 font-black focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
                 </div>
               </div>
 
@@ -1300,77 +1616,365 @@ export default function AdminStaffManagementTab({
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 1: VIEW STAFF DETAILS */}
+      {/* MODAL 1: COMPLETE STAFF PROFILE MODAL */}
       {/* ========================================================================= */}
       {selectedStaffForView && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 border border-slate-200 shadow-xl animate-scale-up">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-              <h3 className="font-black text-slate-800 text-sm flex items-center space-x-2">
-                <Users className="w-4 h-4 text-emerald-600" />
-                <span>{getTranslation("স্টাফ প্রোফাইল বিবরণ", "Staff Profile Details")}</span>
-              </h3>
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col border border-slate-200 shadow-2xl animate-scale-up overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-sm">
+                    {getTranslation("স্টাফ পূর্ণাঙ্গ প্রোফাইল (Staff Profile)", "Complete Staff Profile")}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    {selectedStaffForView.staffId} • {formatStaffUsername(selectedStaffForView.username || selectedStaffForView.staffId)}
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setSelectedStaffForView(null)}
-                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition"
               >
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="text-center pb-4 border-b border-slate-100">
-              <img
-                src={selectedStaffForView.photoURL || PRESET_AVATARS[0]}
-                alt={selectedStaffForView.fullName}
-                className="w-20 h-20 rounded-3xl object-cover mx-auto border-4 border-emerald-100 shadow"
-              />
-              <h4 className="font-black text-slate-800 text-base mt-3">{selectedStaffForView.fullName}</h4>
-              <p className="text-xs text-slate-400 font-bold">{selectedStaffForView.staffId}</p>
-              <div className="mt-2 flex items-center justify-center gap-2">
-                <span className={`px-2.5 py-1 rounded-xl text-xs font-black ${getRoleDef(selectedStaffForView.role).badgeColor}`}>
-                  {getRoleDef(selectedStaffForView.role).icon} {getTranslation(getRoleDef(selectedStaffForView.role).nameBn, getRoleDef(selectedStaffForView.role).nameEn)}
-                </span>
-                <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${
-                  selectedStaffForView.status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
-                }`}>
-                  {selectedStaffForView.status === "active" ? "Active" : "Inactive"}
-                </span>
-              </div>
-            </div>
-
-            <div className="py-4 space-y-2.5 text-xs text-slate-700">
-              <div className="flex justify-between py-1 border-b border-slate-50">
-                <span className="text-slate-400">{getTranslation("মোবাইল:", "Mobile:")}</span>
-                <span className="font-bold text-slate-800">{selectedStaffForView.mobile}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-50">
-                <span className="text-slate-400">{getTranslation("ইমেইল:", "Email:")}</span>
-                <span className="font-bold text-slate-800">{selectedStaffForView.email}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-50">
-                <span className="text-slate-400">{getTranslation("উপস্থিতি স্ট্যাটাস:", "Online Presence:")}</span>
-                <span className="font-bold text-slate-800">
-                  {selectedStaffForView.onlineStatus === "online" ? "🟢 Online" : selectedStaffForView.onlineStatus === "away" ? "🟡 Away" : "🔴 Offline"}
-                </span>
-              </div>
-              {selectedStaffForView.assignedAgentDesk && (
-                <div className="flex justify-between py-1 border-b border-slate-50 text-teal-800 font-bold">
-                  <span>{getTranslation("কল সেন্টার ডেস্ক:", "Call Center Desk:")}</span>
-                  <span>Desk #{selectedStaffForView.assignedAgentDesk}</span>
+            {/* Modal Body - Scrollable */}
+            <div className="p-5 overflow-y-auto space-y-6 divide-y divide-slate-100 text-xs text-slate-700">
+              
+              {/* Profile Card Summary Banner */}
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 pb-2">
+                <div className="relative shrink-0">
+                  <img
+                    src={selectedStaffForView.photoURL || PRESET_AVATARS[0]}
+                    alt={selectedStaffForView.fullName}
+                    className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md ring-2 ring-emerald-500/30"
+                  />
+                  <span
+                    className={`absolute bottom-0 right-0 w-5 h-5 rounded-full border-2 border-white shadow-sm flex items-center justify-center ${
+                      selectedStaffForView.onlineStatus === "online"
+                        ? "bg-emerald-500"
+                        : selectedStaffForView.onlineStatus === "away"
+                        ? "bg-amber-400"
+                        : "bg-slate-400"
+                    }`}
+                    title={selectedStaffForView.onlineStatus}
+                  />
                 </div>
-              )}
-              <div className="flex justify-between py-1 border-b border-slate-50">
-                <span className="text-slate-400">{getTranslation("তৈরির তারিখ:", "Created At:")}</span>
-                <span className="font-bold text-slate-800">
-                  {selectedStaffForView.createdAt ? new Date(selectedStaffForView.createdAt).toLocaleDateString() : "N/A"}
-                </span>
+
+                <div className="flex-1 text-center sm:text-left min-w-0">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <h4 className="font-black text-slate-900 text-lg">{selectedStaffForView.fullName}</h4>
+                    {selectedStaffForView.isSuperAdmin && (
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md text-[10px] font-black border border-amber-200">
+                        👑 Super Admin
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-mono text-emerald-700 font-bold mt-0.5">
+                    {formatStaffUsername(selectedStaffForView.username || selectedStaffForView.staffId)}
+                  </p>
+                  <p className="text-xs text-slate-500 font-medium mt-1">
+                    {selectedStaffForView.designation || "Staff Member"} • {selectedStaffForView.department || "Kacha Bazar Ltd."}
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <span className={`px-2.5 py-1 rounded-xl text-[11px] font-black ${getRoleDef(selectedStaffForView.role).badgeColor}`}>
+                      {getRoleDef(selectedStaffForView.role).icon} {getTranslation(getRoleDef(selectedStaffForView.role).nameBn, getRoleDef(selectedStaffForView.role).nameEn)}
+                    </span>
+                    <span className={`px-2.5 py-1 rounded-xl text-[11px] font-black ${
+                      selectedStaffForView.status === "active"
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                        : "bg-red-100 text-red-800 border border-red-200"
+                    }`}>
+                      {selectedStaffForView.status === "active" ? getTranslation("সক্রিয় (Active)", "Active") : getTranslation("নিষ্ক্রিয় (Inactive)", "Inactive")}
+                    </span>
+                    <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-slate-100 text-slate-700">
+                      {selectedStaffForView.onlineStatus === "online" ? "🟢 Online" : selectedStaffForView.onlineStatus === "away" ? "🟡 Away" : "🔴 Offline"}
+                    </span>
+                  </div>
+                </div>
               </div>
+
+              {/* 1. PERSONAL / BASIC INFORMATION */}
+              <div className="pt-4 space-y-3">
+                <h5 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center space-x-1.5 text-emerald-800">
+                  <UserCheck className="w-4 h-4" />
+                  <span>{getTranslation("১. ব্যক্তিগত ও সাধারণ তথ্য (Personal Info)", "1. Personal / Basic Information")}</span>
+                </h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("পূর্ণ নাম", "Full Name")}</span>
+                    <span className="font-bold text-slate-800">{selectedStaffForView.fullName}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("মোবাইল নম্বর", "Mobile Phone")}</span>
+                    <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <Phone className="w-3 h-3 text-slate-400" />
+                      {selectedStaffForView.mobile}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("ইমেইল অ্যাড্রেস", "Email Address")}</span>
+                    <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <Mail className="w-3 h-3 text-slate-400" />
+                      {selectedStaffForView.email}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("রক্তের গ্রুপ", "Blood Group")}</span>
+                    <span className="font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded inline-block text-[11px]">
+                      {selectedStaffForView.bloodGroup || "N/A"}
+                    </span>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("জরুরী যোগাযোগের নম্বর", "Emergency Contact")}</span>
+                    <span className="font-bold text-slate-800">{selectedStaffForView.emergencyContact || selectedStaffForView.mobile}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. JOB INFORMATION */}
+              <div className="pt-4 space-y-3">
+                <h5 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center space-x-1.5 text-blue-800">
+                  <Building className="w-4 h-4" />
+                  <span>{getTranslation("২. চাকরির তথ্য (Job Information)", "2. Job Information")}</span>
+                </h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("স্টাফ আইডি", "Staff ID")}</span>
+                    <span className="font-mono font-black text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200 inline-block">
+                      {selectedStaffForView.staffId}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("পদবী (Designation)", "Designation")}</span>
+                    <span className="font-bold text-slate-800">{selectedStaffForView.designation || "Executive"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("বিভাগ (Department)", "Department")}</span>
+                    <span className="font-bold text-slate-800">{selectedStaffForView.department || "General"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("যোগদানের তারিখ", "Joining Date")}</span>
+                    <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <Calendar className="w-3 h-3 text-slate-400" />
+                      {selectedStaffForView.joiningDate || "N/A"}
+                    </span>
+                  </div>
+                  {selectedStaffForView.assignedAgentDesk && (
+                    <div className="sm:col-span-2">
+                      <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("কল সেন্টার ডেস্ক", "Call Center Desk")}</span>
+                      <span className="font-bold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-lg inline-flex items-center gap-1">
+                        <PhoneCall className="w-3.5 h-3.5" />
+                        Desk #{selectedStaffForView.assignedAgentDesk}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. ACCOUNT & SECURITY INFORMATION */}
+              <div className="pt-4 space-y-3">
+                <h5 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center space-x-1.5 text-purple-800">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>{getTranslation("৩. অ্যাকাউন্ট ও নিরাপত্তা তথ্য (Account & Security)", "3. Account & Security Information")}</span>
+                </h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("ইউজারনেম / লগইন আইডি", "Login Username")}</span>
+                    <span className="font-mono font-black text-purple-900 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 inline-block">
+                      {formatStaffUsername(selectedStaffForView.username || selectedStaffForView.staffId)}
+                    </span>
+                    <p className="text-[10px] text-slate-400 mt-1">{getTranslation("এই আইডি বা স্টাফ আইডি এবং পাসওয়ার্ড দিয়ে লগইন সম্ভব।", "Used to login to Admin & Staff Portal.")}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("অ্যাকাউন্ট স্ট্যাটাস", "Account Status")}</span>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-black text-[11px] ${
+                      selectedStaffForView.status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                    }`}>
+                      {selectedStaffForView.status === "active" ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("তৈরির সময়", "Account Created At")}</span>
+                    <span className="font-medium text-slate-700">
+                      {selectedStaffForView.createdAt ? new Date(selectedStaffForView.createdAt).toLocaleString() : "N/A"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold">{getTranslation("সর্বশেষ সক্রিয়তা", "Last Active At")}</span>
+                    <span className="font-medium text-slate-700">
+                      {selectedStaffForView.lastActiveAt ? new Date(selectedStaffForView.lastActiveAt).toLocaleString() : "N/A"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. SALARY & COMPENSATION */}
+              <div className="pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center space-x-1.5 text-amber-800">
+                    <Wallet className="w-4 h-4" />
+                    <span>{getTranslation("৪. বেতন ও পরিশোধ সংক্রান্ত হিসাব (Salary Information)", "4. Salary Information")}</span>
+                  </h5>
+                  <button
+                    onClick={() => {
+                      setSelectedStaffForSalary(selectedStaffForView);
+                      setSalaryAmount(selectedStaffForView.monthlySalary || 0);
+                      setNewBaseSalary(selectedStaffForView.monthlySalary || 0);
+                    }}
+                    className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[11px] font-black shadow transition cursor-pointer flex items-center gap-1"
+                  >
+                    <DollarSign className="w-3.5 h-3.5" />
+                    <span>{getTranslation("বেতন পরিশোধ / আপডেট করুন", "Manage / Pay Salary")}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-50/40 p-3.5 rounded-2xl border border-amber-200/60">
+                  <div>
+                    <span className="text-slate-500 block text-[10px] font-bold">{getTranslation("মাসিক মূল বেতন (Base Salary)", "Monthly Base Salary")}</span>
+                    <span className="text-base font-black text-emerald-900">
+                      ৳{(selectedStaffForView.monthlySalary || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px] font-bold">{getTranslation("চলতি মাসের বেতন স্ট্যাটাস", "Current Month Status")}</span>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-black text-[11px] mt-1 ${
+                      selectedStaffForView.salaryStatus === "paid"
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                        : "bg-amber-100 text-amber-800 border border-amber-200"
+                    }`}>
+                      {selectedStaffForView.salaryStatus === "paid" ? getTranslation("পরিশোধিত (Paid)", "Paid") : getTranslation("বকেয়া (Due)", "Due")}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Recent Salary Disbursement Records */}
+                {selectedStaffForView.salaryHistory && selectedStaffForView.salaryHistory.length > 0 && (
+                  <div className="mt-2 space-y-1.5">
+                    <span className="text-[11px] font-black text-slate-600 block">{getTranslation("পূর্ববর্তী পরিশোধের রেকর্ড (Payment Records):", "Payment Records:")}</span>
+                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                      <table className="w-full text-left text-[11px]">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold">
+                          <tr>
+                            <th className="p-2">মাস</th>
+                            <th className="p-2">পরিমাণ</th>
+                            <th className="p-2">পেমেন্ট মেথড</th>
+                            <th className="p-2">Trx ID</th>
+                            <th className="p-2">তারিখ</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                          {selectedStaffForView.salaryHistory.slice(0, 4).map((rec) => (
+                            <tr key={rec.id} className="hover:bg-slate-50">
+                              <td className="p-2 font-bold text-slate-800">{rec.month}</td>
+                              <td className="p-2 font-black text-emerald-800">৳{rec.amount?.toLocaleString()}</td>
+                              <td className="p-2">{rec.paymentMethod}</td>
+                              <td className="p-2 font-mono text-[10px] text-slate-500">{rec.transactionRef || "N/A"}</td>
+                              <td className="p-2 text-slate-400">{new Date(rec.paymentDate || rec.paidAt || rec.createdAt || Date.now()).toLocaleDateString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 5. PERMISSIONS SUMMARY */}
+              <div className="pt-4 space-y-3">
+                <h5 className="font-black text-slate-800 text-xs uppercase tracking-wider flex items-center space-x-1.5 text-slate-700">
+                  <Shield className="w-4 h-4 text-emerald-600" />
+                  <span>{getTranslation("৫. অনুমোদিত পারমিশনসমূহ (Permissions)", "5. Configured Module Permissions")}</span>
+                </h5>
+                <div className="flex flex-wrap gap-1.5 bg-slate-50/70 p-3 rounded-2xl border border-slate-100">
+                  {PERMISSION_MODULES.map((mod) => {
+                    const hasView = hasPermission(selectedStaffForView, mod.id, "view");
+                    const hasEdit = hasPermission(selectedStaffForView, mod.id, "edit");
+                    if (!hasView) return null;
+                    return (
+                      <span
+                        key={mod.id}
+                        className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl text-[10px] font-black border ${
+                          hasEdit
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            : "bg-blue-50 text-blue-800 border-blue-200"
+                        }`}
+                      >
+                        <Check className="w-3 h-3" />
+                        <span>{getTranslation(mod.nameBn, mod.nameEn)}</span>
+                        <span className="text-[9px] opacity-70">({hasEdit ? "Full" : "View"})</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
             </div>
 
-            <div className="mt-4 pt-2">
+            {/* Modal Footer Actions */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => {
+                    const st = selectedStaffForView;
+                    setSelectedStaffForView(null);
+                    setSelectedStaffForIdCard(st);
+                  }}
+                  className="flex items-center space-x-1 px-3 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black shadow hover:bg-emerald-600 cursor-pointer"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>{getTranslation("আইডি কার্ড", "ID Card")}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const st = selectedStaffForView;
+                    setSelectedStaffForView(null);
+                    setSelectedStaffForEdit(st);
+                  }}
+                  className="flex items-center space-x-1 px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-black shadow hover:bg-blue-500 cursor-pointer"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>{getTranslation("তথ্য এডিট", "Edit Info")}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const st = selectedStaffForView;
+                    setSelectedStaffForView(null);
+                    setSelectedStaffForPerms(st);
+                    setTempPermissions({ ...(st.permissions || getRoleDef(st.role).defaultPermissions) });
+                  }}
+                  className="flex items-center space-x-1 px-3 py-2 bg-purple-600 text-white rounded-xl text-xs font-black shadow hover:bg-purple-500 cursor-pointer"
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>{getTranslation("পারমিশন", "Permissions")}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const st = selectedStaffForView;
+                    setSelectedStaffForView(null);
+                    setSelectedStaffForPassword(st);
+                    setNewPassword("");
+                  }}
+                  className="flex items-center space-x-1 px-3 py-2 bg-amber-600 text-white rounded-xl text-xs font-black shadow hover:bg-amber-500 cursor-pointer"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>{getTranslation("পাসওয়ার্ড রিসেট", "Password")}</span>
+                </button>
+              </div>
+
               <button
                 onClick={() => setSelectedStaffForView(null)}
-                className="w-full py-2.5 bg-slate-900 text-white rounded-2xl text-xs font-black hover:bg-slate-800 transition cursor-pointer"
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 {getTranslation("বন্ধ করুন", "Close")}
               </button>
@@ -1384,7 +1988,7 @@ export default function AdminStaffManagementTab({
       {/* ========================================================================= */}
       {selectedStaffForEdit && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 border border-slate-200 shadow-xl animate-scale-up">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 border border-slate-200 shadow-xl animate-scale-up">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <h3 className="font-black text-slate-800 text-sm flex items-center space-x-2">
                 <Edit2 className="w-4 h-4 text-blue-600" />
@@ -1392,13 +1996,25 @@ export default function AdminStaffManagementTab({
               </h3>
               <button
                 onClick={() => setSelectedStaffForEdit(null)}
-                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleEditStaffSubmit} className="space-y-4">
+              {/* Permanent Staff ID notice */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 block">{getTranslation("স্টাফ আইডি (স্থায়ী)", "Staff ID (Permanent)")}</span>
+                  <span className="text-xs font-black text-slate-800">{selectedStaffForEdit.staffId}</span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                  <Lock className="w-3 h-3" />
+                  {getTranslation("অপরিবর্তনীয়", "Immutable")}
+                </span>
+              </div>
+
               <div>
                 <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("পূর্ণ নাম", "Full Name")}</label>
                 <input
@@ -1408,6 +2024,86 @@ export default function AdminStaffManagementTab({
                   onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, fullName: e.target.value })}
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("ইউজারনেম / লগইন আইডি", "Username / Login ID")}</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={selectedStaffForEdit.username || ""}
+                      onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, username: formatStaffUsername(e.target.value) })}
+                      placeholder="e.g. cfikb002"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-purple-900 focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("মাসিক মূল বেতন (৳)", "Monthly Base Salary (৳)")}</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-black">৳</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={selectedStaffForEdit.monthlySalary || 0}
+                      onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, monthlySalary: Number(e.target.value) || 0 })}
+                      className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-emerald-900 focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("পদবী (Designation)", "Designation")}</label>
+                  <input
+                    type="text"
+                    value={selectedStaffForEdit.designation || ""}
+                    onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, designation: e.target.value })}
+                    placeholder="e.g. Senior Executive"
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("বিভাগ (Department)", "Department")}</label>
+                  <select
+                    value={selectedStaffForEdit.department || "Order Fulfillment & Logistics"}
+                    onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, department: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                  >
+                    {DEPARTMENTS.map((dept) => (
+                      <option key={dept.id} value={dept.nameEn}>
+                        {getTranslation(dept.nameBn, dept.nameEn)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("যোগদানের তারিখ", "Joining Date")}</label>
+                  <input
+                    type="date"
+                    value={selectedStaffForEdit.joiningDate || ""}
+                    onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, joiningDate: e.target.value })}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("রক্তের গ্রুপ", "Blood Group")}</label>
+                  <select
+                    value={selectedStaffForEdit.bloodGroup || "B (+ve)"}
+                    onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, bloodGroup: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                  >
+                    {BLOOD_GROUPS.map((bg) => (
+                      <option key={bg} value={bg}>{bg}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1422,18 +2118,29 @@ export default function AdminStaffManagementTab({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("ইমেইল", "Email")}</label>
+                  <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("জরুরী যোগাযোগ", "Emergency Contact")}</label>
                   <input
-                    type="email"
-                    required
-                    value={selectedStaffForEdit.email}
-                    onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, email: e.target.value })}
+                    type="tel"
+                    value={selectedStaffForEdit.emergencyContact || ""}
+                    onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, emergencyContact: e.target.value })}
+                    placeholder="018XXXXXXXX"
                     className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("ইমেইল", "Email")}</label>
+                <input
+                  type="email"
+                  required
+                  value={selectedStaffForEdit.email}
+                  onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, email: e.target.value })}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("রোল", "Role")}</label>
                   <select
@@ -1459,6 +2166,17 @@ export default function AdminStaffManagementTab({
                     <option value="inactive">Inactive</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("বেতন স্ট্যাটাস", "Salary Status")}</label>
+                  <select
+                    value={selectedStaffForEdit.salaryStatus || "due"}
+                    onChange={(e) => setSelectedStaffForEdit({ ...selectedStaffForEdit, salaryStatus: e.target.value as any })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
+                  >
+                    <option value="paid">{getTranslation("পরিশোধিত", "Paid")}</option>
+                    <option value="due">{getTranslation("বকেয়া", "Due")}</option>
+                  </select>
+                </div>
               </div>
 
               {selectedStaffForEdit.role === "call_center_agent" && (
@@ -1481,13 +2199,13 @@ export default function AdminStaffManagementTab({
                 <button
                   type="button"
                   onClick={() => setSelectedStaffForEdit(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600"
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 cursor-pointer"
                 >
                   {getTranslation("বাতিল", "Cancel")}
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 text-white text-xs font-black shadow hover:bg-blue-500"
+                  className="px-5 py-2 rounded-xl bg-blue-600 text-white text-xs font-black shadow hover:bg-blue-500 cursor-pointer"
                 >
                   {getTranslation("আপডেট করুন", "Save Changes")}
                 </button>
@@ -1704,6 +2422,232 @@ export default function AdminStaffManagementTab({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: SALARY MANAGEMENT & DISBURSEMENT */}
+      {/* ========================================================================= */}
+      {selectedStaffForSalary && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col border border-slate-200 shadow-2xl animate-scale-up overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-amber-50/50 shrink-0">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shadow-xs">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-sm">
+                    {getTranslation("স্টাফ বেতন ব্যবস্থাপনা ও পরিশোধ", "Staff Salary Management & Disbursement")}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    {selectedStaffForSalary.fullName} • <span className="font-mono font-bold text-slate-700">{selectedStaffForSalary.staffId}</span> • {formatStaffUsername(selectedStaffForSalary.username || selectedStaffForSalary.staffId)}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedStaffForSalary(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-5 overflow-y-auto space-y-5 text-xs text-slate-700">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 block">{getTranslation("মাসিক মূল বেতন", "Monthly Base Salary")}</span>
+                  <span className="text-lg font-black text-emerald-800">৳{(selectedStaffForSalary.monthlySalary || 0).toLocaleString()}</span>
+                </div>
+                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 block">{getTranslation("বর্তমান স্ট্যাটাস", "Salary Status")}</span>
+                  <span className={`inline-block mt-0.5 px-2.5 py-0.5 rounded-md text-[11px] font-black ${
+                    selectedStaffForSalary.salaryStatus === "paid"
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                      : "bg-amber-100 text-amber-800 border border-amber-200"
+                  }`}>
+                    {selectedStaffForSalary.salaryStatus === "paid" ? getTranslation("পরিশোধিত", "Paid") : getTranslation("বকেয়া", "Due")}
+                  </span>
+                </div>
+              </div>
+
+              {/* Form 1: Disburse / Record Payment */}
+              <form onSubmit={handlePaySalary} className="bg-amber-50/40 p-4 rounded-2xl border border-amber-200/70 space-y-3">
+                <h4 className="font-black text-amber-900 text-xs flex items-center space-x-1.5">
+                  <DollarSign className="w-4 h-4 text-amber-600" />
+                  <span>{getTranslation("বেতন পরিশোধ রেকর্ড করুন (Disburse Salary)", "Record Salary Payment")}</span>
+                </h4>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-700 mb-1">{getTranslation("বেতনের মাস ও বছর", "Salary Month")}</label>
+                    <input
+                      type="text"
+                      required
+                      value={salaryMonth}
+                      onChange={(e) => setSalaryMonth(e.target.value)}
+                      placeholder="e.g. September 2026"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-700 mb-1">{getTranslation("পরিশোধের পরিমাণ (৳)", "Amount (৳)")}</label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={salaryAmount}
+                      onChange={(e) => setSalaryAmount(Number(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-emerald-900 focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-700 mb-1">{getTranslation("পেমেন্ট মেথড", "Payment Method")}</label>
+                    <select
+                      value={salaryPaymentMethod}
+                      onChange={(e) => setSalaryPaymentMethod(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="bKash">bKash (বিকাশ)</option>
+                      <option value="Nagad">Nagad (নগদ)</option>
+                      <option value="Rocket">Rocket (রকেট)</option>
+                      <option value="Bank Transfer">Bank Transfer (ব্যাংক ট্রান্সফার)</option>
+                      <option value="Cash">Cash in Hand (নগদ ক্যাশ)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-700 mb-1">{getTranslation("ট্রানজেকশন আইডি / রেফারেন্স", "Transaction Ref / TrxID")}</label>
+                    <input
+                      type="text"
+                      value={salaryTrxId}
+                      onChange={(e) => setSalaryTrxId(e.target.value)}
+                      placeholder="e.g. TRX9928192"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-medium focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-black text-slate-700 mb-1">{getTranslation("নোট / বিবরণ", "Note")}</label>
+                  <input
+                    type="text"
+                    value={salaryNote}
+                    onChange={(e) => setSalaryNote(e.target.value)}
+                    placeholder="Monthly salary disburse"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div className="pt-1 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={salaryLoading}
+                    className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black shadow-md shadow-amber-900/10 transition cursor-pointer flex items-center space-x-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{salaryLoading ? getTranslation("প্রসেস হচ্ছে...", "Processing...") : getTranslation("বেতন পরিশোধ সম্পন্ন করুন", "Confirm Disbursement")}</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* Form 2: Update Base Salary */}
+              <form onSubmit={handleUpdateSalaryBase} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <h4 className="font-black text-slate-800 text-xs flex items-center space-x-1.5">
+                  <Edit2 className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{getTranslation("মাসিক মূল বেতন আপডেট করুন", "Update Base Monthly Salary")}</span>
+                </h4>
+
+                <div className="flex gap-2 items-center">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-slate-400">৳</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={newBaseSalary}
+                      onChange={(e) => setNewBaseSalary(Number(e.target.value) || 0)}
+                      className="w-full pl-8 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={updatingBaseSalary}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition cursor-pointer shrink-0"
+                  >
+                    {updatingBaseSalary ? getTranslation("আপডেট হচ্ছে...", "Saving...") : getTranslation("মূল বেতন পরিবর্তন করুন", "Save Base Salary")}
+                  </button>
+                </div>
+              </form>
+
+              {/* Historical Salary Payments Table */}
+              {selectedStaffForSalary.salaryHistory && selectedStaffForSalary.salaryHistory.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-black text-slate-800 text-xs">{getTranslation("পরিশোধের পূর্ববর্তী রেকর্ডসমূহ", "Previous Salary Records")}</h4>
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold text-[10px]">
+                        <tr>
+                          <th className="p-2.5">মাস</th>
+                          <th className="p-2.5">পরিমাণ</th>
+                          <th className="p-2.5">মেথড</th>
+                          <th className="p-2.5">Trx ID</th>
+                          <th className="p-2.5">তারিখ</th>
+                          <th className="p-2.5">অনুমোদনকারী</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium">
+                        {selectedStaffForSalary.salaryHistory.map((rec) => (
+                          <tr key={rec.id} className="hover:bg-slate-50">
+                            <td className="p-2.5 font-bold text-slate-800">{rec.month}</td>
+                            <td className="p-2.5 font-black text-emerald-800">৳{rec.amount?.toLocaleString()}</td>
+                            <td className="p-2.5">{rec.paymentMethod}</td>
+                            <td className="p-2.5 font-mono text-[10px] text-slate-500">{rec.transactionRef || "N/A"}</td>
+                            <td className="p-2.5 text-slate-400">{new Date(rec.paymentDate || rec.paidAt || rec.createdAt || Date.now()).toLocaleDateString()}</td>
+                            <td className="p-2.5 text-slate-600 font-bold">{rec.paidBy}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedStaffForSalary(null)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                {getTranslation("বন্ধ করুন", "Close")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: PROFESSIONAL STAFF ID CARD SYSTEM (PREVIEW, EDIT, PRINT, PDF, REPRINT) */}
+      {/* ========================================================================= */}
+      {selectedStaffForIdCard && (
+        <StaffIdCardModal
+          staff={selectedStaffForIdCard}
+          currentUser={currentUser}
+          lang={lang}
+          onClose={() => setSelectedStaffForIdCard(null)}
+          onStaffUpdated={async (updatedStaff) => {
+            setSelectedStaffForIdCard(updatedStaff);
+            await fetchStaff();
+            await fetchLogs();
+          }}
+          triggerToast={triggerToast}
+        />
       )}
 
     </div>

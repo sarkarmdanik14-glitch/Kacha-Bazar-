@@ -181,7 +181,9 @@ export async function checkAndRewardReferral(referredUserId: string) {
     });
 
     console.log("Referral reward successfully processed!");
-  } catch (err) {
-    console.error("Error in checkAndRewardReferral:", err);
+  } catch (err: any) {
+    if (!err?.message?.includes("offline")) {
+      console.warn("Notice in checkAndRewardReferral:", err?.message || err);
+    }
   }
 }

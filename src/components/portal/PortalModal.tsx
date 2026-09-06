@@ -7,17 +7,20 @@ import CustomerPortal from "./CustomerPortal";
 import SellerPanel from "./SellerPanel";
 import RiderPanel from "./RiderPanel";
 import AdminPanel from "./AdminPanel";
+import PartnerShopPanel from "./PartnerShopPanel";
+import { getCurrentPartnerSession, logoutPartnerSession, PartnerShop } from "../../lib/partnerManager";
 
 interface PortalModalProps {
   isOpen: boolean;
   onClose: () => void;
   lang: "bn" | "en";
   initialTab?: "dashboard" | "orders" | "wallet" | "referral" | "notifications";
-  forcedRole?: "customer" | "admin" | "seller" | "rider";
+  forcedRole?: "customer" | "admin" | "seller" | "rider" | "partner";
 }
 
 export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedRole }: PortalModalProps) {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [currentPartner, setCurrentPartner] = useState<PartnerShop | null>(null);
   const [userRole, setUserRole] = useState<string>("customer");
   const [activePortalTab, setActivePortalTab] = useState<string>("customer");
   const [loading, setLoading] = useState<boolean>(true);
@@ -30,6 +33,7 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
     const r = role?.toLowerCase();
     if (r === "admin" || r === "founder") return true;
     if (tab === "customer") return true;
+    if (tab === "partner" && (r === "partner" || currentPartner !== null)) return true;
     if (tab === "seller" && r === "seller") return true;
     if (tab === "rider" && r === "rider") return true;
     return false;
@@ -37,6 +41,7 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
 
   const tabsList = [
     { id: "customer", bn: "গ্রাহক পোর্টাল", en: "Customer Portal" },
+    { id: "partner", bn: "🏪 পার্টনার শপ", en: "Partner Shop" },
     { id: "seller", bn: "বিক্রেতা প্যানেল", en: "Seller Panel" },
     { id: "rider", bn: "রাইডার প্যানেল", en: "Rider Panel" },
     { id: "admin", bn: "এডমিন প্যানেল", en: "Admin Panel" }
@@ -64,6 +69,26 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
 
   useEffect(() => {
     if (!isOpen) return;
+
+    // Check for existing Partner Session first
+    const partnerSession = getCurrentPartnerSession();
+    if (forcedRole === "partner" || partnerSession) {
+      if (partnerSession) {
+        setCurrentPartner(partnerSession);
+        setCurrentUser(partnerSession);
+        setUserRole("partner");
+        setActivePortalTab("partner");
+        setLoading(false);
+        return;
+      } else if (forcedRole === "partner") {
+        setCurrentPartner(null);
+        setCurrentUser(null);
+        setUserRole("partner");
+        setActivePortalTab("partner");
+        setLoading(false);
+        return;
+      }
+    }
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setLoading(true);
@@ -249,11 +274,26 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
               setActivePortalTab(role);
             }
           }
-        } catch (err) {
-          console.error("Portal fetch user role error:", err);
-          setCurrentUser(null);
-          setUserRole("customer");
-          setActivePortalTab("customer");
+        } catch (err: any) {
+          if (!err?.message?.includes("offline")) {
+            console.warn("Portal fetch user role notice:", err?.message || err);
+          }
+          if (user) {
+            const fallbackUser = {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName || user.email?.split("@")[0] || "Customer",
+              role: "customer",
+              profileStatus: "approved"
+            };
+            setCurrentUser(fallbackUser);
+            setUserRole("customer");
+            setActivePortalTab("customer");
+          } else {
+            setCurrentUser(null);
+            setUserRole("customer");
+            setActivePortalTab("customer");
+          }
         }
       } else {
         setCurrentUser(null);
@@ -267,6 +307,9 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
   }, [isOpen, forcedRole]);
 
   const handleAuthSuccess = (userData: any, role: string) => {
+    if (role === "partner") {
+      setCurrentPartner(userData);
+    }
     setCurrentUser(userData);
     setUserRole(role);
     setActivePortalTab(role);
@@ -278,10 +321,15 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
 
   const handleLogout = async () => {
     try {
+      logoutPartnerSession();
+      setCurrentPartner(null);
       await signOut(auth);
       try {
         localStorage.removeItem("kacha_user_session");
         localStorage.removeItem("user_role");
+        localStorage.removeItem("kb_staff_session");
+        localStorage.removeItem("kb_staff_email");
+        localStorage.removeItem("kb_staff_id");
         sessionStorage.clear();
       } catch (e) {}
       setCurrentUser(null);
@@ -383,6 +431,14 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
                   <div className="h-full w-full min-h-0">
                     {activePortalTab === "admin" && (
                       <AdminPanel user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} />
+                    )}
+                    {activePortalTab === "partner" && (
+                      <PartnerShopPanel 
+                        partner={currentPartner || currentUser} 
+                        onLogout={handleLogout} 
+                        lang={lang} 
+                        triggerToast={triggerToast} 
+                      />
                     )}
                     {activePortalTab === "seller" && (
                       currentUser?.profileStatus === "approved" ? (
