@@ -1,122 +1,27 @@
-const CACHE_NAME = 'kacha-bazar-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/favicon-32x32.png',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
-  '/icons/apple-touch-icon.png',
-  '/icons/maskable-icon-512x512.png'
-];
+// Service Worker for কাচা বাজার (Kacha Bazar) PWA
+const CACHE_NAME = 'kacha-bazar-pass-through-v2';
 
-// Install Event - Pre-cache critical offline shell assets
+// Install Event - Immediately take over without waiting
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('PWA Pre-cache non-fatal warning:', err);
-      });
-    }).then(() => self.skipWaiting())
-  );
+  self.skipWaiting();
 });
 
-// Activate Event - Clean up stale caches and immediately take control
+// Activate Event - Clean up all stale caches and take immediate control
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('Clearing old PWA cache:', cache);
-            return caches.delete(cache);
-          }
+          console.log('[PWA] Deleting old cache:', cache);
+          return caches.delete(cache);
         })
       );
     }).then(() => self.clients.claim())
   );
 });
 
-// Fetch Event - Stale-while-revalidate / Network-first strategy
+// Fetch Event - Safe pass-through to ensure PWA installability without breaking JS chunks or module graphs
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-
-  // Skip non-GET requests and chrome-extension / Firebase / backend API URLs
-  if (event.request.method !== 'GET') return;
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
-  if (url.pathname.startsWith('/api/') || url.hostname.includes('firestore') || url.hostname.includes('googleapis')) {
-    return;
-  }
-
-  // For HTML navigation requests - Network first, fall back to cached index.html
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
-            });
-          }
-          return response;
-        })
-        .catch(async () => {
-          const cachedResponse = await caches.match(event.request);
-          if (cachedResponse) return cachedResponse;
-          const fallback = await caches.match('/index.html');
-          return fallback || new Response('Offline', { status: 503, statusText: 'Offline' });
-        })
-    );
-    return;
-  }
-
-  // For static assets (JS, CSS, Images, Fonts, Icons) - Cache first or Stale-While-Revalidate
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
-
-      return cachedResponse || fetchPromise;
-    })
-  );
-});
-
-// Notification Click Event - Focus or open Kacha Bazar app
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url && 'focus' in client) {
-          return client.focus();
-        }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow('/');
-      }
-    })
-  );
-});
-
-// Message Event - Skip Waiting on demand or Show Notification
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
-    const { title, options } = event.data;
-    if (self.registration && self.registration.showNotification) {
-      self.registration.showNotification(title, options);
-    }
-  }
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+  // Let the browser handle all network requests directly
+  return;
 });

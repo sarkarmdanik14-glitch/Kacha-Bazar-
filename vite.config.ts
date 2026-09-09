@@ -10,9 +10,13 @@ export default defineConfig(() => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
-      dedupe: ['react', 'react-dom'],
+      dedupe: [
+        'react',
+        'react-dom',
+      ],
     },
     optimizeDeps: {
+      holdUntilCrawlEnd: true,
       include: [
         'react',
         'react-dom',
@@ -20,7 +24,9 @@ export default defineConfig(() => {
         'react/jsx-runtime',
         'react/jsx-dev-runtime',
         'lucide-react',
+        'motion',
         'motion/react',
+        'framer-motion',
         'firebase/app',
         'firebase/auth',
         'firebase/firestore',
@@ -29,6 +35,8 @@ export default defineConfig(() => {
         'jspdf',
         'qrcode',
         'recharts',
+        '@reduxjs/toolkit',
+        'react-redux',
       ],
     },
     server: {

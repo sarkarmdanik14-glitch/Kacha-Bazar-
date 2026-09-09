@@ -7,40 +7,76 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // Filter out noisy third-party browser extension errors (e.g., MetaMask, ChromeTransport)
 if (typeof window !== 'undefined') {
-  window.addEventListener('error', (event) => {
-    const msg = event.message || '';
-    const src = event.filename || '';
-    const errStr = event.error ? (event.error.message || String(event.error)) : '';
-    if (
-      msg.includes('MetaMask') ||
-      msg.includes('ChromeTransport') ||
-      msg.includes('connectChrome') ||
-      errStr.includes('MetaMask') ||
-      errStr.includes('ChromeTransport') ||
-      errStr.includes('connectChrome') ||
-      src.includes('chrome-extension://') ||
-      src.includes('moz-extension://') ||
-      src.includes('inpage.js')
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-      return true;
+  const isExtensionNoise = (args: any[]) => {
+    try {
+      let fullStr = '';
+      for (let i = 0; i < args.length; i++) {
+        const a = args[i];
+        if (a === null || a === undefined) continue;
+        if (typeof a === 'string') {
+          fullStr += ' ' + a;
+        } else if (typeof a === 'object') {
+          if (a.message) fullStr += ' ' + a.message;
+          if (a.stack) fullStr += ' ' + a.stack;
+          if (a.name) fullStr += ' ' + a.name;
+          if (a.reason) fullStr += ' ' + (typeof a.reason === 'string' ? a.reason : (a.reason?.message || ''));
+          try { fullStr += ' ' + JSON.stringify(a); } catch (e) {}
+        } else {
+          fullStr += ' ' + String(a);
+        }
+      }
+      return /metamask|chrometransport|connectchrome|inpage\.js|chrome-extension|moz-extension|evmprovider|ethereum/i.test(fullStr);
+    } catch {
+      return false;
+    }
+  };
+
+  const methods = ['error', 'warn'] as const;
+  methods.forEach((method) => {
+    const orig = console[method];
+    if (orig) {
+      console[method] = (...args: any[]) => {
+        if (isExtensionNoise(args)) return;
+        try {
+          return orig.apply(console, args);
+        } catch {}
+      };
     }
   });
 
-  window.addEventListener('unhandledrejection', (event) => {
-    const reason = event.reason ? String(event.reason?.message || event.reason) : '';
-    if (
-      reason.includes('MetaMask') ||
-      reason.includes('ChromeTransport') ||
-      reason.includes('connectChrome') ||
-      reason.includes('Extension context invalidated') ||
-      reason.includes('inpage.js')
-    ) {
+  window.addEventListener('error', (event) => {
+    let msg = (event.message || '') + ' ' + (event.filename || '') + ' ';
+    try {
+      if (event.error) {
+        msg += (event.error.message || '') + ' ' + (event.error.stack || '') + ' ' + String(event.error);
+      }
+    } catch {}
+    if (/metamask|chrometransport|connectchrome|inpage\.js|chrome-extension|moz-extension|evmprovider|ethereum/i.test(msg)) {
       event.preventDefault();
       event.stopPropagation();
+      if (typeof (event as any).stopImmediatePropagation === 'function') {
+        (event as any).stopImmediatePropagation();
+      }
+      return true;
     }
-  });
+  }, true);
+
+  window.addEventListener('unhandledrejection', (event) => {
+    let reason = '';
+    try {
+      if (event.reason) {
+        reason = (event.reason.message || '') + ' ' + (event.reason.stack || '') + ' ' + String(event.reason);
+      }
+    } catch {}
+    if (/metamask|chrometransport|connectchrome|inpage\.js|chrome-extension|moz-extension|evmprovider|ethereum/i.test(reason)) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof (event as any).stopImmediatePropagation === 'function') {
+        (event as any).stopImmediatePropagation();
+      }
+      return true;
+    }
+  }, true);
 }
 
 // Register PWA Service Worker

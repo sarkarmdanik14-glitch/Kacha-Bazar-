@@ -27,7 +27,6 @@ import { ProductCard } from "./components/ProductCard";
 import { PWAInstallBanner } from "./components/PWAInstallBanner";
 import { DailyAlarmBanner } from "./components/common/DailyAlarmBanner";
 import { openPWAQRCodeModal, openPWAInstallModal } from "./utils/pwa";
-import { motion, AnimatePresence } from "motion/react";
 
 import makkahImg from "./assets/images/makkah.jpg";
 import madinaImg from "./assets/images/madina_dome_1784201787764.jpg";
@@ -1709,70 +1708,88 @@ export default function App() {
             </div>
           </div>
           
-          {/* All Categories displayed directly in a premium, responsive grid */}
+          {/* All Categories displayed directly in a compact, uniform, modern premium grid */}
           {loadingCategories ? (
-            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-10 gap-3 md:gap-4">
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2 sm:gap-2.5 md:gap-3">
               {Array.from({ length: 10 }).map((_, idx) => (
-                <div key={idx} className="flex flex-col items-center p-3 rounded-2xl border border-slate-100 bg-white animate-pulse">
-                  <div className="w-14 h-14 sm:w-11 sm:h-11 rounded-none bg-slate-100 mb-1.5"></div>
-                  <div className="h-2.5 w-14 bg-slate-100 rounded mt-1"></div>
+                <div key={idx} className="flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border border-slate-200/80 bg-white shadow-xs animate-pulse">
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-lg bg-slate-100 shrink-0"></div>
+                  <div className="h-2 w-10 sm:w-12 bg-slate-100 rounded mt-1"></div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-10 gap-3 md:gap-4">
-              {categories.filter(c => c.id !== "all" && c.isAvailable !== false && (c as any).disabled !== true && !(homeConfig?.categoryConfig?.hiddenCategoryIds || []).includes(c.id)).map((cat, idx) => {
-                const isHiddenOnMobile = idx >= 6 && !showAllMobile;
-                const isSecondCard = idx === 1 || cat.id === "staples";
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => navigateToCategory(cat.id)}
-                    className={`flex-col items-center p-3 rounded-2xl border cursor-pointer transition-all duration-300 shadow-xs hover:shadow-md hover:-translate-y-0.5 border-slate-100 bg-white hover:border-emerald-500 hover:ring-2 hover:ring-emerald-500/20 ${isHiddenOnMobile ? "hidden sm:flex" : "flex"}`}
-                  >
-                    {/* Category Image - 2nd category card covers full available inner space */}
-                    <div className={`${isSecondCard ? "w-full aspect-square rounded-xl" : "w-14 h-14 sm:w-11 sm:h-11 rounded-none"} flex items-center justify-center mb-1.5 transition overflow-hidden ${cat.colorClass}`}>
-                      {(cat as any).image || (cat as any).imageUrl ? (
-                        <img
-                          src={(cat as any).image || (cat as any).imageUrl}
-                          alt={cat.nameEn}
-                          className={`w-full h-full object-cover ${isSecondCard ? "rounded-xl" : "rounded-none"}`}
-                          style={{ objectFit: "cover" }}
-                        />
+            (() => {
+              const activeCats = categories.filter(
+                c => c.id !== "all" && 
+                     c.isAvailable !== false && 
+                     (c as any).disabled !== true && 
+                     !(homeConfig?.categoryConfig?.hiddenCategoryIds || []).includes(c.id)
+              );
+
+              return (
+                <>
+                  <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2 sm:gap-2.5 md:gap-3">
+                    {activeCats.map((cat, idx) => {
+                      const isHiddenOnMobile = idx >= 8 && !showAllMobile;
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => navigateToCategory(cat.id)}
+                          className={`group flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/60 hover:border-emerald-500/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer text-center ${isHiddenOnMobile ? "hidden sm:flex" : "flex"}`}
+                        >
+                          {/* Fixed Uniform Image Area */}
+                          <div className="w-11 h-11 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-lg bg-slate-50/80 flex items-center justify-center p-1 shrink-0 overflow-hidden transition-transform duration-200 group-hover:scale-105">
+                            {(cat as any).image || (cat as any).imageUrl ? (
+                              <img
+                                src={(cat as any).image || (cat as any).imageUrl}
+                                alt={cat.nameEn}
+                                className="w-full h-full object-contain"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className={`w-full h-full rounded-md flex items-center justify-center text-slate-600 ${cat.colorClass || "bg-emerald-50 text-emerald-600"}`}>
+                                {renderCatIcon(cat.iconName)}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Category Name - Tight, Balanced, Centered */}
+                          <div className="w-full mt-1 flex items-center justify-center">
+                            <p className="text-[10px] sm:text-[11px] md:text-xs font-semibold text-slate-700 group-hover:text-emerald-700 text-center leading-tight line-clamp-2 px-0.5 transition-colors duration-150">
+                              {lang === "bn" ? cat.nameBn : cat.nameEn}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Mobile Show All/Less Button */}
+                  {activeCats.length > 8 && (
+                    <div className="flex justify-center mt-3.5 sm:hidden">
+                      {!showAllMobile ? (
+                        <button
+                          onClick={() => setShowAllMobile(true)}
+                          className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200/80 hover:border-emerald-500 rounded-full text-xs font-semibold text-slate-700 hover:text-emerald-600 shadow-xs transition cursor-pointer"
+                        >
+                          <span>{lang === "bn" ? "সব ক্যাটাগরি দেখুন" : "Show All Categories"}</span>
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                        </button>
                       ) : (
-                        renderCatIcon(cat.iconName)
+                        <button
+                          onClick={() => setShowAllMobile(false)}
+                          className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200/80 hover:border-emerald-500 rounded-full text-xs font-semibold text-slate-700 hover:text-emerald-600 shadow-xs transition cursor-pointer"
+                        >
+                          <span>{lang === "bn" ? "কম ক্যাটাগরি দেখুন" : "Show Less"}</span>
+                          <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                        </button>
                       )}
                     </div>
-                    <p className="text-[10px] sm:text-xs font-bold text-slate-700 text-center leading-tight mt-1">
-                      {lang === "bn" ? cat.nameBn : cat.nameEn}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Mobile Show All/Less Button placed at the very end of the category list, not as the 6th item */}
-          {!loadingCategories && (
-            <div className="flex justify-center mt-4 sm:hidden">
-              {!showAllMobile ? (
-                <button
-                  onClick={() => setShowAllMobile(true)}
-                  className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 hover:border-emerald-500 rounded-full text-xs font-bold text-slate-700 hover:text-emerald-600 shadow-sm transition cursor-pointer"
-                >
-                  <span>{lang === "bn" ? "সব ক্যাটাগরি দেখুন" : "Show All Categories"}</span>
-                  <ChevronDown className="w-4 h-4 text-slate-400" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => setShowAllMobile(false)}
-                  className="flex items-center gap-1.5 px-5 py-2.5 bg-white border border-slate-200 hover:border-emerald-500 rounded-full text-xs font-bold text-slate-700 hover:text-emerald-600 shadow-sm transition cursor-pointer"
-                >
-                  <span>{lang === "bn" ? "কম ক্যাটাগরি দেখুন" : "Show Less"}</span>
-                  <ChevronUp className="w-4 h-4 text-slate-400" />
-                </button>
-              )}
-            </div>
+                  )}
+                </>
+              );
+            })()
           )}
         </section>
       )}

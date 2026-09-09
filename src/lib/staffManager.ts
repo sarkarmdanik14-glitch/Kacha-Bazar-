@@ -663,6 +663,7 @@ export async function fetchStaffFromFirestore(): Promise<StaffMember[]> {
           mobile: data.mobile || "",
           email: data.email || "",
           photoURL: data.photoURL || "",
+          digitalSignature: data.digitalSignature || data.signature || data.signatureURL || data.signatureUrl || "",
           role: (data.role as StaffRole) || "order_manager",
           designation: data.designation || "Staff Executive",
           department: data.department || "General Operations",
@@ -728,6 +729,11 @@ export async function fetchStaffFromFirestore(): Promise<StaffMember[]> {
 }
 
 /**
+ * Convenient alias for fetchStaffFromFirestore
+ */
+export const fetchStaffMembers = fetchStaffFromFirestore;
+
+/**
  * Real-time listener for the Firestore staff collection.
  * Triggers callback immediately on changes across all sessions and devices.
  */
@@ -746,6 +752,7 @@ export function subscribeToStaffCollection(callback: (staff: StaffMember[]) => v
           mobile: data.mobile || "",
           email: data.email || "",
           photoURL: data.photoURL || "",
+          digitalSignature: data.digitalSignature || data.signature || data.signatureURL || data.signatureUrl || "",
           role: (data.role as StaffRole) || "order_manager",
           designation: data.designation || "Staff Executive",
           department: data.department || "General Operations",

@@ -7,8 +7,9 @@ import QRCode from "qrcode";
 import { downloadMemoPDF, imageToDataUrl } from "../../lib/pdfUtils";
 import { printOrderMemo } from "../../lib/printUtils";
 import { db, doc, getDoc } from "../../lib/firebase";
+import { fetchStaffMembers } from "../../lib/staffManager";
+import { StaffMember } from "../../types";
 import defaultLogoImg from "../../assets/images/logo_1783882658678.jpg";
-import defaultFounderImg from "../../assets/images/founder_md_anik_1784735314684.jpg";
 
 interface OrderMemoModalProps {
   isOpen: boolean;
@@ -40,6 +41,17 @@ export default function OrderMemoModal({
   const [verificationDetails, setVerificationDetails] = useState<any>(null);
   const [logoDataUrl, setLogoDataUrl] = useState<string>("");
   const [signatureDataUrl, setSignatureDataUrl] = useState<string>("");
+  const [sellerOfficerSigDataUrl, setSellerOfficerSigDataUrl] = useState<string>("");
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+
+  // Fetch staff members to automatically sync Seller Officer details
+  useEffect(() => {
+    if (isOpen) {
+      fetchStaffMembers()
+        .then((list) => setStaffList(list))
+        .catch((err) => console.warn("Notice: Fetch staff for memo:", err));
+    }
+  }, [isOpen]);
 
   // Sync settings
   useEffect(() => {
@@ -56,9 +68,9 @@ export default function OrderMemoModal({
     }
   }, [propSettings, isOpen]);
 
-  // Pre-convert Store Logo & Founder Signature to Base64 Data URLs for guaranteed CORS-free rendering
+  // Pre-convert Store Logo, Founder Signature & Seller Officer Signature to Base64 Data URLs for guaranteed CORS-free rendering
   const storeLogoRaw = memoConfig?.storeLogo || memoConfig?.logoUrl || defaultLogoImg;
-  const founderSigRaw = memoConfig?.founderSignature || memoConfig?.founderSignatureUrl || propSignature || defaultFounderImg;
+  const founderSigRaw = memoConfig?.founderSignature || memoConfig?.founderSignatureUrl || propSignature || "";
 
   useEffect(() => {
     if (storeLogoRaw) {
@@ -86,17 +98,11 @@ export default function OrderMemoModal({
         setSignatureDataUrl(founderSigRaw);
       } else {
         imageToDataUrl(founderSigRaw).then((url) => {
-          if (url) {
-            setSignatureDataUrl(url);
-          } else if (founderSigRaw !== defaultFounderImg) {
-            imageToDataUrl(defaultFounderImg).then((defUrl) => setSignatureDataUrl(defUrl || defaultFounderImg));
-          } else {
-            setSignatureDataUrl(defaultFounderImg);
-          }
+          setSignatureDataUrl(url || founderSigRaw);
         });
       }
     } else {
-      setSignatureDataUrl(defaultFounderImg);
+      setSignatureDataUrl("");
     }
   }, [founderSigRaw]);
 
@@ -155,13 +161,84 @@ export default function OrderMemoModal({
   const storeName = memoConfig?.storeName || getTranslation("কাঁচা বাজার", "Kancha Bazar");
   const storeTagline = memoConfig?.storeTagline || getTranslation("বিশুদ্ধ ও নিরাপদ খাদ্যের প্রতিশ্রুতি", "The Assurance of Pure & Fresh Food");
   const supportPhone = memoConfig?.supportPhone || "+8801722638985";
-  const founderName = memoConfig?.founderName || "Md Anik Sarkar";
-  const founderSig = signatureDataUrl || founderSigRaw;
 
-  // Prepared By - use configured value, if empty fall back to "Kancha Bazar Team" / "কাঁচা বাজার টিম"
-  const preparedBy = (memoConfig?.preparedBy && memoConfig.preparedBy.trim().length > 0)
+  // 1. Resolve Seller Officer from order, staff profile, or memo settings
+  const matchedSellerOfficer: StaffMember | any | null = (() => {
+    if (order?.sellerOfficer && typeof order.sellerOfficer === "object") {
+      return order.sellerOfficer;
+    }
+    const staffIdFromOrder = order?.sellerOfficerId || order?.staffId || order?.sellerStaffId || order?.createdByStaffId;
+    if (staffIdFromOrder && staffList.length > 0) {
+      const found = staffList.find(s => s.staffId === staffIdFromOrder || s.id === staffIdFromOrder);
+      if (found) return found;
+    }
+    const nameFromOrder = order?.sellerOfficerName || order?.preparedBy || order?.staffName;
+    if (nameFromOrder && staffList.length > 0) {
+      const found = staffList.find(s => s.fullName.trim().toLowerCase() === nameFromOrder.trim().toLowerCase());
+      if (found) return found;
+    }
+    if (memoConfig?.sellerOfficerId && staffList.length > 0) {
+      const found = staffList.find(s => s.staffId === memoConfig.sellerOfficerId || s.id === memoConfig.sellerOfficerId);
+      if (found) return found;
+    }
+    if (memoConfig?.sellerOfficer && typeof memoConfig.sellerOfficer === "object") {
+      return memoConfig.sellerOfficer;
+    }
+    if (memoConfig?.sellerOfficerName && staffList.length > 0) {
+      const found = staffList.find(s => s.fullName.trim().toLowerCase() === memoConfig.sellerOfficerName.trim().toLowerCase());
+      if (found) return found;
+    }
+    if (staffList.length > 0) {
+      const fallbackOfficer = staffList.find(s => 
+        (s.role === "order_manager" || s.designation?.toLowerCase().includes("seller") || s.designation?.toLowerCase().includes("sales")) && s.status === "active"
+      ) || staffList[0];
+      if (fallbackOfficer) return fallbackOfficer;
+    }
+    return null;
+  })();
+
+  const sellerOfficerName = 
+    matchedSellerOfficer?.fullName || 
+    order?.sellerOfficerName || 
+    memoConfig?.sellerOfficerName || 
+    memoConfig?.preparedBy || 
+    getTranslation("সেলস অফিসার", "Seller Officer");
+
+  const sellerOfficerPost = getTranslation("পদ: সেলস অফিসার", "Post: Seller Officer");
+
+  const sellerOfficerSigRaw = 
+    matchedSellerOfficer?.digitalSignature || 
+    matchedSellerOfficer?.signature || 
+    order?.sellerOfficerSignature || 
+    memoConfig?.sellerOfficerSignature || 
+    memoConfig?.sellerOfficer?.digitalSignature || 
+    "";
+
+  // Pre-convert Seller Officer signature for canvas/PDF rendering
+  useEffect(() => {
+    if (sellerOfficerSigRaw) {
+      if (sellerOfficerSigRaw.startsWith("data:image/")) {
+        setSellerOfficerSigDataUrl(sellerOfficerSigRaw);
+      } else {
+        imageToDataUrl(sellerOfficerSigRaw).then((url) => {
+          setSellerOfficerSigDataUrl(url || sellerOfficerSigRaw);
+        });
+      }
+    } else {
+      setSellerOfficerSigDataUrl("");
+    }
+  }, [sellerOfficerSigRaw]);
+
+  // 2. Resolve Authorized / Founder from Admin saved settings
+  const founderName = memoConfig?.founderName || memoConfig?.authorizedName || "Md Anik Sarkar";
+  const founderDesignation = memoConfig?.founderDesignation || memoConfig?.authorizedDesignation || getTranslation("প্রতিষ্ঠাতা ও অনুমোদিত স্বাক্ষর", "Founder & Authorized");
+  const founderSig = signatureDataUrl || founderSigRaw;
+  const sellerOfficerSig = sellerOfficerSigDataUrl || sellerOfficerSigRaw;
+
+  // Prepared By - use seller officer name or fallback
+  const preparedBy = sellerOfficerName || (memoConfig?.preparedBy && memoConfig.preparedBy.trim().length > 0
     ? memoConfig.preparedBy
-    : getTranslation("কাঁচা বাজার টিম", "Kancha Bazar Team");
+    : getTranslation("কাঁচা বাজার টিম", "Kancha Bazar Team"));
 
   const thankYouMsg = memoConfig?.thankYouMessage || getTranslation("পণ্য সরবরাহ করার জন্য আপনাকে ধন্যবাদ। কোন জিজ্ঞাসা থাকলে যোগাযোগ করুন।", "Thank you for shopping with us! Please check all details upon delivery.");
   const footerTerms = memoConfig?.termsAndConditions || getTranslation("চাঁচকৈড় বাজার, বাংলাদেশ | বিশুদ্ধ পণ্য সরবরাহে আমরা দায়বদ্ধ।", "Chanchkoir Bazar, Bangladesh | We are committed to supplying fresh groceries.");
@@ -249,8 +326,12 @@ export default function OrderMemoModal({
         storeTagline,
         supportPhone,
         founderName,
+        founderDesignation,
         founderSignature: founderSig,
-        preparedBy,
+        sellerOfficerName,
+        sellerOfficerPost,
+        sellerOfficerSignature: sellerOfficerSig,
+        preparedBy: sellerOfficerName,
         thankYouMessage: thankYouMsg,
         termsAndConditions: footerTerms,
       };
@@ -375,17 +456,21 @@ export default function OrderMemoModal({
             ref={memoRef} 
             className="printable-memo-card max-w-xl mx-auto border border-slate-200 bg-white rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden"
           >
-            {/* Subtle Security Watermark Background */}
+            {/* Kacha Bazar Central Watermark: Existing Logo */}
             <div 
-              className="absolute inset-0 flex items-center justify-center pointer-events-none select-none text-slate-900 font-black text-3xl sm:text-4xl text-center leading-tight z-0"
-              style={{
-                opacity: 0.05,
-                transform: "rotate(-25deg)",
-                WebkitTransform: "rotate(-25deg)",
-                transformOrigin: "center center",
-              }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0 overflow-hidden"
+              aria-hidden="true"
             >
-              {storeName.toUpperCase()} OFFICIAL ORDER MEMO
+              <img
+                src={logoDataUrl || defaultLogoImg}
+                alt=""
+                className="w-64 sm:w-72 md:w-80 max-w-[65%] max-h-[60%] object-contain pointer-events-none select-none"
+                style={{
+                  opacity: 0.07,
+                  WebkitPrintColorAdjust: "exact",
+                  printColorAdjust: "exact",
+                }}
+              />
             </div>
 
             {/* Store Branding Header */}
@@ -589,36 +674,64 @@ export default function OrderMemoModal({
               </div>
             </div>
 
-            {/* Footnote Signature & Founder Authorization Blocks */}
-            <div className="flex justify-between items-end mt-8 pt-6 border-t border-slate-200 text-center text-[10px] text-slate-500 relative z-10">
-              <div className="w-1/3 text-center">
-                <div className="border-t border-slate-300 pt-1.5 w-28 mx-auto font-bold text-slate-600">
-                  {getTranslation("গ্রাহকের স্বাক্ষর", "Customer Sign")}
+            {/* Footnote Dual Signature & Authorization Row */}
+            <div className="w-full flex items-start justify-between gap-6 sm:gap-12 mt-6 pt-5 border-t border-slate-200 text-center relative z-10">
+              {/* 1. Seller Officer Signature Block */}
+              <div className="w-1/2 min-w-0 flex flex-col items-center text-center">
+                <div className="w-full h-11 flex items-end justify-center pb-1">
+                  {sellerOfficerSig ? (
+                    <img 
+                      src={sellerOfficerSig} 
+                      alt="Seller Officer Signature" 
+                      className="h-10 max-h-10 max-w-[130px] sm:max-w-[160px] object-contain mx-auto" 
+                    />
+                  ) : (
+                    <div className="h-10 flex items-center justify-center">
+                      <span className="text-[10px] sm:text-[11px] text-slate-300 italic font-medium">
+                        {getTranslation("(ডিজিটাল স্বাক্ষর)", "(Digital Signature)")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="w-full max-w-[140px] sm:max-w-[170px] border-t border-slate-300 pt-1.5 text-center">
+                  <div 
+                    className="font-bold text-slate-800 text-[11px] sm:text-xs leading-tight truncate w-full"
+                    title={sellerOfficerName}
+                  >
+                    {sellerOfficerName}
+                  </div>
+                  <div className="text-[9px] sm:text-[10px] text-slate-500 font-semibold leading-tight mt-0.5 w-full">
+                    {sellerOfficerPost}
+                  </div>
                 </div>
               </div>
 
-              <div className="w-1/3 text-center">
-                <div className="border-t border-slate-300 pt-1.5 w-28 mx-auto font-bold text-slate-600">
-                  {preparedBy}
+              {/* 2. Authorized / Founder Signature Block */}
+              <div className="w-1/2 min-w-0 flex flex-col items-center text-center">
+                <div className="w-full h-11 flex items-end justify-center pb-1">
+                  {founderSig ? (
+                    <img 
+                      src={founderSig} 
+                      alt="Authorized Signature" 
+                      className="h-10 max-h-10 max-w-[130px] sm:max-w-[160px] object-contain mx-auto" 
+                    />
+                  ) : (
+                    <div className="h-10 flex items-center justify-center">
+                      <span className="text-[10px] sm:text-[11px] text-slate-300 italic font-medium">
+                        {getTranslation("(ডিজিটাল স্বাক্ষর)", "(Digital Signature)")}
+                      </span>
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              <div className="w-1/3 text-center flex flex-col items-center justify-end">
-                {founderSig ? (
-                  <img 
-                    src={founderSig} 
-                    alt="Founder Signature" 
-                    className="h-10 max-w-[130px] object-contain mb-1"
-                  />
-                ) : (
-                  <div className="h-8"></div>
-                )}
-                <div className="border-t border-emerald-500 pt-1.5 w-32 mx-auto">
-                  <div className="font-black text-emerald-700 text-[11px] font-mono uppercase">
+                <div className="w-full max-w-[140px] sm:max-w-[170px] border-t border-slate-300 pt-1.5 text-center">
+                  <div 
+                    className="font-bold text-slate-800 text-[11px] sm:text-xs leading-tight truncate w-full uppercase font-mono"
+                    title={founderName}
+                  >
                     {founderName}
                   </div>
-                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
-                    {getTranslation("প্রতিষ্ঠাতা ও অনুমোদিত স্বাক্ষর", "Founder & Authorized Sign")}
+                  <div className="text-[9px] sm:text-[10px] text-slate-500 font-semibold leading-tight mt-0.5 tracking-tight w-full">
+                    {founderDesignation}
                   </div>
                 </div>
               </div>

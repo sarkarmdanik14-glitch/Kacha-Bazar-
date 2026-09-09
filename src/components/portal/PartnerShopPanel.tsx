@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { PartnerShop, Product } from "../../types";
 import { 
   db, 
@@ -17,7 +17,8 @@ import {
 import { 
   updatePartnerShop, 
   calculateEarnings, 
-  logoutPartnerSession 
+  logoutPartnerSession,
+  computePartnerMetricsFromOrders
 } from "../../lib/partnerManager";
 import { 
   Store, ShoppingBag, Layers, DollarSign, TrendingUp, 
@@ -146,39 +147,17 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
     return () => unsubOrders();
   }, [partner.id, partner.partnerId]);
 
-  // Compute live partner shop metrics
-  const commissionRate = partnerData.commissionRate || 10;
+  // Compute live partner shop metrics dynamically strictly from database orders
+  const commissionRate = typeof partnerData.commissionRate === "number" ? partnerData.commissionRate : 10;
   
-  // Compute total sales from orders
-  let computedSales = 0;
-  let computedCommission = 0;
-  let computedEarnings = 0;
+  const partnerMetrics = useMemo(() => {
+    return computePartnerMetricsFromOrders(partnerData, orders);
+  }, [partnerData, orders]);
 
-  orders.forEach((ord) => {
-    // Sum only items belonging to this partner shop
-    const shopItems = (ord.items || []).filter((item: any) => 
-      item.product?.partnerShopId === partner.id || 
-      item.product?.partnerShopId === partner.partnerId ||
-      item.product?.partnerId === partner.partnerId ||
-      !item.product?.partnerShopId // Default items if order was assigned
-    );
-
-    const orderShopTotal = shopItems.reduce((sum: number, it: any) => {
-      const price = it.selectedOption ? it.selectedOption.price : it.product.price;
-      return sum + (price * (it.quantity || 1));
-    }, 0);
-
-    const { commissionAmount, partnerEarnings } = calculateEarnings(orderShopTotal, commissionRate);
-    computedSales += orderShopTotal;
-    computedCommission += commissionAmount;
-    computedEarnings += partnerEarnings;
-  });
-
-  // Use either computed from live orders or stored profile stats
-  const displaySales = computedSales > 0 ? computedSales : (partnerData.totalSales || 0);
-  const displayCommission = computedCommission > 0 ? computedCommission : (partnerData.totalCommission || 0);
-  const displayEarnings = computedEarnings > 0 ? computedEarnings : (partnerData.netEarnings || 0);
-  const displayOrdersCount = orders.length > 0 ? orders.length : (partnerData.totalOrders || 0);
+  const displaySales = partnerMetrics.totalSales;
+  const displayCommission = partnerMetrics.totalCommission;
+  const displayEarnings = partnerMetrics.netEarnings;
+  const displayOrdersCount = partnerMetrics.totalOrders;
 
   // Handle opening product modal
   const openAddProduct = () => {
@@ -764,14 +743,27 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
                         <th className="px-5 py-3.5">{getTranslation("গ্রাহকের নাম ও ঠিকানা", "Customer & Address")}</th>
                         <th className="px-5 py-3.5">{getTranslation("অর্ডারকৃত পণ্যসমূহ", "Ordered Items")}</th>
                         <th className="px-5 py-3.5 text-right">{getTranslation("মোট পরিমাণ", "Order Total")}</th>
-                        <th className="px-5 py-3.5 text-right text-amber-700">{getTranslation("কমিশন (১০%)", "Commission")}</th>
+                        <th className="px-5 py-3.5 text-right text-amber-700">{getTranslation(`কমিশন (${commissionRate}%)`, `Commission (${commissionRate}%)`)}</th>
                         <th className="px-5 py-3.5 text-right text-emerald-700">{getTranslation("আমার আয়", "My Earnings")}</th>
                         <th className="px-5 py-3.5 text-center">{getTranslation("স্ট্যাটাস", "Status")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {orders.map((ord) => {
-                        const orderAmt = ord.total || ord.totalAmount || 0;
+                        const shopItems = (ord.items || []).filter((item: any) => 
+                          item.product?.partnerShopId === partner.id || 
+                          item.product?.partnerShopId === partner.partnerId ||
+                          item.product?.partnerId === partner.partnerId ||
+                          (!item.product?.partnerShopId && !item.product?.partnerId && (ord.partnerShopId === partner.id || ord.partnerShopId === partner.partnerId))
+                        );
+
+                        const orderAmt = shopItems.length > 0
+                          ? shopItems.reduce((sum: number, it: any) => {
+                              const price = it.selectedOption ? it.selectedOption.price : it.product?.price ?? 0;
+                              return sum + (price * (it.quantity || 1));
+                            }, 0)
+                          : (ord.total || ord.totalAmount || 0);
+
                         const { commissionAmount, partnerEarnings } = calculateEarnings(orderAmt, commissionRate);
                         return (
                           <tr key={ord.id} className="hover:bg-slate-50/70 transition">
@@ -859,48 +851,67 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-600">
-                  <thead className="bg-slate-50 text-slate-400 uppercase font-black text-[10px] tracking-wider border-b border-slate-100">
-                    <tr>
-                      <th className="px-5 py-3.5">{getTranslation("অর্ডার আইডি", "Order Ref")}</th>
-                      <th className="px-5 py-3.5 text-right">{getTranslation("অর্ডার মূল্য (৳)", "Order Amount")}</th>
-                      <th className="px-5 py-3.5 text-center">{getTranslation("কমিশন রেট", "Rate")}</th>
-                      <th className="px-5 py-3.5 text-right text-amber-700">{getTranslation("কর্তিত কমিশন (৳)", "Commission Deducted")}</th>
-                      <th className="px-5 py-3.5 text-right text-emerald-700">{getTranslation("পার্টনার নিট আয় (৳)", "Net Partner Earnings")}</th>
-                      <th className="px-5 py-3.5 text-center">{getTranslation("পেমেন্ট স্ট্যাটাস", "Status")}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {orders.map((ord) => {
-                      const orderAmt = ord.total || ord.totalAmount || 0;
-                      const { commissionAmount, partnerEarnings } = calculateEarnings(orderAmt, commissionRate);
-                      return (
-                        <tr key={ord.id} className="hover:bg-slate-50/70 transition">
-                          <td className="px-5 py-3.5 font-mono font-black text-slate-800">
-                            #{ord.id.slice(-6)}
-                          </td>
-                          <td className="px-5 py-3.5 text-right font-black text-slate-800">
-                            ৳{orderAmt}
-                          </td>
-                          <td className="px-5 py-3.5 text-center font-bold text-slate-600">
-                            {commissionRate}%
-                          </td>
-                          <td className="px-5 py-3.5 text-right font-bold text-amber-700">
-                            -৳{commissionAmount}
-                          </td>
-                          <td className="px-5 py-3.5 text-right font-black text-emerald-700">
-                            ৳{partnerEarnings}
-                          </td>
-                          <td className="px-5 py-3.5 text-center">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                              {ord.paymentStatus === "paid" ? getTranslation("পরিশোধিত", "Paid") : getTranslation("অপেক্ষমান", "Pending")}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                {orders.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-xs font-bold">
+                    {getTranslation("এখনো কোনো লেনদেন বা অর্ডার সম্পন্ন হয়নি। গ্রাহকের বাস্তব অর্ডার আসলে স্বয়ংক্রিয়ভাবে লেজারে হিসাব যুক্ত হবে।", "No transactions or orders recorded yet. Real transaction breakdown will appear here when orders are placed.")}
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-xs text-slate-600">
+                    <thead className="bg-slate-50 text-slate-400 uppercase font-black text-[10px] tracking-wider border-b border-slate-100">
+                      <tr>
+                        <th className="px-5 py-3.5">{getTranslation("অর্ডার আইডি", "Order Ref")}</th>
+                        <th className="px-5 py-3.5 text-right">{getTranslation("অর্ডার মূল্য (৳)", "Order Amount")}</th>
+                        <th className="px-5 py-3.5 text-center">{getTranslation("কমিশন রেট", "Rate")}</th>
+                        <th className="px-5 py-3.5 text-right text-amber-700">{getTranslation("কর্তিত কমিশন (৳)", "Commission Deducted")}</th>
+                        <th className="px-5 py-3.5 text-right text-emerald-700">{getTranslation("পার্টনার নিট আয় (৳)", "Net Partner Earnings")}</th>
+                        <th className="px-5 py-3.5 text-center">{getTranslation("পেমেন্ট স্ট্যাটাস", "Status")}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {orders.map((ord) => {
+                        const shopItems = (ord.items || []).filter((item: any) => 
+                          item.product?.partnerShopId === partner.id || 
+                          item.product?.partnerShopId === partner.partnerId ||
+                          item.product?.partnerId === partner.partnerId ||
+                          (!item.product?.partnerShopId && !item.product?.partnerId && (ord.partnerShopId === partner.id || ord.partnerShopId === partner.partnerId))
+                        );
+
+                        const orderAmt = shopItems.length > 0
+                          ? shopItems.reduce((sum: number, it: any) => {
+                              const price = it.selectedOption ? it.selectedOption.price : it.product?.price ?? 0;
+                              return sum + (price * (it.quantity || 1));
+                            }, 0)
+                          : (ord.total || ord.totalAmount || 0);
+
+                        const { commissionAmount, partnerEarnings } = calculateEarnings(orderAmt, commissionRate);
+                        return (
+                          <tr key={ord.id} className="hover:bg-slate-50/70 transition">
+                            <td className="px-5 py-3.5 font-mono font-black text-slate-800">
+                              #{ord.id.slice(-6)}
+                            </td>
+                            <td className="px-5 py-3.5 text-right font-black text-slate-800">
+                              ৳{orderAmt}
+                            </td>
+                            <td className="px-5 py-3.5 text-center font-bold text-slate-600">
+                              {commissionRate}%
+                            </td>
+                            <td className="px-5 py-3.5 text-right font-bold text-amber-700">
+                              -৳{commissionAmount}
+                            </td>
+                            <td className="px-5 py-3.5 text-right font-black text-emerald-700">
+                              ৳{partnerEarnings}
+                            </td>
+                            <td className="px-5 py-3.5 text-center">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                {ord.paymentStatus === "paid" ? getTranslation("পরিশোধিত", "Paid") : getTranslation("অপেক্ষমান", "Pending")}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           </div>

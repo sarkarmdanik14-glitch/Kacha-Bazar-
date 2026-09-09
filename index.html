@@ -5,29 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
       (function() {
+        // Clear any old stale service worker registrations and caches to prevent module chunk mismatches
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            for (var i = 0; i < regs.length; i++) {
+              regs[i].unregister();
+            }
+          }).catch(function() {});
+        }
+        if ('caches' in window) {
+          caches.keys().then(function(keys) {
+            for (var i = 0; i < keys.length; i++) {
+              caches.delete(keys[i]);
+            }
+          }).catch(function() {});
+        }
+
         // Intercept noisy third-party browser extension console messages (e.g. MetaMask, ChromeTransport)
         const isExtensionNoise = function(args) {
           try {
-            const str = Array.from(args).map(function(a) {
-              if (a === null || a === undefined) return '';
-              if (typeof a === 'string') return a;
-              if (a instanceof Error) return (a.message || '') + ' ' + (a.stack || '');
-              if (typeof a === 'object') {
-                try { return JSON.stringify(a); } catch(e) { return String(a); }
+            var fullStr = '';
+            for (var i = 0; i < args.length; i++) {
+              var a = args[i];
+              if (a === null || a === undefined) continue;
+              if (typeof a === 'string') {
+                fullStr += ' ' + a;
+              } else if (typeof a === 'object') {
+                if (a.message) fullStr += ' ' + a.message;
+                if (a.stack) fullStr += ' ' + a.stack;
+                if (a.name) fullStr += ' ' + a.name;
+                if (a.reason) fullStr += ' ' + (typeof a.reason === 'string' ? a.reason : (a.reason.message || ''));
+                if (typeof a.toString === 'function') {
+                  try {
+                    var s = a.toString();
+                    if (s && s !== '[object Object]') fullStr += ' ' + s;
+                  } catch(e) {}
+                }
+                try { fullStr += ' ' + JSON.stringify(a); } catch(e) {}
+              } else {
+                fullStr += ' ' + String(a);
               }
-              return String(a);
-            }).join(' ');
-            return (
-              str.includes('MetaMask') ||
-              str.includes('ChromeTransport') ||
-              str.includes('connectChrome') ||
-              str.includes('chrome-extension://') ||
-              str.includes('moz-extension://') ||
-              str.includes('Extension context invalidated') ||
-              str.includes('inpage.js') ||
-              str.includes('evmProvider') ||
-              str.includes('ethereum')
-            );
+            }
+            return /metamask|chrometransport|connectchrome|inpage\.js|chrome-extension|moz-extension|evmprovider|ethereum/i.test(fullStr);
           } catch(e) {
             return false;
           }
@@ -39,43 +58,40 @@
           if (orig) {
             console[method] = function() {
               if (isExtensionNoise(arguments)) return;
-              orig.apply(console, arguments);
+              try {
+                return orig.apply(console, arguments);
+              } catch(e) {}
             };
           }
         });
 
         window.addEventListener('error', function(event) {
-          const msg = event.message || '';
-          const src = event.filename || '';
-          const errStr = event.error ? (event.error.message || String(event.error)) : '';
-          if (
-            msg.includes('MetaMask') ||
-            msg.includes('ChromeTransport') ||
-            msg.includes('connectChrome') ||
-            errStr.includes('MetaMask') ||
-            errStr.includes('ChromeTransport') ||
-            errStr.includes('connectChrome') ||
-            src.includes('chrome-extension://') ||
-            src.includes('moz-extension://') ||
-            src.includes('inpage.js')
-          ) {
+          var msg = (event.message || '') + ' ' + (event.filename || '') + ' ';
+          try {
+            if (event.error) {
+              msg += (event.error.message || '') + ' ' + (event.error.stack || '') + ' ' + String(event.error);
+            }
+          } catch(e) {}
+          if (/metamask|chrometransport|connectchrome|inpage\.js|chrome-extension|moz-extension|evmprovider|ethereum/i.test(msg)) {
             event.preventDefault();
             event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
             return true;
           }
         }, true);
 
         window.addEventListener('unhandledrejection', function(event) {
-          const reason = event.reason ? String(event.reason.message || event.reason) : '';
-          if (
-            reason.includes('MetaMask') ||
-            reason.includes('ChromeTransport') ||
-            reason.includes('connectChrome') ||
-            reason.includes('Extension context invalidated') ||
-            reason.includes('inpage.js')
-          ) {
+          var reason = '';
+          try {
+            if (event.reason) {
+              reason = (event.reason.message || '') + ' ' + (event.reason.stack || '') + ' ' + String(event.reason);
+            }
+          } catch(e) {}
+          if (/metamask|chrometransport|connectchrome|inpage\.js|chrome-extension|moz-extension|evmprovider|ethereum/i.test(reason)) {
             event.preventDefault();
             event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+            return true;
           }
         }, true);
       })();

@@ -35,6 +35,25 @@ export function getGlobalDeferredPrompt(): BeforeInstallPromptEvent | null {
 
 export function registerServiceWorker() {
   if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+    // In development mode, unregister any active service worker to prevent chunk caching & dispatcher mismatches
+    if (import.meta.env.DEV) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const reg of registrations) {
+          reg.unregister().then(() => {
+            console.log("[PWA] Unregistered development service worker");
+          });
+        }
+      });
+      if ("caches" in window) {
+        caches.keys().then((keys) => {
+          for (const key of keys) {
+            caches.delete(key);
+          }
+        });
+      }
+      return;
+    }
+
     window.addEventListener("load", () => {
       navigator.serviceWorker
         .register("/sw.js", { scope: "/" })

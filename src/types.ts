@@ -16,6 +16,7 @@ export interface PartnerShopAvailability {
   price: number;
   stock: number;
   address?: string;
+  location?: string;
   rating?: number;
   commissionRate?: number;
 }
@@ -153,6 +154,7 @@ export type PermissionModule =
   | "home_management"
   | "users"
   | "staff_management"
+  | "partner_shops"
   | "leadership"
   | "support_chat"
   | "voice_calls"
@@ -187,6 +189,7 @@ export interface StaffMember {
   mobile: string;
   email: string;
   photoURL?: string;
+  digitalSignature?: string;
   role: StaffRole;
   designation?: string;
   department?: string;

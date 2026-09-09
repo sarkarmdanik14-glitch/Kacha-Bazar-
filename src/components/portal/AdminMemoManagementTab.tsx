@@ -2,11 +2,14 @@ import React, { useState, useRef, useEffect } from "react";
 import { 
   FileText, Upload, Printer, Download, Search, Trash2, 
   RefreshCw, CheckCircle2, Image as ImageIcon, UserCheck, Eye, 
-  Award, Sparkles, ShieldCheck, Lock, History, ShieldAlert, CheckCircle, Clock 
+  Award, Sparkles, ShieldCheck, Lock, History, ShieldAlert, CheckCircle, Clock,
+  Users, Check, BadgeCheck
 } from "lucide-react";
 import { 
-  db, doc, setDoc, addDoc, collection, getDocs, query, orderBy, limit, serverTimestamp 
+  db, doc, setDoc, updateDoc, addDoc, collection, getDocs, query, orderBy, limit, serverTimestamp 
 } from "../../lib/firebase";
+import { subscribeToStaffCollection } from "../../lib/staffManager";
+import { StaffMember } from "../../types";
 import OrderMemoModal from "./OrderMemoModal";
 import { downloadMemoPDF } from "../../lib/pdfUtils";
 
@@ -38,7 +41,19 @@ export default function AdminMemoManagementTab({
   );
   const [supportPhone, setSupportPhone] = useState<string>(settings?.supportPhone || "+8801722638985");
   const [founderName, setFounderName] = useState<string>(settings?.founderName || "Md Anik Sarkar");
+  const [founderDesignation, setFounderDesignation] = useState<string>(
+    settings?.founderDesignation || (lang === "bn" ? "প্রতিষ্ঠাতা ও অনুমোদিত স্বাক্ষর" : "Founder & Authorized")
+  );
   const [founderSignature, setFounderSignature] = useState<string>(settings?.founderSignature || "");
+  
+  // Seller Officer States (dynamically pulled from Staff Profile)
+  const [sellerOfficerName, setSellerOfficerName] = useState<string>(
+    settings?.sellerOfficerName || settings?.preparedBy || ""
+  );
+  const [sellerOfficerId, setSellerOfficerId] = useState<string>(settings?.sellerOfficerId || "");
+  const [sellerOfficerSignature, setSellerOfficerSignature] = useState<string>(
+    settings?.sellerOfficerSignature || ""
+  );
   const [preparedBy, setPreparedBy] = useState<string>(
     settings?.preparedBy || (lang === "bn" ? "কাঁচা বাজার টিম" : "Kancha Bazar Team")
   );
@@ -53,7 +68,12 @@ export default function AdminMemoManagementTab({
 
   const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
   const [uploadingSig, setUploadingSig] = useState<boolean>(false);
+  const [uploadingSellerSig, setUploadingSellerSig] = useState<boolean>(false);
   const [savingSettings, setSavingSettings] = useState<boolean>(false);
+
+  // Staff members list for selecting Seller Officer
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [loadingStaff, setLoadingStaff] = useState<boolean>(false);
 
   // Audit Logs State
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
@@ -62,6 +82,7 @@ export default function AdminMemoManagementTab({
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const sigInputRef = useRef<HTMLInputElement>(null);
+  const sellerSigInputRef = useRef<HTMLInputElement>(null);
 
   // Sync with incoming Firestore settings prop
   useEffect(() => {
@@ -71,12 +92,44 @@ export default function AdminMemoManagementTab({
       if (settings.storeTagline) setStoreTagline(settings.storeTagline);
       if (settings.supportPhone) setSupportPhone(settings.supportPhone);
       if (settings.founderName) setFounderName(settings.founderName);
+      if (settings.founderDesignation) setFounderDesignation(settings.founderDesignation);
       if (settings.founderSignature !== undefined) setFounderSignature(settings.founderSignature);
+      if (settings.sellerOfficerName) setSellerOfficerName(settings.sellerOfficerName);
+      if (settings.sellerOfficerId) setSellerOfficerId(settings.sellerOfficerId);
+      if (settings.sellerOfficerSignature !== undefined) setSellerOfficerSignature(settings.sellerOfficerSignature);
       if (settings.preparedBy) setPreparedBy(settings.preparedBy);
       if (settings.thankYouMessage) setThankYouMessage(settings.thankYouMessage);
       if (settings.termsAndConditions) setTermsAndConditions(settings.termsAndConditions);
     }
   }, [settings]);
+
+  // Subscribe to Staff collection for dynamic Seller Officer mapping
+  useEffect(() => {
+    setLoadingStaff(true);
+    const unsubscribe = subscribeToStaffCollection((list) => {
+      setStaffList(list);
+      setLoadingStaff(false);
+      if (list.length > 0) {
+        if (sellerOfficerId) {
+          const matched = list.find((s) => s.staffId === sellerOfficerId || s.id === sellerOfficerId);
+          if (matched && !sellerOfficerSignature && matched.digitalSignature) {
+            setSellerOfficerSignature(matched.digitalSignature);
+          }
+        } else if (!sellerOfficerName) {
+          const defaultOfficer = list.find((s) => 
+            s.role === "order_manager" || s.designation?.toLowerCase().includes("seller") || s.designation?.toLowerCase().includes("sales")
+          ) || list[0];
+          if (defaultOfficer) {
+            setSellerOfficerId(defaultOfficer.staffId || defaultOfficer.id);
+            setSellerOfficerName(defaultOfficer.fullName);
+            setSellerOfficerSignature(defaultOfficer.digitalSignature || "");
+            setPreparedBy(defaultOfficer.fullName);
+          }
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [sellerOfficerId, sellerOfficerName, sellerOfficerSignature]);
 
   // Fetch Audit Logs
   const fetchAuditLogs = async () => {
@@ -195,6 +248,45 @@ export default function AdminMemoManagementTab({
     if (sigInputRef.current) sigInputRef.current.value = "";
   };
 
+  const handleSellerSigUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processImageFile(
+      file,
+      setUploadingSellerSig,
+      (url) => {
+        setSellerOfficerSignature(url);
+        // Also update staff profile in Firestore if assigned
+        if (sellerOfficerId) {
+          const matched = staffList.find((s) => s.staffId === sellerOfficerId || s.id === sellerOfficerId);
+          if (matched?.id) {
+            updateDoc(doc(db, "staff", matched.id), {
+              digitalSignature: url,
+              updatedAt: serverTimestamp(),
+            }).catch((err) => console.warn("Notice: Update staff signature error:", err));
+          }
+        }
+      },
+      "সেলস অফিসারের ডিজিটাল স্বাক্ষর আপলোড করা হয়েছে!",
+      "Seller Officer digital signature uploaded successfully!"
+    );
+    if (sellerSigInputRef.current) sellerSigInputRef.current.value = "";
+  };
+
+  const handleSelectSellerOfficer = (chosenStaffId: string) => {
+    setSellerOfficerId(chosenStaffId);
+    const found = staffList.find((s) => s.staffId === chosenStaffId || s.id === chosenStaffId);
+    if (found) {
+      setSellerOfficerName(found.fullName);
+      setSellerOfficerSignature(found.digitalSignature || (found as any).signature || "");
+      setPreparedBy(found.fullName);
+      triggerToast(
+        `সেলস অফিসার '${found.fullName}' এর প্রোফাইল ও স্বাক্ষর লিঙ্ক করা হয়েছে`,
+        `Seller Officer '${found.fullName}' profile and signature linked`
+      );
+    }
+  };
+
   // Save All Memo Configurations to Firestore with Audit Logging
   const handleSaveAllMemoSettings = async () => {
     if (!isSuperAdmin) {
@@ -210,7 +302,11 @@ export default function AdminMemoManagementTab({
         storeTagline: settings?.storeTagline || "",
         supportPhone: settings?.supportPhone || "",
         founderName: settings?.founderName || "",
+        founderDesignation: settings?.founderDesignation || "",
         founderSignature: settings?.founderSignature || "",
+        sellerOfficerName: settings?.sellerOfficerName || "",
+        sellerOfficerId: settings?.sellerOfficerId || "",
+        sellerOfficerSignature: settings?.sellerOfficerSignature || "",
         preparedBy: settings?.preparedBy || "",
         thankYouMessage: settings?.thankYouMessage || "",
         termsAndConditions: settings?.termsAndConditions || "",
@@ -222,8 +318,12 @@ export default function AdminMemoManagementTab({
         storeTagline,
         supportPhone,
         founderName,
+        founderDesignation,
         founderSignature,
-        preparedBy,
+        sellerOfficerName,
+        sellerOfficerId,
+        sellerOfficerSignature,
+        preparedBy: sellerOfficerName || preparedBy,
         thankYouMessage,
         termsAndConditions,
       };
@@ -287,8 +387,12 @@ export default function AdminMemoManagementTab({
         storeTagline,
         supportPhone,
         founderName,
+        founderDesignation,
         founderSignature,
-        preparedBy,
+        sellerOfficerName,
+        sellerOfficerPost: getTranslation("পদ: সেলস অফিসার", "Post: Seller Officer"),
+        sellerOfficerSignature,
+        preparedBy: sellerOfficerName || preparedBy,
         thankYouMessage,
         termsAndConditions,
       };
@@ -330,10 +434,45 @@ export default function AdminMemoManagementTab({
     storeTagline,
     supportPhone,
     founderName,
+    founderDesignation,
     founderSignature,
-    preparedBy,
+    sellerOfficerName,
+    sellerOfficerId,
+    sellerOfficerPost: getTranslation("পদ: সেলস অফিসার", "Post: Seller Officer"),
+    sellerOfficerSignature,
+    preparedBy: sellerOfficerName || preparedBy,
     thankYouMessage,
     termsAndConditions,
+  };
+
+  const sampleTemplateOrder = {
+    id: "KB-SAMPLE-MEMO",
+    orderId: "KB-SAMPLE-MEMO",
+    customerName: lang === "bn" ? "কামরুল হাসান" : "Kamrul Hasan",
+    customerPhone: "+8801712345678",
+    customerAddress: lang === "bn" ? "চাঁচকৈড় বাজার, গুরুদাসপুর, নাটোর" : "Chanchkoir Bazar, Gurudaspur, Natore",
+    orderStatus: "delivered",
+    paymentMethod: "Cash on Delivery",
+    paymentStatus: "paid",
+    createdAt: new Date(),
+    sellerOfficer: {
+      fullName: sellerOfficerName || (lang === "bn" ? "সেলস অফিসার" : "Seller Officer"),
+      staffId: sellerOfficerId,
+      designation: getTranslation("পদ: সেলস অফিসার", "Post: Seller Officer"),
+      digitalSignature: sellerOfficerSignature,
+    },
+    sellerOfficerName: sellerOfficerName || (lang === "bn" ? "সেলস অফিসার" : "Seller Officer"),
+    sellerOfficerId: sellerOfficerId,
+    sellerOfficerSignature: sellerOfficerSignature,
+    items: [
+      { id: "1", name: lang === "bn" ? "দেশি লাল আলু (নতুন)" : "Fresh Red Potato", quantity: 2, price: 55, unit: "কেজি" },
+      { id: "2", name: lang === "bn" ? "তাজা ফুলকপি" : "Fresh Cauliflower", quantity: 1, price: 40, unit: "টি" },
+      { id: "3", name: lang === "bn" ? "কাঁচা মরিচ" : "Fresh Green Chili", quantity: 1, price: 30, unit: "২৫০ গ্রাম" },
+    ],
+    subtotal: 180,
+    deliveryCharge: 40,
+    discount: 0,
+    total: 220,
   };
 
   return (
@@ -364,13 +503,26 @@ export default function AdminMemoManagementTab({
 
           <p className="text-xs text-emerald-100/80 mt-1 max-w-2xl leading-relaxed">
             {getTranslation(
-              "স্টোর লোগো, নাম, ট্যাগলাইন, ফোন নম্বর, প্রতিষ্ঠাতা নাম ও স্বাক্ষর, প্রস্তুতকারী এবং ফুটনোট নিয়ন্ত্রণ করুন। সকল পরিবর্তনের পর স্বয়ংক্রিয়ভাবে মেমো আপডেট হয়ে যাবে।",
-              "Manage Store Logo, Name, Tagline, Phone, Founder Signature, Staff Name, Thank You Message & Terms. All memo printouts update automatically."
+              "স্টোর লোগো, নাম, ট্যাগলাইন, ফোন নম্বর, সেলার অফিসার ও প্রতিষ্ঠাতা স্বাক্ষর এবং ফুটনোট নিয়ন্ত্রণ করুন।",
+              "Manage Store Logo, Name, Phone, Seller Officer & Founder Signature blocks and footnote."
             )}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Live Memo Template Preview Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedMemoOrder(sampleTemplateOrder);
+              setShowMemoModal(true);
+            }}
+            className="bg-emerald-700/80 hover:bg-emerald-600 text-white font-bold px-4 py-3 rounded-2xl text-xs flex items-center gap-2 transition border border-emerald-400/30 cursor-pointer shrink-0 shadow-sm"
+          >
+            <Eye className="w-4 h-4 text-emerald-200" />
+            <span>{getTranslation("মেমো টেমপ্লেট প্রিভিউ", "Preview Memo Template")}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setShowAuditLogs(!showAuditLogs)}
@@ -612,106 +764,333 @@ export default function AdminMemoManagementTab({
             </div>
           </div>
 
-          {/* Group B: Founder & Staff Signature */}
-          <div className="space-y-4 bg-slate-50/50 border border-slate-100 rounded-2xl p-4 sm:p-5">
-            <h4 className="font-black text-xs text-emerald-700 uppercase tracking-wider flex items-center gap-1.5">
-              <UserCheck className="w-4 h-4" />
-              <span>{getTranslation("২. প্রতিষ্ঠাতা নাম ও ডিজিটাল স্বাক্ষর", "2. Founder Name & Digital Signature")}</span>
-            </h4>
-
-            {/* Founder Name */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-extrabold text-slate-700">
-                {getTranslation("প্রতিষ্ঠাতার নাম", "Founder Name")}
-              </label>
-              <input
-                type="text"
-                disabled={!isSuperAdmin}
-                value={founderName}
-                onChange={(e) => setFounderName(e.target.value)}
-                placeholder="Md Anik Sarkar"
-                className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100"
-              />
-            </div>
-
-            {/* Founder Signature Image Upload & Preview */}
-            <div className="space-y-2">
-              <label className="text-xs font-extrabold text-slate-700 flex justify-between">
-                <span>{getTranslation("প্রতিষ্ঠাতা স্বাক্ষর ছবি (ডিজিটাল)", "Founder Digital Signature Image")}</span>
-                <span className="text-[10px] text-slate-400 font-bold">(Transparent PNG Preferred)</span>
-              </label>
-
-              <div className="flex items-center gap-3">
-                <div className="w-24 h-16 rounded-2xl border border-slate-200 bg-white p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
-                  {founderSignature ? (
-                    <img src={founderSignature} alt="Founder Signature" className="max-h-full max-w-full object-contain" />
-                  ) : (
-                    <span className="text-[10px] text-slate-400 font-bold italic">No Signature</span>
+          {/* Group B: Memo Dual Signature Management (Seller Officer & Authorized/Founder) */}
+          <div className="md:col-span-2 space-y-5 bg-gradient-to-br from-emerald-50/40 via-white to-slate-50 border border-emerald-100 rounded-3xl p-5 sm:p-7 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100 pb-3.5">
+              <div>
+                <h4 className="font-black text-sm text-emerald-800 uppercase tracking-wider flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-emerald-600" />
+                  <span>{getTranslation("২. মেমো সিগনেচার সেকশন কনফিগারেশন (পাশাপাশি ২টি স্বাক্ষর ব্লক)", "2. Memo Dual Signature Blocks Configuration")}</span>
+                </h4>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  {getTranslation(
+                    "মেমোর নিচে পাশাপাশি ২টি সমপরিমাণ ব্লক থাকবে: ১. সেলার অফিসার (স্টাফ প্রোফাইল থেকে স্বয়ংক্রিয়) এবং ২. অথরাইজড / ফাউন্ডার (এডমিন প্রোফাইল থেকে)।",
+                    "Two equal-width horizontal signature blocks at memo footer: 1. Seller Officer (auto from Staff Profile) and 2. Authorized / Founder (Admin Profile)."
                   )}
-                </div>
+                </p>
+              </div>
 
-                <div className="flex-1 space-y-2">
-                  <input
-                    type="text"
-                    disabled={!isSuperAdmin}
-                    value={founderSignature}
-                    onChange={(e) => setFounderSignature(e.target.value)}
-                    placeholder="https://... or upload signature"
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100"
-                  />
-
-                  {isSuperAdmin && (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="file"
-                        ref={sigInputRef}
-                        onChange={handleSigUpload}
-                        accept="image/*"
-                        className="hidden"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => sigInputRef.current?.click()}
-                        disabled={uploadingSig}
-                        className="bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition"
-                      >
-                        {uploadingSig ? (
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
-                        ) : (
-                          <Upload className="w-3.5 h-3.5 text-emerald-600" />
-                        )}
-                        <span>{uploadingSig ? getTranslation("আপলোড হচ্ছে...", "Uploading...") : getTranslation("স্বাক্ষর আপলোড", "Upload Signature")}</span>
-                      </button>
-
-                      {founderSignature && (
-                        <button
-                          type="button"
-                          onClick={() => setFounderSignature("")}
-                          className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1.5 cursor-pointer"
-                        >
-                          {getTranslation("রিমুভ", "Remove")}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  {getTranslation("ডাইনামিক ও লাইভ সিঙ্কড", "Dynamic & Live Synced")}
+                </span>
               </div>
             </div>
 
-            {/* Prepared By Field */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-extrabold text-slate-700">
-                {getTranslation("প্রস্তুতকারী (স্টাফ/অ্যাডমিন নাম)", "Prepared By (Staff / Admin Name)")}
-              </label>
-              <input
-                type="text"
-                disabled={!isSuperAdmin}
-                value={preparedBy}
-                onChange={(e) => setPreparedBy(e.target.value)}
-                placeholder="e.g. কাঁচা বাজার টিম / Kancha Bazar Team"
-                className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100"
-              />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              {/* Block 1: Seller Officer Signature Card */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center">
+                      ১
+                    </span>
+                    <h5 className="font-black text-xs text-slate-800 uppercase tracking-wider">
+                      {getTranslation("Seller Officer (সেলস অফিসার)", "Seller Officer")}
+                    </h5>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    {getTranslation("পদ: সেলস অফিসার", "Post: Seller Officer")}
+                  </span>
+                </div>
+
+                {/* Staff Profile Auto-Selector */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-extrabold text-slate-700 flex justify-between items-center">
+                    <span className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-emerald-600" />
+                      {getTranslation("স্টাফ প্রোফাইল নির্বাচন (স্বয়ংক্রিয় সিঙ্ক)", "Select Staff Profile (Auto-Sync)")}
+                    </span>
+                    {loadingStaff && (
+                      <span className="text-[10px] text-emerald-600 flex items-center gap-1">
+                        <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                        Loading...
+                      </span>
+                    )}
+                  </label>
+                  <select
+                    disabled={!isSuperAdmin}
+                    value={sellerOfficerId}
+                    onChange={(e) => handleSelectSellerOfficer(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 cursor-pointer"
+                  >
+                    <option value="">{getTranslation("-- স্টাফ প্রোফাইল বাছাই করুন --", "-- Select Staff Member --")}</option>
+                    {staffList.map((st) => (
+                      <option key={st.id || st.staffId} value={st.staffId || st.id}>
+                        {st.fullName} ({st.staffId || st.id}) {st.designation ? `• ${st.designation}` : ""} {st.digitalSignature ? "✓ Sig" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Seller Officer Full Name */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-extrabold text-slate-700">
+                    {getTranslation("সেলস অফিসারের নাম", "Seller Officer Full Name")}
+                  </label>
+                  <input
+                    type="text"
+                    disabled={!isSuperAdmin}
+                    value={sellerOfficerName}
+                    onChange={(e) => {
+                      setSellerOfficerName(e.target.value);
+                      setPreparedBy(e.target.value);
+                    }}
+                    placeholder={getTranslation("e.g. সেলস অফিসার নাম", "e.g. Seller Officer Name")}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100"
+                  />
+                </div>
+
+                {/* Fixed Post Indicator */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-extrabold text-slate-700">
+                    {getTranslation("পদবী (মেমোতে নির্ধারিত)", "Designation (Fixed on Memo)")}
+                  </label>
+                  <div className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-700 font-bold font-mono">
+                    {getTranslation("পদ: সেলস অফিসার", "Post: Seller Officer")}
+                  </div>
+                </div>
+
+                {/* Seller Officer Digital Signature */}
+                <div className="space-y-2">
+                  <label className="text-xs font-extrabold text-slate-700 flex justify-between">
+                    <span>{getTranslation("ডিজিটাল স্বাক্ষর ছবি (Digital Signature)", "Digital Signature Image")}</span>
+                    <span className="text-[10px] text-slate-400 font-bold">(Transparent PNG)</span>
+                  </label>
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-24 h-14 rounded-xl border border-slate-200 bg-slate-50 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
+                      {sellerOfficerSignature ? (
+                        <img src={sellerOfficerSignature} alt="Seller Officer Signature" className="max-h-full max-w-full object-contain" />
+                      ) : (
+                        <span className="text-[9px] text-slate-400 font-bold italic text-center leading-tight">
+                          {getTranslation("স্বাক্ষর নেই", "No Signature")}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex-1 space-y-2">
+                      <input
+                        type="text"
+                        disabled={!isSuperAdmin}
+                        value={sellerOfficerSignature}
+                        onChange={(e) => setSellerOfficerSignature(e.target.value)}
+                        placeholder="https://... or upload"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100"
+                      />
+
+                      {isSuperAdmin && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="file"
+                            ref={sellerSigInputRef}
+                            onChange={handleSellerSigUpload}
+                            accept="image/*"
+                            className="hidden"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => sellerSigInputRef.current?.click()}
+                            disabled={uploadingSellerSig}
+                            className="bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition"
+                          >
+                            {uploadingSellerSig ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                            ) : (
+                              <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                            )}
+                            <span>{uploadingSellerSig ? getTranslation("আপলোড হচ্ছে...", "Uploading...") : getTranslation("স্বাক্ষর আপলোড", "Upload Signature")}</span>
+                          </button>
+
+                          {sellerOfficerSignature && (
+                            <button
+                              type="button"
+                              onClick={() => setSellerOfficerSignature("")}
+                              className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1.5 cursor-pointer"
+                            >
+                              {getTranslation("রিমুভ", "Remove")}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Real-time Memo Box Preview for Seller Officer */}
+                <div className="pt-2 border-t border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1.5">
+                    {getTranslation("মেমোতে যেভাবে দেখাবে (Centered Preview)", "Footer Layout Preview")}
+                  </span>
+                  <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                    <div className="h-8 flex items-end justify-center pb-0.5">
+                      {sellerOfficerSignature ? (
+                        <img src={sellerOfficerSignature} alt="Preview" className="h-7 max-h-7 max-w-[120px] object-contain" />
+                      ) : (
+                        <span className="text-[10px] text-slate-300 italic">({getTranslation("ডিজিটাল স্বাক্ষর", "Digital Signature")})</span>
+                      )}
+                    </div>
+                    <div className="w-32 border-t border-slate-300 pt-1 text-center">
+                      <div className="text-[11px] font-bold text-slate-800 leading-tight truncate">
+                        {sellerOfficerName || getTranslation("সেলস অফিসার", "Seller Officer")}
+                      </div>
+                      <div className="text-[9px] text-slate-500 font-semibold leading-tight mt-0.5">
+                        {getTranslation("পদ: সেলস অফিসার", "Post: Seller Officer")}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Block 2: Authorized / Founder Signature Card */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center">
+                      ২
+                    </span>
+                    <h5 className="font-black text-xs text-slate-800 uppercase tracking-wider">
+                      {getTranslation("Authorized / Founder (অনুমোদিত / প্রতিষ্ঠাতা)", "Authorized / Founder")}
+                    </h5>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    {getTranslation("এডমিন প্রোফাইল", "Admin Profile")}
+                  </span>
+                </div>
+
+                {/* Founder Full Name */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-extrabold text-slate-700">
+                    {getTranslation("প্রতিষ্ঠাতা / অনুমোদিত ব্যক্তির নাম", "Founder / Authorized Name")}
+                  </label>
+                  <input
+                    type="text"
+                    disabled={!isSuperAdmin}
+                    value={founderName}
+                    onChange={(e) => setFounderName(e.target.value)}
+                    placeholder="Md Anik Sarkar"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100"
+                  />
+                </div>
+
+                {/* Founder Designation */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-extrabold text-slate-700">
+                    {getTranslation("পদবী / Designation", "Designation")}
+                  </label>
+                  <input
+                    type="text"
+                    disabled={!isSuperAdmin}
+                    value={founderDesignation}
+                    onChange={(e) => setFounderDesignation(e.target.value)}
+                    placeholder={getTranslation("প্রতিষ্ঠাতা ও অনুমোদিত স্বাক্ষর", "Founder & Authorized")}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100"
+                  />
+                </div>
+
+                {/* Founder Signature Image Upload & Preview */}
+                <div className="space-y-2">
+                  <label className="text-xs font-extrabold text-slate-700 flex justify-between">
+                    <span>{getTranslation("ডিজিটাল স্বাক্ষর ছবি (Digital Signature)", "Digital Signature Image")}</span>
+                    <span className="text-[10px] text-slate-400 font-bold">(Transparent PNG)</span>
+                  </label>
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-24 h-14 rounded-xl border border-slate-200 bg-slate-50 p-1 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
+                      {founderSignature ? (
+                        <img src={founderSignature} alt="Founder Signature" className="max-h-full max-w-full object-contain" />
+                      ) : (
+                        <span className="text-[9px] text-slate-400 font-bold italic text-center leading-tight">
+                          {getTranslation("স্বাক্ষর নেই", "No Signature")}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex-1 space-y-2">
+                      <input
+                        type="text"
+                        disabled={!isSuperAdmin}
+                        value={founderSignature}
+                        onChange={(e) => setFounderSignature(e.target.value)}
+                        placeholder="https://... or upload"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100"
+                      />
+
+                      {isSuperAdmin && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="file"
+                            ref={sigInputRef}
+                            onChange={handleSigUpload}
+                            accept="image/*"
+                            className="hidden"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => sigInputRef.current?.click()}
+                            disabled={uploadingSig}
+                            className="bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition"
+                          >
+                            {uploadingSig ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                            ) : (
+                              <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                            )}
+                            <span>{uploadingSig ? getTranslation("আপলোড হচ্ছে...", "Uploading...") : getTranslation("স্বাক্ষর আপলোড", "Upload Signature")}</span>
+                          </button>
+
+                          {founderSignature && (
+                            <button
+                              type="button"
+                              onClick={() => setFounderSignature("")}
+                              className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1.5 cursor-pointer"
+                            >
+                              {getTranslation("রিমুভ", "Remove")}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Real-time Memo Box Preview for Founder */}
+                <div className="pt-2 border-t border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1.5">
+                    {getTranslation("মেমোতে যেভাবে দেখাবে (Centered Preview)", "Footer Layout Preview")}
+                  </span>
+                  <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                    <div className="h-8 flex items-end justify-center pb-0.5">
+                      {founderSignature ? (
+                        <img src={founderSignature} alt="Preview" className="h-7 max-h-7 max-w-[120px] object-contain" />
+                      ) : (
+                        <span className="text-[10px] text-slate-300 italic">({getTranslation("ডিজিটাল স্বাক্ষর", "Digital Signature")})</span>
+                      )}
+                    </div>
+                    <div className="w-32 border-t border-slate-300 pt-1 text-center">
+                      <div className="text-[11px] font-bold text-slate-800 leading-tight truncate uppercase font-mono">
+                        {founderName || "Md Anik Sarkar"}
+                      </div>
+                      <div className="text-[9px] text-slate-500 font-semibold leading-tight mt-0.5">
+                        {founderDesignation}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

@@ -8,14 +8,19 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  isRecovering?: boolean;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
+  private retryCount = 0;
+  private maxRetries = 2;
+
   constructor(props: Props) {
     super(props);
     this.state = {
       hasError: false,
       error: null,
+      isRecovering: false,
     };
   }
 
@@ -24,6 +29,23 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    const errMsg = error?.message || "";
+    const isTransientStartupError = 
+      errMsg.includes("useState") || 
+      errMsg.includes("useContext") || 
+      errMsg.includes("dispatcher") || 
+      errMsg.includes("null (reading 'use");
+
+    if (isTransientStartupError && this.retryCount < this.maxRetries) {
+      console.warn("Transient startup state detected, auto-recovering component tree:", errMsg);
+      this.retryCount += 1;
+      this.setState({ isRecovering: true });
+      setTimeout(() => {
+        this.setState({ hasError: false, error: null, isRecovering: false });
+      }, 100);
+      return;
+    }
+
     console.error("Uncaught application error:", error, errorInfo);
   }
 
@@ -32,10 +54,22 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleReset = () => {
-    this.setState({ hasError: false, error: null });
+    this.retryCount = 0;
+    this.setState({ hasError: false, error: null, isRecovering: false });
   };
 
   public render() {
+    if (this.state.isRecovering) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+          <div className="flex flex-col items-center space-y-3">
+            <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-xs font-semibold text-slate-500">লোড হচ্ছে...</p>
+          </div>
+        </div>
+      );
+    }
+
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">

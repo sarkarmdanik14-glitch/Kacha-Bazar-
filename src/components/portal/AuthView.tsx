@@ -19,7 +19,8 @@ import {
   signOut
 } from "../../lib/firebase";
 import { User, Mail, Lock, AlertCircle, Key, LogIn, UserPlus, Gift, Sparkles, RefreshCw, Smartphone, Store } from "lucide-react";
-import { loginPartnerWithCredentials } from "../../lib/partnerManager";
+import { authenticatePartner } from "../../lib/partnerManager";
+const loginPartnerWithCredentials = authenticatePartner;
 
 interface AuthViewProps {
   onAuthSuccess: (user: any, role: string) => void;

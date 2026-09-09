@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { PartnerShop, PartnerShopStatus } from "../../types";
+import { db, collection, onSnapshot } from "../../lib/firebase";
 import { 
   subscribeToPartnerShops, 
   createPartnerShop, 
   updatePartnerShop, 
   deletePartnerShop, 
   togglePartnerShopStatus,
-  generateNextPartnerId 
+  generateNextPartnerId,
+  computePartnerMetricsFromOrders,
+  PartnerFinancialMetrics
 } from "../../lib/partnerManager";
 import { 
   Store, Plus, Search, Filter, Edit, Trash2, CheckCircle2, 
@@ -58,6 +61,23 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
       setLoading(false);
     });
     return () => unsubscribe();
+  }, []);
+
+  // Real-time subscription to orders for dynamic sales & commission reporting
+  const [allOrders, setAllOrders] = useState<any[]>([]);
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, "orders"),
+      (snap) => {
+        const list: any[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+        setAllOrders(list);
+      },
+      (err) => {
+        console.warn("Orders subscription in AdminPartnerShopsTab:", err);
+      }
+    );
+    return () => unsub();
   }, []);
 
   const openAddModal = () => {
@@ -189,12 +209,21 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
     return matchesSearch && matchesStatus;
   });
 
+  // Compute real-time metrics strictly from database orders
+  const shopMetricsMap = useMemo(() => {
+    const map: Record<string, PartnerFinancialMetrics> = {};
+    shops.forEach((shop) => {
+      map[shop.id] = computePartnerMetricsFromOrders(shop, allOrders);
+    });
+    return map;
+  }, [shops, allOrders]);
+
   // Calculate high-level financial summary
   const totalShopsCount = shops.length;
   const activeShopsCount = shops.filter(s => s.status === "active").length;
-  const totalGrossSales = shops.reduce((acc, s) => acc + (s.totalSales || 0), 0);
-  const totalCommissionEarned = shops.reduce((acc, s) => acc + (s.totalCommission || 0), 0);
-  const totalPartnerEarnings = shops.reduce((acc, s) => acc + (s.netEarnings || 0), 0);
+  const totalGrossSales = Object.values(shopMetricsMap).reduce((acc, m) => acc + m.totalSales, 0);
+  const totalCommissionEarned = Object.values(shopMetricsMap).reduce((acc, m) => acc + m.totalCommission, 0);
+  const totalPartnerEarnings = Object.values(shopMetricsMap).reduce((acc, m) => acc + m.netEarnings, 0);
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
@@ -533,70 +562,79 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredShops.map((shop) => (
-                  <tr key={shop.id} className="hover:bg-slate-50/70 transition">
-                    <td className="px-5 py-4">
-                      <div className="flex items-center space-x-3">
-                        <img
-                          src={shop.logo}
-                          alt={shop.shopName}
-                          className="w-9 h-9 rounded-xl object-cover border border-slate-100"
-                          onError={(e: any) => {
-                            e.target.src = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=300&q=80";
-                          }}
-                        />
-                        <div>
-                          <div className="flex items-center space-x-1.5">
-                            <span className="font-mono text-[10px] font-black text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded">
-                              {shop.partnerId}
-                            </span>
+                {filteredShops.map((shop) => {
+                  const metrics = shopMetricsMap[shop.id] || { 
+                    totalOrders: 0, 
+                    totalSales: 0, 
+                    totalCommission: 0, 
+                    netEarnings: 0, 
+                    balance: 0 
+                  };
+                  return (
+                    <tr key={shop.id} className="hover:bg-slate-50/70 transition">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center space-x-3">
+                          <img
+                            src={shop.logo}
+                            alt={shop.shopName}
+                            className="w-9 h-9 rounded-xl object-cover border border-slate-100"
+                            onError={(e: any) => {
+                              e.target.src = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=300&q=80";
+                            }}
+                          />
+                          <div>
+                            <div className="flex items-center space-x-1.5">
+                              <span className="font-mono text-[10px] font-black text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded">
+                                {shop.partnerId}
+                              </span>
+                            </div>
+                            <p className="font-bold text-slate-800 text-xs mt-0.5 line-clamp-1">{shop.shopName}</p>
+                            <span className="text-[10px] text-slate-400">{shop.category}</span>
                           </div>
-                          <p className="font-bold text-slate-800 text-xs mt-0.5 line-clamp-1">{shop.shopName}</p>
-                          <span className="text-[10px] text-slate-400">{shop.category}</span>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="px-5 py-4">
-                      <p className="font-bold text-slate-800">{shop.ownerName}</p>
-                      <p className="font-mono text-slate-500 text-[11px]">{shop.mobile}</p>
-                    </td>
+                      <td className="px-5 py-4">
+                        <p className="font-bold text-slate-800">{shop.ownerName}</p>
+                        <p className="font-mono text-slate-500 text-[11px]">{shop.mobile}</p>
+                      </td>
 
-                    <td className="px-5 py-4 text-center font-black text-slate-700">
-                      {shop.totalOrders || 0}
-                    </td>
+                      <td className="px-5 py-4 text-center font-black text-slate-700">
+                        {metrics.totalOrders}
+                      </td>
 
-                    <td className="px-5 py-4 text-right font-black text-slate-800">
-                      ৳{(shop.totalSales || 0).toLocaleString()}
-                    </td>
+                      <td className="px-5 py-4 text-right font-black text-slate-800">
+                        ৳{metrics.totalSales.toLocaleString()}
+                      </td>
 
-                    <td className="px-5 py-4 text-center">
-                      <span className="px-2 py-0.5 rounded-full font-black text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {shop.commissionRate}%
-                      </span>
-                    </td>
+                      <td className="px-5 py-4 text-center">
+                        <span className="px-2 py-0.5 rounded-full font-black text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {shop.commissionRate}%
+                        </span>
+                      </td>
 
-                    <td className="px-5 py-4 text-right font-black text-emerald-700">
-                      ৳{(shop.totalCommission || 0).toLocaleString()}
-                    </td>
+                      <td className="px-5 py-4 text-right font-black text-emerald-700">
+                        ৳{metrics.totalCommission.toLocaleString()}
+                      </td>
 
-                    <td className="px-5 py-4 text-right font-black text-teal-700">
-                      ৳{(shop.netEarnings || 0).toLocaleString()}
-                    </td>
+                      <td className="px-5 py-4 text-right font-black text-teal-700">
+                        ৳{metrics.netEarnings.toLocaleString()}
+                      </td>
 
-                    <td className="px-5 py-4 text-center">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          shop.status === "active"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800"
-                        }`}
-                      >
-                        {shop.status === "active" ? getTranslation("সক্রিয়", "Active") : getTranslation("স্থগিত", "Suspended")}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      <td className="px-5 py-4 text-center">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            shop.status === "active"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          {shop.status === "active" ? getTranslation("সক্রিয়", "Active") : getTranslation("স্থগিত", "Suspended")}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
