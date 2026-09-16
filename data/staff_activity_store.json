@@ -1,0 +1,51 @@
+[
+  {
+    "id": "log-1788942220974-sn59f",
+    "staffId": "CFI-KB-006",
+    "staffName": "Super Admin",
+    "staffRole": "super_admin",
+    "action": "staff_updated",
+    "module": "staff_management",
+    "details": "স্টাফ তথ্য ও পদবী আপডেট করা হয়েছে: Test Staff 006 (CFI-KB-006)",
+    "targetId": "CFI-KB-006",
+    "ipAddress": "127.0.0.1",
+    "userAgent": "",
+    "createdAt": "2026-09-09T08:23:40.974Z"
+  },
+  {
+    "id": "log-1788942215843-z395g",
+    "staffId": "CFI-KB-001",
+    "staffName": "Super Admin",
+    "staffRole": "super_admin",
+    "action": "staff_updated",
+    "module": "staff_management",
+    "details": "স্টাফ তথ্য ও পদবী আপডেট করা হয়েছে: Sarkar Md Anik (Super Admin) (CFI-KB-001)",
+    "targetId": "CFI-KB-001",
+    "ipAddress": "127.0.0.1",
+    "userAgent": "",
+    "createdAt": "2026-09-09T08:23:35.843Z"
+  },
+  {
+    "id": "log-init-01",
+    "staffId": "KB-STF-001",
+    "staffName": "Sarkar Md Anik (Super Admin)",
+    "staffRole": "super_admin",
+    "action": "system_init",
+    "module": "staff_management",
+    "details": "সুপার এডমিন অ্যাকাউন্ট ও স্টাফ ম্যানেজমেন্ট সিস্টেম কনফিগার করা হয়েছে।",
+    "ipAddress": "127.0.0.1",
+    "createdAt": "2026-09-08T08:23:35.843Z"
+  },
+  {
+    "id": "log-init-02",
+    "staffId": "KB-STF-002",
+    "staffName": "Md. Rahimul Islam",
+    "staffRole": "order_manager",
+    "action": "order_status_updated",
+    "module": "orders",
+    "details": "অর্ডার #KB-1025 স্ট্যাটাস 'Processing' থেকে 'Delivered' করা হয়েছে।",
+    "targetId": "KB-1025",
+    "ipAddress": "127.0.0.1",
+    "createdAt": "2026-09-08T20:23:35.843Z"
+  }
+]

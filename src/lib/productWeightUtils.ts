@@ -41,7 +41,10 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     sku: data.sku || `KB-${data.category?.substring(0, 3).toUpperCase()}-${data.id}`,
     subcategory: data.subcategory || "General",
     options: data.options || [],
-    isAvailable: data.isAvailable !== false,
+    isDeleted: !!data.isDeleted || data.status === "deleted" || !!data.deleted,
+    deleted: !!data.isDeleted || data.status === "deleted" || !!data.deleted,
+    status: data.status || (data.isDeleted ? "deleted" : "active"),
+    isAvailable: (data.isDeleted || data.status === "deleted" || data.deleted) ? false : (data.isAvailable !== false),
     displayOrder: typeof data.displayOrder === "number" ? data.displayOrder : (typeof data.order === "number" ? data.order : undefined),
     order: typeof data.order === "number" ? data.order : (typeof data.displayOrder === "number" ? data.displayOrder : undefined)
   } as Product;

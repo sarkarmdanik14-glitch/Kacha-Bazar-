@@ -7,16 +7,31 @@ import {
 } from "lucide-react";
 import { db, doc, setDoc, updateDoc, deleteDoc, collection, addDoc } from "../../lib/firebase";
 import { ProductOption } from "../../types";
+import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
 
 interface AdminProductsTabProps {
   products: any[];
   categories: any[];
+  orders?: any[];
+  user?: any;
   lang: "bn" | "en";
   triggerToast: (bn: string, en: string) => void;
 }
 
-export default function AdminProductsTab({ products, categories, lang, triggerToast }: AdminProductsTabProps) {
+export default function AdminProductsTab({ products, categories, orders = [], user, lang, triggerToast }: AdminProductsTabProps) {
   const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+
+  // Delete Confirmation Modal state & optimistically deleted products set
+  const [productPendingDelete, setProductPendingDelete] = useState<any | null>(null);
+  const [deletedProductIds, setDeletedProductIds] = useState<Set<string>>(new Set());
+
+  const isProductDeleted = (p: any) => {
+    return deletedProductIds.has(p.id) || p.isDeleted === true || p.status === "deleted" || p.status === "inactive_deleted" || p.deleted === true;
+  };
+
+  const handleDeleteSuccess = (deletedId: string) => {
+    setDeletedProductIds(prev => new Set(prev).add(deletedId));
+  };
 
   // Subtab navigation: "category_manager" is the default subtab for focused category & product management
   const [activeCatalogSubTab, setActiveCatalogSubTab] = useState<"category_manager" | "products" | "categories" | "bulk">("category_manager");
@@ -554,15 +569,17 @@ export default function AdminProductsTab({ products, categories, lang, triggerTo
     }
   };
 
-  // Delete product
-  const handleDeleteProduct = async (productId: string) => {
-    if (!confirm(getTranslation("আপনি কি নিশ্চিতভাবে এই পণ্যটি ডিলিট করতে চান?", "Are you sure you want to delete this product?"))) return;
-    try {
-      await deleteDoc(doc(db, "products", productId));
-      triggerToast("পণ্য সফলভাবে ডিলিট করা হয়েছে!", "Product deleted successfully from catalog!");
-    } catch (err) {
-      console.error("Error deleting product:", err);
-      triggerToast("পণ্য ডিলিট ব্যর্থ হয়েছে", "Failed to delete product");
+  // Delete product: Opens confirmation popup modal with order-usage analysis
+  const handleDeleteProduct = (productIdOrProd: string | any) => {
+    if (typeof productIdOrProd === "string") {
+      const found = products.find(p => p.id === productIdOrProd);
+      if (found) {
+        setProductPendingDelete(found);
+      } else {
+        setProductPendingDelete({ id: productIdOrProd, nameBn: "পণ্য", nameEn: "Product" });
+      }
+    } else if (productIdOrProd && typeof productIdOrProd === "object") {
+      setProductPendingDelete(productIdOrProd);
     }
   };
 
@@ -636,7 +653,9 @@ export default function AdminProductsTab({ products, categories, lang, triggerTo
   // Bulk CSV Export
   const handleExportCSV = () => {
     const headers = ["id", "nameEn", "nameBn", "price", "originalPrice", "unitEn", "unitBn", "category", "stock", "image", "descriptionEn", "descriptionBn", "isAvailable", "displayOrder"];
-    const rows = products.map(p => [
+    const rows = products
+      .filter(p => !isProductDeleted(p))
+      .map(p => [
       p.id,
       `"${p.nameEn?.replace(/"/g, '""') || ''}"`,
       `"${p.nameBn?.replace(/"/g, '""') || ''}"`,
@@ -729,7 +748,9 @@ export default function AdminProductsTab({ products, categories, lang, triggerTo
   };
 
   // Products belonging to currently selected category (e.g. "vegetables")
-  const categoryProducts = products.filter(p => p.category === selectedCatId);
+  const categoryProducts = products
+    .filter(p => !isProductDeleted(p))
+    .filter(p => p.category === selectedCatId);
 
   // Filtered products for Category Manager view
   const filteredCategoryProducts = categoryProducts
@@ -753,12 +774,14 @@ export default function AdminProductsTab({ products, categories, lang, triggerTo
     });
 
   // Global search products list
-  const globalFilteredProducts = products.filter(p => 
-    (p.nameEn?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     p.nameBn?.includes(searchTerm) || 
-     p.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     p.sku?.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const globalFilteredProducts = products
+    .filter(p => !isProductDeleted(p))
+    .filter(p => 
+      (p.nameEn?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+       p.nameBn?.includes(searchTerm) || 
+       p.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       p.sku?.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
 
   return (
     <div className="space-y-6 text-slate-700 font-sans">
@@ -2041,6 +2064,18 @@ export default function AdminProductsTab({ products, categories, lang, triggerTo
           </div>
         </div>
       )}
+
+      {/* Product Delete Confirmation Modal */}
+      <DeleteProductConfirmModal
+        isOpen={!!productPendingDelete}
+        product={productPendingDelete}
+        orders={orders}
+        user={user}
+        lang={lang}
+        onClose={() => setProductPendingDelete(null)}
+        onSuccess={handleDeleteSuccess}
+        triggerToast={triggerToast}
+      />
 
     </div>
   );

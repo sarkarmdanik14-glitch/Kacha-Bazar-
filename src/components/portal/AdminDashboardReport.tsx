@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { 
   TrendingUp, ShoppingBag, User, Store, Bike, DollarSign, 
-  CheckCircle, Clock, X, ChevronRight, Award, FileText 
+  CheckCircle, Clock, X, ChevronRight, Award, FileText,
+  Activity, Users, RefreshCw, AlertCircle
 } from "lucide-react";
+import { subscribeToVisitorAnalytics, VisitorAnalyticsData } from "../../lib/visitorTracker";
 
 interface AdminDashboardReportProps {
   orders: any[];
@@ -13,6 +15,25 @@ interface AdminDashboardReportProps {
 
 export default function AdminDashboardReport({ orders, products, users, lang }: AdminDashboardReportProps) {
   const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+
+  // Real-time Visitor Analytics State
+  const [visitorData, setVisitorData] = useState<VisitorAnalyticsData>({
+    todayViews: 0,
+    liveNow: 0,
+    todayUniqueVisitors: 0,
+    date: "",
+    loading: true,
+    error: null,
+  });
+
+  useEffect(() => {
+    const unsubscribe = subscribeToVisitorAnalytics((data) => {
+      setVisitorData(data);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // Core stats calculation
   const totalOrders = orders.length;
@@ -70,6 +91,120 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
         <span className="px-3 py-1 bg-emerald-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest animate-pulse">
           {getTranslation("সক্রিয়", "Active")}
         </span>
+      </div>
+
+      {/* Real-time App Visitor Analytics Section */}
+      <div id="app-visitor-analytics-section" className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between px-1 gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
+              {getTranslation("অ্যাপ ভিজিটর লাইভ অ্যানালিটিক্স", "App Visitor Live Analytics")}
+            </span>
+            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+              {getTranslation("রিয়েল-টাইম", "Real-Time")}
+            </span>
+          </div>
+          <span className="text-[10px] text-slate-400 font-medium">
+            {getTranslation("বাংলাদেশ সময় (Asia/Dhaka) • রাত ১২:০০ টায় রিসেট", "Bangladesh Time (Asia/Dhaka) • Resets at 12:00 AM")}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Card 1: Today's Views */}
+          <div 
+            id="visitor-card-today-views" 
+            className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between relative overflow-hidden group hover:border-blue-200 transition-all"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                <span className="text-base">👁️</span>
+                <span>{getTranslation("আজকের ভিউ", "Today's Views")}</span>
+              </span>
+              <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                {getTranslation("আজকের মোট", "Today")}
+              </span>
+            </div>
+            <div className="mt-4">
+              {visitorData.loading ? (
+                <div className="h-9 w-24 bg-slate-100 animate-pulse rounded-lg" />
+              ) : (
+                <h3 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">
+                  {visitorData.todayViews.toLocaleString()}
+                </h3>
+              )}
+              <span className="text-[11px] text-slate-400 block mt-1">
+                {getTranslation("আজ অ্যাপ ওপেন ও ব্যবহারের মোট সংখ্যা", "Total app opens & visits today")}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 2: Live Now */}
+          <div 
+            id="visitor-card-live-now" 
+            className="bg-white p-5 rounded-2xl border border-emerald-100 bg-gradient-to-br from-white to-emerald-50/20 shadow-sm flex flex-col justify-between relative overflow-hidden group hover:border-emerald-300 transition-all"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                <span className="relative flex h-3 w-3 items-center justify-center">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-base">🟢</span>
+                <span>{getTranslation("এখন Live", "Live Now")}</span>
+              </span>
+              <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200 uppercase tracking-wider animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                {getTranslation("লাইভ", "LIVE")}
+              </span>
+            </div>
+            <div className="mt-4">
+              {visitorData.loading ? (
+                <div className="h-9 w-20 bg-slate-100 animate-pulse rounded-lg" />
+              ) : (
+                <div className="flex items-baseline gap-2">
+                  <h3 className="text-2xl sm:text-3xl font-black text-emerald-700 tracking-tight">
+                    {visitorData.liveNow.toLocaleString()}
+                  </h3>
+                  <span className="text-xs font-bold text-emerald-600">
+                    {getTranslation("জন সক্রিয়", "active now")}
+                  </span>
+                </div>
+              )}
+              <span className="text-[11px] text-slate-400 block mt-1">
+                {getTranslation("বিগত ২-৫ মিনিটে সক্রিয় ভিজিটর", "Active visitors in last 2–5 minutes")}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: Today's Unique Visitors */}
+          <div 
+            id="visitor-card-unique-visitors" 
+            className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between relative overflow-hidden group hover:border-indigo-200 transition-all"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                <span className="text-base">👤</span>
+                <span>{getTranslation("Unique Visitors", "Unique Visitors")}</span>
+              </span>
+              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                {getTranslation("অনন্য ভিজিটর", "Unique")}
+              </span>
+            </div>
+            <div className="mt-4">
+              {visitorData.loading ? (
+                <div className="h-9 w-24 bg-slate-100 animate-pulse rounded-lg" />
+              ) : (
+                <h3 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">
+                  {visitorData.todayUniqueVisitors.toLocaleString()}
+                </h3>
+              )}
+              <span className="text-[11px] text-slate-400 block mt-1">
+                {getTranslation("প্রতিটি অনন্য ভিজিটর দিনে ১ বার গণ্য", "Counted once per day per visitor")}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Primary Analytics Grid */}

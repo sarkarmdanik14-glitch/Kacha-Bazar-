@@ -81,12 +81,15 @@ service cloud.firestore {
     // Products - Publicly viewable catalog for browsing, managed by Admin, Sellers & Partners
     match /products/{productId} {
       allow read: if true;
-      allow create, delete: if isAdmin() || 
+      allow create: if isAdmin() || isStaff() || 
         (isSeller() && request.resource.data.sellerId == request.auth.uid) ||
         (isSignedIn() && request.resource.data.partnerShopId != null);
-      allow update: if isAdmin() || 
+      allow update: if isAdmin() || isStaff() || 
         (isSeller() && resource.data.sellerId == request.auth.uid) ||
-        (isSignedIn() && (resource.data.partnerShopId != null || request.resource.data.partnerShopId != null));
+        (isSignedIn() && (resource.data.partnerShopId != null || (request.resource != null && request.resource.data.partnerShopId != null)));
+      allow delete: if isAdmin() || isStaff() || 
+        (isSeller() && resource.data.sellerId == request.auth.uid) ||
+        (isSignedIn() && resource.data.partnerShopId != null);
     }
 
     // Orders - Customers access ONLY their own orders. Staff, Admins & Partners access according to role
@@ -348,6 +351,19 @@ service cloud.firestore {
       allow read: if isAdmin() || isStaff();
       allow create: if isSignedIn() || isAdmin();
       allow update, delete: if false; // Immutable audit trail
+    }
+
+    // Visitor Analytics - Sessions & Real-time Live Tracking
+    match /visitor_sessions/{visitorId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if true;
+    }
+
+    // Daily Analytics Aggregation (Today's views and unique visitors)
+    match /analytics_daily/{dateId} {
+      allow read: if true;
+      allow create, update: if true;
     }
   }
 }

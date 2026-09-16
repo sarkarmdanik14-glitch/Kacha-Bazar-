@@ -383,6 +383,27 @@
         "targetId": "string",
         "createdAt": "timestamp"
       }
+    },
+    {
+      "name": "visitor_sessions",
+      "description": "Real-time active visitor session tracking and heartbeat timestamps",
+      "fields": {
+        "visitorId": "string",
+        "lastActive": "number",
+        "startedAt": "number",
+        "isOnline": "boolean",
+        "date": "string"
+      }
+    },
+    {
+      "name": "analytics_daily",
+      "description": "Daily aggregated visitor views and unique visitor counters reset at 12:00 AM local time",
+      "fields": {
+        "date": "string",
+        "views": "number",
+        "uniqueVisitors": "number",
+        "lastUpdated": "timestamp"
+      }
     }
   ]
 }

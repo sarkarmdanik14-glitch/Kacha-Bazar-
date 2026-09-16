@@ -183,7 +183,11 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
       (snapshot) => {
         const prods: any[] = [];
         snapshot.forEach((doc) => {
-          prods.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          if (data.isDeleted === true || data.status === "deleted" || data.deleted === true) {
+            return;
+          }
+          prods.push({ id: doc.id, ...data });
         });
         setProducts(prods);
         setLoading(false);
@@ -594,7 +598,7 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
             {/* TAB: PRODUCTS */}
             {activeTab === "products" && (
               <div className="space-y-6 animate-fade-in">
-                <AdminProductsTab products={products} categories={categories} lang={lang} triggerToast={triggerToast} />
+                <AdminProductsTab products={products} categories={categories} orders={orders} user={user} lang={lang} triggerToast={triggerToast} />
               </div>
             )}
 

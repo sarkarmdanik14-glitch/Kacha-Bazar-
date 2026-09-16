@@ -27,6 +27,7 @@ import {
   Calendar, Check, X, CreditCard, ChevronRight, Eye, 
   Clock, ArrowUpRight, Percent, PackageCheck, AlertCircle
 } from "lucide-react";
+import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
 
 interface PartnerShopPanelProps {
   partner: PartnerShop;
@@ -40,6 +41,7 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
 
   const [activeTab, setActiveTab] = useState<"overview" | "products" | "orders" | "ledger" | "settings">("overview");
   const [products, setProducts] = useState<Product[]>([]);
+  const [productPendingDelete, setProductPendingDelete] = useState<Product | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [partnerData, setPartnerData] = useState<PartnerShop>(partner);
@@ -97,7 +99,11 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
       (snapshot) => {
         const items: Product[] = [];
         snapshot.forEach((d) => {
-          items.push({ id: d.id, ...(d.data() as any) });
+          const data = d.data() as any;
+          if (data.isDeleted === true || data.status === "deleted" || data.deleted === true) {
+            return;
+          }
+          items.push({ id: d.id, ...data });
         });
         setProducts(items);
         setLoading(false);
@@ -302,16 +308,8 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
   };
 
   // Delete Product
-  const handleDeleteProduct = async (prod: Product) => {
-    if (window.confirm(getTranslation(`আপনি কি "${prod.nameBn}" পণ্যটি ডিলিট করতে চান?`, `Delete "${prod.nameEn}"?`))) {
-      try {
-        await deleteDoc(doc(db, "products", prod.id));
-        setProducts(prev => prev.filter(p => p.id !== prod.id));
-        triggerToast("পণ্য ডিলিট করা হয়েছে।", "Product deleted.");
-      } catch (err) {
-        console.warn("Delete product error:", err);
-      }
-    }
+  const handleDeleteProduct = (prod: Product) => {
+    setProductPendingDelete(prod);
   };
 
   // Handle Logout
@@ -1172,6 +1170,20 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
           </div>
         </div>
       )}
+
+      {/* Product Delete Confirmation Modal */}
+      <DeleteProductConfirmModal
+        isOpen={!!productPendingDelete}
+        product={productPendingDelete}
+        orders={orders}
+        user={{ uid: partner.id, displayName: partner.shopName || partner.ownerName || "partner" }}
+        lang={lang}
+        onClose={() => setProductPendingDelete(null)}
+        onSuccess={(deletedId) => {
+          setProducts(prev => prev.filter(p => p.id !== deletedId));
+        }}
+        triggerToast={triggerToast}
+      />
     </div>
   );
 }

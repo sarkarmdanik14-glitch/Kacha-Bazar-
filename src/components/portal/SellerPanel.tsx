@@ -21,6 +21,7 @@ import {
   ShoppingBag, Bell, RefreshCw, X, Check, Save, 
   ChevronRight, ArrowUpRight, FileText, PieChart
 } from "lucide-react";
+import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
 
 interface SellerPanelProps {
   user: any;
@@ -42,6 +43,7 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "orders" | "withdraw" | "notifications">("dashboard");
   const [products, setProducts] = useState<any[]>([]);
+  const [productPendingDelete, setProductPendingDelete] = useState<any | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [sellerProfile, setSellerProfile] = useState<any | null>(null);
@@ -93,7 +95,11 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
       (snapshot) => {
         const prods: any[] = [];
         snapshot.forEach((doc) => {
-          prods.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          if (data.isDeleted === true || data.status === "deleted" || data.deleted === true) {
+            return;
+          }
+          prods.push({ id: doc.id, ...data });
         });
         setProducts(prods);
         setLoading(false);
@@ -241,13 +247,12 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
     }
   };
 
-  const handleDeleteProduct = async (id: string) => {
-    if (!confirm(getTranslation("আপনি কি নিশ্চিতভাবে এই পণ্যটি ডিলিট করতে চান?", "Are you sure you want to delete this product?"))) return;
-    try {
-      await deleteDoc(doc(db, "products", id));
-      triggerToast("পণ্যটি মুছে ফেলা হয়েছে!", "Product successfully deleted!");
-    } catch (err) {
-      console.error("Error deleting product:", err);
+  const handleDeleteProduct = (prodOrId: any) => {
+    if (typeof prodOrId === "string") {
+      const found = products.find(p => p.id === prodOrId);
+      setProductPendingDelete(found || { id: prodOrId, nameBn: "পণ্য", nameEn: "Product" });
+    } else if (prodOrId && typeof prodOrId === "object") {
+      setProductPendingDelete(prodOrId);
     }
   };
 
@@ -902,6 +907,20 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
           </>
         )}
       </main>
+
+      {/* Product Delete Confirmation Modal */}
+      <DeleteProductConfirmModal
+        isOpen={!!productPendingDelete}
+        product={productPendingDelete}
+        orders={orders}
+        user={user}
+        lang={lang}
+        onClose={() => setProductPendingDelete(null)}
+        onSuccess={(deletedId) => {
+          setProducts(prev => prev.filter(p => p.id !== deletedId));
+        }}
+        triggerToast={triggerToast}
+      />
 
     </div>
   );

@@ -6,7 +6,7 @@
     "fullName": "Sarkar Md Anik (Super Admin)",
     "mobile": "01700000001",
     "email": "sarkarmdanik14@gmail.com",
-    "photoURL": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    "photoURL": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
     "role": "super_admin",
     "designation": "Chief Executive / Super Admin",
     "department": "Executive Administration",
@@ -41,7 +41,7 @@
     "isSuperAdmin": true,
     "permissions": {},
     "createdAt": "2026-09-05T13:23:48.812Z",
-    "updatedAt": "2026-09-05T13:23:48.812Z",
+    "updatedAt": "2026-09-09T08:23:35.842Z",
     "sessionId": "sess-super-admin-init"
   },
   {

@@ -638,6 +638,114 @@ export async function sendStaffHeartbeat(staffId: string, status: StaffOnlineSta
 }
 
 // ============================================================================
+// UNIVERSAL STAFF LOOKUP HELPERS (INTERNAL RECORD ID & DISPLAY STAFF ID)
+// ============================================================================
+
+/**
+ * Universal canonical helper to find a staff member from a list by either internal record `id` or display `staffId`.
+ * Supports case-insensitive and whitespace-trimmed matching so CFI-KB-001 or staff-super-admin-01 both work.
+ */
+export function findStaffMember(
+  staffList: StaffMember[] | null | undefined,
+  lookupId: string | null | undefined
+): StaffMember | null {
+  if (!lookupId || !Array.isArray(staffList) || staffList.length === 0) return null;
+  const clean = String(lookupId).trim().toLowerCase();
+  return staffList.find(s => 
+    (s.id && String(s.id).trim().toLowerCase() === clean) ||
+    (s.staffId && String(s.staffId).trim().toLowerCase() === clean)
+  ) || null;
+}
+
+/**
+ * Fetch a single staff member by either unique record ID or display staffId.
+ * Falls back across Firestore, server API, and local storage.
+ */
+export async function fetchSingleStaffById(lookupId: string): Promise<StaffMember | null> {
+  if (!lookupId) return null;
+  const clean = lookupId.trim();
+
+  // 1. Try directly from Firestore (primary source of truth)
+  try {
+    // Check direct doc by id
+    const docRef = doc(db, "staff", clean);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const d = snap.data();
+      return {
+        ...d,
+        id: snap.id,
+        staffId: d.staffId || snap.id
+      } as StaffMember;
+    }
+
+    // Query by staffId field (uppercase like CFI-KB-006)
+    const qUpper = query(collection(db, "staff"), where("staffId", "==", clean.toUpperCase()), limit(1));
+    let querySnap = await getDocs(qUpper);
+    if (!querySnap.empty) {
+      const firstDoc = querySnap.docs[0];
+      const d = firstDoc.data();
+      return {
+        ...d,
+        id: firstDoc.id,
+        staffId: d.staffId || firstDoc.id
+      } as StaffMember;
+    }
+
+    // Query by staffId exact match
+    const qExact = query(collection(db, "staff"), where("staffId", "==", clean), limit(1));
+    querySnap = await getDocs(qExact);
+    if (!querySnap.empty) {
+      const firstDoc = querySnap.docs[0];
+      const d = firstDoc.data();
+      return {
+        ...d,
+        id: firstDoc.id,
+        staffId: d.staffId || firstDoc.id
+      } as StaffMember;
+    }
+
+    // Query by internal id field
+    const qId = query(collection(db, "staff"), where("id", "==", clean), limit(1));
+    querySnap = await getDocs(qId);
+    if (!querySnap.empty) {
+      const firstDoc = querySnap.docs[0];
+      const d = firstDoc.data();
+      return {
+        ...d,
+        id: firstDoc.id,
+        staffId: d.staffId || firstDoc.id
+      } as StaffMember;
+    }
+  } catch (e) {
+    console.warn("Firestore single staff fetch notice:", e);
+  }
+
+  // 2. Try from server API
+  try {
+    const res = await fetch(`/api/staff/get/${encodeURIComponent(clean)}`, {
+      headers: getStaffAuthHeaders()
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.staff) {
+        return data.staff;
+      }
+    }
+  } catch (e) {
+    console.warn("API single staff fetch notice:", e);
+  }
+
+  // 3. Fallback to full list search
+  try {
+    const list = await fetchStaffFromFirestore();
+    return findStaffMember(list, clean);
+  } catch (e) {
+    return null;
+  }
+}
+
+// ============================================================================
 // FIREBASE FIRESTORE AS PRIMARY SOURCE OF TRUTH FOR STAFF MANAGEMENT
 // ============================================================================
 
@@ -927,11 +1035,82 @@ export async function updateStaffInFirestore(
     updaterName?: string;
     updaterRole?: string;
     updaterUser?: any;
+    staffId?: string;
   }
 ): Promise<StaffMember> {
   const { updaterName, updaterRole, updaterUser, ...fieldsToUpdate } = updateData;
 
-  // 1. Clean and normalize payload fields to ensure NO undefined values reach any step
+  if (!staffIdOrDocId) {
+    throw new Error("Invalid Staff ID or Document ID provided for update.");
+  }
+
+  const cleanLookup = String(staffIdOrDocId).trim();
+
+  // 1. Resolve the EXACT internal Firestore document ID and retrieve existing fields
+  let actualDocId = cleanLookup;
+  let existingFirestoreData: Record<string, any> = {};
+
+  try {
+    // Check direct doc by id
+    const directDocRef = doc(db, "staff", cleanLookup);
+    const directSnap = await getDoc(directDocRef);
+    if (directSnap.exists()) {
+      actualDocId = directSnap.id;
+      existingFirestoreData = directSnap.data() || {};
+    }
+  } catch (err) {
+    console.warn("Direct Firestore doc fetch notice:", err);
+  }
+
+  // If not found directly, query by display staffId (e.g. CFI-KB-006)
+  if (!existingFirestoreData.fullName && !existingFirestoreData.staffId) {
+    try {
+      const qUpper = query(collection(db, "staff"), where("staffId", "==", cleanLookup.toUpperCase()), limit(1));
+      let querySnap = await getDocs(qUpper);
+      if (querySnap.empty) {
+        const qRaw = query(collection(db, "staff"), where("staffId", "==", cleanLookup), limit(1));
+        querySnap = await getDocs(qRaw);
+      }
+      if (querySnap.empty) {
+        const qId = query(collection(db, "staff"), where("id", "==", cleanLookup), limit(1));
+        querySnap = await getDocs(qId);
+      }
+      if (!querySnap.empty) {
+        const foundDoc = querySnap.docs[0];
+        actualDocId = foundDoc.id;
+        existingFirestoreData = foundDoc.data() || {};
+      }
+    } catch (err) {
+      console.warn("Firestore staffId query notice:", err);
+    }
+  }
+
+  // If still not found, search all documents in Firestore
+  if (!existingFirestoreData.fullName && !existingFirestoreData.staffId) {
+    try {
+      const allDocsSnap = await getDocs(collection(db, "staff"));
+      const lower = cleanLookup.toLowerCase();
+      const matchDoc = allDocsSnap.docs.find(d => {
+        const dData = d.data();
+        return (
+          d.id.toLowerCase() === lower ||
+          (dData.id && String(dData.id).trim().toLowerCase() === lower) ||
+          (dData.staffId && String(dData.staffId).trim().toLowerCase() === lower)
+        );
+      });
+      if (matchDoc) {
+        actualDocId = matchDoc.id;
+        existingFirestoreData = matchDoc.data() || {};
+      }
+    } catch (err) {
+      console.warn("Firestore collection scan notice:", err);
+    }
+  }
+
+  // Determine the immutable display staffId
+  const finalStaffId = existingFirestoreData.staffId || updateData.staffId || (cleanLookup.startsWith("CFI-") ? cleanLookup : "");
+
+  // 2. Clean and normalize payload fields to ensure NO undefined values reach any step
   const cleanedFields: Record<string, any> = {};
   for (const [key, val] of Object.entries(fieldsToUpdate)) {
     if (val !== undefined) {
@@ -952,44 +1131,50 @@ export async function updateStaffInFirestore(
     }
   }
 
-  // 2. Sync with server API
-  const res = await fetch("/api/staff/update", {
-    method: "POST",
-    headers: getStaffAuthHeaders(updaterUser),
-    body: JSON.stringify({
-      id: staffIdOrDocId,
-      ...cleanedFields,
-      updaterName: updaterName || updaterUser?.fullName || updaterUser?.displayName || "Super Admin",
-      updaterRole: updaterRole || updaterUser?.role || "super_admin"
-    })
-  });
+  // 3. Sync with server API (passes both internal ID and display staffId)
+  let apiStaff: StaffMember | null = null;
+  try {
+    const res = await fetch("/api/staff/update", {
+      method: "POST",
+      headers: getStaffAuthHeaders(updaterUser),
+      body: JSON.stringify({
+        id: actualDocId,
+        staffId: finalStaffId,
+        ...cleanedFields,
+        updaterName: updaterName || updaterUser?.fullName || updaterUser?.displayName || "Super Admin",
+        updaterRole: updaterRole || updaterUser?.role || "super_admin"
+      })
+    });
 
-  const apiData = await res.json();
-  if (!res.ok) {
-    throw new Error(apiData.error || "Failed to update staff");
+    if (res.ok) {
+      const apiData = await res.json();
+      if (apiData.success && apiData.staff) {
+        apiStaff = apiData.staff;
+      }
+    } else {
+      console.warn("Server API update returned non-OK status, proceeding to update Firestore:", res.status);
+    }
+  } catch (apiErr) {
+    console.warn("Server API update request error, continuing to Firestore:", apiErr);
   }
 
-  const updatedStaff: StaffMember = apiData.staff;
-  const targetDocId = updatedStaff.id || staffIdOrDocId;
-
-  // 3. Immediately update the document in Firebase Firestore
-  const staffDocRef = doc(db, "staff", targetDocId);
+  // 4. Merge existing fields with updated fields to PRESERVE all existing staff data
   const rawPayload: Record<string, any> = {
+    ...existingFirestoreData,
     ...cleanedFields,
-    id: targetDocId,
+    id: actualDocId,
     updatedAt: new Date().toISOString(),
-    updatedBy: updaterName || updaterUser?.fullName || "Super Admin"
+    updatedBy: updaterName || updaterUser?.fullName || updaterUser?.displayName || "Super Admin"
   };
 
-  // Prevent overriding immutable fields
-  if (updatedStaff.staffId) {
-    rawPayload.staffId = updatedStaff.staffId;
+  if (finalStaffId) {
+    rawPayload.staffId = finalStaffId;
   }
 
   // Ensure assignedAgentDesk is strictly number or null (NEVER undefined)
-  const finalRole = updatedStaff.role || cleanedFields.role;
+  const finalRole = rawPayload.role || apiStaff?.role || cleanedFields.role;
   if (finalRole === "call_center_agent") {
-    const d = rawPayload.assignedAgentDesk !== undefined ? rawPayload.assignedAgentDesk : updatedStaff.assignedAgentDesk;
+    const d = rawPayload.assignedAgentDesk !== undefined ? rawPayload.assignedAgentDesk : apiStaff?.assignedAgentDesk;
     rawPayload.assignedAgentDesk = (d !== undefined && d !== null) ? Number(d) : 1;
   } else {
     rawPayload.assignedAgentDesk = null;
@@ -1003,18 +1188,29 @@ export async function updateStaffInFirestore(
     }
   }
 
+  // 5. Update the exact internal document in Firebase Firestore
+  const staffDocRef = doc(db, "staff", actualDocId);
   await setDoc(staffDocRef, firestorePayload, { merge: true });
 
-  // 4. Log activity in Firestore
+  // 6. Log activity in Firestore
+  const targetDisplayName = rawPayload.fullName || apiStaff?.fullName || "Staff Member";
   await logStaffActivity({
     staffUser: updaterUser || { fullName: updaterName || "Super Admin", role: updaterRole || "super_admin" },
     action: "staff_updated",
     module: "staff_management",
-    details: `স্টাফ তথ্য Firestore-এ আপডেট করা হয়েছে: ${updatedStaff.fullName} (${updatedStaff.staffId})`,
-    targetId: updatedStaff.staffId
+    details: `স্টাফ তথ্য Firestore-এ সফলভাবে আপডেট করা হয়েছে: ${targetDisplayName} (${finalStaffId || actualDocId})`,
+    targetId: finalStaffId || actualDocId
   });
 
-  return updatedStaff;
+  const finalStaffResult: StaffMember = {
+    ...existingFirestoreData,
+    ...rawPayload,
+    id: actualDocId,
+    staffId: finalStaffId || actualDocId,
+    photoURL: rawPayload.photoURL !== undefined ? rawPayload.photoURL : (existingFirestoreData.photoURL || "")
+  } as StaffMember;
+
+  return finalStaffResult;
 }
 
 /**

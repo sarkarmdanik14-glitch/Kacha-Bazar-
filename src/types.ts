@@ -58,6 +58,11 @@ export interface Product {
   ingredientsEn?: string;
   weightSizeOptions?: string[];
   availabilityStatus?: string;
+  isDeleted?: boolean;
+  deleted?: boolean;
+  status?: string;
+  deletedAt?: any;
+  deletedBy?: string;
   options?: ProductOption[];
   isAvailable?: boolean;
   displayOrder?: number;

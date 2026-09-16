@@ -26,7 +26,9 @@ import {
   payStaffSalaryInFirestore,
   updateStaffSalaryBaseInFirestore,
   formatStaffUsername,
-  getStaffAuthHeaders
+  getStaffAuthHeaders,
+  findStaffMember,
+  fetchSingleStaffById
 } from "../../lib/staffManager";
 import { 
   Users, UserPlus, Shield, ShieldCheck, History, 
@@ -178,6 +180,46 @@ export default function AdminStaffManagementTab({
     };
   }, []);
 
+  // Restore selected staff for ID card on page refresh or staffList load
+  useEffect(() => {
+    if (selectedStaffForIdCard) return;
+    try {
+      const savedStaffId = sessionStorage.getItem("kacha_selected_staff_id_card");
+      if (savedStaffId) {
+        if (staffList.length > 0) {
+          const found = findStaffMember(staffList, savedStaffId);
+          if (found) {
+            setSelectedStaffForIdCard(found);
+            return;
+          }
+        }
+        fetchSingleStaffById(savedStaffId).then((loaded) => {
+          if (loaded) {
+            setSelectedStaffForIdCard(loaded);
+          }
+        }).catch(() => {});
+      }
+    } catch {}
+  }, [staffList, selectedStaffForIdCard]);
+
+  // Handlers for ID card modal with persistence
+  const handleOpenIdCard = (staff: StaffMember) => {
+    setSelectedStaffForIdCard(staff);
+    try {
+      const keyId = staff.staffId || staff.id;
+      if (keyId) {
+        sessionStorage.setItem("kacha_selected_staff_id_card", keyId);
+      }
+    } catch {}
+  };
+
+  const handleCloseIdCard = () => {
+    setSelectedStaffForIdCard(null);
+    try {
+      sessionStorage.removeItem("kacha_selected_staff_id_card");
+    } catch {}
+  };
+
   // Update permissions when form role changes
   useEffect(() => {
     const roleDef = DEFAULT_ROLES.find(r => r.id === formRole);
@@ -299,7 +341,7 @@ export default function AdminStaffManagementTab({
       : null;
 
     try {
-      await updateStaffInFirestore(selectedStaffForEdit.id, {
+      const updatedStaff = await updateStaffInFirestore(selectedStaffForEdit.id, {
         fullName: cleanFullName,
         username: (selectedStaffForEdit.username || "").trim().toLowerCase(),
         mobile: cleanPhone,
@@ -324,6 +366,15 @@ export default function AdminStaffManagementTab({
         "স্টাফ তথ্য সফলভাবে Firestore-এ আপডেট ও সিঙ্ক হয়েছে!",
         "Staff information updated and synchronized with Firestore!"
       );
+      if (selectedStaffForIdCard && (
+        selectedStaffForIdCard.id === selectedStaffForEdit.id || 
+        selectedStaffForIdCard.staffId === selectedStaffForEdit.staffId
+      )) {
+        setSelectedStaffForIdCard(updatedStaff);
+        try {
+          sessionStorage.setItem("kacha_selected_staff_id_card", updatedStaff.staffId || updatedStaff.id);
+        } catch {}
+      }
       setSelectedStaffForEdit(null);
       await fetchStaff();
       await fetchLogs();
@@ -891,7 +942,7 @@ export default function AdminStaffManagementTab({
                       <div className="flex items-center space-x-1">
                         {/* ID Card Action Button */}
                         <button
-                          onClick={() => setSelectedStaffForIdCard(staff)}
+                          onClick={() => handleOpenIdCard(staff)}
                           className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-black transition shadow-xs cursor-pointer"
                           title={getTranslation("স্টাফ আইডি কার্ড প্রিভিউ ও প্রিন্ট করুন", "Preview & Print Staff ID Card")}
                         >
@@ -2638,11 +2689,16 @@ export default function AdminStaffManagementTab({
       {selectedStaffForIdCard && (
         <StaffIdCardModal
           staff={selectedStaffForIdCard}
+          staffId={selectedStaffForIdCard.staffId || selectedStaffForIdCard.id}
+          staffList={staffList}
           currentUser={currentUser}
           lang={lang}
-          onClose={() => setSelectedStaffForIdCard(null)}
+          onClose={handleCloseIdCard}
           onStaffUpdated={async (updatedStaff) => {
             setSelectedStaffForIdCard(updatedStaff);
+            try {
+              sessionStorage.setItem("kacha_selected_staff_id_card", updatedStaff.staffId || updatedStaff.id);
+            } catch {}
             await fetchStaff();
             await fetchLogs();
           }}

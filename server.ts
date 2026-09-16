@@ -1,4 +1,5 @@
 import express from "express";
+import http from "http";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
@@ -81,6 +82,212 @@ app.get("/healthz", (req, res) => {
 
 app.get("/health", (req, res) => {
   res.status(200).send("OK");
+});
+
+// ==========================================
+// REAL-TIME APP VISITOR ANALYTICS SYSTEM
+// ==========================================
+const ANALYTICS_STORE_FILE = path.join(process.cwd(), "data", "analytics_store.json");
+
+interface ServerAnalyticsStore {
+  daily: {
+    [date: string]: {
+      views: number;
+      uniqueVisitors: number;
+      visitorIds: string[];
+    };
+  };
+  sessions: {
+    [visitorId: string]: {
+      visitorId: string;
+      startedAt: number;
+      lastActive: number;
+      isOnline: boolean;
+    };
+  };
+}
+
+function getDhakaDateStringServer(date: Date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Dhaka",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  } catch (e) {
+    const utc = date.getTime() + date.getTimezoneOffset() * 60000;
+    const dhakaTime = new Date(utc + 6 * 3600000);
+    return dhakaTime.toISOString().split("T")[0];
+  }
+}
+
+let inMemoryAnalyticsStore: ServerAnalyticsStore | null = null;
+let saveAnalyticsTimeout: NodeJS.Timeout | null = null;
+
+function loadAnalyticsStore(): ServerAnalyticsStore {
+  if (inMemoryAnalyticsStore) return inMemoryAnalyticsStore;
+
+  try {
+    const dataDir = path.join(process.cwd(), "data");
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    if (fs.existsSync(ANALYTICS_STORE_FILE)) {
+      const content = fs.readFileSync(ANALYTICS_STORE_FILE, "utf8");
+      const parsed = JSON.parse(content);
+      inMemoryAnalyticsStore = {
+        daily: parsed.daily || {},
+        sessions: parsed.sessions || {},
+      };
+      return inMemoryAnalyticsStore;
+    }
+  } catch (err) {
+    console.warn("Could not read analytics store, initializing fresh store:", err);
+  }
+
+  inMemoryAnalyticsStore = {
+    daily: {},
+    sessions: {},
+  };
+  return inMemoryAnalyticsStore;
+}
+
+function saveAnalyticsStoreDebounced() {
+  if (saveAnalyticsTimeout) return;
+  saveAnalyticsTimeout = setTimeout(() => {
+    saveAnalyticsTimeout = null;
+    if (!inMemoryAnalyticsStore) return;
+    try {
+      const dataDir = path.join(process.cwd(), "data");
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      fs.writeFileSync(ANALYTICS_STORE_FILE, JSON.stringify(inMemoryAnalyticsStore, null, 2), "utf8");
+    } catch (err) {
+      console.warn("Failed to persist analytics store file:", err);
+    }
+  }, 1000);
+}
+
+// 1. Heartbeat & Visit Event
+app.post("/api/analytics/heartbeat", (req, res) => {
+  try {
+    const { visitorId, isNewView, isNewUnique, dhakaDate } = req.body || {};
+    if (!visitorId || typeof visitorId !== "string" || visitorId.length > 80) {
+      return res.status(400).json({ error: "Valid visitorId is required" });
+    }
+
+    const dateKey = dhakaDate || getDhakaDateStringServer();
+    const now = Date.now();
+    const store = loadAnalyticsStore();
+
+    if (!store.daily[dateKey]) {
+      store.daily[dateKey] = { views: 0, uniqueVisitors: 0, visitorIds: [] };
+    }
+    if (!store.sessions) {
+      store.sessions = {};
+    }
+
+    // Update active visitor session
+    const existing = store.sessions[visitorId];
+    store.sessions[visitorId] = {
+      visitorId,
+      startedAt: existing?.startedAt || now,
+      lastActive: now,
+      isOnline: true,
+    };
+
+    // Increment today's views
+    if (isNewView) {
+      store.daily[dateKey].views = (store.daily[dateKey].views || 0) + 1;
+    }
+
+    // Deduplicate and track unique visitors for today
+    if (!Array.isArray(store.daily[dateKey].visitorIds)) {
+      store.daily[dateKey].visitorIds = [];
+    }
+    if (isNewUnique || !store.daily[dateKey].visitorIds.includes(visitorId)) {
+      if (!store.daily[dateKey].visitorIds.includes(visitorId)) {
+        store.daily[dateKey].visitorIds.push(visitorId);
+      }
+      store.daily[dateKey].uniqueVisitors = store.daily[dateKey].visitorIds.length;
+    }
+
+    // Prune stale sessions (> 15 minutes inactive)
+    for (const [id, s] of Object.entries(store.sessions)) {
+      if (now - s.lastActive > 15 * 60 * 1000) {
+        delete store.sessions[id];
+      }
+    }
+
+    saveAnalyticsStoreDebounced();
+
+    // Active within 3 minutes (180,000 ms)
+    const activeLive = Object.values(store.sessions).filter(
+      (s) => s.isOnline !== false && now - s.lastActive <= 180000
+    ).length;
+
+    res.json({
+      success: true,
+      liveNow: activeLive,
+      todayViews: store.daily[dateKey].views || 0,
+      todayUniqueVisitors: store.daily[dateKey].uniqueVisitors || 0,
+      date: dateKey,
+    });
+  } catch (err: any) {
+    console.error("Analytics heartbeat error:", err);
+    res.status(500).json({ error: "Heartbeat processing failed" });
+  }
+});
+
+// 2. Tab / Window Leave Beacon
+app.post("/api/analytics/leave", (req, res) => {
+  try {
+    let visitorId = req.body?.visitorId;
+    if (!visitorId && typeof req.body === "string") {
+      try {
+        visitorId = JSON.parse(req.body)?.visitorId;
+      } catch (e) {}
+    }
+
+    if (visitorId && typeof visitorId === "string") {
+      const store = loadAnalyticsStore();
+      if (store.sessions && store.sessions[visitorId]) {
+        store.sessions[visitorId].isOnline = false;
+        store.sessions[visitorId].lastActive = Date.now() - 200000;
+        saveAnalyticsStoreDebounced();
+      }
+    }
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: "Leave processing failed" });
+  }
+});
+
+// 3. Analytics Stats Endpoint
+app.get("/api/analytics/stats", (req, res) => {
+  try {
+    const dateKey = getDhakaDateStringServer();
+    const now = Date.now();
+    const store = loadAnalyticsStore();
+    const daily = store.daily[dateKey] || { views: 0, uniqueVisitors: 0, visitorIds: [] };
+
+    const activeLive = Object.values(store.sessions || {}).filter(
+      (s) => s.isOnline !== false && now - s.lastActive <= 180000
+    ).length;
+
+    res.json({
+      todayViews: daily.views || 0,
+      liveNow: activeLive,
+      todayUniqueVisitors: daily.uniqueVisitors || (Array.isArray(daily.visitorIds) ? daily.visitorIds.length : 0),
+      date: dateKey,
+      serverTimeDhaka: new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
+    });
+  } catch (err: any) {
+    console.error("Analytics stats error:", err);
+    res.status(500).json({ error: "Could not fetch stats" });
+  }
 });
 
 // Secure automatic resolution and generation of MEMO_SECRET_KEY (server-only, zero exposure)
@@ -1111,14 +1318,51 @@ app.post("/api/staff/update", rateLimiter(35, 60000), requireAdminAuth, (req, re
       updaterRole 
     } = req.body;
 
-    if (!id) {
+    const incomingId = id || req.body.staffId;
+    if (!incomingId) {
       return res.status(400).json({ error: "Staff ID is required for update" });
     }
 
+    const cleanLookup = String(incomingId).trim().toLowerCase();
+    const cleanStaffId = req.body.staffId ? String(req.body.staffId).trim().toLowerCase() : "";
     const staffList = readStaffDb();
-    const index = staffList.findIndex(s => s.id === id || s.staffId === id);
+    let index = staffList.findIndex(s => 
+      (s.id && String(s.id).trim().toLowerCase() === cleanLookup) || 
+      (s.staffId && String(s.staffId).trim().toLowerCase() === cleanLookup) ||
+      (cleanStaffId && s.id && String(s.id).trim().toLowerCase() === cleanStaffId) ||
+      (cleanStaffId && s.staffId && String(s.staffId).trim().toLowerCase() === cleanStaffId)
+    );
+
     if (index === -1) {
-      return res.status(404).json({ error: "Staff member not found" });
+      // If not yet present in the local server JSON file (e.g. created in Firestore directly or CFI-KB-006),
+      // seamlessly register it into the server store so updates and subsequent lookups succeed
+      const fallbackStaffId = (req.body.staffId && String(req.body.staffId).trim()) || String(incomingId).trim();
+      const newStaff = {
+        id: String(id || incomingId).trim(),
+        staffId: fallbackStaffId,
+        username: (username && String(username).trim().toLowerCase()) || fallbackStaffId.toLowerCase().replace(/[^a-z0-9]/g, ""),
+        fullName: (fullName && fullName.trim()) || "Staff Member",
+        mobile: mobile ? mobile.replace(/\s+/g, "") : "",
+        email: email ? email.trim().toLowerCase() : "",
+        photoURL: photoURL !== undefined ? photoURL : "",
+        role: role || "order_manager",
+        designation: (designation && designation.trim()) || "Staff Executive",
+        department: (department && department.trim()) || "General Operations",
+        joiningDate: joiningDate || "2026-01-01",
+        bloodGroup: bloodGroup || "N/A",
+        emergencyContact: emergencyContact || mobile || "",
+        monthlySalary: monthlySalary !== undefined ? Number(monthlySalary) : 20000,
+        salaryStatus: salaryStatus || "due",
+        status: status || "active",
+        onlineStatus: "offline",
+        lastActiveAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isSuperAdmin: Boolean(role === "super_admin")
+      };
+      staffList.push(newStaff);
+      writeStaffDb(staffList);
+      index = staffList.length - 1;
     }
 
     const targetStaff = staffList[index];
@@ -1280,8 +1524,12 @@ app.post("/api/staff/delete", rateLimiter(15, 60000), requireSuperAdminAuth, (re
       return res.status(400).json({ error: "Staff ID is required" });
     }
 
+    const cleanLookup = String(id).trim().toLowerCase();
     const staffList = readStaffDb();
-    const target = staffList.find(s => s.id === id || s.staffId === id);
+    const target = staffList.find(s => 
+      (s.id && String(s.id).trim().toLowerCase() === cleanLookup) || 
+      (s.staffId && String(s.staffId).trim().toLowerCase() === cleanLookup)
+    );
     if (!target) {
       return res.status(404).json({ error: "Staff member not found" });
     }
@@ -1324,8 +1572,12 @@ app.post("/api/staff/reset-password", rateLimiter(15, 60000), requireAdminAuth, 
       return res.status(400).json({ error: "পাসওয়ার্ড ন্যূনতম ৬ অক্ষরের হতে হবে।" });
     }
 
+    const cleanLookup = String(id).trim().toLowerCase();
     const staffList = readStaffDb();
-    const index = staffList.findIndex(s => s.id === id || s.staffId === id);
+    const index = staffList.findIndex(s => 
+      (s.id && String(s.id).trim().toLowerCase() === cleanLookup) || 
+      (s.staffId && String(s.staffId).trim().toLowerCase() === cleanLookup)
+    );
     if (index === -1) {
       return res.status(404).json({ error: "Staff member not found" });
     }
@@ -1439,8 +1691,12 @@ app.post("/api/staff/logout-session", requireAdminAuth, (req, res) => {
       return res.status(400).json({ error: "Staff ID is required" });
     }
 
+    const cleanLookup = String(staffId).trim().toLowerCase();
     const staffList = readStaffDb();
-    const index = staffList.findIndex(s => s.id === staffId || s.staffId === staffId);
+    const index = staffList.findIndex(s => 
+      (s.id && String(s.id).trim().toLowerCase() === cleanLookup) || 
+      (s.staffId && String(s.staffId).trim().toLowerCase() === cleanLookup)
+    );
     if (index === -1) {
       return res.status(404).json({ error: "Staff member not found" });
     }
@@ -1489,8 +1745,12 @@ app.post("/api/staff/salary/pay", rateLimiter(25, 60000), requireAdminAuth, (req
       return res.status(400).json({ error: "Staff ID, Month and Amount are required." });
     }
 
+    const cleanLookup = String(staffId).trim().toLowerCase();
     const staffList = readStaffDb();
-    const index = staffList.findIndex(s => s.id === staffId || s.staffId === staffId);
+    const index = staffList.findIndex(s => 
+      (s.id && String(s.id).trim().toLowerCase() === cleanLookup) || 
+      (s.staffId && String(s.staffId).trim().toLowerCase() === cleanLookup)
+    );
     if (index === -1) {
       return res.status(404).json({ error: "Staff member not found" });
     }
@@ -1557,8 +1817,12 @@ app.post("/api/staff/salary/update-base", rateLimiter(25, 60000), requireAdminAu
       return res.status(400).json({ error: "Staff ID and monthlySalary are required" });
     }
 
+    const cleanLookup = String(staffId).trim().toLowerCase();
     const staffList = readStaffDb();
-    const index = staffList.findIndex(s => s.id === staffId || s.staffId === staffId);
+    const index = staffList.findIndex(s => 
+      (s.id && String(s.id).trim().toLowerCase() === cleanLookup) || 
+      (s.staffId && String(s.staffId).trim().toLowerCase() === cleanLookup)
+    );
     if (index === -1) {
       return res.status(404).json({ error: "Staff member not found" });
     }
@@ -1599,8 +1863,12 @@ app.post("/api/staff/heartbeat", requireStaffAuth, (req, res) => {
     const { staffId, status } = req.body;
     if (!staffId) return res.status(400).json({ error: "staffId required" });
 
+    const cleanLookup = String(staffId).trim().toLowerCase();
     const staffList = readStaffDb();
-    const staff = staffList.find(s => s.id === staffId || s.staffId === staffId);
+    const staff = staffList.find(s => 
+      (s.id && String(s.id).trim().toLowerCase() === cleanLookup) || 
+      (s.staffId && String(s.staffId).trim().toLowerCase() === cleanLookup)
+    );
     if (staff) {
       staff.onlineStatus = status || "online";
       staff.lastActiveAt = new Date().toISOString();
@@ -1675,8 +1943,11 @@ app.get("/api/staff/verify-badge/:staffId", rateLimiter(30, 60000), (req, res) =
     if (!staffId) return res.status(400).json({ error: "Invalid staff ID" });
 
     const staffList = readStaffDb();
-    const cleanId = staffId.trim().toUpperCase();
-    const staff = staffList.find(s => s.staffId.toUpperCase() === cleanId || s.id === staffId);
+    const cleanId = String(staffId).trim().toLowerCase();
+    const staff = staffList.find(s => 
+      (s.id && String(s.id).trim().toLowerCase() === cleanId) || 
+      (s.staffId && String(s.staffId).trim().toLowerCase() === cleanId)
+    );
 
     if (!staff || staff.status === "inactive") {
       return res.status(404).json({ 
@@ -1704,14 +1975,38 @@ app.get("/api/staff/verify-badge/:staffId", rateLimiter(30, 60000), (req, res) =
   }
 });
 
+// 14. GET /api/staff/get/:id - Fetch Single Staff Member by either unique record ID or display staffId
+app.get("/api/staff/get/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.status(400).json({ error: "Staff ID parameter is required" });
+
+    const cleanId = String(id).trim().toLowerCase();
+    const staffList = readStaffDb();
+    const staff = staffList.find(s => 
+      (s.id && String(s.id).trim().toLowerCase() === cleanId) || 
+      (s.staffId && String(s.staffId).trim().toLowerCase() === cleanId)
+    );
+
+    if (!staff) {
+      return res.status(404).json({ error: "Staff member not found" });
+    }
+
+    return res.json({ success: true, staff: sanitizeStaff(staff) });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch staff record" });
+  }
+});
+
 // Vite Middleware & Server Lifecycle
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
+  const isProduction = process.env.NODE_ENV === "production";
+  const distPath = path.join(process.cwd(), "dist");
+
+  if (!isProduction) {
     try {
       const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
-        root: process.cwd(),
-        configFile: path.resolve(process.cwd(), "vite.config.ts"),
         server: { middlewareMode: true },
         appType: "spa",
       });
@@ -1720,7 +2015,6 @@ async function startServer() {
       console.error("Failed to initialize Vite middleware in development mode:", err);
     }
   } else {
-    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"), (err) => {
@@ -1742,9 +2036,31 @@ async function startServer() {
     }
   });
 
-  app.listen(PORT, "0.0.0.0", () => {
+  // Primary listener on port 3000 (standard internal port for dev server & reverse proxy)
+  const primaryServer = http.createServer(app);
+  primaryServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
+
+  // Secondary listener for Cloud Run ingress (e.g. PORT=8080 in production)
+  const envPort = process.env.PORT ? parseInt(process.env.PORT, 10) : null;
+  if (envPort && envPort !== PORT && !isNaN(envPort)) {
+    try {
+      const secondaryServer = http.createServer(app);
+      secondaryServer.on("error", (err: any) => {
+        if (err.code === "EADDRINUSE") {
+          console.log(`Port ${envPort} already bound by upstream reverse proxy; active on port ${PORT}`);
+        } else {
+          console.warn(`Secondary listener warning on port ${envPort}:`, err);
+        }
+      });
+      secondaryServer.listen(envPort, "0.0.0.0", () => {
+        console.log(`Server also listening on port ${envPort} (Cloud Run ingress)`);
+      });
+    } catch (e) {
+      console.warn(`Could not start secondary listener on port ${envPort}:`, e);
+    }
+  }
 }
 
 startServer();

@@ -20,6 +20,7 @@ import CustomerLiveChat from "./components/CustomerLiveChat";
 import CustomerVoiceCallModal from "./components/CustomerVoiceCallModal";
 import { seedDatabase, db, collection, onSnapshot, auth, onAuthStateChanged, doc, getDoc, setDoc, query, where, limit, orderBy, or, addDoc, deleteDoc, serverTimestamp } from "./lib/firebase";
 import { calculateDeliveryFeeFromSettings } from "./lib/delivery";
+import { visitorTracker } from "./lib/visitorTracker";
 
 import { BannerSlider } from "./components/BannerSlider";
 import { CartItemRow } from "./components/CartItemRow";
@@ -187,6 +188,14 @@ export default function App() {
   const [loggedInUser, setLoggedInUser] = useState<any | null>(null);
   const [userRole, setUserRole] = useState<string>("customer");
   const [userReferralCode, setUserReferralCode] = useState<string>("");
+
+  // Initialize Real-Time Anonymous App Visitor Tracking
+  useEffect(() => {
+    visitorTracker.init();
+    return () => {
+      visitorTracker.destroy();
+    };
+  }, []);
 
   // Listen for URL panel routes (/admin, /partner, /seller, /rider, ?panel=admin, #admin, etc.)
   useEffect(() => {
@@ -495,7 +504,7 @@ export default function App() {
   const [homeConfig, setHomeConfig] = useState<any>(null);
 
   const availableProducts = useMemo(() => {
-    const filtered = products.filter(p => p.isAvailable !== false);
+    const filtered = products.filter(p => p.isAvailable !== false && !p.isDeleted && p.status !== "deleted" && !p.deleted);
     return filtered.sort((a, b) => {
       const orderA = typeof (a as any).displayOrder === "number" ? (a as any).displayOrder : (typeof (a as any).order === "number" ? (a as any).order : 9999);
       const orderB = typeof (b as any).displayOrder === "number" ? (b as any).displayOrder : (typeof (b as any).order === "number" ? (b as any).order : 9999);
@@ -511,7 +520,11 @@ export default function App() {
       (snap) => {
         const items: Product[] = [];
         snap.forEach((doc) => {
-          items.push(mapDocToProduct(doc.id, doc.data()));
+          const data = doc.data();
+          if (data.isDeleted === true || data.status === "deleted" || data.deleted === true) {
+            return;
+          }
+          items.push(mapDocToProduct(doc.id, data));
         });
         setProducts(items);
         setLoadingProducts(false);
