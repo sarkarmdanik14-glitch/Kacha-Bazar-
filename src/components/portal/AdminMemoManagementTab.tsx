@@ -584,7 +584,7 @@ export default function AdminMemoManagementTab({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-xs border-collapse min-w-[500px]">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase text-[9px] font-black">
                   <th className="p-2.5">Time</th>
@@ -1214,7 +1214,7 @@ export default function AdminMemoManagementTab({
 
         {/* Orders Table */}
         <div className="overflow-x-auto border border-slate-100 rounded-2xl">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full text-left text-xs border-collapse min-w-[650px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 uppercase text-[9px] font-black tracking-wider">
                 <th className="p-3.5">{getTranslation("অর্ডার আইডি", "Order ID")}</th>

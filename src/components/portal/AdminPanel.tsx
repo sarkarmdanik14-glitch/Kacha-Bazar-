@@ -40,7 +40,7 @@ import AdminVoiceCallTab from "./AdminVoiceCallTab";
 import AdminIncomingCallModal from "./AdminIncomingCallModal";
 import AdminStaffManagementTab from "./AdminStaffManagementTab";
 import AdminPartnerShopsTab from "./AdminPartnerShopsTab";
-import { MessageSquare, Printer, Layout, PhoneCall, Users } from "lucide-react";
+import { MessageSquare, Printer, Layout, PhoneCall, Users, Menu } from "lucide-react";
 import OrderMemoModal from "./OrderMemoModal";
 import { hasPermission, logStaffActivity, sendStaffHeartbeat, DEFAULT_ROLES } from "../../lib/staffManager";
 
@@ -52,6 +52,20 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({ user, onLogout, lang, triggerToast }: AdminPanelProps) {
+  // Collapsible sidebar navigation drawer toggle (hidden by default across all viewports)
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+
+  // Close collapsible sidebar on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isSidebarOpen) {
+        setIsSidebarOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSidebarOpen]);
+
   // Check authorization for all staff roles
   const isAuthorized = 
     user?.role === "admin" || 
@@ -81,7 +95,7 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
     { id: "dashboard", module: "dashboard", labelBn: "সিস্টেম ড্যাশবোর্ড", labelEn: "System Analytics", icon: <TrendingUp className="w-4 h-4" /> },
     { id: "daily_sales", module: "daily_sales", labelBn: "দৈনিক সেলস ওভারভিউ", labelEn: "Daily Sales Overview", icon: <BarChart3 className="w-4 h-4" /> },
     { id: "orders", module: "orders", labelBn: "অর্ডার ট্র্যাকিং", labelEn: "All Orders", icon: <ShoppingBag className="w-4 h-4" /> },
-    { id: "products", module: "products", labelBn: "পণ্য সম্ভার", labelEn: "All Products", icon: <Layers className="w-4 h-4" /> },
+    { id: "products", module: "products", labelBn: "পণ্য ও ক্যাটাগরি", labelEn: "Products & Categories", icon: <Layers className="w-4 h-4" /> },
     { id: "memo_management", module: "memo_management", labelBn: "মেমো ম্যানেজমেন্ট", labelEn: "Memo Management", icon: <Printer className="w-4 h-4" /> },
     { id: "staff_management", module: "staff_management", labelBn: "👥 স্টাফ ম্যানেজমেন্ট", labelEn: "Staff Management", icon: <Users className="w-4 h-4" /> },
     { id: "partner_shops", module: "partner_shops", labelBn: "🏪 পার্টনার শপস", labelEn: "Partner Shops", icon: <Store className="w-4 h-4" /> },
@@ -485,62 +499,186 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
   // Approved active riders list
   const activeRidersList = users.filter(u => u.role === "rider");
 
+  // Currently selected tab object for mobile header
+  const currentActiveTabObj = allowedTabs.find(t => t.id === activeTab) || allowedTabs[0];
+
   return (
-    <div className="w-full h-full bg-slate-50 overflow-hidden flex flex-col md:flex-row">
+    <div className="w-full h-full bg-slate-50 overflow-hidden flex flex-col relative">
       
-      {/* Sidebar Navigation */}
-      <aside className="w-full md:w-64 lg:w-72 bg-slate-950 text-white shrink-0 flex flex-col h-auto md:h-full z-10 border-b md:border-b-0 md:border-r border-slate-850">
-        {/* Sidebar Header */}
-        <div className="p-4 sm:p-5 pb-3 sm:pb-4 border-b border-slate-850 shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-md shadow-emerald-900 shrink-0">
-              <ShieldAlert className="w-5 h-5" />
+      {/* Admin Panel Sticky Navigation Stack (Header + Horizontal Sub-Navigation Tab Bar) */}
+      <div className="w-full shrink-0 sticky top-0 z-30 shadow-md bg-slate-950" id="admin-top-nav-stack">
+        {/* 1. Admin Panel Unified Top Header with Collapsible Hamburger Button (☰) */}
+        <header className="w-full bg-slate-950 text-white border-b border-slate-800 px-3 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between">
+          <div className="flex items-center space-x-2.5 sm:space-x-3.5 min-w-0">
+            {/* Collapsible Hamburger Menu Button (☰) */}
+            <button
+              type="button"
+              id="admin-hamburger-btn"
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-900 hover:bg-slate-850 text-emerald-400 hover:text-emerald-300 border border-slate-800 hover:border-emerald-600/50 transition cursor-pointer flex items-center space-x-2 shrink-0 active:scale-95 shadow-xs"
+              aria-label="Open Admin Menu"
+              title={getTranslation("এডমিন মেনু খুলুন", "Open Admin Menu")}
+            >
+              <Menu className="w-5 h-5" />
+              <span className="text-xs font-black tracking-wide text-white hidden sm:inline">
+                {getTranslation("মেনু", "Menu")}
+              </span>
+            </button>
+
+            {/* Active Tab & Role Indicator */}
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                {currentActiveTabObj?.icon}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center space-x-1.5 text-white text-xs sm:text-sm font-black truncate">
+                  <span className="truncate">{getTranslation(currentActiveTabObj?.labelBn || "", currentActiveTabObj?.labelEn || "")}</span>
+                </div>
+                <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider truncate">
+                  {user?.role === "super_admin" || user?.isSuperAdmin ? "👑 Super Admin" : (user?.role || "Staff Member")}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h3 className="font-black text-white text-sm leading-tight truncate">
+          </div>
+
+          {/* User Info and Quick Logout */}
+          <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+            <div className="hidden md:flex flex-col text-right">
+              <span className="text-xs font-black text-white truncate max-w-[180px]">
                 {user?.fullName || user?.displayName || getTranslation("এডমিন প্যানেল", "Admin Portal")}
-              </h3>
-              <p className="text-[10px] text-emerald-400 font-bold mt-0.5 uppercase tracking-wider truncate">
-                {user?.role === "super_admin" || user?.isSuperAdmin ? "👑 Super Admin" : (user?.role || "Staff Member")}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium truncate max-w-[180px]">
+                {user?.email || ""}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={onLogout}
+              className="px-3 py-1.5 rounded-xl bg-red-950/40 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-900/40 text-[11px] font-bold transition flex items-center space-x-1.5 cursor-pointer active:scale-95"
+              title={getTranslation("লগআউট", "Logout")}
+            >
+              <X className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{getTranslation("লগআউট", "Logout")}</span>
+            </button>
+          </div>
+        </header>
+
+        {/* 2. Quick Horizontal Sub-Navigation Tab Bar (Smooth scrollable across devices) */}
+        <div className="bg-slate-900 border-b border-slate-800 px-2 sm:px-4 py-1.5 flex items-center space-x-1.5 overflow-x-auto scrollbar-none">
+          {allowedTabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition cursor-pointer shrink-0 flex items-center space-x-1.5 whitespace-nowrap ${
+                  isActive
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "bg-slate-850 text-slate-300 hover:bg-slate-800 hover:text-white"
+                }`}
+              >
+                <span className="shrink-0">{tab.icon}</span>
+                <span>{getTranslation(tab.labelBn, tab.labelEn)}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. Collapsible Sidebar Drawer Menu Overlay (Hidden by default; opens only on Hamburger click) */}
+      {isSidebarOpen && (
+        <div className="fixed inset-0 z-50 flex" id="admin-collapsible-sidebar">
+          {/* Backdrop: Clicking closes sidebar */}
+          <div
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs transition-opacity animate-fade-in cursor-pointer"
+            aria-hidden="true"
+          />
+
+          {/* Slide-over Drawer Panel */}
+          <div className="relative w-80 max-w-[85vw] h-full bg-slate-950 text-white shadow-2xl flex flex-col z-10 border-r border-slate-800 animate-slide-in">
+            {/* Drawer Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-850 flex items-center justify-between shrink-0 bg-slate-950">
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-md shadow-emerald-900 shrink-0">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-black text-white text-sm leading-tight truncate">
+                    {user?.fullName || user?.displayName || getTranslation("এডমিন প্যানেল", "Admin Portal")}
+                  </h3>
+                  <p className="text-[10px] text-emerald-400 font-bold mt-0.5 uppercase tracking-wider truncate">
+                    {user?.role === "super_admin" || user?.isSuperAdmin ? "👑 Super Admin" : (user?.role || "Staff Member")}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-850 transition cursor-pointer"
+                aria-label="Close menu"
+                title={getTranslation("মেনু বন্ধ করুন", "Close Menu")}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Drawer Menu Navigation: Clicking ANY item navigates directly & closes sidebar */}
+            <nav className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-1">
+              {allowedTabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(tab.id as any);
+                      setIsSidebarOpen(false); // Directly navigate and automatically close sidebar
+                    }}
+                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+                      isActive
+                        ? "bg-emerald-600 text-white shadow font-black"
+                        : "text-slate-400 hover:bg-slate-850 hover:text-white active:bg-slate-800"
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <span className="shrink-0">{tab.icon}</span>
+                      <span className="truncate">{getTranslation(tab.labelBn, tab.labelEn)}</span>
+                    </div>
+                    {isActive && (
+                      <span className="w-2 h-2 rounded-full bg-white shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+
+            {/* Drawer Footer */}
+            <div className="p-4 border-t border-slate-850 shrink-0 bg-slate-950 space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSidebarOpen(false);
+                  onLogout();
+                }}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-3 text-red-400 hover:bg-red-950/40 hover:text-red-300 rounded-xl text-xs font-bold transition cursor-pointer border border-red-900/40 active:scale-98"
+              >
+                <X className="w-4 h-4" />
+                <span>{getTranslation("লগআউট", "Logout")}</span>
+              </button>
+              <p className="text-[10px] text-center text-slate-500 font-bold">
+                Kacha Bazar Admin Cloud
               </p>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Sidebar Menu with smooth independent scrolling & Dynamic RBAC */}
-        <nav className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-1">
-          {allowedTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
-                activeTab === tab.id 
-                  ? "bg-emerald-600 text-white shadow shadow-emerald-950 font-black" 
-                  : "text-slate-400 hover:bg-slate-850 hover:text-white"
-              }`}
-            >
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <span className="shrink-0">{tab.icon}</span>
-                <span className="truncate">{getTranslation(tab.labelBn, tab.labelEn)}</span>
-              </div>
-            </button>
-          ))}
-        </nav>
-
-        {/* Sidebar Footer */}
-        <div className="p-3 sm:p-4 border-t border-slate-850 shrink-0 bg-slate-950">
-          <button
-            onClick={onLogout}
-            className="w-full flex items-center justify-center space-x-2 px-3.5 py-2.5 text-red-400 hover:bg-red-950/40 hover:text-red-300 rounded-xl text-xs font-bold transition cursor-pointer border border-red-900/30"
-          >
-            <X className="w-4 h-4" />
-            <span>{getTranslation("লগআউট", "Logout")}</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content Area - Single Unified Scrollable Container */}
-      <main className="flex-1 min-w-0 h-full min-h-0 overflow-y-auto p-3 sm:p-5 lg:p-6 bg-slate-50 focus:outline-none">
+      {/* 4. Main Content Area - Full Available Screen Width (Expands 100% on all viewports) */}
+      <main className="flex-1 w-full min-w-0 h-full min-h-0 overflow-y-auto overflow-x-hidden p-2.5 sm:p-4 md:p-6 lg:p-8 bg-slate-50 focus:outline-none admin-main-scroll">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />

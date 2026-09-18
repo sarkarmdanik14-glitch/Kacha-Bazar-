@@ -13,7 +13,7 @@ import {
   getDocs,
   writeBatch
 } from "../../lib/firebase";
-import { MessageSquare, Send, User, Check, CheckCheck, Shield, Sparkles } from "lucide-react";
+import { MessageSquare, Send, User, Check, CheckCheck, Shield, Sparkles, ArrowLeft } from "lucide-react";
 
 interface AdminSupportChatTabProps {
   lang: "bn" | "en";
@@ -187,10 +187,10 @@ export default function AdminSupportChatTab({ lang, triggerToast }: AdminSupport
   const selectedChat = chats.find(c => c.id === selectedChatId);
 
   return (
-    <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm h-[70vh] flex flex-col md:flex-row animate-fade-in">
+    <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm h-[75vh] md:h-[70vh] flex flex-col md:flex-row animate-fade-in">
       
       {/* Chats List Sidebar */}
-      <div className="w-full md:w-80 border-r border-slate-150 flex flex-col h-1/2 md:h-full shrink-0">
+      <div className={`w-full md:w-80 border-r border-slate-150 flex flex-col h-full shrink-0 ${selectedChatId ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 border-b border-slate-100 bg-slate-50/50">
           <h4 className="font-black text-slate-800 text-xs sm:text-sm flex items-center space-x-1.5 uppercase">
             <MessageSquare className="w-4 h-4 text-emerald-600" />
@@ -270,21 +270,31 @@ export default function AdminSupportChatTab({ lang, triggerToast }: AdminSupport
       </div>
 
       {/* Message Stream Pane */}
-      <div className="flex-1 flex flex-col bg-slate-50/50 h-1/2 md:h-full relative">
+      <div className={`flex-1 flex flex-col bg-slate-50/50 h-full relative ${selectedChatId ? 'flex' : 'hidden md:flex'}`}>
         {selectedChatId ? (
           <>
             {/* Header info */}
-            <div className="bg-white border-b border-slate-100 p-4 flex items-center justify-between shrink-0 shadow-sm z-10">
-              <div>
-                <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm leading-tight flex items-center gap-1">
-                  <span>{selectedChat?.userDisplayName}</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                </h4>
-                <p className="text-[10px] text-slate-400 font-bold mt-0.5">{selectedChat?.userEmail}</p>
+            <div className="bg-white border-b border-slate-100 p-3 sm:p-4 flex items-center justify-between shrink-0 shadow-sm z-10">
+              <div className="flex items-center space-x-2 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setSelectedChatId(null)}
+                  className="md:hidden p-1.5 -ml-1 rounded-xl text-slate-500 hover:text-slate-850 hover:bg-slate-100 cursor-pointer shrink-0"
+                  title={getTranslation("তালিকায় ফিরে যান", "Back to Chats")}
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <div className="truncate">
+                  <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm leading-tight flex items-center gap-1 truncate">
+                    <span className="truncate">{selectedChat?.userDisplayName}</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-bold mt-0.5 truncate">{selectedChat?.userEmail}</p>
+                </div>
               </div>
-              <div className="flex items-center space-x-1.5 text-[10px] text-emerald-600 font-black uppercase tracking-wider bg-emerald-50 px-3 py-1 rounded-full">
+              <div className="flex items-center space-x-1.5 text-[10px] text-emerald-600 font-black uppercase tracking-wider bg-emerald-50 px-3 py-1 rounded-full shrink-0">
                 <Shield className="w-3.5 h-3.5" />
-                <span>Support Mode</span>
+                <span className="hidden sm:inline">Support Mode</span>
               </div>
             </div>
 

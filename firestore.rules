@@ -34,7 +34,8 @@ service cloud.firestore {
     // Helper to check if authorized Staff member
     function isStaff() {
       return isSignedIn() && (
-        exists(/databases/$(database)/documents/staff/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/staff/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.status == 'active') ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          getUserData().role in ['admin', 'super_admin', 'order_manager', 'product_manager', 'call_center_agent', 'customer_support', 'delivery_manager', 'accounts_manager']) ||
         isAdmin()
@@ -54,6 +55,14 @@ service cloud.firestore {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/riders/$(request.auth.uid)) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (getUserData().role in ['rider', 'admin', 'founder']))
+      );
+    }
+
+    // Helper to verify if user owns a specific partner shop
+    function isShopOwner(shopId) {
+      return isSignedIn() && shopId != null && exists(/databases/$(database)/documents/partner_shops/$(shopId)) && (
+        get(/databases/$(database)/documents/partner_shops/$(shopId)).data.ownerUid == request.auth.uid ||
+        get(/databases/$(database)/documents/partner_shops/$(shopId)).data.email == request.auth.token.email
       );
     }
 
@@ -78,46 +87,64 @@ service cloud.firestore {
       ));
     }
 
-    // Products - Publicly viewable catalog for browsing, managed by Admin, Sellers & Partners
+    // Products - Publicly viewable catalog for browsing, managed strictly by Admin, authorized Staff, verified Sellers & Partners
     match /products/{productId} {
       allow read: if true;
       allow create: if isAdmin() || isStaff() || 
         (isSeller() && request.resource.data.sellerId == request.auth.uid) ||
-        (isSignedIn() && request.resource.data.partnerShopId != null);
+        (isSignedIn() && isShopOwner(request.resource.data.partnerShopId));
       allow update: if isAdmin() || isStaff() || 
         (isSeller() && resource.data.sellerId == request.auth.uid) ||
-        (isSignedIn() && (resource.data.partnerShopId != null || (request.resource != null && request.resource.data.partnerShopId != null)));
+        (isSignedIn() && isShopOwner(resource.data.partnerShopId));
       allow delete: if isAdmin() || isStaff() || 
         (isSeller() && resource.data.sellerId == request.auth.uid) ||
-        (isSignedIn() && resource.data.partnerShopId != null);
+        (isSignedIn() && isShopOwner(resource.data.partnerShopId));
     }
 
-    // Orders - Customers access ONLY their own orders. Staff, Admins & Partners access according to role
+    // Orders - Customers access ONLY their own orders. Staff, Admins & Partners access according to verified role
     match /orders/{orderId} {
       allow read: if isAdmin() || isStaff() || (isSignedIn() && (
         resource.data.customerId == request.auth.uid || 
         (resource.data.customerEmail != null && resource.data.customerEmail == request.auth.token.email) ||
+        (resource.data.customerPhone != null && request.auth.token.phone_number != null && resource.data.customerPhone == request.auth.token.phone_number) ||
         resource.data.riderId == request.auth.uid || 
         resource.data.sellerId == request.auth.uid ||
         resource.data.partnerShopId == request.auth.uid ||
-        (resource.data.partnerShopIds != null && request.auth.uid in resource.data.partnerShopIds)
+        (resource.data.partnerShopIds != null && request.auth.uid in resource.data.partnerShopIds) ||
+        isShopOwner(resource.data.partnerShopId)
       ));
-      allow create: if isSignedIn() || (request.resource.data.keys().hasAll(['id', 'items', 'total', 'customerPhone']));
+      // Guests can place orders with required fields; signed-in users cannot spoof customerId
+      allow create: if (
+        (!isSignedIn() && request.resource.data.keys().hasAll(['id', 'items', 'total', 'customerPhone'])) ||
+        (isSignedIn() && (
+          !('customerId' in request.resource.data) || 
+          request.resource.data.customerId == request.auth.uid
+        ))
+      );
+      // Hardened updates: customers can only cancel or request refunds; riders can accept/deliver; admin/staff full management
       allow update: if isAdmin() || isStaff() || (isSignedIn() && (
-        (resource.data.customerId == request.auth.uid && (
-          !('paymentStatus' in request.resource.data) ||
-          request.resource.data.paymentStatus == resource.data.paymentStatus
-        )) ||
-        (resource.data.riderId == request.auth.uid && (
-          !('paymentStatus' in request.resource.data) ||
-          request.resource.data.paymentStatus == "paid" ||
-          request.resource.data.paymentStatus == resource.data.paymentStatus
-        )) ||
-        (resource.data.sellerId == request.auth.uid && (
-          !('paymentStatus' in request.resource.data) ||
-          request.resource.data.paymentStatus == resource.data.paymentStatus
-        )) ||
-        (resource.data.partnerShopId != null)
+        (
+          resource.data.customerId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['orderStatus', 'refundReason', 'notes', 'cancellationReason', 'updatedAt']) &&
+          (!('paymentStatus' in request.resource.data) || request.resource.data.paymentStatus == resource.data.paymentStatus) &&
+          (!('total' in request.resource.data) || request.resource.data.total == resource.data.total)
+        ) ||
+        (
+          resource.data.riderId == request.auth.uid && (
+            !('paymentStatus' in request.resource.data) ||
+            request.resource.data.paymentStatus == "paid" ||
+            request.resource.data.paymentStatus == resource.data.paymentStatus
+          )
+        ) ||
+        (
+          resource.data.sellerId == request.auth.uid && (
+            !('paymentStatus' in request.resource.data) ||
+            request.resource.data.paymentStatus == resource.data.paymentStatus
+          )
+        ) ||
+        (
+          isShopOwner(resource.data.partnerShopId)
+        )
       ));
       allow delete: if isAdmin();
     }
@@ -127,14 +154,17 @@ service cloud.firestore {
       allow read: if isAdmin() || isStaff() || (isSignedIn() && request.auth.uid == userId);
       allow create: if isSignedIn() && request.auth.uid == userId && (
         (!('role' in request.resource.data) || request.resource.data.role == 'customer') &&
-        (!('status' in request.resource.data) || request.resource.data.status == 'active' || request.resource.data.status == 'pending')
+        (!('status' in request.resource.data) || request.resource.data.status == 'active' || request.resource.data.status == 'pending') &&
+        (!('isSuperAdmin' in request.resource.data) || request.resource.data.isSuperAdmin == false)
       );
       allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId && (
         (!('status' in request.resource.data) || request.resource.data.status == resource.data.status) &&
         (!('sellerStatus' in request.resource.data) || request.resource.data.sellerStatus == resource.data.sellerStatus) &&
         (!('riderStatus' in request.resource.data) || request.resource.data.riderStatus == resource.data.riderStatus) &&
         (!('role' in request.resource.data) || request.resource.data.role == resource.data.role) &&
-        (!('isSuperAdmin' in request.resource.data) || request.resource.data.isSuperAdmin == resource.data.isSuperAdmin)
+        (!('isSuperAdmin' in request.resource.data) || request.resource.data.isSuperAdmin == resource.data.isSuperAdmin) &&
+        (!('balance' in request.resource.data) || request.resource.data.balance == resource.data.balance) &&
+        (!('wallet' in request.resource.data) || request.resource.data.wallet == resource.data.wallet)
       ));
       allow delete: if isAdmin();
     }
@@ -144,7 +174,7 @@ service cloud.firestore {
       allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == cartId);
     }
 
-    // Admins collection - strictly read-only for verified admin user
+    // Admins collection - strictly read-only for verified admin user, immutable via client
     match /admins/{adminId} {
       allow read: if isSignedIn() && (request.auth.uid == adminId || isAdmin());
       allow write: if false; // Only manageable via Firebase Console or Firebase Admin SDK
@@ -181,15 +211,21 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Wallet - Users access ONLY their own wallet
+    // Wallet - Users cannot tamper with balances. Initial bonus (0 or 50) permitted on create.
     match /wallet/{walletId} {
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == walletId);
-      allow create: if isSignedIn() && (request.auth.uid == walletId || isRider() || isAdmin());
-      allow update: if isAdmin() || isRider() || (isSignedIn() && request.auth.uid == walletId);
+      allow create: if (isSignedIn() && request.auth.uid == walletId && (
+        !('balance' in request.resource.data) || request.resource.data.balance in [0, 50]
+      )) || isAdmin();
+      allow update: if isAdmin() || (
+        isRider() && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['balance', 'updatedAt']) && 
+        request.resource.data.balance == resource.data.balance + 50
+      );
       allow delete: if false;
     }
 
-    // Transactions - Users access ONLY their own transactions
+    // Transactions - Users access ONLY their own transactions, immutable
     match /transactions/{transactionId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn() && (
@@ -200,13 +236,13 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Coupons - Publicly readable for checkout validation, managed by Admin
+    // Coupons - Publicly readable for checkout validation, managed strictly by Admin
     match /coupons/{couponId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 
-    // Flash Sales - Publicly readable for store display, managed by Admin
+    // Flash Sales - Publicly readable for store display, managed strictly by Admin
     match /flash_sales/{saleId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
@@ -235,13 +271,13 @@ service cloud.firestore {
       allow update, delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
-    // Notifications - Users access ONLY their own notifications or system broadcast
+    // Notifications - Users access their own notifications or system broadcasts ("all"). Admin notices restricted to Admin.
     match /notifications/{notificationId} {
       allow read: if isAdmin() || (isSignedIn() && (
         resource.data.userId == request.auth.uid ||
-        resource.data.userId == "admin-default"
+        resource.data.userId == "all"
       ));
-      allow create: if request.resource.data.userId == "admin-default" || (isSignedIn() && (
+      allow create: if request.resource.data.userId == "admin-default" || request.resource.data.userId == "all" || (isSignedIn() && (
         request.resource.data.userId == request.auth.uid ||
         isRider() ||
         isAdmin()
@@ -249,13 +285,13 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Banners - Publicly viewable for carousel, managed by Admin
+    // Banners - Publicly viewable for carousel, managed strictly by Admin
     match /banners/{bannerId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 
-    // Settings - Publicly viewable for store configuration, managed by Admin
+    // Settings - Publicly viewable for store configuration, managed strictly by Admin
     match /settings/{settingId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
@@ -275,11 +311,16 @@ service cloud.firestore {
         resource.data.customerId == request.auth.uid || 
         chatId == request.auth.uid
       ));
-      allow create, update: if isAdmin() || isStaff() || (isSignedIn() && (
+      allow create: if isAdmin() || isStaff() || (isSignedIn() && (
         request.resource.data.userId == request.auth.uid || 
         request.resource.data.customerId == request.auth.uid || 
         chatId == request.auth.uid
       )) || (chatId != null && request.resource.data.chatId == chatId);
+      allow update: if isAdmin() || isStaff() || (isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.customerId == request.auth.uid || 
+        chatId == request.auth.uid
+      ));
       allow delete: if isAdmin();
     }
 
@@ -294,7 +335,7 @@ service cloud.firestore {
       allow create: if isAdmin() || isStaff() || (isSignedIn() && (
         request.resource.data.senderId == request.auth.uid || 
         request.resource.data.userId == request.auth.uid
-      )) || (request.resource.data.chatId != null && request.resource.data.text != null);
+      )) || (request.resource.data.chatId != null && request.resource.data.text != null && request.resource.data.text.size() <= 2000);
       allow update, delete: if isAdmin();
     }
 
@@ -334,6 +375,9 @@ service cloud.firestore {
         // Protect super admin role escalation: normal admins cannot escalate anyone to super_admin or change founder's role
         (!('role' in request.resource.data) || request.resource.data.role != 'super_admin' || (
           resource != null && resource.data.role == 'super_admin'
+        ) || request.auth.token.email == 'sarkarmdanik14@gmail.com') &&
+        (!('isSuperAdmin' in request.resource.data) || request.resource.data.isSuperAdmin != true || (
+          resource != null && resource.data.isSuperAdmin == true
         ) || request.auth.token.email == 'sarkarmdanik14@gmail.com')
       );
       // Strictly prevent deleting the founder/super_admin
@@ -349,7 +393,7 @@ service cloud.firestore {
     // Staff Activity Logs - Immutable Audit Trail accessible ONLY to Admin and Staff
     match /staff_activity_logs/{logId} {
       allow read: if isAdmin() || isStaff();
-      allow create: if isSignedIn() || isAdmin();
+      allow create: if isAdmin() || isStaff();
       allow update, delete: if false; // Immutable audit trail
     }
 
@@ -357,13 +401,14 @@ service cloud.firestore {
     match /visitor_sessions/{visitorId} {
       allow read: if true;
       allow create, update: if true;
-      allow delete: if true;
+      allow delete: if isAdmin();
     }
 
     // Daily Analytics Aggregation (Today's views and unique visitors)
     match /analytics_daily/{dateId} {
       allow read: if true;
       allow create, update: if true;
+      allow delete: if isAdmin();
     }
   }
 }

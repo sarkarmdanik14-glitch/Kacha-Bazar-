@@ -102,3 +102,58 @@
     visibility: hidden !important;
   }
 }
+
+/* ================= RESPONSIVE ADMIN PANEL UTILITIES ================= */
+@keyframes drawerSlideIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: drawerSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Ensure admin main scrollable area scrolls smoothly without sideways page jitter */
+.admin-main-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Automatically enhance all table scroll wrappers inside admin pages for mobile touch */
+.admin-main-scroll .overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* Responsive adjustments for admin components on small screens (tablets & mobile) */
+@media (max-width: 768px) {
+  /* Prevent forms and inputs from overflowing mobile viewports */
+  .admin-main-scroll input,
+  .admin-main-scroll select,
+  .admin-main-scroll textarea {
+    max-width: 100%;
+  }
+
+  /* Improve touch interaction targets */
+  .admin-main-scroll button {
+    touch-action: manipulation;
+  }
+}
+

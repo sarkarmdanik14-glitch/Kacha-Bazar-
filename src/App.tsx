@@ -21,6 +21,7 @@ import CustomerVoiceCallModal from "./components/CustomerVoiceCallModal";
 import { seedDatabase, db, collection, onSnapshot, auth, onAuthStateChanged, doc, getDoc, setDoc, query, where, limit, orderBy, or, addDoc, deleteDoc, serverTimestamp } from "./lib/firebase";
 import { calculateDeliveryFeeFromSettings } from "./lib/delivery";
 import { visitorTracker } from "./lib/visitorTracker";
+import { initVoiceWelcome } from "./lib/voiceWelcome";
 
 import { BannerSlider } from "./components/BannerSlider";
 import { CartItemRow } from "./components/CartItemRow";
@@ -195,6 +196,11 @@ export default function App() {
     return () => {
       visitorTracker.destroy();
     };
+  }, []);
+
+  // Initialize Bengali Voice Welcome Message (plays once per session with autoplay fallback)
+  useEffect(() => {
+    initVoiceWelcome();
   }, []);
 
   // Listen for URL panel routes (/admin, /partner, /seller, /rider, ?panel=admin, #admin, etc.)
@@ -562,7 +568,7 @@ export default function App() {
               iconName: data.iconName || "Sparkles",
               colorClass: data.colorClass || "from-emerald-500 to-teal-600",
               borderColor: data.borderColor || "border-slate-200",
-              image: data.image,
+              image: data.image || data.imageUrl,
               isAvailable: data.isAvailable !== false,
               displayOrder: typeof data.displayOrder === "number" ? data.displayOrder : (typeof data.order === "number" ? data.order : undefined),
               order: typeof data.order === "number" ? data.order : (typeof data.displayOrder === "number" ? data.displayOrder : undefined)
@@ -1704,6 +1710,7 @@ export default function App() {
           }}
           onCategoryClick={navigateToCategory}
           customBanners={homeConfig?.heroBanners || banners}
+          referralBanner={homeConfig?.referralBanner}
           loading={loadingBanners}
         />
       )}
@@ -1726,7 +1733,7 @@ export default function App() {
             <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2 sm:gap-2.5 md:gap-3">
               {Array.from({ length: 10 }).map((_, idx) => (
                 <div key={idx} className="flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border border-slate-200/80 bg-white shadow-xs animate-pulse">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-lg bg-slate-100 shrink-0"></div>
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-full bg-slate-100 shrink-0" style={{ borderRadius: "50%" }}></div>
                   <div className="h-2 w-10 sm:w-12 bg-slate-100 rounded mt-1"></div>
                 </div>
               ))}
@@ -1751,17 +1758,24 @@ export default function App() {
                           onClick={() => navigateToCategory(cat.id)}
                           className={`group flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/60 hover:border-emerald-500/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer text-center ${isHiddenOnMobile ? "hidden sm:flex" : "flex"}`}
                         >
-                          {/* Fixed Uniform Image Area */}
-                          <div className="w-11 h-11 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-lg bg-slate-50/80 flex items-center justify-center p-1 shrink-0 overflow-hidden transition-transform duration-200 group-hover:scale-105">
+                          {/* Circular Category Card (100% Round) */}
+                          <div 
+                            className="w-11 h-11 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-full bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden transition-transform duration-200 group-hover:scale-105"
+                            style={{ borderRadius: "50%" }}
+                          >
                             {(cat as any).image || (cat as any).imageUrl ? (
                               <img
                                 src={(cat as any).image || (cat as any).imageUrl}
                                 alt={cat.nameEn}
-                                className="w-full h-full object-contain"
+                                className="w-full h-full object-cover rounded-full"
+                                style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
                                 loading="lazy"
                               />
                             ) : (
-                              <div className={`w-full h-full rounded-md flex items-center justify-center text-slate-600 ${cat.colorClass || "bg-emerald-50 text-emerald-600"}`}>
+                              <div 
+                                className={`w-full h-full rounded-full flex items-center justify-center text-slate-600 ${cat.colorClass || "bg-emerald-50 text-emerald-600"}`}
+                                style={{ width: "100%", height: "100%", borderRadius: "50%" }}
+                              >
                                 {renderCatIcon(cat.iconName)}
                               </div>
                             )}

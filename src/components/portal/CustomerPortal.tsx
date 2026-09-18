@@ -63,6 +63,8 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   // Profile editing states
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [displayNameInput, setDisplayNameInput] = useState<string>(user?.displayName || dbUser?.displayName || "");
+  const [phoneInput, setPhoneInput] = useState<string>(user?.phone || user?.phoneNumber || dbUser?.phone || "");
+  const [emailInput, setEmailInput] = useState<string>(user?.email || dbUser?.email || "");
   const [photoUrlInput, setPhotoUrlInput] = useState<string>(user?.photoURL || dbUser?.photoURL || "");
   const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
@@ -72,11 +74,20 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       if (dbUser.displayName) {
         setDisplayNameInput(dbUser.displayName);
       }
+      if (dbUser.phone !== undefined) {
+        setPhoneInput(dbUser.phone || "");
+      }
+      if (dbUser.email !== undefined) {
+        setEmailInput(dbUser.email || "");
+      }
+      if (dbUser.address !== undefined) {
+        setProfileAddress(dbUser.address || "");
+      }
       if (dbUser.photoURL !== undefined) {
         setPhotoUrlInput(dbUser.photoURL || "");
       }
     }
-  }, [dbUser?.displayName, dbUser?.photoURL]);
+  }, [dbUser?.displayName, dbUser?.phone, dbUser?.email, dbUser?.address, dbUser?.photoURL]);
 
   const handleSaveProfile = async () => {
     const trimmedName = displayNameInput.trim();
@@ -90,11 +101,16 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
     setIsSavingProfile(true);
     try {
-      await updateDoc(doc(db, "users", user.uid), {
+      const updatedFields: any = {
         displayName: trimmedName,
+        phone: phoneInput.trim(),
+        email: emailInput.trim(),
+        address: profileAddress.trim(),
         photoURL: photoUrlInput,
         updatedAt: serverTimestamp()
-      });
+      };
+
+      await updateDoc(doc(db, "users", user.uid), updatedFields);
 
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, {
@@ -105,8 +121,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
       setDbUser((prev: any) => ({
         ...prev,
-        displayName: trimmedName,
-        photoURL: photoUrlInput
+        ...updatedFields
       }));
 
       triggerToast(
@@ -755,66 +770,95 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                     </div>
                   </div>
 
-                  {/* Display Name Edit Form */}
+                  {/* Profile Edit Form: Name, Phone, Email, Delivery Address */}
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        {getTranslation("ডিসপ্লে নাম / পূর্ণ নাম", "Display Name / Full Name")} <span className="text-red-500">*</span>
-                      </label>
-                      <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Name */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
+                          <User className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{getTranslation("ডিসপ্লে নাম / পূর্ণ নাম", "Full Name")}</span>
+                          <span className="text-red-500">*</span>
+                        </label>
                         <input
                           type="text"
                           value={displayNameInput}
                           onChange={(e) => setDisplayNameInput(e.target.value)}
-                          placeholder={getTranslation("আপনার পূর্ণ নাম লিখুন", "Enter your full display name")}
-                          className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
+                          placeholder={getTranslation("আপনার পূর্ণ নাম লিখুন", "Enter your full name")}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
                         />
-                        <button
-                          type="button"
-                          onClick={handleSaveProfile}
-                          disabled={isSavingProfile}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 shrink-0"
-                        >
-                          {isSavingProfile ? (
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Save className="w-3.5 h-3.5" />
-                          )}
-                          <span>{getTranslation("নাম সংরক্ষণ করুন", "Save Name")}</span>
-                        </button>
+                      </div>
+
+                      {/* Phone */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
+                          <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{getTranslation("মোবাইল নম্বর", "Phone Number")}</span>
+                        </label>
+                        <input
+                          type="tel"
+                          value={phoneInput}
+                          onChange={(e) => setPhoneInput(e.target.value)}
+                          placeholder={getTranslation("০১৭১৯-XXXXXX", "01719-XXXXXX")}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
+                        />
+                      </div>
+
+                      {/* Email */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
+                          <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{getTranslation("ইমেইল এড্রেস", "Email Address")}</span>
+                        </label>
+                        <input
+                          type="email"
+                          value={emailInput}
+                          onChange={(e) => setEmailInput(e.target.value)}
+                          placeholder={getTranslation("example@domain.com", "example@domain.com")}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
+                        />
+                      </div>
+
+                      {/* Delivery Address */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{getTranslation("ডেলিভারি ঠিকানা", "Delivery Address")}</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={profileAddress}
+                          onChange={(e) => setProfileAddress(e.target.value)}
+                          placeholder={getTranslation("বাসা, রোড, এলাকা, জেলা", "House, Road, Area, City")}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
+                        />
                       </div>
                     </div>
 
-                    {/* Read-Only Account Information */}
+                    <div className="pt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleSaveProfile}
+                        disabled={isSavingProfile}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 shadow-sm"
+                      >
+                        {isSavingProfile ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        <span>{getTranslation("প্রোফাইল সংরক্ষণ করুন", "Save Profile Details")}</span>
+                      </button>
+                    </div>
+
+                    {/* Account System Information */}
                     <div className="pt-3 border-t border-slate-100 space-y-3">
                       <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
                         <Lock className="w-3 h-3 text-slate-400" />
-                        <span>{getTranslation("অপরিবর্তনীয় তথ্য (Read-Only Fields)", "Read-Only Account Details")}</span>
+                        <span>{getTranslation("অ্যাকাউন্ট ভেরিফিকেশন ও স্ট্যাটাস", "Account Identity & Status")}</span>
                       </h4>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {/* Email */}
-                        <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex items-center space-x-1">
-                            <Mail className="w-3 h-3 text-slate-400" />
-                            <span>{getTranslation("ইমেইল এড্রেস", "Email Address")}</span>
-                          </span>
-                          <p className="text-xs font-bold text-slate-700 truncate">
-                            {dbUser?.email || user?.email || "N/A"}
-                          </p>
-                        </div>
-
-                        {/* Phone */}
-                        <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex items-center space-x-1">
-                            <Phone className="w-3 h-3 text-slate-400" />
-                            <span>{getTranslation("মোবাইল নম্বর", "Phone Number")}</span>
-                          </span>
-                          <p className="text-xs font-bold text-slate-700 truncate">
-                            {dbUser?.phone || user?.phone || user?.phoneNumber || getTranslation("সংযুক্ত নয়", "Not linked")}
-                          </p>
-                        </div>
-
                         {/* User ID (UID) */}
                         <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex items-center space-x-1">

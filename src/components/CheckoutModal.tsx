@@ -182,6 +182,8 @@ export default function CheckoutModal({
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
     if (!name.trim() || !phone.trim() || !address.trim()) {
       triggerToast(
         "অনুগ্রহ করে সব তথ্য পূরণ করুন।",

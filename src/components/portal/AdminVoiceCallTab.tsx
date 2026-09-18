@@ -682,7 +682,7 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[550px]">
               <thead>
                 <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider">
                   <th className="pb-3 px-3">{getTranslation("কিউ পজিশন", "Position")}</th>
@@ -931,7 +931,7 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[650px]">
               <thead>
                 <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider">
                   <th className="pb-3 px-3">{getTranslation("কল আইডি", "Call ID")}</th>

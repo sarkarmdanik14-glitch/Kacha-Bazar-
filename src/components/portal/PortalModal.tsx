@@ -119,10 +119,29 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
               const adminUserObj = {
                 uid: user.uid,
                 email: user.email,
-                displayName: adminData.displayName || user.displayName || user.email?.split("@")[0] || "System Admin",
+                displayName: adminData?.displayName || user.displayName || user.email?.split("@")[0] || "System Admin",
                 role: "admin",
                 profileStatus: "approved"
               };
+
+              try {
+                const idToken = await user.getIdToken();
+                const sessionRes = await fetch("/api/staff/firebase-session", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ idToken })
+                });
+                const sessionData = await sessionRes.json();
+                if (sessionRes.ok && sessionData.sessionId) {
+                  localStorage.setItem("kb_staff_session", sessionData.sessionId);
+                  sessionStorage.setItem("kb_staff_session", sessionData.sessionId);
+                  if (sessionData.staff?.staffId) localStorage.setItem("kb_staff_id", sessionData.staff.staffId);
+                  if (sessionData.staff?.email) localStorage.setItem("kb_staff_email", sessionData.staff.email);
+                }
+              } catch (e) {
+                console.warn("Notice authenticating staff session:", e);
+              }
+
               setCurrentUser(adminUserObj);
               setUserRole("admin");
               setActivePortalTab("admin");
@@ -245,6 +264,24 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
             }
 
             if (isAdminUser) {
+              try {
+                const idToken = await user.getIdToken();
+                const sessionRes = await fetch("/api/staff/firebase-session", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ idToken })
+                });
+                const sessionData = await sessionRes.json();
+                if (sessionRes.ok && sessionData.sessionId) {
+                  localStorage.setItem("kb_staff_session", sessionData.sessionId);
+                  sessionStorage.setItem("kb_staff_session", sessionData.sessionId);
+                  if (sessionData.staff?.staffId) localStorage.setItem("kb_staff_id", sessionData.staff.staffId);
+                  if (sessionData.staff?.email) localStorage.setItem("kb_staff_email", sessionData.staff.email);
+                }
+              } catch (e) {
+                console.warn("Notice authenticating staff session:", e);
+              }
+
               setCurrentUser({
                 uid: user.uid,
                 email: user.email,

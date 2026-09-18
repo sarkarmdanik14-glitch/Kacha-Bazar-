@@ -9,8 +9,12 @@
         "displayName": "string",
         "role": "string",
         "phoneNumber": "string",
+        "phone": "string",
+        "photoURL": "string",
         "createdAt": "timestamp",
+        "updatedAt": "timestamp",
         "address": "string",
+        "isVerified": "boolean",
         "referralCode": "string",
         "referredBy": "string"
       }

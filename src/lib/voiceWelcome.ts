@@ -1,48 +1,59 @@
 /**
- * Voice Welcome Service for Kacha Bazar
- * Plays a polite, clear greeting: "আসসালামু আলাইকুম, কাঁচা বাজারে আপনাকে স্বাগতম।"
- * once per session. Handles browser autoplay restrictions gracefully with one-time user interaction fallback.
+ * Bengali Voice Welcome Service for Kacha Bazar
+ *
+ * Requirements:
+ * 1. Plays: "আসসালামু আলাইকুম, কাঁচা বাজারে আপনাকে স্বাগতম"
+ * 2. Plays automatically when the app/website opens.
+ * 3. Plays only once per session, not repeatedly (guarded by sessionStorage and memory state).
+ * 4. Uses a clear, natural Bengali voice (studio-quality natural voice audio with Web Speech API fallback).
+ * 5. If browser autoplay is blocked, smoothly plays on the user's first interaction (click/touch/keydown).
+ * 6. Completely transparent — zero changes to visual layout or design.
  */
 
 const SESSION_KEY = "kachabazar_welcome_voice_played";
-const GREETING_TEXT = "আসসালামু আলাইকুম, কাঁচা বাজারে আপনাকে স্বাগতম।";
+const GREETING_TEXT = "আসসালামু আলাইকুম, কাঁচা বাজারে আপনাকে স্বাগতম";
+const AUDIO_SRC_MP3 = "/audio/kachabazar-welcome.mp3";
+const AUDIO_SRC_WAV = "/audio/kachabazar-welcome.wav";
 
 let isInitialized = false;
+let hasPlayed = false;
+let currentAudio: HTMLAudioElement | null = null;
 
-export function initVoiceWelcome(): void {
-  // Prevent duplicate execution
+function isSessionAlreadyPlayed(): boolean {
+  if (hasPlayed) return true;
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      return window.sessionStorage.getItem(SESSION_KEY) === "true";
+    }
+  } catch (err) {
+    console.debug("Session storage check error:", err);
+  }
+  return false;
+}
+
+function markSessionAsPlayed(): void {
+  hasPlayed = true;
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      window.sessionStorage.setItem(SESSION_KEY, "true");
+    }
+  } catch (err) {
+    console.debug("Session storage set error:", err);
+  }
+}
+
+/**
+ * Fallback to browser Web Speech API with Bengali voice if audio file fails
+ */
+function speakWithWebSpeech(): void {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) {
     return;
   }
 
   try {
-    if (sessionStorage.getItem(SESSION_KEY) === "true") {
-      return;
-    }
-  } catch (err) {
-    console.warn("Session storage access notice in voice welcome:", err);
-  }
-
-  if (isInitialized) return;
-  isInitialized = true;
-
-  let hasSpoken = false;
-
-  const playGreeting = () => {
-    if (hasSpoken) return;
-
-    try {
-      if (sessionStorage.getItem(SESSION_KEY) === "true") {
-        hasSpoken = true;
-        cleanupListeners();
-        return;
-      }
-    } catch {}
-
     const synth = window.speechSynthesis;
     if (!synth) return;
 
-    // Cancel any stuck utterance
     try {
       synth.cancel();
     } catch {}
@@ -53,14 +64,14 @@ export function initVoiceWelcome(): void {
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
 
-    // Pick best available Bengali or natural voice
     const voices = synth.getVoices ? synth.getVoices() : [];
-    const bnVoice = voices.find(v => 
-      v.lang === "bn-BD" || 
-      v.lang === "bn-IN" || 
-      v.lang?.toLowerCase().startsWith("bn") ||
-      v.name?.toLowerCase().includes("bangla") ||
-      v.name?.toLowerCase().includes("bengali")
+    const bnVoice = voices.find(
+      (v) =>
+        v.lang === "bn-BD" ||
+        v.lang === "bn-IN" ||
+        v.lang?.toLowerCase().startsWith("bn") ||
+        v.name?.toLowerCase().includes("bangla") ||
+        v.name?.toLowerCase().includes("bengali")
     );
 
     if (bnVoice) {
@@ -68,69 +79,117 @@ export function initVoiceWelcome(): void {
     }
 
     utterance.onstart = () => {
-      hasSpoken = true;
-      try {
-        sessionStorage.setItem(SESSION_KEY, "true");
-      } catch {}
-      cleanupListeners();
+      markSessionAsPlayed();
     };
 
-    utterance.onerror = (e) => {
-      // If error occurred because of autoplay restrictions, user interaction listeners will catch it
-      if (e.error === "not-allowed" || e.error === "interrupted") {
-        // Wait for user gesture
+    synth.speak(utterance);
+  } catch (err) {
+    console.debug("Web Speech fallback error:", err);
+  }
+}
+
+/**
+ * Attempt to play the welcome voice greeting
+ */
+export function playWelcomeVoice(): void {
+  if (isSessionAlreadyPlayed()) {
+    return;
+  }
+
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  // Use natural Bengali voice audio file
+  try {
+    if (currentAudio) {
+      try {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      } catch {}
+    }
+
+    const audio = new Audio();
+    currentAudio = audio;
+    audio.src = AUDIO_SRC_MP3;
+    audio.volume = 1.0;
+    audio.preload = "auto";
+
+    audio.onplaying = () => {
+      markSessionAsPlayed();
+    };
+
+    audio.onerror = () => {
+      // If MP3 fails, try WAV fallback, then Web Speech
+      if (audio.src.endsWith(".mp3")) {
+        audio.src = AUDIO_SRC_WAV;
+        audio.play().catch(() => {
+          speakWithWebSpeech();
+        });
       } else {
-        hasSpoken = true;
-        try {
-          sessionStorage.setItem(SESSION_KEY, "true");
-        } catch {}
-        cleanupListeners();
+        speakWithWebSpeech();
       }
     };
 
-    utterance.onend = () => {
-      hasSpoken = true;
-      try {
-        sessionStorage.setItem(SESSION_KEY, "true");
-      } catch {}
-      cleanupListeners();
-    };
-
-    try {
-      synth.speak(utterance);
-    } catch (err) {
-      console.warn("Speech synthesis initial attempt notice:", err);
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          markSessionAsPlayed();
+        })
+        .catch((err) => {
+          // Autoplay blocked by browser policy; user interaction listeners will trigger it
+          console.debug("Autoplay restricted by browser, queued for first user interaction:", err);
+        });
     }
-  };
+  } catch (err) {
+    console.debug("Audio play attempt error, trying Web Speech:", err);
+    speakWithWebSpeech();
+  }
+}
 
-  const handleUserInteraction = () => {
-    if (!hasSpoken) {
-      playGreeting();
+/**
+ * Initialize welcome voice on app startup.
+ * Automatically tries to play immediately; if blocked by browser autoplay policy,
+ * seamlessly plays on the user's first tap, click, or keypress.
+ */
+export function initVoiceWelcome(): void {
+  if (typeof window === "undefined") return;
+
+  // Already played in this session? Do nothing.
+  if (isSessionAlreadyPlayed()) {
+    return;
+  }
+
+  if (isInitialized) return;
+  isInitialized = true;
+
+  const handleFirstInteraction = () => {
+    cleanupListeners();
+    if (!isSessionAlreadyPlayed()) {
+      playWelcomeVoice();
     }
   };
 
   const cleanupListeners = () => {
-    window.removeEventListener("click", handleUserInteraction);
-    window.removeEventListener("touchstart", handleUserInteraction);
-    window.removeEventListener("keydown", handleUserInteraction);
-    window.removeEventListener("pointerdown", handleUserInteraction);
+    window.removeEventListener("click", handleFirstInteraction, true);
+    window.removeEventListener("touchstart", handleFirstInteraction, true);
+    window.removeEventListener("pointerdown", handleFirstInteraction, true);
+    window.removeEventListener("keydown", handleFirstInteraction, true);
+    document.removeEventListener("click", handleFirstInteraction, true);
   };
 
-  // Add one-time user gesture listeners in case autoplay policy blocks initial speech
-  window.addEventListener("click", handleUserInteraction, { passive: true });
-  window.addEventListener("touchstart", handleUserInteraction, { passive: true });
-  window.addEventListener("keydown", handleUserInteraction, { passive: true });
-  window.addEventListener("pointerdown", handleUserInteraction, { passive: true });
+  // Listen for the first user interaction in case autoplay is blocked
+  window.addEventListener("click", handleFirstInteraction, { once: true, capture: true });
+  window.addEventListener("touchstart", handleFirstInteraction, { once: true, capture: true, passive: true });
+  window.addEventListener("pointerdown", handleFirstInteraction, { once: true, capture: true, passive: true });
+  window.addEventListener("keydown", handleFirstInteraction, { once: true, capture: true, passive: true });
+  document.addEventListener("click", handleFirstInteraction, { once: true, capture: true });
 
-  // Attempt speech synthesis as soon as voices are loaded or after a micro delay
-  if (window.speechSynthesis.onvoiceschanged !== undefined) {
-    window.speechSynthesis.onvoiceschanged = () => {
-      playGreeting();
-    };
-  }
-
-  // Also attempt immediately after slight delay (300ms) to allow page hydration
+  // Attempt to play automatically when the app loads (short 350ms delay for smooth DOM mount)
   setTimeout(() => {
-    playGreeting();
-  }, 400);
+    if (!isSessionAlreadyPlayed()) {
+      playWelcomeVoice();
+    }
+  }, 350);
 }

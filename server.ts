@@ -625,7 +625,12 @@ function getStaffFromSession(req: express.Request): { staffId: string; email: st
     sessionId = authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : authHeader.trim();
   }
 
-  if (sessionId && activeStaffSessions.has(sessionId)) {
+  if (!sessionId) {
+    return null;
+  }
+
+  // 1. Check in-memory active session cache
+  if (activeStaffSessions.has(sessionId)) {
     const session = activeStaffSessions.get(sessionId)!;
     if (session.expiresAt > Date.now()) {
       return {
@@ -639,23 +644,23 @@ function getStaffFromSession(req: express.Request): { staffId: string; email: st
     }
   }
 
-  // Token / header validation against server database
-  const headerEmail = (req.headers["x-user-email"] as string)?.toLowerCase()?.trim();
-  const headerStaffId = (req.headers["x-staff-id"] as string)?.toUpperCase()?.trim();
-  if (headerEmail || headerStaffId) {
-    const staffList = readStaffDb();
-    const staff = staffList.find(s => 
-      (headerEmail && s.email && s.email.toLowerCase() === headerEmail) ||
-      (headerStaffId && s.staffId && s.staffId.toUpperCase() === headerStaffId)
-    );
-    if (staff && staff.status === "active") {
-      return {
-        staffId: staff.staffId,
-        email: staff.email,
-        role: staff.role,
-        isSuperAdmin: staff.role === "super_admin" || !!staff.isSuperAdmin
-      };
-    }
+  // 2. Rehydrate valid session from persistent database if server restarted
+  const staffList = readStaffDb();
+  const staff = staffList.find(s => s.sessionId && s.sessionId === sessionId);
+  if (staff && staff.status === "active") {
+    // Re-cache session
+    activeStaffSessions.set(sessionId, {
+      staffId: staff.staffId,
+      email: (staff.email || "").toLowerCase(),
+      role: staff.role || "order_manager",
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000
+    });
+    return {
+      staffId: staff.staffId,
+      email: staff.email,
+      role: staff.role,
+      isSuperAdmin: staff.role === "super_admin" || !!staff.isSuperAdmin
+    };
   }
 
   return null;
@@ -1975,8 +1980,8 @@ app.get("/api/staff/verify-badge/:staffId", rateLimiter(30, 60000), (req, res) =
   }
 });
 
-// 14. GET /api/staff/get/:id - Fetch Single Staff Member by either unique record ID or display staffId
-app.get("/api/staff/get/:id", (req, res) => {
+// 14. GET /api/staff/get/:id - Fetch Single Staff Member by either unique record ID or display staffId (Restricted to Authenticated Staff)
+app.get("/api/staff/get/:id", requireStaffAuth, (req, res) => {
   try {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: "Staff ID parameter is required" });
@@ -1998,10 +2003,61 @@ app.get("/api/staff/get/:id", (req, res) => {
   }
 });
 
+// 15. POST /api/staff/firebase-session - Exchange verified Firebase ID token for a secure staff session
+app.post("/api/staff/firebase-session", rateLimiter(20, 60000), async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken is required" });
+    }
+
+    // Cryptographically verify ID token against Google's public tokeninfo endpoint
+    const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    if (!verifyRes.ok) {
+      return res.status(401).json({ error: "Invalid or expired Firebase ID token" });
+    }
+
+    const payload: any = await verifyRes.json();
+    const email = (payload.email || "").toLowerCase().trim();
+    if (!email || payload.email_verified !== "true") {
+      return res.status(401).json({ error: "A verified email address is required" });
+    }
+
+    const staffList = readStaffDb();
+    let staff = staffList.find(s => s.email && s.email.toLowerCase() === email);
+
+    // If verified email is the designated founder / super_admin
+    if (!staff && email === "sarkarmdanik14@gmail.com") {
+      staff = staffList.find(s => s.role === "super_admin" || s.isSuperAdmin);
+    }
+
+    if (!staff || staff.status === "inactive") {
+      return res.status(403).json({ error: "No active staff authorization found for this account" });
+    }
+
+    const newSessionId = createStaffSession(staff);
+    staff.sessionId = newSessionId;
+    staff.onlineStatus = "online";
+    staff.lastActiveAt = new Date().toISOString();
+    writeStaffDb(staffList);
+
+    return res.json({
+      success: true,
+      sessionId: newSessionId,
+      staff: sanitizeStaff(staff)
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to create verified session" });
+  }
+});
+
 // Vite Middleware & Server Lifecycle
 async function startServer() {
   const isProduction = process.env.NODE_ENV === "production";
   const distPath = path.join(process.cwd(), "dist");
+
+  // Serve static assets from public directory
+  app.use(express.static(path.join(process.cwd(), "public")));
 
   if (!isProduction) {
     try {

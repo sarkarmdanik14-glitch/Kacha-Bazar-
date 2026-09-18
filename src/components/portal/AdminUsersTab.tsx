@@ -167,10 +167,10 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
     <div className="space-y-6 text-slate-700">
       
       {/* User subtabs */}
-      <div className="flex border-b border-slate-100 shrink-0">
+      <div className="flex border-b border-slate-100 shrink-0 overflow-x-auto scrollbar-none">
         <button 
           onClick={() => setActiveUserSubTab("roster")}
-          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 ${
+          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 shrink-0 whitespace-nowrap ${
             activeUserSubTab === "roster" ? "border-emerald-600 text-emerald-600" : "border-transparent text-slate-400 hover:text-slate-600"
           }`}
         >
@@ -178,7 +178,7 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
         </button>
         <button 
           onClick={() => setActiveUserSubTab("referrals")}
-          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 ${
+          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 shrink-0 whitespace-nowrap ${
             activeUserSubTab === "referrals" ? "border-emerald-600 text-emerald-600" : "border-transparent text-slate-400 hover:text-slate-600"
           }`}
         >
@@ -186,7 +186,7 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
         </button>
         <button 
           onClick={() => setActiveUserSubTab("transactions")}
-          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 ${
+          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 shrink-0 whitespace-nowrap ${
             activeUserSubTab === "transactions" ? "border-emerald-600 text-emerald-600" : "border-transparent text-slate-400 hover:text-slate-600"
           }`}
         >
@@ -220,7 +220,7 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
           {/* Roster table */}
           <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="w-full text-left text-xs border-collapse min-w-[580px]">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 uppercase text-[10px] font-black">
                     <th className="p-4">{getTranslation("ব্যবহারকারী", "User Account")}</th>
@@ -350,7 +350,7 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
             {getTranslation("রেফারেল ট্র্যাকিং লেজার", "Referral Connections Ledger")}
           </h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-xs border-collapse min-w-[580px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 uppercase text-[10px] font-black">
                   <th className="p-4">{getTranslation("রেফারার ইউজার আইডি", "Referrer User ID")}</th>
@@ -402,7 +402,7 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
             {getTranslation("ওয়ালেট ক্যাশ ট্রানজেকশন অডিট লেজার", "Financial Transactions Audit Log")}
           </h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-xs border-collapse min-w-[580px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 uppercase text-[10px] font-black">
                   <th className="p-4">{getTranslation("আইডি", "Transaction ID")}</th>
@@ -444,8 +444,8 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
 
       {/* Wallet Adjustment Modal */}
       {showWalletModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
-          <div className="bg-white max-w-sm w-full p-6 rounded-3xl border border-slate-100 shadow-2xl relative animate-scale-up text-slate-700">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white max-w-sm w-full p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-2xl relative animate-scale-up text-slate-700 max-h-[90vh] overflow-y-auto">
             <button 
               onClick={() => setShowWalletModal(false)}
               className="absolute top-4 right-4 p-1 rounded-lg hover:bg-slate-150 text-slate-400 hover:text-slate-700"

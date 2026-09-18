@@ -548,7 +548,7 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-600">
+            <table className="w-full text-left text-xs text-slate-600 min-w-[700px]">
               <thead className="bg-slate-50 text-slate-400 uppercase font-black text-[10px] tracking-wider border-b border-slate-100">
                 <tr>
                   <th className="px-5 py-3.5">{getTranslation("পার্টনার শপ", "Partner Shop")}</th>

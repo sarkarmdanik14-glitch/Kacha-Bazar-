@@ -1093,7 +1093,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             {/* Category Products Table */}
             <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
+                <table className="w-full text-left text-xs border-collapse min-w-[620px]">
                   <thead>
                     <tr className="bg-slate-50 text-slate-500 font-black uppercase tracking-wider border-b border-slate-200">
                       <th className="p-3 w-16 text-center">{getTranslation("ক্রম / বিন্যাস", "Order")}</th>
@@ -1269,7 +1269,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
 
           <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="w-full text-left text-xs border-collapse min-w-[620px]">
                 <thead>
                   <tr className="bg-slate-50 text-slate-500 font-black uppercase tracking-wider border-b border-slate-200">
                     <th className="p-3 w-16">{getTranslation("ছবি", "Image")}</th>
@@ -1364,22 +1364,40 @@ export default function AdminProductsTab({ products, categories, orders = [], us
 
       {/* ==================== PRODUCT FORM OVERLAY ==================== */}
       {showProductForm && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 my-8 border border-slate-100">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-black text-slate-800">
-                {editingProduct ? getTranslation("পণ্য তথ্য এডিট করুন", "Edit Product Details") : getTranslation("নতুন পণ্য যুক্ত করুন", "Create New Product")}
-              </h3>
+        <div 
+          id="admin-product-form-overlay"
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto z-[150] animate-fade-in pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 px-3 sm:px-6"
+        >
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto sm:my-0">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 sm:px-6 py-3.5 sm:py-4 bg-white shrink-0 sticky top-0 z-20">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold border border-emerald-100 shrink-0">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-black text-slate-800 truncate">
+                    {editingProduct ? getTranslation("পণ্য তথ্য এডিট করুন", "Edit Product Details") : getTranslation("নতুন পণ্য যুক্ত করুন", "Create New Product")}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
+                    {getTranslation("সঠিক তথ্য পূরণ করে সেভ করুন", "Fill required fields and save")}
+                  </p>
+                </div>
+              </div>
               <button 
                 type="button"
                 onClick={() => setShowProductForm(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+                className="p-1.5 sm:px-2.5 sm:py-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition cursor-pointer flex items-center space-x-1.5 border border-slate-200 shrink-0"
+                title={getTranslation("বন্ধ করুন", "Close")}
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
+                <span className="text-xs font-bold hidden sm:inline">{getTranslation("বন্ধ করুন", "Close")}</span>
               </button>
             </div>
 
-            <form onSubmit={handleSaveProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            {/* Scrollable Form Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(100vh-14rem)] sm:max-h-[calc(100vh-16rem)]">
+              <form onSubmit={handleSaveProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div>
                 <label className="font-bold text-slate-700 block mb-1">{getTranslation("ক্যাটাগরি *", "Category *")}</label>
                 <select 
@@ -1511,6 +1529,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}
@@ -1659,7 +1678,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             {/* Category Table / Card Grid */}
             <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse min-w-[620px]">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-500 tracking-wider">
                       <th className="py-3 px-4 text-center w-20">{getTranslation("অর্ডার / রিঅর্ডার", "Reorder")}</th>
@@ -1717,9 +1736,17 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                             {/* Image Thumbnail & Icon */}
                             <td className="py-3 px-4">
                               <div className="flex items-center gap-2">
-                                <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                                <div 
+                                  className="w-11 h-11 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0"
+                                  style={{ borderRadius: "50%" }}
+                                >
                                   {c.image || c.imageUrl ? (
-                                    <img src={c.image || c.imageUrl} alt={c.nameEn} className="w-full h-full object-cover" />
+                                    <img 
+                                      src={c.image || c.imageUrl} 
+                                      alt={c.nameEn} 
+                                      className="w-full h-full object-cover rounded-full" 
+                                      style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                                    />
                                   ) : (
                                     renderCategoryIcon(c.iconName)
                                   )}
@@ -1860,15 +1887,18 @@ export default function AdminProductsTab({ products, categories, orders = [], us
 
       {/* ==================== ADD / EDIT CATEGORY MODAL ==================== */}
       {showCategoryModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto">
+        <div 
+          id="admin-category-form-overlay"
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto z-[150] animate-fade-in pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 px-3 sm:px-6"
+        >
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto sm:my-0">
             {/* Modal Header */}
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div>
-                <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+            <div className="flex justify-between items-center border-b border-slate-100 px-5 sm:px-6 py-3.5 sm:py-4 bg-white shrink-0 sticky top-0 z-20">
+              <div className="min-w-0">
+                <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
                   {editingCategoryModal ? getTranslation("ক্যাটাগরি আপডেট", "Edit Category") : getTranslation("নতুন ক্যাটাগরি", "New Category")}
                 </span>
-                <h3 className="text-base font-black text-slate-800 mt-1">
+                <h3 className="text-sm sm:text-base font-black text-slate-800 mt-1 truncate">
                   {editingCategoryModal 
                     ? getTranslation(`"${editingCategoryModal.nameBn}" এডিট করুন`, `Edit Category "${editingCategoryModal.nameEn}"`)
                     : getTranslation("নতুন ক্যাটাগরি তৈরি করুন", "Create New Category")
@@ -1878,14 +1908,17 @@ export default function AdminProductsTab({ products, categories, orders = [], us
               <button 
                 type="button"
                 onClick={() => setShowCategoryModal(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+                className="p-1.5 sm:px-2.5 sm:py-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition cursor-pointer flex items-center space-x-1.5 border border-slate-200 shrink-0"
+                title={getTranslation("বন্ধ করুন", "Close")}
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
+                <span className="text-xs font-bold hidden sm:inline">{getTranslation("বন্ধ করুন", "Close")}</span>
               </button>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={handleSaveCategoryModal} className="space-y-4">
+            {/* Scrollable Modal Form Body */}
+            <div className="p-5 sm:p-6 overflow-y-auto max-h-[calc(100vh-14rem)] sm:max-h-[calc(100vh-16rem)]">
+              <form onSubmit={handleSaveCategoryModal} className="space-y-4">
               {/* Category ID (Slug) */}
               <div>
                 <label className="text-xs font-black text-slate-700 uppercase block mb-1">
@@ -2061,6 +2094,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}

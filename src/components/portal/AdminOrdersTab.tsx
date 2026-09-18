@@ -36,6 +36,7 @@ export default function AdminOrdersTab({
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"auto" | "cards" | "table">("auto");
 
   // Active riders list
   const activeRidersList = useMemo(() => {
@@ -233,40 +234,293 @@ export default function AdminOrdersTab({
             </div>
           </div>
 
-          {/* Bottom Row: Status Quick Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {[
-              { id: "all", labelBn: "সব অর্ডার", labelEn: "All Orders", count: counts.all, color: "slate" },
-              { id: "pending", labelBn: "পেন্ডিং", labelEn: "Pending", count: counts.pending, color: "amber" },
-              { id: "confirmed", labelBn: "নিশ্চিত", labelEn: "Confirmed", count: counts.confirmed, color: "blue" },
-              { id: "picked_up", labelBn: "ডেলিভারি চলছে", labelEn: "On Delivery", count: counts.picked_up, color: "indigo" },
-              { id: "delivered", labelBn: "ডেলিভার্ড", labelEn: "Delivered", count: counts.delivered, color: "emerald" },
-              { id: "cancelled", labelBn: "বাতিল", labelEn: "Cancelled", count: counts.cancelled, color: "rose" }
-            ].map(tab => (
+          {/* Bottom Row: Status Quick Tabs & View Mode Switch */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+              {[
+                { id: "all", labelBn: "সব অর্ডার", labelEn: "All Orders", count: counts.all, color: "slate" },
+                { id: "pending", labelBn: "পেন্ডিং", labelEn: "Pending", count: counts.pending, color: "amber" },
+                { id: "confirmed", labelBn: "নিশ্চিত", labelEn: "Confirmed", count: counts.confirmed, color: "blue" },
+                { id: "picked_up", labelBn: "ডেলিভারি চলছে", labelEn: "On Delivery", count: counts.picked_up, color: "indigo" },
+                { id: "delivered", labelBn: "ডেলিভার্ড", labelEn: "Delivered", count: counts.delivered, color: "emerald" },
+                { id: "cancelled", labelBn: "বাতিল", labelEn: "Cancelled", count: counts.cancelled, color: "rose" }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setStatusFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    statusFilter === tab.id
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
+                  }`}
+                >
+                  <span>{getTranslation(tab.labelBn, tab.labelEn)}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                    statusFilter === tab.id 
+                      ? "bg-slate-800 text-emerald-400" 
+                      : "bg-slate-100 text-slate-600"
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Mobile / Desktop View Mode Toggle */}
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0 ml-auto">
               <button
-                key={tab.id}
-                onClick={() => setStatusFilter(tab.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  statusFilter === tab.id
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                  viewMode === "cards" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                <span>{getTranslation(tab.labelBn, tab.labelEn)}</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                  statusFilter === tab.id 
-                    ? "bg-slate-800 text-emerald-400" 
-                    : "bg-slate-100 text-slate-600"
-                }`}>
-                  {tab.count}
-                </span>
+                {getTranslation("কার্ড", "Cards")}
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                  viewMode === "table" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {getTranslation("টেবিল", "Table")}
+              </button>
+              {viewMode !== "auto" && (
+                <button
+                  type="button"
+                  onClick={() => setViewMode("auto")}
+                  className="px-1.5 py-1 rounded-lg text-[9px] font-bold text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                  title="Auto"
+                >
+                  Auto
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
+        {/* ================= MOBILE ORDER CARDS VIEW ================= */}
+        <div className={viewMode === "table" ? "hidden" : viewMode === "cards" ? "block space-y-3 p-3 sm:p-4" : "block md:hidden space-y-3 p-3"}>
+          {filteredOrders.length === 0 ? (
+            <div className="text-center py-10 px-4 bg-white rounded-2xl border border-slate-200">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2">
+                <ShoppingBag className="w-6 h-6" />
+              </div>
+              <h4 className="font-black text-slate-700 text-sm">
+                {getTranslation("কোনো অর্ডার পাওয়া যায়নি", "No Orders Found")}
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {searchTerm || statusFilter !== "all" || paymentFilter !== "all"
+                  ? getTranslation("ফিল্টার রিসেট করে দেখুন।", "Try resetting active filters.")
+                  : getTranslation("কোনো নতুন অর্ডার এখনও নেই।", "No orders logged yet.")}
+              </p>
+            </div>
+          ) : (
+            filteredOrders.map((o) => {
+              const dateInfo = formatOrderDate(o.createdAt);
+              const isExpanded = expandedOrderId === o.id;
+              const isPending = !o.orderStatus || o.orderStatus === "pending";
+              const isConfirmed = o.orderStatus === "confirmed";
+              const isPickedUp = o.orderStatus === "picked up" || o.orderStatus === "processing";
+              const isDelivered = o.orderStatus === "delivered";
+              const isCancelled = o.orderStatus === "cancelled";
+              const isRefunded = o.orderStatus === "refunded";
+
+              return (
+                <div key={o.id} className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs space-y-3">
+                  {/* Card Header: Order ID + Status + Time */}
+                  <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                    <div>
+                      <div className="flex items-center gap-1.5 font-mono font-black text-xs text-slate-800">
+                        <span>#{o.id.slice(-6).toUpperCase()}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => handleCopyOrderId(o.id, e)}
+                          className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 cursor-pointer"
+                          title="Copy ID"
+                        >
+                          {copiedId === o.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                        {typeof dateInfo === "object" ? `${dateInfo.date} • ${dateInfo.time}` : dateInfo}
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
+                      isDelivered ? "bg-emerald-50 text-emerald-800 border-emerald-300" :
+                      isPickedUp ? "bg-indigo-50 text-indigo-800 border-indigo-300" :
+                      isConfirmed ? "bg-blue-50 text-blue-800 border-blue-300" :
+                      isPending ? "bg-amber-50 text-amber-800 border-amber-300" :
+                      isRefunded ? "bg-purple-50 text-purple-800 border-purple-300" :
+                      "bg-rose-50 text-rose-800 border-rose-300"
+                    }`}>
+                      {isPending && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
+                      {isConfirmed && <CheckCircle2 className="w-3 h-3 text-blue-600" />}
+                      {isPickedUp && <Bike className="w-3 h-3 text-indigo-600" />}
+                      {isDelivered && <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />}
+                      {isCancelled && <XCircle className="w-3 h-3 text-rose-600" />}
+                      <span>
+                        {isDelivered ? getTranslation("ডেলিভার্ড", "Delivered") :
+                         isPickedUp ? getTranslation("পিকড আপ", "Picked Up") :
+                         isConfirmed ? getTranslation("নিশ্চিত", "Confirmed") :
+                         isPending ? getTranslation("পেন্ডিং", "Pending") :
+                         isRefunded ? getTranslation("রিফান্ড", "Refunded") :
+                         getTranslation("বাতিল", "Cancelled")}
+                      </span>
+                    </span>
+                  </div>
+
+                  {/* Customer Details */}
+                  <div className="bg-slate-50 rounded-xl p-3 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="font-black text-slate-900 flex items-center gap-1.5 min-w-0">
+                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{o.name || o.customerName || getTranslation("গেস্ট কাস্টমার", "Guest Customer")}</span>
+                      </div>
+                      {o.phone && (
+                        <a
+                          href={`tel:${o.phone}`}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/70 border border-emerald-300/80 px-2 py-0.5 rounded-lg active:scale-95 transition shrink-0"
+                        >
+                          <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <span>{o.phone}</span>
+                        </a>
+                      )}
+                    </div>
+                    {o.address && (
+                      <div className="text-[11px] text-slate-500 flex items-start gap-1 leading-tight">
+                        <MapPin className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                        <span className="line-clamp-2">{o.address}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bill & Payment Row */}
+                  <div className="flex items-center justify-between bg-white border border-slate-100 rounded-xl p-2.5">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold block uppercase">{getTranslation("মোট বিল", "Total Bill")}</span>
+                      <span className="text-sm font-black text-slate-950 font-mono">৳{(o.totalAmount || o.total || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-600 border border-slate-200">
+                        {o.paymentMethod || "COD"}
+                      </span>
+                      <select
+                        value={o.paymentStatus || "pending"}
+                        onChange={(e) => handleUpdatePaymentStatus(o.id, e.target.value)}
+                        className="bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-700 outline-none cursor-pointer"
+                      >
+                        <option value="pending">{getTranslation("পেন্ডিং", "Pending")}</option>
+                        <option value="paid">{getTranslation("পরিশোধিত", "Paid")}</option>
+                        <option value="failed">{getTranslation("ব্যর্থ", "Failed")}</option>
+                        <option value="refunded">{getTranslation("রিফান্ড", "Refunded")}</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Rider Assignment */}
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 shrink-0">
+                      <Bike className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{getTranslation("রাইডার:", "Rider:")}</span>
+                    </span>
+                    <select
+                      onChange={(e) => handleAssignRider(o.id, e.target.value)}
+                      value={o.riderId || ""}
+                      className="flex-1 max-w-[200px] bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 outline-none truncate cursor-pointer"
+                    >
+                      <option value="" disabled={!o.riderId}>{o.riderName ? `🚴 ${o.riderName}` : getTranslation("🚴 রাইডার নির্বাচন...", "🚴 Select Rider...")}</option>
+                      {activeRidersList.map(r => (
+                        <option key={r.id || r.uid} value={r.uid || r.id}>
+                          {r.displayName || r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Action Buttons: Status updates + Memo */}
+                  <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      disabled={updatingOrderId === o.id}
+                      onClick={() => onStatusChange(o.id, "confirmed")}
+                      className={`py-2 rounded-xl text-[10px] font-black uppercase transition flex items-center justify-center gap-1 border cursor-pointer active:scale-95 ${
+                        o.orderStatus === "confirmed" ? "bg-blue-600 text-white border-blue-700 shadow-xs" : "bg-blue-50 text-blue-700 border-blue-200"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3 h-3 shrink-0" />
+                      <span>{getTranslation("নিশ্চিত", "Confirm")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={updatingOrderId === o.id}
+                      onClick={() => onStatusChange(o.id, "delivered")}
+                      className={`py-2 rounded-xl text-[10px] font-black uppercase transition flex items-center justify-center gap-1 border cursor-pointer active:scale-95 ${
+                        o.orderStatus === "delivered" ? "bg-emerald-600 text-white border-emerald-700 shadow-xs" : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      }`}
+                    >
+                      <Check className="w-3 h-3 shrink-0 stroke-[2.5]" />
+                      <span>{getTranslation("ডেলিভার", "Deliver")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={updatingOrderId === o.id}
+                      onClick={() => onStatusChange(o.id, "cancelled")}
+                      className={`py-2 rounded-xl text-[10px] font-black uppercase transition flex items-center justify-center gap-1 border cursor-pointer active:scale-95 ${
+                        o.orderStatus === "cancelled" ? "bg-rose-600 text-white border-rose-700 shadow-xs" : "bg-rose-50 text-rose-700 border-rose-200"
+                      }`}
+                    >
+                      <X className="w-3 h-3 shrink-0" />
+                      <span>{getTranslation("বাতিল", "Cancel")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onSelectMemoOrder(o)}
+                      className="py-2 rounded-xl text-[10px] font-black uppercase transition flex items-center justify-center gap-1 bg-slate-900 hover:bg-black text-white border border-slate-800 shadow-xs cursor-pointer active:scale-95"
+                    >
+                      <Printer className="w-3 h-3 text-emerald-400 shrink-0" />
+                      <span>{getTranslation("চালান", "Memo")}</span>
+                    </button>
+                  </div>
+
+                  {/* Toggle Items view */}
+                  <button
+                    type="button"
+                    onClick={() => setExpandedOrderId(isExpanded ? null : o.id)}
+                    className="w-full py-1 text-center text-[11px] font-bold text-slate-500 hover:text-slate-800 flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <span>{isExpanded ? getTranslation("পণ্য তালিকা লুকান ▲", "Hide Items ▲") : getTranslation(`পণ্যসমূহ দেখুন (${o.items?.length || 0} টি) ▼`, `View Items (${o.items?.length || 0}) ▼`)}</span>
+                  </button>
+
+                  {/* Expandable items inside mobile card */}
+                  {isExpanded && o.items && (
+                    <div className="bg-slate-50 rounded-xl p-3 space-y-2 border border-slate-200 animate-fade-in text-xs">
+                      {o.items.map((item: any, idx: number) => {
+                        const itemPrice = item.selectedOption ? item.selectedOption.price : (item.product?.price || 0);
+                        const itemTotal = itemPrice * (item.quantity || 1);
+                        return (
+                          <div key={idx} className="flex items-center justify-between text-[11px] py-1 border-b border-slate-200/50 last:border-none">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-800">{item.product?.nameBn || item.product?.nameEn || "Product"}</span>
+                              <span className="text-slate-400">×{item.quantity}</span>
+                            </div>
+                            <span className="font-mono font-black text-slate-900">৳{itemTotal.toLocaleString()}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
         {/* Responsive Table Enclosure with Dedicated Horizontal Scroll & Sticky Header */}
-        <div className="relative w-full overflow-x-auto min-w-0">
+        <div className={viewMode === "cards" ? "hidden" : viewMode === "table" ? "block relative w-full overflow-x-auto min-w-0" : "hidden md:block relative w-full overflow-x-auto min-w-0"}>
           <table className="w-full text-left text-xs border-collapse min-w-[840px]">
             
             {/* Sticky Table Header */}

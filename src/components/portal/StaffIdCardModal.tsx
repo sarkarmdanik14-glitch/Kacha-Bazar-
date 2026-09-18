@@ -67,6 +67,11 @@ const BarcodeSVG = ({ value }: { value: string }) => {
   );
 };
 
+// Official standard dates for all Staff ID cards as mandated by Kacha Bazar
+export const OFFICIAL_STAFF_CARD_JOIN_DATE = "03/09/2026";
+export const OFFICIAL_STAFF_CARD_ISSUE_DATE = "19/09/2026";
+export const OFFICIAL_STAFF_CARD_VALID_THRU = "07/07/2027";
+
 export default function StaffIdCardModal({
   staff,
   staffId,
@@ -99,6 +104,9 @@ export default function StaffIdCardModal({
   // Logo Base64 Data URL for guaranteed cross-context rendering (Print/PDF)
   const [logoDataUrl, setLogoDataUrl] = useState<string>("");
 
+  // Photo Base64 Data URL for guaranteed cross-context rendering without CORS issues
+  const [photoDataUrl, setPhotoDataUrl] = useState<string>("");
+
   // Edit Mode state
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editFullName, setEditFullName] = useState<string>(activeStaff?.fullName || staff?.fullName || "");
@@ -107,7 +115,7 @@ export default function StaffIdCardModal({
   const [editMobile, setEditMobile] = useState<string>(activeStaff?.mobile || staff?.mobile || "");
   const [editEmail, setEditEmail] = useState<string>(activeStaff?.email || staff?.email || "");
   const [editPhotoURL, setEditPhotoURL] = useState<string>(activeStaff?.photoURL || staff?.photoURL || "");
-  const [editJoiningDate, setEditJoiningDate] = useState<string>(activeStaff?.joiningDate || staff?.joiningDate || "2026-01-01");
+  const [editJoiningDate, setEditJoiningDate] = useState<string>(activeStaff?.joiningDate || staff?.joiningDate || "2026-09-03");
   const [editBloodGroup, setEditBloodGroup] = useState<string>(activeStaff?.bloodGroup || staff?.bloodGroup || "B (+ve)");
   const [editEmergencyContact, setEditEmergencyContact] = useState<string>(activeStaff?.emergencyContact || activeStaff?.mobile || staff?.emergencyContact || staff?.mobile || "");
   const [savingEdit, setSavingEdit] = useState<boolean>(false);
@@ -116,6 +124,57 @@ export default function StaffIdCardModal({
   // PDF / Print Loading
   const [generatingPdf, setGeneratingPdf] = useState<boolean>(false);
   const [printing, setPrinting] = useState<boolean>(false);
+
+  // Responsive ID Card preview scaling for laptops & desktops (prevents cutoff while keeping physical CR80 size intact)
+  const [scaleMode, setScaleMode] = useState<"auto" | "75" | "80" | "100">("auto");
+  const [autoScale, setAutoScale] = useState<number>(0.78);
+  const [isCapturing, setIsCapturing] = useState<boolean>(false);
+
+  // Responsive scale calculator: dynamically computes optimal preview scale for desktop and laptop screens
+  useEffect(() => {
+    const updateAutoScale = () => {
+      if (typeof window === "undefined") return;
+      const windowH = window.innerHeight;
+      const windowW = window.innerWidth;
+
+      if (windowW < 640) {
+        // Keep mobile layout flexible and natural
+        setAutoScale(1);
+        return;
+      }
+
+      // Available vertical space in modal:
+      // Modal max height: 92vh. Modal header ~64px, toolbar ~48px, footer ~40px, padding ~32px.
+      const availH = Math.max(300, (windowH * 0.90) - 170);
+      // Unscaled height of card (463px) + top label (~36px) = ~500px
+      const targetHScale = (availH - 12) / 505;
+
+      // Available horizontal space in modal:
+      const availW = Math.max(480, Math.min(windowW - 48, 980));
+      // In dual view, two cards need 292px * 2 + 28px gap = 612px
+      const targetWScale = activeSide === "dual" ? (availW - 40) / 612 : (availW - 40) / 310;
+
+      const fitted = Math.min(targetHScale, targetWScale);
+      // Clamped between 0.65 and 0.85 for pristine laptop & desktop readability without cutoff
+      const clamped = Math.min(0.85, Math.max(0.65, Math.round(fitted * 100) / 100));
+      setAutoScale(clamped);
+    };
+
+    updateAutoScale();
+    window.addEventListener("resize", updateAutoScale);
+    return () => window.removeEventListener("resize", updateAutoScale);
+  }, [activeSide]);
+
+  // Effective preview scale applied to on-screen preview only (never print/PDF)
+  const effectiveScale = isCapturing
+    ? 1
+    : scaleMode === "100"
+      ? 1
+      : scaleMode === "80"
+        ? 0.80
+        : scaleMode === "75"
+          ? 0.75
+          : autoScale;
 
   // Card element refs for capture
   const frontCardRef = useRef<HTMLDivElement>(null);
@@ -182,7 +241,7 @@ export default function StaffIdCardModal({
       setEditMobile(activeStaff.mobile || "");
       setEditEmail(activeStaff.email || "");
       setEditPhotoURL(activeStaff.photoURL || "");
-      setEditJoiningDate(activeStaff.joiningDate || "2026-01-01");
+      setEditJoiningDate(activeStaff.joiningDate || "2026-09-03");
       setEditBloodGroup(activeStaff.bloodGroup || "B (+ve)");
       setEditEmergencyContact(activeStaff.emergencyContact || activeStaff.mobile || "");
     }
@@ -193,69 +252,16 @@ export default function StaffIdCardModal({
   // Default Fallbacks
   const displayDesignation = activeStaff?.designation || getTranslation(roleDef.nameBn, roleDef.nameEn);
   const displayDepartment = activeStaff?.department || "Order Fulfillment & Logistics";
-  // Issue date formatted in English (e.g. 15 January, 2026)
-  const displayJoiningDate = (() => {
-    const rawInput = activeStaff?.joiningDate || "2026-01-01";
-    const bnToEn: Record<string, string> = {
-      "০": "0", "১": "1", "২": "2", "৩": "3", "৪": "4",
-      "৫": "5", "৬": "6", "৭": "7", "৮": "8", "৯": "9"
-    };
-    const raw = String(rawInput).replace(/[০-৯]/g, (d) => bnToEn[d] || d);
-
-    try {
-      const d = new Date(raw);
-      if (!isNaN(d.getTime())) {
-        const enMonths = [
-          "January", "February", "March", "April", "May", "June",
-          "July", "August", "September", "October", "November", "December"
-        ];
-        const day = String(d.getDate()).padStart(2, "0");
-        const month = enMonths[d.getMonth()];
-        const year = d.getFullYear();
-        return `${day} ${month}, ${year}`;
-      }
-    } catch {}
-    return formatStaffJoiningDate(raw, "en");
-  })();
+  // Official standardized dates for all Staff ID cards as mandated:
+  // JOIN DATE: 03/09/2026, ISSUE DATE: 19/09/2026, VALID THRU: 07/07/2027
+  const displayCompactJoiningDate = OFFICIAL_STAFF_CARD_JOIN_DATE; // "03/09/2026"
+  const displayIssueDate = OFFICIAL_STAFF_CARD_ISSUE_DATE; // "19/09/2026"
+  const displayValidThru = OFFICIAL_STAFF_CARD_VALID_THRU; // "07/07/2027"
+  const displayJoiningDate = OFFICIAL_STAFF_CARD_ISSUE_DATE; // Fallback alias
 
   const displayBloodGroup = activeStaff?.bloodGroup || "B (+ve)";
-  const displayEmergency = activeStaff?.emergencyContact || activeStaff?.mobile || "01719-469714";
+  const displayEmergency = activeStaff?.emergencyContact || activeStaff?.mobile || "01611181115";
   const activeLogo = logoDataUrl || logoImg;
-
-  // Compact date (DD/MM/YYYY) in English for ID card front alignment
-  const displayCompactDob = (() => {
-    const rawInput = (activeStaff as any)?.dob || activeStaff?.joiningDate || "2026-01-01";
-    const bnToEn: Record<string, string> = {
-      "০": "0", "১": "1", "২": "2", "৩": "3", "৪": "4",
-      "৫": "5", "৬": "6", "৭": "7", "৮": "8", "৯": "9"
-    };
-    const raw = String(rawInput).replace(/[০-৯]/g, (d) => bnToEn[d] || d);
-
-    try {
-      const parts = raw.split("-");
-      if (parts.length === 3) {
-        const dd = parts[2].padStart(2, "0");
-        const mm = parts[1].padStart(2, "0");
-        const yyyy = parts[0];
-        return `${dd}/${mm}/${yyyy}`;
-      }
-      const slashParts = raw.split("/");
-      if (slashParts.length === 3) {
-        const dd = slashParts[0].padStart(2, "0");
-        const mm = slashParts[1].padStart(2, "0");
-        const yyyy = slashParts[2];
-        return `${dd}/${mm}/${yyyy}`;
-      }
-      const d = new Date(raw);
-      if (!isNaN(d.getTime())) {
-        const dd = String(d.getDate()).padStart(2, "0");
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const yyyy = d.getFullYear();
-        return `${dd}/${mm}/${yyyy}`;
-      }
-    } catch {}
-    return raw;
-  })();
 
   // Preload actual logo as Data URL
   useEffect(() => {
@@ -265,6 +271,89 @@ export default function StaffIdCardModal({
       setLogoDataUrl(logoImg);
     });
   }, []);
+
+  // Preload staff photo as Data URL for cross-origin canvas rendering
+  useEffect(() => {
+    if (activeStaff?.photoURL) {
+      if (activeStaff.photoURL.startsWith("data:")) {
+        setPhotoDataUrl(activeStaff.photoURL);
+      } else {
+        imageToDataUrl(activeStaff.photoURL)
+          .then((dUrl) => {
+            if (dUrl) setPhotoDataUrl(dUrl);
+            else setPhotoDataUrl(activeStaff.photoURL || "");
+          })
+          .catch(() => {
+            setPhotoDataUrl(activeStaff.photoURL || "");
+          });
+      }
+    } else {
+      setPhotoDataUrl("");
+    }
+  }, [activeStaff?.photoURL]);
+
+  // Dynamic font sizing and line wrapping for staff full name so long names are never cut off
+  const getStaffNameClasses = (name: string) => {
+    const len = (name || "").trim().length;
+    if (len <= 15) return "text-[16px] leading-tight";
+    if (len <= 22) return "text-[13.5px] leading-snug";
+    if (len <= 30) return "text-[11.5px] leading-snug";
+    if (len <= 38) return "text-[10px] leading-tight";
+    return "text-[9px] leading-tight";
+  };
+
+  // Dynamic font sizing for designation so long positions are never cut off
+  const getDesignationClasses = (desig: string) => {
+    const len = (desig || "").trim().length;
+    if (len <= 20) return "text-[11px] leading-tight";
+    if (len <= 30) return "text-[9.5px] leading-tight";
+    return "text-[8.5px] leading-tight";
+  };
+
+  // Dynamic font sizing for email so complete email address is always visible
+  const getStaffEmailClasses = (email: string) => {
+    const len = (email || "").trim().length;
+    if (len <= 18) return "text-[9.5px]";
+    if (len <= 24) return "text-[8.5px]";
+    if (len <= 30) return "text-[7.8px]";
+    return "text-[7.2px]";
+  };
+
+  // Check if current card is the first staff ID card only
+  const isFirstStaffCard = (() => {
+    if (!activeStaff) return false;
+
+    // Primary identifier check for the first staff member (CFI-KB-001 / staff-super-admin-01 / Founder Md Anik Sarkar)
+    const cleanStaffId = String(activeStaff.staffId || "").trim().toUpperCase();
+    const cleanEmail = String(activeStaff.email || "").trim().toLowerCase();
+    const cleanName = String(activeStaff.fullName || "").trim().toLowerCase();
+
+    if (
+      cleanStaffId === "CFI-KB-001" ||
+      cleanStaffId === "KB-STF-001" ||
+      cleanStaffId === "001" ||
+      activeStaff.id === "staff-super-admin-01" ||
+      cleanEmail === "sarkarmdanik14@gmail.com" ||
+      cleanName === "md anik sarkar"
+    ) {
+      return true;
+    }
+
+    return false;
+  })();
+
+  // Authorized signature metadata (First staff ID card signed by Vice-Chairman Md Abu Hanif Sarkar; all other cards signed by Founder Md Anik Sarkar)
+  const authorizedSigner = isFirstStaffCard
+    ? {
+        title: "AUTHORISED BY",
+        name: "MD ABU HANIF SARKAR",
+        designation: "VICE-CHAIRMAN, KACHA BAZAR"
+      }
+    : {
+        title: "AUTHORISED BY",
+        name: "MD ANIK SARKAR",
+        designation: "FOUNDER, KACHA BAZAR"
+      };
 
   // Generate QR Code on mount or activeStaff change
   useEffect(() => {
@@ -283,7 +372,9 @@ export default function StaffIdCardModal({
           phone: activeStaff.mobile,
           emergency: displayEmergency,
           bloodGroup: displayBloodGroup,
-          joiningDate: activeStaff.joiningDate || "2026-01-01",
+          joiningDate: OFFICIAL_STAFF_CARD_JOIN_DATE,
+          issueDate: OFFICIAL_STAFF_CARD_ISSUE_DATE,
+          validThru: OFFICIAL_STAFF_CARD_VALID_THRU,
           status: "AUTHORIZED_STAFF",
           verified: true,
           verifyUrl: `https://kachabazar.com/verify?id=${encodeURIComponent(activeStaff.staffId)}`
@@ -501,196 +592,432 @@ export default function StaffIdCardModal({
   };
 
   // Print ID Card
-  const handlePrint = (isReprint = false) => {
-    if (!activeStaff) return;
+  const handlePrint = async (isReprint = false) => {
+    if (!activeStaff || !frontCardRef.current || !backCardRef.current) return;
     setPrinting(true);
+    setIsCapturing(true);
     logCardAction(isReprint ? "reprint" : "print");
 
-    const printWindow = window.open("", "_blank", "width=900,height=950");
-    if (!printWindow) {
-      triggerToast("পপ-আপ ব্লক করা হয়েছে! অনুগ্রহ করে অনুমতি দিন।", "Pop-up blocked! Please allow pop-ups to print.");
-      setPrinting(false);
-      return;
-    }
-
-    const frontHtml = frontCardRef.current ? frontCardRef.current.outerHTML : "";
-    const backHtml = backCardRef.current ? backCardRef.current.outerHTML : "";
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Staff ID Card - ${activeStaff.staffId} - ${activeStaff.fullName}</title>
-          <meta charset="utf-8" />
-          <link rel="preconnect" href="https://fonts.googleapis.com">
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-          <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
-          <script src="https://cdn.tailwindcss.com"></script>
-          <style>
-            @page {
-              size: A4;
-              margin: 12mm;
-            }
-            * {
-              box-sizing: border-box;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              color-adjust: exact !important;
-            }
-            body {
-              font-family: 'Plus Jakarta Sans', 'Hind Siliguri', sans-serif;
-              background-color: #f1f5f9;
-              margin: 0;
-              padding: 24px;
-              color: #0f172a;
-            }
-            .print-container {
-              display: flex;
-              flex-wrap: wrap;
-              gap: 28px;
-              justify-content: center;
-              align-items: center;
-              margin-top: 15px;
-            }
-            .card-wrapper {
-              width: 53.98mm;
-              height: 85.60mm;
-              box-sizing: border-box;
-              page-break-inside: avoid;
-              position: relative;
-              border: 1px dashed #94a3b8;
-              border-radius: 3.5mm;
-              overflow: hidden;
-              background: #ffffff;
-            }
-            .card-wrapper > div {
-              width: 100% !important;
-              height: 100% !important;
-              border: none !important;
-              border-radius: 0 !important;
-              box-shadow: none !important;
-            }
-            @media print {
-              body {
-                background: transparent;
-                padding: 0;
-              }
-              .no-print {
-                display: none !important;
-              }
-              .print-container {
-                margin: 0;
-                gap: 10mm;
-              }
-              .card-wrapper {
-                border: 0.5pt dashed #cbd5e1;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="no-print bg-slate-900 text-white p-4 rounded-2xl mb-6 flex items-center justify-between shadow-lg">
-            <div>
-              <h2 class="text-sm font-bold text-emerald-400">কাঁচা বাজার অফিসিয়াল স্টাফ আইডি কার্ড (CR80 Portrait Print)</h2>
-              <p class="text-xs text-slate-300">Staff: ${activeStaff.fullName} | ID: ${activeStaff.staffId} | Size: 53.98mm × 85.60mm (Vertical / Portrait)</p>
-            </div>
-            <button onclick="window.print()" style="background:#059669;color:white;padding:9px 20px;border-radius:12px;font-weight:bold;font-size:13px;border:none;cursor:pointer;display:flex;align-items:center;gap:6px;">
-              <span>🖨️ প্রিন্ট করুন (Print Now)</span>
-            </button>
-          </div>
-
-          <div class="print-container">
-            <!-- Front Card -->
-            <div class="flex flex-col items-center">
-              <span class="text-[11px] font-bold text-slate-500 mb-1.5 no-print uppercase tracking-wider">Front Side (সম্মুখভাগ)</span>
-              <div class="card-wrapper shadow-md">
-                ${frontHtml}
-              </div>
-            </div>
-
-            <!-- Back Card -->
-            <div class="flex flex-col items-center">
-              <span class="text-[11px] font-bold text-slate-500 mb-1.5 no-print uppercase tracking-wider">Back Side (পেছনের ভাগ)</span>
-              <div class="card-wrapper shadow-md">
-                ${backHtml}
-              </div>
-            </div>
-          </div>
-
-          <div class="no-print mt-8 text-center text-xs text-slate-500 max-w-md mx-auto">
-            <p class="font-medium">✂️ প্রিন্ট করার পর ড্যাশযুক্ত বর্ডার লাইন অনুযায়ী কেটে পিভিসি আইডি কার্ড বা লেমিনেশন পাউচে সহজে স্থাপন করুন।</p>
-          </div>
-
-          <script>
-            window.onload = function() {
-              setTimeout(() => {
-                window.print();
-              }, 400);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    setPrinting(false);
-    triggerToast(
-      isReprint ? "আইডি কার্ড রিপ্রিন্ট উইন্ডো খোলা হয়েছে!" : "আইডি কার্ড প্রিন্ট উইন্ডো খোলা হয়েছে!",
-      isReprint ? "ID Card reprint window opened!" : "ID Card print window opened!"
-    );
-  };
-
-  // Download PDF
-  const handleDownloadPdf = async () => {
-    if (!activeStaff || !frontCardRef.current || !backCardRef.current) return;
-    setGeneratingPdf(true);
-    logCardAction("pdf");
-
     try {
-      const cardWidthMm = 53.98;
-      const cardHeightMm = 85.60;
+      // Brief pause to ensure DOM renders unscaled at 100% natural resolution
+      await new Promise((resolve) => setTimeout(resolve, 80));
 
-      // Render Front Canvas at 4x sharp print resolution
+      // Capture high-resolution images of both cards at ~343 DPI for fast, crisp print quality
       const frontCanvas = await html2canvas(frontCardRef.current, {
-        scale: 4,
+        scale: 2.5,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff"
       });
 
-      // Render Back Canvas at 4x sharp print resolution
       const backCanvas = await html2canvas(backCardRef.current, {
-        scale: 4,
+        scale: 2.5,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff"
-      });
-
-      // Initialize jsPDF with standard CR80 page size (Portrait)
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: [cardWidthMm, cardHeightMm]
       });
 
       const frontImgData = frontCanvas.toDataURL("image/png", 1.0);
       const backImgData = backCanvas.toDataURL("image/png", 1.0);
 
-      // Page 1: Front Side (Portrait)
-      pdf.addImage(frontImgData, "PNG", 0, 0, cardWidthMm, cardHeightMm, undefined, "FAST");
+      const printWindow = window.open("", "_blank", "width=900,height=950");
+      if (!printWindow) {
+        triggerToast("পপ-আপ ব্লক করা হয়েছে! অনুগ্রহ করে অনুমতি দিন।", "Pop-up blocked! Please allow pop-ups to print.");
+        setPrinting(false);
+        return;
+      }
 
-      // Page 2: Back Side (Portrait)
-      pdf.addPage([cardWidthMm, cardHeightMm], "portrait");
-      pdf.addImage(backImgData, "PNG", 0, 0, cardWidthMm, cardHeightMm, undefined, "FAST");
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Staff ID Card - ${activeStaff.staffId} - ${activeStaff.fullName}</title>
+            <meta charset="utf-8" />
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+            <style>
+              @page {
+                size: A4 portrait;
+                margin: 12mm;
+              }
+              * {
+                box-sizing: border-box;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+              }
+              body {
+                font-family: 'Plus Jakarta Sans', 'Hind Siliguri', sans-serif;
+                background-color: #0f172a;
+                margin: 0;
+                padding: 20px;
+                color: #0f172a;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+              }
+              .no-print {
+                width: 100%;
+                max-width: 680px;
+                background: #1e293b;
+                color: white;
+                padding: 16px 20px;
+                border-radius: 16px;
+                margin-bottom: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+              }
+              .print-btn {
+                background: #059669;
+                color: white;
+                padding: 10px 24px;
+                border-radius: 12px;
+                font-weight: 800;
+                font-size: 13px;
+                border: none;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                transition: background 0.2s;
+              }
+              .print-btn:hover {
+                background: #047857;
+              }
+              .sheet-container {
+                width: 100%;
+                max-width: 680px;
+                background: #ffffff;
+                padding: 30px 24px;
+                border-radius: 20px;
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+              }
+              .sheet-header {
+                text-align: center;
+                margin-bottom: 24px;
+                padding-bottom: 14px;
+                border-bottom: 1px dashed #cbd5e1;
+              }
+              .sheet-title {
+                font-size: 16px;
+                font-weight: 800;
+                color: #056839;
+                margin: 0 0 4px 0;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+              }
+              .sheet-subtitle {
+                font-size: 11px;
+                color: #64748b;
+                margin: 0;
+              }
+              .cards-wrapper {
+                display: flex;
+                flex-direction: row;
+                justify-content: center;
+                align-items: flex-start;
+                gap: 16mm;
+                margin: 20px auto;
+              }
+              .card-column {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+              }
+              .card-label {
+                font-size: 11px;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.8px;
+                color: #475569;
+                margin-bottom: 8px;
+              }
+              .card-box {
+                width: 53.98mm;
+                height: 85.60mm;
+                min-width: 53.98mm;
+                max-width: 53.98mm;
+                min-height: 85.60mm;
+                max-height: 85.60mm;
+                border-radius: 3.18mm;
+                position: relative;
+                overflow: hidden;
+                box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+                border: 0.3mm dashed #94a3b8;
+                background: #ffffff;
+              }
+              .card-box img {
+                width: 100%;
+                height: 100%;
+                display: block;
+                object-fit: fill;
+              }
+              .instructions-box {
+                margin-top: 24px;
+                padding: 12px 16px;
+                background: #f8fafc;
+                border-radius: 12px;
+                border: 1px solid #e2e8f0;
+                text-align: center;
+                font-size: 11px;
+                color: #64748b;
+                line-height: 1.5;
+              }
+              @media print {
+                body {
+                  background: transparent !important;
+                  padding: 0 !important;
+                }
+                .no-print {
+                  display: none !important;
+                }
+                .sheet-container {
+                  box-shadow: none !important;
+                  border: none !important;
+                  border-radius: 0 !important;
+                  padding: 0 !important;
+                  max-width: 100% !important;
+                }
+                .sheet-header {
+                  display: none !important;
+                }
+                .instructions-box {
+                  display: none !important;
+                }
+                .card-label {
+                  display: none !important;
+                }
+                .cards-wrapper {
+                  margin-top: 15mm !important;
+                  gap: 12mm !important;
+                }
+                .card-box {
+                  box-shadow: none !important;
+                  border: 0.25pt dashed #cbd5e1 !important;
+                  page-break-inside: avoid;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="no-print">
+              <div>
+                <h2 style="font-size:14px;font-weight:800;color:#34d399;margin:0 0 2px 0;">কাঁচা বাজার অফিসিয়াল স্টাফ আইডি কার্ড (CR80 Portrait Print)</h2>
+                <p style="font-size:11px;color:#94a3b8;margin:0;">Staff: ${activeStaff.fullName} | ID: ${activeStaff.staffId} | Physical Size: 53.98mm × 85.60mm</p>
+              </div>
+              <button onclick="window.print()" class="print-btn">
+                <span>🖨️ এখনই প্রিন্ট করুন (Print Now)</span>
+              </button>
+            </div>
 
-      // Save PDF
-      pdf.save(`KachaBazar_StaffID_${activeStaff.staffId}_${activeStaff.fullName.replace(/\s+/g, "_")}_Portrait.pdf`);
+            <div class="sheet-container">
+              <div class="sheet-header">
+                <h3 class="sheet-title">Kacha Bazar Official Staff ID Card</h3>
+                <p class="sheet-subtitle">CR80 Portrait Standard: 53.98mm × 85.60mm • 100% True Scale Print</p>
+              </div>
+
+              <div class="cards-wrapper">
+                <div class="card-column">
+                  <span class="card-label">Front Side (সম্মুখভাগ)</span>
+                  <div class="card-box">
+                    <img src="${frontImgData}" alt="Front Side" />
+                  </div>
+                </div>
+
+                <div class="card-column">
+                  <span class="card-label">Back Side (পেছনের ভাগ)</span>
+                  <div class="card-box">
+                    <img src="${backImgData}" alt="Back Side" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="instructions-box">
+                <p style="margin:0 0 4px 0;font-weight:700;color:#056839;">✂️ প্রিন্ট নির্দেশিকা:</p>
+                <p style="margin:0;">প্রিন্ট করার সময় 'Scale: 100%' নির্বাচন করুন। প্রিন্ট শেষে ড্যাশযুক্ত বর্ডার লাইন অনুযায়ী কেটে পিভিসি আইডি কার্ড পাউচ বা লেমিনেশনে স্থাপন করুন।</p>
+              </div>
+            </div>
+
+            <script>
+              window.onload = function() {
+                setTimeout(() => {
+                  window.print();
+                }, 300);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+
+      printWindow.document.close();
+      triggerToast(
+        isReprint ? "আইডি কার্ড রিপ্রিন্ট উইন্ডো খোলা হয়েছে!" : "আইডি কার্ড প্রিন্ট উইন্ডো খোলা হয়েছে!",
+        isReprint ? "ID Card reprint window opened!" : "ID Card print window opened!"
+      );
+    } catch (err) {
+      console.error("Print card capture error:", err);
+      triggerToast("প্রিন্ট করতে ত্রুটি হয়েছে!", "Failed to prepare card for printing!");
+    } finally {
+      setIsCapturing(false);
+      setPrinting(false);
+    }
+  };
+
+  // Download PDF
+  const handleDownloadPdf = async (mode: "all" | "cr80" = "all") => {
+    if (!activeStaff || !frontCardRef.current || !backCardRef.current) return;
+    setGeneratingPdf(true);
+    setIsCapturing(true);
+    logCardAction("pdf");
+
+    try {
+      // Brief pause to ensure DOM renders unscaled at 100% natural resolution
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      const cardWidthMm = 53.98;
+      const cardHeightMm = 85.60;
+
+      // Render Front Canvas at high-resolution (~343 DPI) for fast generation and crisp print
+      const frontCanvas = await html2canvas(frontCardRef.current, {
+        scale: 2.5,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff"
+      });
+
+      // Render Back Canvas at high-resolution (~343 DPI)
+      const backCanvas = await html2canvas(backCardRef.current, {
+        scale: 2.5,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff"
+      });
+
+      const frontImgData = frontCanvas.toDataURL("image/png", 1.0);
+      const backImgData = backCanvas.toDataURL("image/png", 1.0);
+
+      if (mode === "cr80") {
+        // Individual CR80 Pages (53.98mm x 85.60mm) - for dedicated PVC card printers
+        const pdf = new jsPDF({
+          orientation: "portrait",
+          unit: "mm",
+          format: [cardWidthMm, cardHeightMm]
+        });
+
+        // Page 1: Front Side
+        pdf.addImage(frontImgData, "PNG", 0, 0, cardWidthMm, cardHeightMm, undefined, "FAST");
+
+        // Page 2: Back Side
+        pdf.addPage([cardWidthMm, cardHeightMm], "portrait");
+        pdf.addImage(backImgData, "PNG", 0, 0, cardWidthMm, cardHeightMm, undefined, "FAST");
+
+        pdf.save(`KachaBazar_ID_${activeStaff.staffId}_${activeStaff.fullName.replace(/\s+/g, "_")}_CR80.pdf`);
+      } else {
+        // A4 Print Layout (True 100% Physical Scale, 53.98mm x 85.60mm Front & Back side-by-side)
+        // A4 Dimensions: 210mm x 297mm
+        const pdf = new jsPDF({
+          orientation: "portrait",
+          unit: "mm",
+          format: "a4"
+        });
+
+        const pageWidth = 210;
+        const gap = 12; // 12mm gap between front and back cards
+        const totalCardsWidth = cardWidthMm * 2 + gap; // 119.96mm
+        const startX = (pageWidth - totalCardsWidth) / 2; // ~45.02mm (centered)
+        const startY = 45; // 45mm from top
+
+        // Page Title & Header
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(14);
+        pdf.setTextColor(5, 104, 57); // #056839
+        pdf.text("KACHA BAZAR - OFFICIAL STAFF ID CARD", pageWidth / 2, 22, { align: "center" });
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(9);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(
+          `Staff: ${activeStaff.fullName}  |  ID: ${activeStaff.staffId}  |  CR80 Standard: 53.98 mm x 85.60 mm`,
+          pageWidth / 2,
+          28,
+          { align: "center" }
+        );
+
+        // Header separator line
+        pdf.setDrawColor(203, 213, 225);
+        pdf.setLineWidth(0.3);
+        pdf.line(25, 32, pageWidth - 25, 32);
+
+        // Labels above cards
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(71, 85, 105);
+        pdf.text("FRONT SIDE (সম্মুখভাগ)", startX + cardWidthMm / 2, startY - 4, { align: "center" });
+        pdf.text("BACK SIDE (পেছনের ভাগ)", startX + cardWidthMm + gap + cardWidthMm / 2, startY - 4, { align: "center" });
+
+        // Front Card Image at exact 53.98 x 85.60 mm
+        pdf.addImage(frontImgData, "PNG", startX, startY, cardWidthMm, cardHeightMm, undefined, "FAST");
+        // Front Cut Guide Border
+        pdf.setDrawColor(180, 190, 205);
+        pdf.setLineWidth(0.2);
+        pdf.setLineDashPattern([1.5, 1.5], 0);
+        pdf.roundedRect(startX - 0.5, startY - 0.5, cardWidthMm + 1, cardHeightMm + 1, 3.2, 3.2, "S");
+
+        // Back Card Image at exact 53.98 x 85.60 mm
+        const backX = startX + cardWidthMm + gap;
+        pdf.addImage(backImgData, "PNG", backX, startY, cardWidthMm, cardHeightMm, undefined, "FAST");
+        // Back Cut Guide Border
+        pdf.roundedRect(backX - 0.5, startY - 0.5, cardWidthMm + 1, cardHeightMm + 1, 3.2, 3.2, "S");
+
+        // Reset Line Dash
+        pdf.setLineDashPattern([], 0);
+
+        // Center Fold / Cut marker between cards
+        const midX = startX + cardWidthMm + gap / 2;
+        pdf.setDrawColor(148, 163, 184);
+        pdf.setLineWidth(0.2);
+        pdf.setLineDashPattern([2, 2], 0);
+        pdf.line(midX, startY - 2, midX, startY + cardHeightMm + 2);
+        pdf.setLineDashPattern([], 0);
+
+        // Print & Cutting Instructions Box below
+        const instructY = startY + cardHeightMm + 16;
+        pdf.setFillColor(248, 250, 252);
+        pdf.setDrawColor(226, 232, 240);
+        pdf.roundedRect(startX - 5, instructY, totalCardsWidth + 10, 36, 3, 3, "FD");
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(5, 104, 57);
+        pdf.text("প্রিন্ট ও কাটিং নির্দেশিকা (Printing & Cutting Guidelines):", startX, instructY + 7);
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(71, 85, 105);
+        pdf.text("1. A4 পেপারে প্রিন্ট করার সময় প্রিন্টার সেটিংসে অবশ্যই 'Actual Size' বা 100% স্কেল নির্বাচন করুন ('Fit to Page' দিবেন না)।", startX, instructY + 14);
+        pdf.text("2. ড্যাশযুক্ত বর্ডার লাইন (Cut Marks) অনুযায়ী সাবধানে কেটে স্ট্যান্ডার্ড ৫৪ × ৮৬ মিমি পিভিসি পাউচ বা লেমিনেশন করুন।", startX, instructY + 20);
+        pdf.text("3. কার্ড দুটির প্রস্থ ৫৩.৯৮ মিমি এবং উচ্চতা ৮৫.৬০ মিমি (আন্তর্জাতিক স্ট্যান্ডার্ড CR80 সাইজ)।", startX, instructY + 26);
+        pdf.text("4. Verify online: https://kachabazar.com/verify?id=" + encodeURIComponent(activeStaff.staffId), startX, instructY + 32);
+
+        // Page 2 & Page 3: Direct CR80 single card pages for direct PVC plastic card printers
+        pdf.addPage([cardWidthMm, cardHeightMm], "portrait");
+        pdf.addImage(frontImgData, "PNG", 0, 0, cardWidthMm, cardHeightMm, undefined, "FAST");
+
+        pdf.addPage([cardWidthMm, cardHeightMm], "portrait");
+        pdf.addImage(backImgData, "PNG", 0, 0, cardWidthMm, cardHeightMm, undefined, "FAST");
+
+        pdf.save(`KachaBazar_StaffID_${activeStaff.staffId}_${activeStaff.fullName.replace(/\s+/g, "_")}.pdf`);
+      }
 
       triggerToast("আইডি কার্ড PDF সফলভাবে ডাউনলোড হয়েছে!", "Staff ID Card PDF downloaded successfully!");
     } catch (err) {
       console.error("PDF generation failed:", err);
       triggerToast("PDF তৈরি করতে ত্রুটি হয়েছে!", "Failed to generate ID Card PDF!");
     } finally {
+      setIsCapturing(false);
       setGeneratingPdf(false);
     }
   };
@@ -805,9 +1132,9 @@ export default function StaffIdCardModal({
         </div>
 
         {/* Toolbar & Controls */}
-        <div className="px-4 py-3 bg-slate-850 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-          {/* Side view toggles */}
-          <div className="flex items-center gap-2">
+        <div className="px-4 py-2.5 bg-slate-850 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+          {/* Side view toggles & Responsive Zoom */}
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-750">
               <button
                 onClick={() => setActiveSide("dual")}
@@ -834,6 +1161,37 @@ export default function StaffIdCardModal({
                 {getTranslation("পেছনে (Back)", "Back Only")}
               </button>
             </div>
+
+            {/* Scale / Zoom selector for responsive preview */}
+            <div className="hidden sm:flex items-center bg-slate-900 p-1 rounded-xl border border-slate-750 text-[11px]">
+              <span className="px-2 text-slate-400 font-bold">{getTranslation("প্রিভিউ:", "Preview:")}</span>
+              <button
+                onClick={() => setScaleMode("auto")}
+                className={`px-2.5 py-0.5 rounded-lg font-black transition cursor-pointer ${
+                  scaleMode === "auto" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-400 hover:text-slate-200"
+                }`}
+                title={getTranslation("স্ক্রিনে মানানসই স্কেল", "Auto Fit to Screen")}
+              >
+                {getTranslation("মানানসই (Fit)", "Fit")}
+              </button>
+              <button
+                onClick={() => setScaleMode("80")}
+                className={`px-2 py-0.5 rounded-lg font-black transition cursor-pointer ${
+                  scaleMode === "80" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                80%
+              </button>
+              <button
+                onClick={() => setScaleMode("100")}
+                className={`px-2 py-0.5 rounded-lg font-black transition cursor-pointer ${
+                  scaleMode === "100" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-400 hover:text-slate-200"
+                }`}
+                title={getTranslation("আসল ফিজিক্যাল সাইজ", "100% Actual Physical Size")}
+              >
+                100%
+              </button>
+            </div>
           </div>
 
           {/* Action Buttons: Print, PDF, Reprint */}
@@ -848,7 +1206,7 @@ export default function StaffIdCardModal({
             </button>
 
             <button
-              onClick={handleDownloadPdf}
+              onClick={() => handleDownloadPdf("all")}
               disabled={generatingPdf}
               className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-1.5 rounded-xl font-black shadow-xs transition cursor-pointer disabled:opacity-50"
             >
@@ -869,7 +1227,7 @@ export default function StaffIdCardModal({
         </div>
 
         {/* Modal Main Content Area */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-950 flex flex-col items-center justify-center min-h-[440px]">
+        <div className="p-3 sm:p-4 md:p-5 overflow-y-auto flex-1 bg-slate-950 flex flex-col items-center justify-center min-h-[380px]">
           
           {/* ========================================================================= */}
           {/* EDIT FORM MODE */}
@@ -1080,36 +1438,51 @@ export default function StaffIdCardModal({
             /* ========================================================================= */
             /* CARD PREVIEW DISPLAY - EXACT DESIGN FROM SCREENSHOT */
             /* ========================================================================= */
-            <div className="flex flex-wrap gap-8 items-center justify-center p-2">
+            <div className="flex flex-wrap gap-4 sm:gap-6 md:gap-8 items-center justify-center p-2 max-w-full">
 
               {/* ===================================================================== */}
               {/* FRONT SIDE (CR80 Standard Portrait: 53.98 × 85.60 mm -> 292px × 464px) */}
               {/* ===================================================================== */}
               {(activeSide === "dual" || activeSide === "front") && (
-                <div className="flex flex-col items-center">
-                  <div className="flex items-center justify-between w-full max-w-[292px] mb-2 px-1">
-                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                      <span>FRONT (সম্মুখভাগ)</span>
-                    </span>
-                    <span className="text-[10px] text-emerald-400 bg-emerald-950/90 px-2.5 py-0.5 rounded-full font-mono font-bold border border-emerald-800">
-                      CR80 • 54 × 85.6 mm
-                    </span>
-                  </div>
-
-                  {/* The Physical Card Container - Portrait */}
+                <div
+                  className="flex flex-col items-center transition-all duration-150"
+                  style={{
+                    width: isCapturing || effectiveScale === 1 ? "292px" : `${Math.round(292 * effectiveScale)}px`,
+                    height: isCapturing || effectiveScale === 1 ? "505px" : `${Math.round(505 * effectiveScale)}px`,
+                    overflow: "visible"
+                  }}
+                >
                   <div
-                    ref={frontCardRef}
-                    id="id-card-front"
                     style={{
                       width: "292px",
-                      height: "464px",
+                      transform: isCapturing || effectiveScale === 1 ? "none" : `scale(${effectiveScale})`,
+                      transformOrigin: "top left",
+                      transition: "transform 0.15s ease-out"
+                    }}
+                  >
+                    <div className="flex items-center justify-between w-full max-w-[292px] mb-2 px-1">
+                      <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span>FRONT (সম্মুখভাগ)</span>
+                      </span>
+                      <span className="text-[10px] text-emerald-400 bg-emerald-950/90 px-2.5 py-0.5 rounded-full font-mono font-bold border border-emerald-800">
+                        CR80 • 54 × 85.6 mm
+                      </span>
+                    </div>
+
+                    {/* The Physical Card Container - Portrait */}
+                    <div
+                      ref={frontCardRef}
+                      id="id-card-front"
+                    style={{
+                      width: "292px",
+                      height: "463px",
                       boxSizing: "border-box"
                     }}
                     className="relative rounded-2xl overflow-hidden shadow-2xl bg-white text-slate-900 border border-slate-300 select-none flex flex-col justify-between"
                   >
                     {/* Top Angled Graphic (Green + Red Accent Diagonal) */}
-                    <div className="absolute top-0 left-0 w-full h-[190px] overflow-hidden pointer-events-none z-0">
+                    <div className="absolute top-0 left-0 w-full h-[188px] overflow-hidden pointer-events-none z-0">
                       {/* Green Accent Layer below diagonal */}
                       <div 
                         className="absolute top-0 left-0 w-full h-full bg-[#047857]"
@@ -1137,7 +1510,7 @@ export default function StaffIdCardModal({
                     <div className="relative z-10 px-4 pt-3 flex items-center space-x-2.5">
                       <div className="w-8 h-8 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-md shrink-0 overflow-hidden border border-emerald-200 ring-2 ring-emerald-400/40">
                         <img 
-                          src={activeLogo} 
+                          src={logoDataUrl || activeLogo} 
                           alt="Kacha Bazar Logo" 
                           className="w-full h-full object-contain"
                           crossOrigin="anonymous"
@@ -1154,77 +1527,77 @@ export default function StaffIdCardModal({
                     </div>
 
                     {/* Circular Staff Photo Container (Perfect Circle) */}
-                    <div className="relative z-10 mx-auto mt-1 flex flex-col items-center">
-                      <div className="relative w-[118px] h-[118px] rounded-full bg-white p-1 shadow-xl ring-2 ring-[#056839]/40 border-[3px] border-white flex items-center justify-center">
+                    <div className="relative z-10 mx-auto mt-0.5 flex flex-col items-center">
+                      <div className="relative w-[114px] h-[114px] rounded-full bg-white p-1 shadow-xl ring-2 ring-[#056839]/40 border-[3px] border-white flex items-center justify-center">
                         <div className="w-full h-full rounded-full overflow-hidden bg-slate-100 flex items-center justify-center relative border border-emerald-600/30">
-                          {activeStaff.photoURL ? (
+                          {(photoDataUrl || activeStaff.photoURL) ? (
                             <img
-                              src={activeStaff.photoURL}
+                              src={photoDataUrl || activeStaff.photoURL}
                               alt={activeStaff.fullName}
                               className="w-full h-full object-cover object-center rounded-full"
                               crossOrigin="anonymous"
                             />
                           ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center bg-slate-200 text-slate-400 rounded-full">
-                              <User className="w-12 h-12 text-slate-400" />
-                              <span className="text-[7.5px] font-bold text-slate-400 mt-1">NO PHOTO</span>
+                              <User className="w-11 h-11 text-slate-400" />
+                              <span className="text-[7px] font-bold text-slate-400 mt-0.5">NO PHOTO</span>
                             </div>
                           )}
                         </div>
-                        <div className="absolute bottom-0.5 right-1.5 bg-[#dc2626] text-white rounded-full p-0.5 shadow-md font-bold ring-2 ring-white z-20">
+                        <div className="absolute bottom-0.5 right-1 bg-[#dc2626] text-white rounded-full p-0.5 shadow-md font-bold ring-2 ring-white z-20">
                           <CheckCircle2 className="w-3 h-3 text-white" />
                         </div>
                       </div>
                     </div>
 
-                    {/* Staff Name & Position */}
-                    <div className="relative z-10 text-center px-3 mt-1">
+                    {/* Staff Name & Position - Dynamic Font Sizing & Wrapping (Never Cut Off) */}
+                    <div className="relative z-10 text-center px-3 mt-0.5 min-h-[38px] flex flex-col justify-center">
                       <h3 
-                        className="font-black text-[16.5px] text-[#056839] uppercase tracking-wide leading-tight truncate"
+                        className={`font-black text-[#056839] uppercase tracking-wide break-words line-clamp-2 px-1 ${getStaffNameClasses(activeStaff.fullName)}`}
                         title={activeStaff.fullName}
                       >
                         {activeStaff.fullName}
                       </h3>
                       <p 
-                        className="font-bold text-[11px] text-slate-800 tracking-tight mt-0.5 truncate"
+                        className={`font-bold text-slate-800 tracking-tight mt-0.5 break-words line-clamp-1 ${getDesignationClasses(displayDesignation)}`}
                         title={displayDesignation}
                       >
                         {displayDesignation}
                       </p>
                     </div>
 
-                    {/* Key-Value Details Block - Clean, Table-Aligned & Compact */}
-                    <div className="relative z-10 px-6 py-1 w-full">
+                    {/* Key-Value Details Block - Complete Information & Fully Legible Email - Moved slightly upward for Authorized Signature */}
+                    <div className="relative z-10 px-5 py-0.5 -mt-3.5 mb-1.5 w-full">
                       <div className="space-y-1 text-[9.5px] font-mono">
                         {/* ID Row */}
                         <div className="flex items-center text-left">
-                          <span className="w-[46px] font-black text-[#056839] shrink-0">ID</span>
+                          <span className="w-[58px] font-black text-[#056839] shrink-0">ID</span>
                           <span className="font-bold text-[#056839] w-[10px] shrink-0 text-center">:</span>
-                          <span className="font-black text-slate-900 truncate tracking-wide pl-1">{activeStaff.staffId}</span>
+                          <span className="font-black text-slate-900 tracking-wide pl-1">{activeStaff.staffId}</span>
                         </div>
 
-                        {/* DOB Row */}
+                        {/* JOIN DATE Row */}
                         <div className="flex items-center text-left">
-                          <span className="w-[46px] font-black text-[#056839] shrink-0">DOB</span>
+                          <span className="w-[58px] font-black text-[#056839] shrink-0 text-[8.5px] whitespace-nowrap">JOIN DATE</span>
                           <span className="font-bold text-[#056839] w-[10px] shrink-0 text-center">:</span>
-                          <span className="font-bold text-slate-800 truncate tracking-wide pl-1">{displayCompactDob}</span>
+                          <span className="font-bold text-slate-800 tracking-wide pl-1">{OFFICIAL_STAFF_CARD_JOIN_DATE}</span>
                         </div>
 
                         {/* Phone Row */}
                         <div className="flex items-center text-left">
-                          <span className="w-[46px] font-black text-[#056839] shrink-0 flex items-center gap-1">
-                            <Phone className="w-2.5 h-2.5 text-[#056839] shrink-0" />
-                            <span>PHONE</span>
-                          </span>
+                          <span className="w-[58px] font-black text-[#056839] shrink-0">PHONE</span>
                           <span className="font-bold text-[#056839] w-[10px] shrink-0 text-center">:</span>
-                          <span className="font-bold text-slate-900 truncate tracking-wide pl-1">{activeStaff.mobile || "01719-469714"}</span>
+                          <span className="font-bold text-slate-900 tracking-wide pl-1">{activeStaff.mobile || "01719-469714"}</span>
                         </div>
 
-                        {/* Email Row */}
-                        <div className="flex items-center text-left">
-                          <span className="w-[46px] font-black text-[#056839] shrink-0">EMAIL</span>
-                          <span className="font-bold text-[#056839] w-[10px] shrink-0 text-center">:</span>
-                          <span className="font-semibold text-slate-700 truncate pl-1 text-[9px]" title={activeStaff.email || "support@kachabazar.com"}>
+                        {/* Email Row - Dynamic Font Size & Wrapping, Complete Email Always Visible */}
+                        <div className="flex items-start text-left">
+                          <span className="w-[58px] font-black text-[#056839] shrink-0 pt-0.5">EMAIL</span>
+                          <span className="font-bold text-[#056839] w-[10px] shrink-0 text-center pt-0.5">:</span>
+                          <span 
+                            className={`font-semibold text-slate-800 pl-1 leading-tight break-all ${getStaffEmailClasses(activeStaff.email || "support@kachabazar.com")}`} 
+                            title={activeStaff.email || "support@kachabazar.com"}
+                          >
                             {activeStaff.email || "support@kachabazar.com"}
                           </span>
                         </div>
@@ -1236,25 +1609,41 @@ export default function StaffIdCardModal({
                       <div className="flex flex-col items-center justify-center">
                         <div className="w-16 border-t border-[#056839]/60 mb-0.5" />
                         <div className="text-[5.5px] font-bold text-slate-500 tracking-wider uppercase leading-tight">
-                          AUTHORISED BY
+                          {authorizedSigner.title}
                         </div>
                         <div className="text-[6.5px] font-black text-[#056839] tracking-wider uppercase leading-tight">
-                          MD ANIK SARKAR
+                          {authorizedSigner.name}
                         </div>
                         <div className="text-[5px] font-bold text-slate-500 tracking-wide uppercase leading-tight">
-                          FOUNDER, KACHA BAZAR
+                          {authorizedSigner.designation}
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* ===================================================================== */}
-              {/* BACK SIDE (CR80 Standard Portrait: 53.98 × 85.60 mm -> 292px × 464px) */}
-              {/* ===================================================================== */}
-              {(activeSide === "dual" || activeSide === "back") && (
-                <div className="flex flex-col items-center">
+            {/* ===================================================================== */}
+            {/* BACK SIDE (CR80 Standard Portrait: 53.98 × 85.60 mm -> 292px × 463px) */}
+            {/* ===================================================================== */}
+            {(activeSide === "dual" || activeSide === "back") && (
+              <div
+                className="flex flex-col items-center transition-all duration-150"
+                style={{
+                  width: isCapturing || effectiveScale === 1 ? "292px" : `${Math.round(292 * effectiveScale)}px`,
+                  height: isCapturing || effectiveScale === 1 ? "505px" : `${Math.round(505 * effectiveScale)}px`,
+                  overflow: "visible"
+                }}
+              >
+                <div
+                  style={{
+                    width: "292px",
+                    transform: isCapturing || effectiveScale === 1 ? "none" : `scale(${effectiveScale})`,
+                    transformOrigin: "top left",
+                    transition: "transform 0.15s ease-out"
+                  }}
+                >
                   <div className="flex items-center justify-between w-full max-w-[292px] mb-2 px-1">
                     <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
                       <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
@@ -1271,89 +1660,63 @@ export default function StaffIdCardModal({
                     id="id-card-back"
                     style={{
                       width: "292px",
-                      height: "464px",
+                      height: "463px",
                       boxSizing: "border-box"
                     }}
                     className="relative rounded-2xl overflow-hidden shadow-2xl bg-white text-slate-900 border border-slate-300 select-none flex flex-col justify-between"
                   >
-                    {/* Top Header: Centered Logo + Company + Tagline */}
-                    <div className="pt-4 pb-2 px-4 flex flex-col items-center text-center">
-                      <div className="w-10 h-10 rounded-2xl bg-white p-1 flex items-center justify-center shadow-md border-2 border-[#056839] shrink-0 overflow-hidden mb-1 ring-2 ring-emerald-100">
+                    {/* Top Header: Centered Logo + Company + Tagline + Security Badge */}
+                    <div className="pt-3 pb-1.5 px-4 flex flex-col items-center text-center">
+                      <div className="w-9 h-9 rounded-2xl bg-white p-1 flex items-center justify-center shadow-md border-2 border-[#056839] shrink-0 overflow-hidden mb-1 ring-2 ring-emerald-100">
                         <img 
-                          src={activeLogo} 
+                          src={logoDataUrl || activeLogo} 
                           alt="Kacha Bazar Logo" 
                           className="w-full h-full object-contain"
                           crossOrigin="anonymous"
                         />
                       </div>
-                      <h4 className="font-black text-[13.5px] text-[#056839] tracking-wide leading-tight">
+                      <h4 className="font-black text-[13px] text-[#056839] tracking-wide leading-tight">
                         {getTranslation("কাঁচা বাজার", "Kacha Bazar")}
                       </h4>
                       <p className="text-[7.5px] font-semibold text-slate-500 tracking-wider">
                         {getTranslation("অনলাইন গ্রোসারি ও পিওর ফুডস", "Online Grocery & Pure Foods")}
                       </p>
+                      <div className="mt-1 px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-200 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                        <span className="text-[7px] font-black text-[#056839] uppercase tracking-wider">
+                          OFFICIAL STAFF IDENTITY PASS
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Terms & Conditions Block */}
-                    <div className="px-5 text-left my-auto">
-                      <h5 className="font-bold text-[9.5px] text-[#056839] mb-2 leading-none">
-                        Terms and conditions
-                      </h5>
-                      <div className="space-y-2.5 text-[8px] text-slate-700 leading-tight">
-                        <div className="flex items-start space-x-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-[#056839] shrink-0 mt-0.5" />
-                          <p>Employees are required to use the card while on duty</p>
+                    {/* Terms & Conditions Block - Balanced, Neat, No Empty Space */}
+                    <div className="px-4 text-left">
+                      <div className="flex items-center justify-between mb-1.5 border-b border-emerald-100 pb-1">
+                        <h5 className="font-black text-[9px] text-[#056839] uppercase tracking-wide leading-none">
+                          Terms and conditions (শর্তাবলী)
+                        </h5>
+                        <span className="text-[7px] font-bold text-slate-400 font-mono">NON-TRANSFERABLE</span>
+                      </div>
+                      <div className="space-y-1.5 text-[7.5px] text-slate-700 leading-tight">
+                        <div className="flex items-start space-x-1.5">
+                          <span className="w-2 h-2 rounded-full bg-[#056839] shrink-0 mt-0.5" />
+                          <p>Employees are required to wear or display this card at all times while on duty.</p>
                         </div>
-                        <div className="flex items-start space-x-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-[#056839] shrink-0 mt-0.5" />
-                          <p>If the card is lost or damaged, an additional fee will be charged according to regulations</p>
+                        <div className="flex items-start space-x-1.5">
+                          <span className="w-2 h-2 rounded-full bg-[#056839] shrink-0 mt-0.5" />
+                          <p>If the card is lost or damaged, notify management immediately for replacement.</p>
                         </div>
-                        <div className="flex items-start space-x-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-[#056839] shrink-0 mt-0.5" />
-                          <p>If you find this card, call the number listed below</p>
+                        <div className="flex items-start space-x-1.5">
+                          <span className="w-2 h-2 rounded-full bg-[#056839] shrink-0 mt-0.5" />
+                          <p>This card remains the property of Kacha Bazar and must be returned upon termination.</p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Bottom Angled Graphic (Green + Red Accent Matching Front) with Issue/Expire Date & QR */}
-                    <div className="relative w-full h-[95px] overflow-hidden mt-auto">
-                      {/* Green Accent Base Polygon */}
-                      <div 
-                        className="absolute bottom-0 left-0 w-full h-full bg-[#047857]"
-                        style={{
-                          clipPath: "polygon(0 68%, 26% 54%, 58% 66%, 100% 40%, 100% 100%, 0 100%)"
-                        }}
-                      />
-                      {/* Red Accent Polygon */}
-                      <div 
-                        className="absolute bottom-0 left-0 w-full h-full bg-[#dc2626]"
-                        style={{
-                          clipPath: "polygon(0 76%, 26% 62%, 58% 74%, 100% 48%, 100% 100%, 0 100%)"
-                        }}
-                      />
-                      {/* Deep Green Main Polygon */}
-                      <div 
-                        className="absolute bottom-0 left-0 w-full h-full bg-[#056839]"
-                        style={{
-                          clipPath: "polygon(0 88%, 28% 74%, 62% 84%, 100% 58%, 100% 100%, 0 100%)"
-                        }}
-                      />
-
-                      {/* Content over bottom shape */}
-                      <div className="absolute inset-0 px-4 pb-2.5 pt-3 flex items-end justify-between z-10">
-                        <div className="text-white text-[8px] space-y-1 font-mono font-bold leading-tight drop-shadow-xs pb-0.5">
-                          <div className="flex items-center space-x-1">
-                            <span className="text-emerald-200">Issue date</span>
-                            <span>: {displayJoiningDate}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <span className="text-emerald-200">Expire Date</span>
-                            <span>: 31/12/2028</span>
-                          </div>
-                        </div>
-
-                        {/* QR Code in crisp white box */}
-                        <div className="bg-white p-1 rounded-sm shadow-md border border-emerald-300 ring-2 ring-emerald-600/30 shrink-0">
+                    {/* QR Code in crisp white box with Verification Tag - Moved Above the Red Horizontal Line */}
+                    <div className="px-4 pb-2 pt-1 flex justify-end items-end w-full mt-auto">
+                      <div className="flex flex-col items-center">
+                        <div className="bg-white p-1 rounded-lg shadow-sm border border-emerald-300 ring-2 ring-emerald-600/20 shrink-0">
                           {loadingQr ? (
                             <div className="w-[52px] h-[52px] flex items-center justify-center">
                               <RefreshCw className="w-3.5 h-3.5 text-emerald-800 animate-spin" />
@@ -1370,11 +1733,43 @@ export default function StaffIdCardModal({
                             </div>
                           )}
                         </div>
+                        <span className="text-[6.5px] font-mono font-black text-[#056839] uppercase tracking-wider mt-1 drop-shadow-xs">
+                          SCAN TO VERIFY
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Bottom Section: Red Horizontal Line + Straight Level Green Info Block */}
+                    <div className="w-full shrink-0">
+                      {/* Red Accent Horizontal Line */}
+                      <div className="w-full h-[2.5px] bg-[#dc2626]" />
+
+                      {/* Straight Level Green Area with Verification & Staff Details */}
+                      <div className="w-full bg-[#056839] px-4 py-2.5">
+                        <div className="text-white text-[7.5px] space-y-1 font-mono font-bold leading-tight drop-shadow-xs">
+                          <div className="flex items-center space-x-1">
+                            <span className="text-emerald-200 w-16 shrink-0">Staff ID</span>
+                            <span>: {activeStaff.staffId}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <span className="text-emerald-200 w-16 shrink-0">Blood Group</span>
+                            <span className="text-amber-300">: {displayBloodGroup}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <span className="text-emerald-200 w-16 shrink-0">Issue Date</span>
+                            <span>: {OFFICIAL_STAFF_CARD_ISSUE_DATE}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <span className="text-emerald-200 w-16 shrink-0">Valid Thru</span>
+                            <span>: {OFFICIAL_STAFF_CARD_VALID_THRU}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
             </div>
           )}

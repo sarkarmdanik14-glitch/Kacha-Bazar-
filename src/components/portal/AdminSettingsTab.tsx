@@ -444,10 +444,10 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
     <div className="space-y-6 text-slate-700">
       
       {/* Settings Sub Navigation */}
-      <div className="flex border-b border-slate-100 shrink-0">
+      <div className="flex border-b border-slate-100 shrink-0 overflow-x-auto scrollbar-none">
         <button 
           onClick={() => setActiveSettingsSubTab("global")}
-          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 ${
+          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 shrink-0 whitespace-nowrap ${
             activeSettingsSubTab === "global" ? "border-emerald-600 text-emerald-600" : "border-transparent text-slate-400 hover:text-slate-600"
           }`}
         >
@@ -455,7 +455,7 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         </button>
         <button 
           onClick={() => setActiveSettingsSubTab("delivery")}
-          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 ${
+          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 shrink-0 whitespace-nowrap ${
             activeSettingsSubTab === "delivery" ? "border-emerald-600 text-emerald-600" : "border-transparent text-slate-400 hover:text-slate-600"
           }`}
         >
@@ -463,7 +463,7 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         </button>
         <button 
           onClick={() => setActiveSettingsSubTab("banners")}
-          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 ${
+          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 shrink-0 whitespace-nowrap ${
             activeSettingsSubTab === "banners" ? "border-emerald-600 text-emerald-600" : "border-transparent text-slate-400 hover:text-slate-600"
           }`}
         >
@@ -471,7 +471,7 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         </button>
         <button 
           onClick={() => setActiveSettingsSubTab("pwa")}
-          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 flex items-center gap-1.5 ${
+          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
             activeSettingsSubTab === "pwa" ? "border-emerald-600 text-emerald-600" : "border-transparent text-slate-400 hover:text-slate-600"
           }`}
         >

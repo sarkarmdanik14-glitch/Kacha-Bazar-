@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Gift, ArrowRight, ArrowLeft, Zap, Sparkles, Percent, Award, Share2 } from "lucide-react";
 
@@ -11,6 +11,7 @@ interface BannerSliderProps {
   onFlashSaleClick: () => void;
   onCategoryClick?: (categoryId: string) => void;
   customBanners?: any[];
+  referralBanner?: any;
   loading?: boolean;
 }
 
@@ -23,9 +24,11 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
   onFlashSaleClick,
   onCategoryClick,
   customBanners = [],
+  referralBanner,
   loading = false
 }) => {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [direction, setDirection] = useState<number>(1);
 
   const toBnNum = (num: number | string): string => {
     const digits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
@@ -41,6 +44,112 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
 
   // Render sleek, compact banner height (reduced by ~50% for optimal balance)
   const containerHeightClass = "h-[85px] sm:h-[100px] md:h-[110px]";
+
+  // Existing App Referral Banner definition from configuration
+  const referralSlide = {
+    id: "app-referral-banner",
+    type: "referral",
+    titleBn: referralBanner?.titleBn || "🎉 বন্ধুদের আমন্ত্রণ জানান, ৳৫০ বোনাস জিতুন!",
+    titleEn: referralBanner?.titleEn || "🎉 Refer Friends, Earn ৳50 Wallet Credit!",
+    subtitleBn: referralBanner?.descBn || "বন্ধুরা প্রথম অর্ডারে পাবেন ফ্রি ডেলিভারি এবং আপনার ওয়ালেটে যোগ হবে ৳৫০ ক্যাশব্যাক।",
+    subtitleEn: referralBanner?.descEn || "Friends get Free Delivery on first order. You earn BDT 50 wallet cashback.",
+    buttonTextBn: referralBanner?.buttonTextBn || "রেফার করুন",
+    buttonTextEn: referralBanner?.buttonTextEn || "Refer Now",
+    isActive: referralBanner?.enabled !== false
+  };
+
+  // Combine dynamic custom banners with the existing App Referral Banner
+  const activeCustomBanners = customBanners.filter(b => b.isActive !== false);
+  const hasExistingReferral = activeCustomBanners.some(b => b.type === "referral" || b.id === "app-referral-banner");
+
+  const slides = [
+    ...activeCustomBanners,
+    ...(!hasExistingReferral && referralSlide.isActive ? [referralSlide] : [])
+  ];
+  const totalSlides = slides.length;
+
+  // Safeguard activeIndex if banners array changes dynamically
+  useEffect(() => {
+    if (activeIndex >= totalSlides && totalSlides > 0) {
+      setActiveIndex(0);
+    }
+  }, [totalSlides, activeIndex]);
+
+  const nextSlide = () => {
+    if (totalSlides <= 1) return;
+    setDirection(1);
+    setActiveIndex((prev) => (prev + 1) % totalSlides);
+  };
+
+  const prevSlide = () => {
+    if (totalSlides <= 1) return;
+    setDirection(-1);
+    setActiveIndex((prev) => (prev - 1 + totalSlides) % totalSlides);
+  };
+
+  const goToSlide = (index: number) => {
+    if (index === activeIndex) return;
+    setDirection(index > activeIndex ? 1 : -1);
+    setActiveIndex(index);
+  };
+
+  // Automatic sliding every 3 seconds for all existing and future banners
+  useEffect(() => {
+    if (totalSlides <= 1) return;
+
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      setDirection(1);
+      setActiveIndex((prev) => (prev + 1) % totalSlides);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [totalSlides, activeIndex]);
+
+  // Mobile touch swipe handling
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const hasSwipedRecently = useRef<boolean>(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diffX = touchStartX.current - touchEndX;
+    const diffY = touchStartY.current - touchEndY;
+
+    const minSwipeDistance = 35; // px threshold for intentional swipe
+
+    // Ensure swipe was predominantly horizontal so vertical page scroll is unaffected
+    if (Math.abs(diffX) > minSwipeDistance && Math.abs(diffX) > Math.abs(diffY)) {
+      hasSwipedRecently.current = true;
+      setTimeout(() => {
+        hasSwipedRecently.current = false;
+      }, 200);
+
+      if (diffX > 0) {
+        // Swiped left -> next banner
+        nextSlide();
+      } else {
+        // Swiped right -> previous banner
+        prevSlide();
+      }
+    }
+
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
+
+  // Safe click handler preventing unintentional clicks during swipe gesture
+  const handleItemClick = (action?: () => void) => {
+    if (hasSwipedRecently.current) return;
+    action?.();
+  };
 
   // If loading banners from Firebase, show a sleek skeleton
   if (loading) {
@@ -62,64 +171,78 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
     );
   }
 
-  // Use only dynamic custom banners from Firestore/Admin.
-  const activeCustomBanners = customBanners.filter(b => b.isActive !== false);
-
   // If no banners configured in Firebase, do not show hard-coded fallback banners
   if (activeCustomBanners.length === 0) {
     return null;
   }
 
-  const slides = activeCustomBanners;
-  const totalSlides = slides.length;
-
-  const nextSlide = () => {
-    setActiveIndex((prev) => (prev + 1) % totalSlides);
-  };
-
-  const prevSlide = () => {
-    setActiveIndex((prev) => (prev - 1 + totalSlides) % totalSlides);
+  // Smooth directional sliding animation variants
+  const slideVariants = {
+    enter: (dir: number) => ({
+      x: dir > 0 ? "100%" : "-100%",
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (dir: number) => ({
+      x: dir > 0 ? "-100%" : "100%",
+      opacity: 0,
+    }),
   };
 
   return (
     <section className="max-w-7xl mx-auto px-4 mt-3 relative">
-      {/* Slider Container with smooth height transition */}
+      {/* Slider Container with smooth height transition & touch action */}
       <div 
-        className={`w-full relative rounded-2xl overflow-hidden shadow-xs transition-all duration-300 ease-out border border-slate-100 ${containerHeightClass}`}
+        className={`w-full relative rounded-2xl overflow-hidden shadow-xs transition-all duration-300 ease-out border border-slate-100 select-none ${containerHeightClass}`}
         id="home-banner-slider"
+        style={{ touchAction: "pan-y" }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
-        {/* Navigation Buttons (Always visible on hover, elegant design) */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            prevSlide();
-          }}
-          className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-black/35 hover:bg-black/60 text-white flex items-center justify-center transition backdrop-blur-xs focus:outline-none cursor-pointer shadow-xs"
-          aria-label="Previous slide"
-          id="btn-slider-prev"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-        </button>
+        {/* Navigation Buttons (visible when more than 1 slide) */}
+        {totalSlides > 1 && (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                prevSlide();
+              }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-black/35 hover:bg-black/60 text-white flex items-center justify-center transition backdrop-blur-xs focus:outline-none cursor-pointer shadow-xs"
+              aria-label="Previous slide"
+              id="btn-slider-prev"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+            </button>
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            nextSlide();
-          }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-black/35 hover:bg-black/60 text-white flex items-center justify-center transition backdrop-blur-xs focus:outline-none cursor-pointer shadow-xs"
-          aria-label="Next slide"
-          id="btn-slider-next"
-        >
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                nextSlide();
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-black/35 hover:bg-black/60 text-white flex items-center justify-center transition backdrop-blur-xs focus:outline-none cursor-pointer shadow-xs"
+              aria-label="Next slide"
+              id="btn-slider-next"
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </>
+        )}
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence initial={false} custom={direction} mode="popLayout">
           <motion.div
             key={activeIndex}
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -50 }}
-            transition={{ duration: 0.3 }}
+            custom={direction}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{
+              x: { type: "tween", ease: [0.25, 1, 0.5, 1], duration: 0.45 },
+              opacity: { duration: 0.25 }
+            }}
             className="w-full h-full"
           >
             {(() => {
@@ -130,7 +253,7 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
               if (slide.type === "referral") {
                 return (
                   <div 
-                    onClick={onReferralClick}
+                    onClick={() => handleItemClick(onReferralClick)}
                     className="w-full h-full bg-gradient-to-r from-emerald-950 via-emerald-800 to-teal-950 text-white px-3.5 sm:px-6 py-2 sm:py-3 flex items-center justify-between relative overflow-hidden cursor-pointer select-none"
                   >
                     <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-400/10 rounded-full blur-xl pointer-events-none"></div>
@@ -164,7 +287,7 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          onReferralClick();
+                          handleItemClick(onReferralClick);
                         }}
                         className="bg-gradient-to-r from-yellow-400 to-amber-400 hover:from-yellow-300 hover:to-amber-300 text-slate-950 px-2.5 sm:px-3 py-1 sm:py-1.2 rounded-lg text-[9px] sm:text-[11px] font-black transition-all duration-300 flex items-center space-x-1 shadow hover:scale-105 active:scale-95 cursor-pointer"
                       >
@@ -183,7 +306,7 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
               if (slide.type === "flash") {
                 return (
                   <div 
-                    onClick={onFlashSaleClick}
+                    onClick={() => handleItemClick(onFlashSaleClick)}
                     className="w-full h-full bg-gradient-to-r from-rose-800 via-red-600 to-orange-600 text-white px-3.5 sm:px-6 py-2 sm:py-3 flex items-center justify-between relative overflow-hidden cursor-pointer select-none"
                   >
                     <div className="z-10 space-y-0.5 sm:space-y-1 max-w-[65%]">
@@ -221,14 +344,16 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
               return (
                 <div 
                   onClick={() => {
-                    if (slide.link) {
-                      if (slide.link.startsWith("category:")) {
-                        const targetCat = slide.link.replace("category:", "");
-                        onCategoryClick?.(targetCat);
+                    handleItemClick(() => {
+                      if (slide.link) {
+                        if (slide.link.startsWith("category:")) {
+                          const targetCat = slide.link.replace("category:", "");
+                          onCategoryClick?.(targetCat);
+                        }
                       }
-                    }
+                    });
                   }}
-                  className={`w-full h-full bg-gradient-to-r ${slide.bgGradient || "from-emerald-800 via-teal-700 to-emerald-900"} text-white px-3.5 sm:px-6 py-2 sm:py-3 flex items-center justify-between relative overflow-hidden select-none`}
+                  className={`w-full h-full bg-gradient-to-r ${slide.bgGradient || "from-emerald-800 via-teal-700 to-emerald-900"} text-white px-3.5 sm:px-6 py-2 sm:py-3 flex items-center justify-between relative overflow-hidden select-none cursor-pointer`}
                 >
                   {slide.image && (
                     <div 
@@ -273,24 +398,26 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
         </AnimatePresence>
 
         {/* Circular Bottom Dot Indicators */}
-        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 flex space-x-1.5">
-          {slides.map((_, i) => (
-            <button
-              key={i}
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveIndex(i);
-              }}
-              className={`w-1.5 h-1.5 rounded-full transition-all duration-300 focus:outline-none cursor-pointer ${
-                i === activeIndex 
-                  ? "bg-white w-4" 
-                  : "bg-white/40 hover:bg-white/60"
-              }`}
-              aria-label={`Go to slide ${i + 1}`}
-              id={`btn-dot-${i}`}
-            ></button>
-          ))}
-        </div>
+        {totalSlides > 1 && (
+          <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 flex space-x-1.5">
+            {slides.map((_, i) => (
+              <button
+                key={i}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToSlide(i);
+                }}
+                className={`w-1.5 h-1.5 rounded-full transition-all duration-300 focus:outline-none cursor-pointer ${
+                  i === activeIndex 
+                    ? "bg-white w-4" 
+                    : "bg-white/40 hover:bg-white/60"
+                }`}
+                aria-label={`Go to slide ${i + 1}`}
+                id={`btn-dot-${i}`}
+              ></button>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
