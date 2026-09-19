@@ -302,7 +302,7 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
   const handleQuickSeedProduct = async () => {
     try {
       const quickItems = [
-        { nameEn: "Organic Deshi Rice", nameBn: "অর্গানিক বাসমতি চাল", price: 95, category: "staples", unitEn: "kg", unitBn: "কেজি", image: "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80" },
+        { nameEn: "Organic Deshi Rice", nameBn: "অর্গানিক বাসমতি চাল", price: 95, category: "groceries", unitEn: "kg", unitBn: "কেজি", image: "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80" },
         { nameEn: "Fresh Chanchkoir Mangoes", nameBn: "গাছপাকা হিমসাগর আম", price: 120, category: "fruits", unitEn: "kg", unitBn: "কেজি", image: "https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=400&q=80" },
         { nameEn: "Pure Cow Milk", nameBn: "খাটি গরুর দুধ", price: 80, category: "dairy-eggs", unitEn: "ltr", unitBn: "লিটার", image: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80" }
       ];
@@ -686,7 +686,7 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
                             <option value="fruits">Fruits</option>
                             <option value="fish-meat">Fish & Meat</option>
                             <option value="dairy-eggs">Dairy & Eggs</option>
-                            <option value="staples">Rice & Grains</option>
+                            <option value="groceries">মুদি পণ্য (Groceries)</option>
                           </select>
                         </div>
                         <div>

@@ -24,6 +24,7 @@ import {
   BarChart3
 } from "lucide-react";
 import { checkAndRewardReferral } from "../../lib/referral";
+import { mergeCategoryCards } from "../../lib/categoryUtils";
 
 // Import modular sub-panels
 import AdminDashboardReport from "./AdminDashboardReport";
@@ -246,12 +247,13 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
         snapshot.forEach((doc) => {
           cats.push({ id: doc.id, ...doc.data() });
         });
-        cats.sort((a, b) => {
+        const mergedCats = mergeCategoryCards(cats);
+        mergedCats.sort((a, b) => {
           const orderA = typeof a.displayOrder === "number" ? a.displayOrder : (typeof a.order === "number" ? a.order : 9999);
           const orderB = typeof b.displayOrder === "number" ? b.displayOrder : (typeof b.order === "number" ? b.order : 9999);
           return orderA - orderB;
         });
-        setCategories(cats);
+        setCategories(mergedCats);
       },
       (err) => console.warn("Admin cats sync notice:", err.message)
     );

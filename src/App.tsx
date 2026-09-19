@@ -49,6 +49,7 @@ import {
   calculateProductPriceForWeight,
   validateWeightLimit
 } from "./lib/productWeightUtils";
+import { isCategoryMatch, normalizeCategoryId, mergeCategoryCards } from "./lib/categoryUtils";
 
 export default function App() {
   // Localization: 'bn' (Bangla) or 'en' (English)
@@ -241,23 +242,24 @@ export default function App() {
 
   // Dynamic Category Navigation handler (1 Click -> Dedicated Category Page with browser history sync)
   const navigateToCategory = useCallback((catId: string) => {
-    setSelectedCategory(catId);
+    const resolvedCatId = normalizeCategoryId(catId);
+    setSelectedCategory(resolvedCatId);
     setSelectedSubcategory("all");
     setShowFlashSaleOnly(false);
 
     // Sync URL search params without page reload
     const searchParams = new URLSearchParams(window.location.search);
-    if (catId === "all") {
+    if (resolvedCatId === "all") {
       searchParams.delete("category");
     } else {
-      searchParams.set("category", catId);
+      searchParams.set("category", resolvedCatId);
     }
     const newQuery = searchParams.toString();
     const basePath = window.location.pathname.startsWith("/admin") || window.location.pathname.startsWith("/seller") || window.location.pathname.startsWith("/rider") 
       ? window.location.pathname 
       : "/";
     const newUrl = newQuery ? `?${newQuery}` : basePath;
-    window.history.pushState({ category: catId }, "", newUrl);
+    window.history.pushState({ category: resolvedCatId }, "", newUrl);
 
     // Smooth scroll to top
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -273,7 +275,8 @@ export default function App() {
       const search = new URLSearchParams(window.location.search);
       const catParam = search.get("category");
       if (catParam && catParam !== "all") {
-        setSelectedCategory(catParam);
+        const resolved = normalizeCategoryId(catParam);
+        setSelectedCategory(resolved);
         setSelectedSubcategory("all");
         setShowFlashSaleOnly(false);
       } else {
@@ -583,30 +586,33 @@ export default function App() {
           }
         });
 
+        // Merge "staples" (চাল ও ডাল) and "spices-oils" (মসলা ও রান্নার তেল) into "groceries" (মুদি পণ্য)
+        const mergedCats = mergeCategoryCards(cats);
+
         // Priority order map for required categories
         const PRIORITY_ORDER_MAP: Record<string, number> = {
           "vegetables": 1,
+          "groceries": 2,
           "staples": 2,
           "fish": 3,
           "meat": 4,
-          "spices-oils": 5,
-          "fruits": 6,
-          "dairy-eggs": 7,
-          "snacks-biscuits": 8,
-          "beverages": 9,
-          "frozen": 10,
-          "personal-care": 11,
-          "household": 12,
-          "baby-care": 13,
-          "bakery-sweets": 14,
-          "offers": 15,
-          "organic-herbal": 16,
-          "pet-care": 17,
-          "home-appliances": 18
+          "fruits": 5,
+          "dairy-eggs": 6,
+          "snacks-biscuits": 7,
+          "beverages": 8,
+          "frozen": 9,
+          "personal-care": 10,
+          "household": 11,
+          "baby-care": 12,
+          "bakery-sweets": 13,
+          "offers": 14,
+          "organic-herbal": 15,
+          "pet-care": 16,
+          "home-appliances": 17
         };
 
         // Remove duplicates if any
-        const uniqueCats = cats.filter((c, index, self) =>
+        const uniqueCats = mergedCats.filter((c, index, self) =>
           index === self.findIndex((t) => t.id === c.id)
         );
 
@@ -1176,7 +1182,7 @@ export default function App() {
   const filteredProducts = useMemo(() => {
     const normSearch = searchQuery.toLowerCase();
     return availableProducts.filter((product) => {
-      const matchesCategory = selectedCategory === "all" || product.category === selectedCategory;
+      const matchesCategory = isCategoryMatch(product.category, selectedCategory);
       const matchesSearch = 
         product.nameBn.toLowerCase().includes(normSearch) || 
         product.nameEn.toLowerCase().includes(normSearch) || 
@@ -2139,13 +2145,16 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 mt-6">
           {/* Category Page Header Banner */}
           {(() => {
-            const cat = categories.find(c => c.id === selectedCategory) || 
+            const resolvedCatId = normalizeCategoryId(selectedCategory);
+            const cat = categories.find(c => c.id === resolvedCatId) || 
+                        CATEGORIES.find(c => c.id === resolvedCatId) || 
+                        categories.find(c => c.id === selectedCategory) || 
                         CATEGORIES.find(c => c.id === selectedCategory) || 
-                        { id: selectedCategory, nameBn: selectedCategory, nameEn: selectedCategory, colorClass: "from-emerald-500 to-teal-600", borderColor: "border-emerald-200", iconName: "Salad" };
+                        { id: selectedCategory, nameBn: "মুদি পণ্য", nameEn: "Groceries", colorClass: "bg-amber-50 text-amber-800", borderColor: "border-amber-100", iconName: "Wheat" };
 
             // Filter products
             const catProducts = availableProducts.filter((product) => {
-              const matchesCategory = product.category === selectedCategory;
+              const matchesCategory = isCategoryMatch(product.category, selectedCategory);
               const matchesSubcategory = selectedSubcategory === "all" || product.subcategory === selectedSubcategory;
               const normSearch = searchQuery.toLowerCase();
               const matchesSearch = 
@@ -2158,7 +2167,7 @@ export default function App() {
             });
 
             // Unique subcategories
-            const allCatProducts = availableProducts.filter(p => p.category === selectedCategory);
+            const allCatProducts = availableProducts.filter(p => isCategoryMatch(p.category, selectedCategory));
             const subcategories = ["all", ...Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean)))];
 
             // Sort products

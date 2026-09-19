@@ -43,6 +43,9 @@ export const ALL_PRODUCTS: Product[] = allRaw.map((raw: any) => {
   if (category === "bakery") {
     category = "bakery-sweets";
   }
+  if (category === "staples" || category === "spices-oils") {
+    category = "groceries";
+  }
 
   // Calculate default original price if a discount exists but originalPrice is missing
   let originalPrice = raw.originalPrice;

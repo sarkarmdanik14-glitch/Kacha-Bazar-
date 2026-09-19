@@ -5,6 +5,7 @@ import {
   Activity, Users, RefreshCw, AlertCircle
 } from "lucide-react";
 import { subscribeToVisitorAnalytics, VisitorAnalyticsData } from "../../lib/visitorTracker";
+import { normalizeCategoryId } from "../../lib/categoryUtils";
 
 interface AdminDashboardReportProps {
   orders: any[];
@@ -60,7 +61,8 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
   deliveredOrders.forEach(o => {
     if (Array.isArray(o.items)) {
       o.items.forEach((item: any) => {
-        const cat = item.product?.category || "Other";
+        const rawCat = item.product?.category || "Other";
+        const cat = normalizeCategoryId(rawCat);
         const price = item.selectedOption ? item.selectedOption.price : (item.product?.price || 0);
         const cost = (Number(price) || 0) * (Number(item.quantity) || 1);
         categorySalesMap[cat] = (categorySalesMap[cat] || 0) + cost;

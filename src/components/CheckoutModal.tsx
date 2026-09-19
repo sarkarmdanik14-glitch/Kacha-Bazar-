@@ -310,7 +310,7 @@ export default function CheckoutModal({
       paymentMethod: payMethod === "COD" ? "cod" : (payMethod || "cod"),
       paymentStatus: "pending",
       orderStatus: "pending",
-      createdAt: serverTimestamp(),
+      createdAt: new Date().toISOString(),
       isGuest: !user,
       couponUsed: appliedCoupon ? (appliedCoupon.code || "") : "",
       riderId: ""
@@ -325,136 +325,28 @@ export default function CheckoutModal({
       method: payMethod || "",
       status: "pending",
       transactionId: txId || `TX-${Math.floor(10000000 + Math.random() * 90000000)}`,
-      createdAt: serverTimestamp()
+      createdAt: new Date().toISOString()
     } : null;
 
     try {
-      // Execute stock validation, stock deduction, order creation, and payment creation in ONE atomic transaction
-      await runTransaction(db, async (transaction) => {
-        // 1. Group / aggregate unique product IDs from aggregated cart items
-        const uniqueProdIds = Array.from(new Set(aggregatedCart.map(item => item.productId)));
-
-        // 2. Read each unique product document ONCE (All reads MUST happen before any writes in Firestore transaction)
-        const prodSnapsMap = new Map<string, any>();
-        for (const prodId of uniqueProdIds) {
-          const prodRef = doc(db, "products", prodId);
-          const prodSnap = await transaction.get(prodRef);
-          prodSnapsMap.set(prodId, prodSnap);
-        }
-
-        // 3. Validate existence, stock availability, and compute updated stock/options for each unique product
-        const updatesToApply: { ref: any; updates: any }[] = [];
-
-        for (const prodId of uniqueProdIds) {
-          const prodSnap = prodSnapsMap.get(prodId)!;
-          if (!prodSnap.exists()) {
-            const sampleItem = aggregatedCart.find(i => i.productId === prodId)?.sampleItem;
-            const name = sampleItem ? (sampleItem.product.nameBn || sampleItem.product.nameEn || prodId) : prodId;
-            throw new Error(`PRODUCT_NOT_FOUND:${name}`);
-          }
-
-          const prodData = prodSnap.data();
-          const dbOptions = Array.isArray(prodData.options)
-            ? prodData.options.map((opt: any) => ({ ...opt }))
-            : null;
-          let baseStock = typeof prodData.stock === "number" ? prodData.stock : null;
-
-          const itemsForProd = aggregatedCart.filter(i => i.productId === prodId);
-
-          for (const aggItem of itemsForProd) {
-            const requestedQty = aggItem.totalQuantity;
-
-            if (aggItem.selectedOption) {
-              // Variant / Option selected
-              const optIndex = dbOptions 
-                ? dbOptions.findIndex((opt: any) => opt.value === aggItem.selectedOption?.value && opt.unit === aggItem.selectedOption?.unit)
-                : -1;
-
-              if (optIndex !== -1 && dbOptions) {
-                const currentOptStock = dbOptions[optIndex].stock;
-                if (typeof currentOptStock === "number" && currentOptStock < requestedQty) {
-                  const nameBn = `${aggItem.sampleItem.product.nameBn || aggItem.sampleItem.product.nameEn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
-                  const nameEn = `${aggItem.sampleItem.product.nameEn || aggItem.sampleItem.product.nameBn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
-                  throw new Error(`INSUFFICIENT_STOCK:${nameBn}/${nameEn}:${typeof currentOptStock === "number" ? currentOptStock : 0}`);
-                }
-                if (typeof currentOptStock === "number") {
-                  dbOptions[optIndex].stock = currentOptStock - requestedQty;
-                }
-              } else if (baseStock !== null) {
-                if (typeof baseStock === "number" && baseStock < requestedQty) {
-                  const nameBn = `${aggItem.sampleItem.product.nameBn || aggItem.sampleItem.product.nameEn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
-                  const nameEn = `${aggItem.sampleItem.product.nameEn || aggItem.sampleItem.product.nameBn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
-                  throw new Error(`INSUFFICIENT_STOCK:${nameBn}/${nameEn}:${typeof baseStock === "number" ? baseStock : 0}`);
-                }
-                baseStock = baseStock - requestedQty;
-              }
-            } else {
-              // Base product stock (no variant selected)
-              if (typeof baseStock !== "number" || baseStock < requestedQty) {
-                const nameBn = aggItem.sampleItem.product.nameBn || aggItem.sampleItem.product.nameEn || "";
-                const nameEn = aggItem.sampleItem.product.nameEn || aggItem.sampleItem.product.nameBn || "";
-                throw new Error(`INSUFFICIENT_STOCK:${nameBn}/${nameEn}:${typeof baseStock === "number" ? baseStock : 0}`);
-              }
-
-              // Deduct exact quantity without fallback
-              baseStock = baseStock - requestedQty;
-            }
-          }
-
-          const prodRef = doc(db, "products", prodId);
-          const docUpdates: any = {};
-          if (dbOptions !== null) {
-            docUpdates.options = dbOptions;
-          }
-          if (baseStock !== null) {
-            docUpdates.stock = baseStock;
-          }
-
-          updatesToApply.push({ ref: prodRef, updates: docUpdates });
-        }
-
-        // 4. Perform stock updates
-        for (const { ref, updates } of updatesToApply) {
-          transaction.update(ref, updates);
-        }
-
-        // 5. Create Order document in transaction
-        const orderRef = doc(db, "orders", orderId);
-        transaction.set(orderRef, orderPayload);
-
-        // 6. Create Payment document in transaction if applicable
-        if (paymentPayload) {
-          const payRef = doc(db, "payments", paymentPayload.id);
-          transaction.set(payRef, paymentPayload);
-        }
+      // Execute stock validation, stock deduction, and order creation on server endpoint (Task 5)
+      const res = await fetch("/api/orders/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          orderPayload,
+          aggregatedCart,
+          paymentPayload
+        })
       });
 
-      // 4. Send system notifications to user & admins (non-blocking)
-      try {
-        if (user) {
-          await addDoc(collection(db, "notifications"), {
-            userId: user.uid,
-            titleBn: "অর্ডার সফল হয়েছে!",
-            titleEn: "Order Placed Successfully!",
-            messageBn: `আপনার অর্ডার #${orderId.slice(-6).toUpperCase()} সফলভাবে গ্রহণ করা হয়েছে।`,
-            messageEn: `Your order #${orderId.slice(-6).toUpperCase()} has been received and is pending confirmation.`,
-            isRead: false,
-            createdAt: serverTimestamp()
-          });
-        }
+      const resData = await res.json().catch(() => ({}));
 
-        // Broadcast notify to admin-default or overall dashboard alerts
-        await addDoc(collection(db, "notifications"), {
-          userId: "admin-default",
-          titleBn: "নতুন গ্রাহক অর্ডার!",
-          titleEn: "New Incoming Customer Order!",
-          messageBn: `${name} (${phone}) থেকে সর্বমোট ৳${computedGrandTotal} বিলের নতুন অর্ডার এসেছে।`,
-          messageEn: `New order #${orderId.slice(-6).toUpperCase()} placed by ${name} of amount ৳${computedGrandTotal}.`,
-          isRead: false,
-          createdAt: serverTimestamp()
-        });
-      } catch (notifyErr) {
-        console.warn("Non-critical notification creation error:", notifyErr);
+      if (!res.ok || !resData.success) {
+        const errorMsg = resData.error || "Order creation failed";
+        throw new Error(errorMsg);
       }
 
       triggerToast(

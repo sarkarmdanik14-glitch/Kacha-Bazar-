@@ -43,9 +43,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const isOutOfStock = product.stock <= 0 || product.isAvailable === false;
 
   // Category / Subcategory display
+  const rawCatDisplay = (product.category === "staples" || product.category === "spices-oils")
+    ? (lang === "bn" ? "মুদি পণ্য" : "Groceries")
+    : product.category;
   const subcategoryDisplay = (
     product.subcategory || 
-    product.category || 
+    rawCatDisplay || 
     (lang === "bn" ? "ফ্রেশ গ্রোসারি" : "Fresh Grocery")
   ).toUpperCase();
 

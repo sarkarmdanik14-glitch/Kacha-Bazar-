@@ -28,6 +28,7 @@ import {
   HourlySalesPoint,
   DailySalesPoint
 } from "../../lib/salesAnalytics";
+import { isCategoryMatch, normalizeCategoryId } from "../../lib/categoryUtils";
 
 interface AdminDailySalesTabProps {
   orders: any[];
@@ -134,7 +135,8 @@ export default function AdminDailySalesTab({
           const nameBn = item.nameBn || item.product?.nameBn || item.name || "পণ্য";
           const nameEn = item.nameEn || item.product?.nameEn || item.name || "Product";
           const img = item.image || item.product?.image || "";
-          const cat = item.product?.category || item.category || "General";
+          const rawCat = item.product?.category || item.category || "General";
+          const cat = normalizeCategoryId(rawCat);
           
           const unitPrice = Number(item.selectedOption?.price || item.price || item.product?.price || 0);
           const itemTotal = unitPrice * qty;
@@ -201,7 +203,7 @@ export default function AdminDailySalesTab({
     return metrics.soldProductsList
       .filter((p) => {
         // Category filter
-        if (categoryFilter !== "all" && p.category !== categoryFilter) {
+        if (categoryFilter !== "all" && !isCategoryMatch(p.category, categoryFilter)) {
           return false;
         }
         // Search query

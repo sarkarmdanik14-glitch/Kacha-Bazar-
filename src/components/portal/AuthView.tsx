@@ -49,8 +49,6 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
   const [otpSent, setOtpSent] = useState<boolean>(false);
   const [otpSending, setOtpSending] = useState<boolean>(false);
   const [confirmationResult, setConfirmationResult] = useState<any | null>(null);
-  const [isSimulatedOtp, setIsSimulatedOtp] = useState<boolean>(false);
-  const [simulatedOtp, setSimulatedOtp] = useState<string>("");
   const [otpNotice, setOtpNotice] = useState<string>("");
 
   const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
@@ -226,26 +224,45 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
 
       const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
       setConfirmationResult(confirmation);
-      setIsSimulatedOtp(false);
-      setOtpSent(true);
-      setError("");
-    } catch (err: any) {
-      // Firebase Phone Auth is not activated in project console (auth/operation-not-allowed)
-      // or SMS gateway limit reached. Fallback to instant verified OTP mode gracefully!
-      console.warn("Phone SMS provider notice (auth/operation-not-allowed or offline):", err?.message || err);
-      
-      const fallbackCode = "123456";
-      setConfirmationResult(null);
-      setIsSimulatedOtp(true);
-      setSimulatedOtp(fallbackCode);
       setOtpSent(true);
       setError("");
       setOtpNotice(
         getTranslation(
-          "দ্রুত ভেরিফিকেশন ওটিপি: 123456 (SMS প্রোভাইডার কনসোলে বন্ধ থাকায় ইনস্ট্যান্ট কোড তৈরি করা হয়েছে)",
-          "Instant Verification OTP: 123456 (Firebase SMS is inactive on this project)"
+          "আপনার মোবাইলে এসএমএস-এর মাধ্যমে ওটিপি কোড পাঠানো হয়েছে। অনুগ্রহ করে কোডটি লিখুন।",
+          "An SMS verification OTP has been sent to your phone. Please enter it below."
         )
       );
+    } catch (err: any) {
+      console.error("Firebase Phone Auth error:", err);
+      setConfirmationResult(null);
+      setOtpSent(false);
+      setOtpNotice("");
+
+      let userFriendlyMessage = getTranslation(
+        "এসএমএস ওটিপি পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন অথবা ইমেইল দিয়ে লগইন করুন।",
+        "Failed to send SMS OTP. Please retry sending SMS or sign in using Email."
+      );
+
+      if (err?.code === "auth/quota-exceeded") {
+        userFriendlyMessage = getTranslation(
+          "এসএমএস কোটার দৈনিক লিমিট শেষ হয়েছে। অনুগ্রহ করে ইমেইল দিয়ে লগইন করুন অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।",
+          "SMS quota exceeded for today. Please retry later or sign in with Email."
+        );
+      } else if (err?.code === "auth/invalid-phone-number") {
+        userFriendlyMessage = getTranslation(
+          "মোবাইল নম্বরটি সঠিক নয়। অনুগ্রহ করে সঠিক ১১ ডিজিটের নম্বর দিন।",
+          "Invalid phone number format. Please provide a valid 11-digit mobile number."
+        );
+      } else if (err?.code === "auth/too-many-requests") {
+        userFriendlyMessage = getTranslation(
+          "অতিরিক্ত অনুরোধের কারণে সাময়িক ব্লক করা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।",
+          "Too many requests from this device. Please wait a moment and try again."
+        );
+      } else if (err?.message) {
+        userFriendlyMessage = `${getTranslation("এসএমএস পাঠাতে ব্যর্থ:", "Failed to send SMS:")} ${err.message}`;
+      }
+
+      setError(userFriendlyMessage);
     } finally {
       setOtpSending(false);
     }
@@ -261,43 +278,18 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
       return;
     }
 
+    if (!confirmationResult) {
+      setError(getTranslation("অনুগ্রহ করে প্রথমে মোবাইলে ওটিপি কোড পাঠান।", "Please request an SMS verification code first."));
+      setLoading(false);
+      return;
+    }
+
     try {
-      let uid = "";
-      let emailAddress = `${phone.trim()}@kachabazar.com`;
-      let displayName = fullName || getTranslation("ভেরিফাইড মোবাইল ব্যবহারকারী", "Verified Mobile User");
-
-      if (confirmationResult && !isSimulatedOtp) {
-        const result = await confirmationResult.confirm(otpCode);
-        const user = result.user;
-        uid = user.uid;
-        emailAddress = user.email || emailAddress;
-        displayName = user.displayName || displayName;
-      } else {
-        // Verify against simulated OTP code
-        const validCode = simulatedOtp || "123456";
-        if (otpCode.trim() !== validCode && otpCode.trim() !== "123456") {
-          throw new Error(getTranslation("ভুল ওটিপি কোড! অনুগ্রহ করে '123456' লিখুন।", "Invalid OTP code! Please enter 123456."));
-        }
-
-        const cleanDigits = phone.replace(/[^0-9]/g, "");
-        const phoneInternalEmail = `phone_${cleanDigits}@kachabazar.internal`;
-        const phoneInternalPassword = `KB_Phone_${cleanDigits}!2026`;
-
-        try {
-          const cred = await signInWithEmailAndPassword(auth, phoneInternalEmail, phoneInternalPassword);
-          uid = cred.user.uid;
-          emailAddress = cred.user.email || emailAddress;
-        } catch (signInErr: any) {
-          try {
-            const cred = await createUserWithEmailAndPassword(auth, phoneInternalEmail, phoneInternalPassword);
-            uid = cred.user.uid;
-            emailAddress = cred.user.email || emailAddress;
-          } catch (createErr: any) {
-            // Fallback deterministic UID for phone user
-            uid = `phone_${cleanDigits}`;
-          }
-        }
-      }
+      const result = await confirmationResult.confirm(otpCode.trim());
+      const user = result.user;
+      const uid = user.uid;
+      const emailAddress = user.email || `${phone.trim()}@kachabazar.com`;
+      const displayName = user.displayName || fullName || getTranslation("ভেরিফাইড মোবাইল ব্যবহারকারী", "Verified Mobile User");
 
       // Verify admin role if tab is admin
       if (role === "admin") {
@@ -807,18 +799,9 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
             ) : (
               <div className="space-y-3">
                 {otpNotice && (
-                  <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-2xl flex items-center justify-between text-xs text-amber-900 shadow-sm animate-in fade-in duration-200">
-                    <div className="flex items-center space-x-2">
-                      <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span className="font-medium text-[11px] leading-tight">{otpNotice}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setOtpCode(simulatedOtp || "123456")}
-                      className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-900 rounded-lg text-[10px] font-bold cursor-pointer transition shrink-0 ml-2 shadow-xs"
-                    >
-                      {getTranslation("কোড বসান", "Auto-fill")}
-                    </button>
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center space-x-2 text-xs text-emerald-900 shadow-sm animate-in fade-in duration-200">
+                    <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="font-medium text-[11px] leading-tight">{otpNotice}</span>
                   </div>
                 )}
                 <div>
@@ -842,7 +825,7 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
                   <input
                     type="text"
                     required
-                    placeholder="123456"
+                    placeholder="• • • • • •"
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-xs font-mono text-center tracking-widest focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"

@@ -20,13 +20,15 @@ export const CATEGORIES: Category[] = [
     displayOrder: 1
   },
   {
-    id: "staples",
-    nameBn: "চাল ডাল ও খাদ্যশস্য",
-    nameEn: "Rice, Dal & Staples",
+    id: "groceries",
+    nameBn: "মুদি পণ্য",
+    nameEn: "Groceries",
     iconName: "Wheat",
-    colorClass: "bg-yellow-50 text-yellow-800 hover:bg-yellow-100",
-    borderColor: "border-yellow-100",
-    displayOrder: 2
+    colorClass: "bg-amber-50 text-amber-800 hover:bg-amber-100",
+    borderColor: "border-amber-100",
+    displayOrder: 2,
+    image: "https://res.cloudinary.com/upvkzb3p/image/upload/v1784818982/aisure-2f9b0144-2a3f-4bf8-ac23-9bb0efcf7756_r428ci.webp",
+    imageUrl: "https://res.cloudinary.com/upvkzb3p/image/upload/v1784818982/aisure-2f9b0144-2a3f-4bf8-ac23-9bb0efcf7756_r428ci.webp"
   },
   {
     id: "fish",
@@ -47,22 +49,13 @@ export const CATEGORIES: Category[] = [
     displayOrder: 4
   },
   {
-    id: "spices-oils",
-    nameBn: "মসলা ও তেল",
-    nameEn: "Spices & Cooking Essentials",
-    iconName: "Flame",
-    colorClass: "bg-orange-50 text-orange-800 hover:bg-orange-100",
-    borderColor: "border-orange-200",
-    displayOrder: 5
-  },
-  {
     id: "fruits",
     nameBn: "তাজা ফলমূল",
     nameEn: "Fresh Fruits",
     iconName: "Apple",
     colorClass: "bg-amber-50 text-amber-700 hover:bg-amber-100",
     borderColor: "border-amber-100",
-    displayOrder: 6
+    displayOrder: 5
   },
   {
     id: "dairy-eggs",
@@ -71,7 +64,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Egg",
     colorClass: "bg-lime-50 text-lime-700 hover:bg-lime-100",
     borderColor: "border-lime-100",
-    displayOrder: 7
+    displayOrder: 6
   },
   {
     id: "snacks-biscuits",
@@ -80,7 +73,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Cookie",
     colorClass: "bg-pink-50 text-pink-700 hover:bg-pink-100",
     borderColor: "border-pink-100",
-    displayOrder: 8
+    displayOrder: 7
   },
   {
     id: "beverages",
@@ -89,7 +82,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Coffee",
     colorClass: "bg-teal-50 text-teal-700 hover:bg-teal-100",
     borderColor: "border-teal-100",
-    displayOrder: 9
+    displayOrder: 8
   },
   {
     id: "frozen",
@@ -98,7 +91,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Snowflake",
     colorClass: "bg-sky-50 text-sky-700 hover:bg-sky-100",
     borderColor: "border-sky-100",
-    displayOrder: 10
+    displayOrder: 9
   },
   {
     id: "personal-care",
@@ -107,7 +100,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Heart",
     colorClass: "bg-indigo-50 text-indigo-700 hover:bg-indigo-100",
     borderColor: "border-indigo-100",
-    displayOrder: 11
+    displayOrder: 10
   },
   {
     id: "household",
@@ -116,7 +109,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Droplet",
     colorClass: "bg-blue-50 text-blue-700 hover:bg-blue-100",
     borderColor: "border-blue-100",
-    displayOrder: 12
+    displayOrder: 11
   },
   {
     id: "baby-care",
@@ -125,7 +118,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Baby",
     colorClass: "bg-purple-50 text-purple-700 hover:bg-purple-100",
     borderColor: "border-purple-100",
-    displayOrder: 13
+    displayOrder: 12
   },
   {
     id: "bakery-sweets",
@@ -134,7 +127,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Candy",
     colorClass: "bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100",
     borderColor: "border-fuchsia-100",
-    displayOrder: 14
+    displayOrder: 13
   },
   {
     id: "offers",
@@ -143,7 +136,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Tag",
     colorClass: "bg-rose-50 text-rose-700 hover:bg-rose-100",
     borderColor: "border-rose-100",
-    displayOrder: 15
+    displayOrder: 14
   },
   {
     id: "organic-herbal",
@@ -152,7 +145,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Sparkles",
     colorClass: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
     borderColor: "border-emerald-100",
-    displayOrder: 16
+    displayOrder: 15
   },
   {
     id: "pet-care",
@@ -161,7 +154,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Dog",
     colorClass: "bg-orange-50 text-orange-700 hover:bg-orange-100",
     borderColor: "border-orange-100",
-    displayOrder: 17
+    displayOrder: 16
   },
   {
     id: "home-appliances",
@@ -170,6 +163,6 @@ export const CATEGORIES: Category[] = [
     iconName: "Droplet",
     colorClass: "bg-teal-50 text-teal-800 hover:bg-teal-100",
     borderColor: "border-teal-100",
-    displayOrder: 18
+    displayOrder: 17
   }
 ];

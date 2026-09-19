@@ -41,8 +41,7 @@
     "isSuperAdmin": true,
     "permissions": {},
     "createdAt": "2026-09-05T13:23:48.812Z",
-    "updatedAt": "2026-09-09T08:23:35.842Z",
-    "sessionId": "sess-super-admin-init"
+    "updatedAt": "2026-09-09T08:23:35.842Z"
   },
   {
     "id": "staff-order-mgr-02",
@@ -93,8 +92,7 @@
       "users.view": true
     },
     "createdAt": "2026-09-05T13:23:48.814Z",
-    "updatedAt": "2026-09-05T13:23:48.814Z",
-    "sessionId": "sess-order-mgr-init"
+    "updatedAt": "2026-09-05T13:23:48.814Z"
   },
   {
     "id": "staff-call-agent-03",
@@ -145,8 +143,7 @@
       "products.view": true
     },
     "createdAt": "2026-09-05T13:23:48.815Z",
-    "updatedAt": "2026-09-05T13:24:28.220Z",
-    "sessionId": "sess-call-agent-init"
+    "updatedAt": "2026-09-05T13:24:28.220Z"
   },
   {
     "id": "staff-prod-mgr-04",
@@ -200,7 +197,6 @@
       "home_management.edit": true
     },
     "createdAt": "2026-09-05T13:23:48.817Z",
-    "updatedAt": "2026-09-05T13:23:48.817Z",
-    "sessionId": "sess-prod-mgr-init"
+    "updatedAt": "2026-09-05T13:23:48.817Z"
   }
 ]

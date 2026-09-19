@@ -1008,8 +1008,7 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
                     <option value="dairy">দুধ ও ডেইরি (Dairy)</option>
                     <option value="fish">মাছ (Fish)</option>
                     <option value="meat">মাংস (Meat)</option>
-                    <option value="staples">চাল ও ডাল (Staples)</option>
-                    <option value="spices">তেল ও মসলা (Spices & Oil)</option>
+                    <option value="groceries">মুদি পণ্য (Groceries)</option>
                   </select>
                 </div>
 

@@ -8,6 +8,7 @@ import {
 import { db, doc, setDoc, updateDoc, deleteDoc, collection, addDoc } from "../../lib/firebase";
 import { ProductOption } from "../../types";
 import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
+import { isCategoryMatch, normalizeCategoryId } from "../../lib/categoryUtils";
 
 interface AdminProductsTabProps {
   products: any[];
@@ -436,7 +437,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     setProdOrigPrice(p.originalPrice || p.price || 0);
     setProdUnitEn(p.unitEn || "");
     setProdUnitBn(p.unitBn || "");
-    setProdCategory(p.category || selectedCatId || "vegetables");
+    setProdCategory(isCategoryMatch(p.category, "groceries") ? "groceries" : (p.category || selectedCatId || "vegetables"));
     setProdStock(p.stock || 0);
     setProdImage(p.image || "");
     setProdDescEn(p.descriptionEn || "");
@@ -611,7 +612,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     const catName = targetCat ? (lang === "bn" ? targetCat.nameBn : targetCat.nameEn) : id;
     
     // Count products belonging to this category
-    const relatedProducts = products.filter(p => p.category === id);
+    const relatedProducts = products.filter(p => isCategoryMatch(p.category, id));
     const prodCount = relatedProducts.length;
 
     let confirmMsg = "";
@@ -750,7 +751,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   // Products belonging to currently selected category (e.g. "vegetables")
   const categoryProducts = products
     .filter(p => !isProductDeleted(p))
-    .filter(p => p.category === selectedCatId);
+    .filter(p => isCategoryMatch(p.category, selectedCatId));
 
   // Filtered products for Category Manager view
   const filteredCategoryProducts = categoryProducts
@@ -839,7 +840,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
               {categories.map((c) => {
                 const isSelected = selectedCatId === c.id;
-                const catProdCount = products.filter(p => p.category === c.id).length;
+                const catProdCount = products.filter(p => isCategoryMatch(p.category, c.id)).length;
                 return (
                   <button
                     key={c.id}
@@ -1292,7 +1293,8 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                   ) : (
                     globalFilteredProducts.map((p) => {
                       const isAvailable = p.isAvailable !== false;
-                      const catInfo = categories.find(c => c.id === p.category);
+                      const catInfo = categories.find(c => c.id === p.category) || 
+                        (isCategoryMatch(p.category, "groceries") ? categories.find(c => c.id === "groceries") : undefined);
                       return (
                         <tr key={p.id} className="hover:bg-slate-50 transition">
                           <td className="p-3">
@@ -1538,23 +1540,23 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       {activeCatalogSubTab === "categories" && (() => {
         const PRIORITY_ORDER_MAP: Record<string, number> = {
           "vegetables": 1,
+          "groceries": 2,
           "staples": 2,
           "fish": 3,
           "meat": 4,
-          "spices-oils": 5,
-          "fruits": 6,
-          "dairy-eggs": 7,
-          "snacks-biscuits": 8,
-          "beverages": 9,
-          "frozen": 10,
-          "personal-care": 11,
-          "household": 12,
-          "baby-care": 13,
-          "bakery-sweets": 14,
-          "offers": 15,
-          "organic-herbal": 16,
-          "pet-care": 17,
-          "home-appliances": 18
+          "fruits": 5,
+          "dairy-eggs": 6,
+          "snacks-biscuits": 7,
+          "beverages": 8,
+          "frozen": 9,
+          "personal-care": 10,
+          "household": 11,
+          "baby-care": 12,
+          "bakery-sweets": 13,
+          "offers": 14,
+          "organic-herbal": 15,
+          "pet-care": 16,
+          "home-appliances": 17
         };
         const sortedAllCats = categories.filter(c => c.id !== "all").sort((a, b) => {
           const orderA = typeof a.displayOrder === "number" ? a.displayOrder : (typeof a.order === "number" ? a.order : (PRIORITY_ORDER_MAP[a.id] ?? 9999));
@@ -1699,7 +1701,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                     ) : (
                       filteredCats.map((c, idx) => {
                         const isAvail = c.isAvailable !== false && c.disabled !== true;
-                        const catProductsCount = products.filter(p => p.category === c.id).length;
+                        const catProductsCount = products.filter(p => isCategoryMatch(p.category, c.id)).length;
                         const displayIdx = typeof c.displayOrder === "number" ? c.displayOrder : idx + 1;
 
                         return (
