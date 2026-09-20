@@ -24,6 +24,9 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
 
   // Global Config Form states
   const [supportPhone, setSupportPhone] = useState<string>(settings?.supportPhone || "+8801700000000");
+  const [hotlinePhone, setHotlinePhone] = useState<string>(settings?.hotline || "01615581975");
+  const [whatsappNumber, setWhatsappNumber] = useState<string>(settings?.whatsapp || "01615581975");
+  const [facebookUrl, setFacebookUrl] = useState<string>(settings?.facebookUrl || "https://web.facebook.com/profile.php?id=61594593267528");
   const [supportEmail, setSupportEmail] = useState<string>(settings?.supportEmail || "support@kachabazar.com");
   const [officeAddress, setOfficeAddress] = useState<string>(settings?.officeAddress || "Chanchkoir Bazar, Gurudaspur, Natore");
   const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number>(settings?.freeDeliveryThreshold || 500);
@@ -216,6 +219,9 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
       const payload = {
         ...settings,
         supportPhone,
+        hotline: hotlinePhone,
+        whatsapp: whatsappNumber,
+        facebookUrl,
         supportEmail,
         officeAddress,
         freeDeliveryThreshold: Number(freeDeliveryThreshold),
@@ -486,6 +492,30 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
           {/* General Contacts */}
           <div className="space-y-4">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">{getTranslation("যোগাযোগ ও শারীরিক ঠিকানা", "Support & HQ Coordinates")}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Hotline Phone Number (Dialer)</label>
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs">
+                  <Phone className="w-4 h-4 text-rose-500 mr-2" />
+                  <input type="text" value={hotlinePhone} onChange={(e) => setHotlinePhone(e.target.value)} placeholder="01615581975" className="bg-transparent flex-1 outline-none font-bold" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">WhatsApp Number (Chat Link)</label>
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs">
+                  <span className="w-4 h-4 text-emerald-500 font-bold mr-2 text-center leading-none">🟢</span>
+                  <input type="text" value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} placeholder="01615581975" className="bg-transparent flex-1 outline-none font-bold" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Facebook Page URL</label>
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs">
+                  <Globe className="w-4 h-4 text-blue-500 mr-2" />
+                  <input type="text" value={facebookUrl} onChange={(e) => setFacebookUrl(e.target.value)} placeholder="https://web.facebook.com/profile.php?id=61594593267528" className="bg-transparent flex-1 outline-none font-bold" />
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Support Phone</label>

@@ -1368,9 +1368,9 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       {showProductForm && (
         <div 
           id="admin-product-form-overlay"
-          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto z-[150] animate-fade-in pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 px-3 sm:px-6"
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center overflow-y-auto z-[150] animate-fade-in p-3 sm:p-4 md:p-6"
         >
-          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto sm:my-0">
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[92vh] sm:max-h-[90vh]">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-5 sm:px-6 py-3.5 sm:py-4 bg-white shrink-0 sticky top-0 z-20">
               <div className="flex items-center space-x-2.5">
@@ -1398,7 +1398,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             </div>
 
             {/* Scrollable Form Body */}
-            <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(100vh-14rem)] sm:max-h-[calc(100vh-16rem)]">
+            <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(92vh-5rem)] sm:max-h-[calc(90vh-5rem)]">
               <form onSubmit={handleSaveProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div>
                 <label className="font-bold text-slate-700 block mb-1">{getTranslation("ক্যাটাগরি *", "Category *")}</label>
@@ -1891,9 +1891,9 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       {showCategoryModal && (
         <div 
           id="admin-category-form-overlay"
-          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto z-[150] animate-fade-in pt-24 sm:pt-28 md:pt-32 pb-12 sm:pb-16 px-3 sm:px-6"
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center overflow-y-auto z-[150] animate-fade-in p-3 sm:p-4 md:p-6"
         >
-          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto sm:my-0">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[92vh] sm:max-h-[90vh]">
             {/* Modal Header */}
             <div className="flex justify-between items-center border-b border-slate-100 px-5 sm:px-6 py-3.5 sm:py-4 bg-white shrink-0 sticky top-0 z-20">
               <div className="min-w-0">
@@ -1919,7 +1919,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             </div>
 
             {/* Scrollable Modal Form Body */}
-            <div className="p-5 sm:p-6 overflow-y-auto max-h-[calc(100vh-14rem)] sm:max-h-[calc(100vh-16rem)]">
+            <div className="p-5 sm:p-6 overflow-y-auto max-h-[calc(92vh-5rem)] sm:max-h-[calc(90vh-5rem)]">
               <form onSubmit={handleSaveCategoryModal} className="space-y-4">
               {/* Category ID (Slug) */}
               <div>

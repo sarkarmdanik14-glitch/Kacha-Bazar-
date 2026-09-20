@@ -28,6 +28,7 @@ import { CartItemRow } from "./components/CartItemRow";
 import { ProductCard } from "./components/ProductCard";
 import { PWAInstallBanner } from "./components/PWAInstallBanner";
 import { DailyAlarmBanner } from "./components/common/DailyAlarmBanner";
+import { FloatingContactOverlay } from "./components/FloatingContactOverlay";
 import { openPWAQRCodeModal, openPWAInstallModal } from "./utils/pwa";
 
 import makkahImg from "./assets/images/makkah.jpg";
@@ -2676,6 +2677,26 @@ export default function App() {
           </div>
         </div>
       </footer>
+      )}
+
+      {/* ================= FIXED VERTICAL FLOATING CONTACT OVERLAY ================= */}
+      {!showPortalModal && (
+        <FloatingContactOverlay 
+          hotlinePhone={
+            globalSettings?.hotline || 
+            "01615581975"
+          }
+          whatsappNumber={
+            globalSettings?.whatsapp || 
+            "01615581975"
+          }
+          facebookUrl={
+            (globalSettings?.facebookUrl && globalSettings.facebookUrl !== "https://facebook.com")
+              ? globalSettings.facebookUrl
+              : "https://web.facebook.com/profile.php?id=61594593267528"
+          }
+          lang={lang}
+        />
       )}
 
       {/* ================= COMPACT FLOATING CHECKOUT BUTTON ================= */}
