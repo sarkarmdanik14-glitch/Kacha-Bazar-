@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { 
   Plus, Edit, Trash2, Upload, Download, Check, X, RefreshCw, 
   Layers, ChevronRight, FileText, ImageIcon, ArrowUp, ArrowDown,
@@ -109,6 +110,20 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   // Bulk CSV state
   const [bulkCsvText, setBulkCsvText] = useState<string>("");
   const [importingBulk, setImportingBulk] = useState<boolean>(false);
+
+  // Escape key listener to immediately close open modals and restore full interaction
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showProductForm) setShowProductForm(false);
+        if (showCategoryModal) setShowCategoryModal(false);
+      }
+    };
+    if (showProductForm || showCategoryModal) {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showProductForm, showCategoryModal]);
 
   // Load category information whenever selectedCatId changes
   useEffect(() => {
@@ -1365,12 +1380,20 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       )}
 
       {/* ==================== PRODUCT FORM OVERLAY ==================== */}
-      {showProductForm && (
+      {showProductForm && typeof document !== "undefined" && createPortal(
         <div 
           id="admin-product-form-overlay"
-          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center overflow-y-auto z-[150] animate-fade-in p-3 sm:p-4 md:p-6"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowProductForm(false);
+            }
+          }}
+          className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs flex flex-col items-center justify-center overflow-y-auto z-[9999] animate-fade-in p-3 sm:p-4 md:p-6"
         >
-          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[92vh] sm:max-h-[90vh]">
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[92vh] sm:max-h-[90vh] relative z-10"
+          >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-5 sm:px-6 py-3.5 sm:py-4 bg-white shrink-0 sticky top-0 z-20">
               <div className="flex items-center space-x-2.5">
@@ -1398,7 +1421,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             </div>
 
             {/* Scrollable Form Body */}
-            <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(92vh-5rem)] sm:max-h-[calc(90vh-5rem)]">
+            <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(92vh-5rem)] sm:max-h-[calc(90vh-5rem)] flex-1 min-h-0">
               <form onSubmit={handleSaveProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div>
                 <label className="font-bold text-slate-700 block mb-1">{getTranslation("ক্যাটাগরি *", "Category *")}</label>
@@ -1533,7 +1556,8 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             </form>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ==================== SUBTAB 3: ALL CATEGORIES MANAGEMENT ==================== */}
@@ -1888,12 +1912,20 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       )}
 
       {/* ==================== ADD / EDIT CATEGORY MODAL ==================== */}
-      {showCategoryModal && (
+      {showCategoryModal && typeof document !== "undefined" && createPortal(
         <div 
           id="admin-category-form-overlay"
-          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center overflow-y-auto z-[150] animate-fade-in p-3 sm:p-4 md:p-6"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCategoryModal(false);
+            }
+          }}
+          className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs flex flex-col items-center justify-center overflow-y-auto z-[9999] animate-fade-in p-3 sm:p-4 md:p-6"
         >
-          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[92vh] sm:max-h-[90vh]">
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[92vh] sm:max-h-[90vh] relative z-10"
+          >
             {/* Modal Header */}
             <div className="flex justify-between items-center border-b border-slate-100 px-5 sm:px-6 py-3.5 sm:py-4 bg-white shrink-0 sticky top-0 z-20">
               <div className="min-w-0">
@@ -1919,7 +1951,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             </div>
 
             {/* Scrollable Modal Form Body */}
-            <div className="p-5 sm:p-6 overflow-y-auto max-h-[calc(92vh-5rem)] sm:max-h-[calc(90vh-5rem)]">
+            <div className="p-5 sm:p-6 overflow-y-auto max-h-[calc(92vh-5rem)] sm:max-h-[calc(90vh-5rem)] flex-1 min-h-0">
               <form onSubmit={handleSaveCategoryModal} className="space-y-4">
               {/* Category ID (Slug) */}
               <div>
@@ -2098,7 +2130,8 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             </form>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Product Delete Confirmation Modal */}

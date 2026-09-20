@@ -243,7 +243,13 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
         "Failed to send SMS OTP. Please retry sending SMS or sign in using Email."
       );
 
-      if (err?.code === "auth/quota-exceeded") {
+      if (err?.code === "auth/unauthorized-domain" || err?.message?.includes("unauthorized-domain")) {
+        const domain = typeof window !== "undefined" ? window.location.hostname : "kachabazar-fawn.vercel.app";
+        userFriendlyMessage = getTranslation(
+          `ডোমেইনটি অনুমোদিত নয় (${domain})। অনুগ্রহ করে Firebase Console → Authentication → Settings → Authorized domains-এ ডোমেইনটি যোগ করুন।`,
+          `Domain is not authorized (${domain}). Please add this domain to Firebase Console → Authentication → Settings → Authorized domains.`
+        );
+      } else if (err?.code === "auth/quota-exceeded") {
         userFriendlyMessage = getTranslation(
           "এসএমএস কোটার দৈনিক লিমিট শেষ হয়েছে। অনুগ্রহ করে ইমেইল দিয়ে লগইন করুন অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।",
           "SMS quota exceeded for today. Please retry later or sign in with Email."
@@ -595,7 +601,13 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
         console.warn("Auth error notice:", err?.message || err);
       }
       let errMsg = err.message || "";
-      if (err.code === "auth/email-already-in-use") {
+      if (err.code === "auth/unauthorized-domain" || err.message?.includes("unauthorized-domain")) {
+        const domain = typeof window !== "undefined" ? window.location.hostname : "kachabazar-fawn.vercel.app";
+        errMsg = getTranslation(
+          `ডোমেইনটি অনুমোদিত নয় (${domain})। অনুগ্রহ করে Firebase Console → Authentication → Settings → Authorized domains-এ ডোমেইনটি যোগ করুন।`,
+          `Domain is not authorized (${domain}). Please add this domain to Firebase Console → Authentication → Settings → Authorized domains.`
+        );
+      } else if (err.code === "auth/email-already-in-use") {
         errMsg = getTranslation("এই ইমেইলটি ইতিমধ্যে ব্যবহৃত হয়েছে।", "This email is already in use.");
       } else if (err.code === "auth/weak-password") {
         errMsg = getTranslation("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।", "Password must be at least 6 characters.");
@@ -684,7 +696,21 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
       if (!err?.message?.includes("offline")) {
         console.warn("Google Sign-In notice:", err?.message || err);
       }
-      setError(err.message?.includes("offline") ? getTranslation("ইন্টারনেট সংযোগ পাওয়া যায়নি।", "Network offline. Please check your connection.") : (err.message || "Google Sign-In failed."));
+      let errorMsg = err.message || "Google Sign-In failed.";
+      if (err?.code === "auth/unauthorized-domain" || err?.message?.includes("unauthorized-domain") || err?.message?.includes("auth/unauthorized-domain")) {
+        const domain = typeof window !== "undefined" ? window.location.hostname : "kachabazar-fawn.vercel.app";
+        errorMsg = getTranslation(
+          `Firebase Authentication ডোমেইন অনুমোদন প্রয়োজন: "${domain}" ডোমেইনটি অনুমোদিত নয়। অনুগ্রহ করে Firebase Console (Authentication → Settings → Authorized domains)-এ "${domain}" ডোমেইনটি যুক্ত করুন।`,
+          `Firebase: Unauthorized domain (${domain}). Please add "${domain}" to Firebase Console → Authentication → Settings → Authorized domains.`
+        );
+      } else if (err?.code === "auth/popup-closed-by-user") {
+        errorMsg = getTranslation("লগইন উইন্ডো বন্ধ করা হয়েছে।", "Login window was closed by user.");
+      } else if (err?.code === "auth/popup-blocked") {
+        errorMsg = getTranslation("পপআপ উইন্ডো ব্রাউজার দ্বারা ব্লক করা হয়েছে। অনুগ্রহ করে পপআপ অনুমোদন করুন।", "Popup blocked by browser. Please allow popups for this site.");
+      } else if (err?.message?.includes("offline")) {
+        errorMsg = getTranslation("ইন্টারনেট সংযোগ পাওয়া যায়নি।", "Network offline. Please check your connection.");
+      }
+      setError(errorMsg);
       setLoading(false);
     }
   };

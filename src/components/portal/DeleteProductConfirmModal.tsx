@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Trash2, AlertTriangle, X, Loader2, ShieldAlert, Archive, CheckCircle2, Package } from "lucide-react";
 import { checkProductOrderUsage, executeDeleteProduct, OrderUsageCheckResult } from "../../lib/productDeleteService";
 import { toBnNum } from "../../lib/productWeightUtils";
@@ -65,6 +66,19 @@ export default function DeleteProductConfirmModal({
     };
   }, [isOpen, product, orders]);
 
+  // Escape key handler to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen && !deleting) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, deleting, onClose]);
+
   if (!isOpen || !product) return null;
 
   const handleConfirmDelete = async () => {
@@ -94,8 +108,15 @@ export default function DeleteProductConfirmModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+  const modalContent = (
+    <div 
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !deleting) {
+          onClose();
+        }
+      }}
+    >
       <div 
         className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
@@ -260,4 +281,6 @@ export default function DeleteProductConfirmModal({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modalContent, document.body) : modalContent;
 }
