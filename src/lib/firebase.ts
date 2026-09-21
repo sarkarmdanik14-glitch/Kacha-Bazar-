@@ -46,22 +46,21 @@ import config from "../../firebase-applet-config.json";
 // Configure Firestore log level to silent to prevent benign offline/handshake warning spam
 setLogLevel("silent");
 
-// Initialize Firebase App
-// Initialize Firebase App with support for environment variables or config file
+// Initialize Firebase App strictly using firebase-applet-config.json as the single source of truth
 const firebaseConfig = {
-  apiKey: (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_API_KEY) || config.apiKey,
-  authDomain: (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN) || config.authDomain,
-  projectId: (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_PROJECT_ID) || config.projectId,
-  storageBucket: (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET) || config.storageBucket,
-  messagingSenderId: (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID) || config.messagingSenderId,
-  appId: (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_APP_ID) || config.appId
+  apiKey: config.apiKey,
+  authDomain: config.authDomain,
+  projectId: config.projectId,
+  storageBucket: config.storageBucket,
+  messagingSenderId: config.messagingSenderId,
+  appId: config.appId
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Initialize Firestore using the standard database connection
-const firestoreDbId = (typeof import.meta !== "undefined" && import.meta.env?.VITE_FIREBASE_FIRESTORE_DATABASE_ID) || config.firestoreDatabaseId || "(default)";
+// Initialize Firestore strictly from firebase-applet-config.json configuration
+const firestoreDbId = config.firestoreDatabaseId || "(default)";
 const db = getFirestore(app, firestoreDbId);
 
 const googleProvider = new GoogleAuthProvider();

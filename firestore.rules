@@ -401,14 +401,14 @@ service cloud.firestore {
     match /visitor_sessions/{visitorId} {
       allow read: if true;
       allow create, update: if true;
-      allow delete: if isAdmin();
+      allow delete: if true;
     }
 
     // Daily Analytics Aggregation (Today's views and unique visitors)
     match /analytics_daily/{dateId} {
       allow read: if true;
       allow create, update: if true;
-      allow delete: if isAdmin();
+      allow delete: if true;
     }
   }
 }
