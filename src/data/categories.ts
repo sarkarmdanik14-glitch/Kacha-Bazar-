@@ -104,12 +104,14 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: "household",
-    nameBn: "গৃহস্থালি পরিষ্কারক সামগ্রী",
-    nameEn: "Home & Cleaning",
+    nameBn: "চিপস কর্নার",
+    nameEn: "Chips Corner",
     iconName: "Droplet",
     colorClass: "bg-blue-50 text-blue-700 hover:bg-blue-100",
     borderColor: "border-blue-100",
-    displayOrder: 11
+    displayOrder: 11,
+    image: "https://res.cloudinary.com/upvkzb3p/image/upload/v1785309507/aisure-3561e436-078a-4e79-8f45-3236c76ff2c2_w71g9q.webp",
+    imageUrl: "https://res.cloudinary.com/upvkzb3p/image/upload/v1785309507/aisure-3561e436-078a-4e79-8f45-3236c76ff2c2_w71g9q.webp"
   },
   {
     id: "baby-care",
@@ -149,12 +151,14 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: "pet-care",
-    nameBn: "পোষা প্রাণীর খাদ্য ও যত্ন",
-    nameEn: "Pet Food & Care",
-    iconName: "Dog",
+    nameBn: "শুঁটকি মাছ",
+    nameEn: "Dried Fish",
+    iconName: "Fish",
     colorClass: "bg-orange-50 text-orange-700 hover:bg-orange-100",
     borderColor: "border-orange-100",
-    displayOrder: 16
+    displayOrder: 16,
+    image: "https://res.cloudinary.com/upvkzb3p/image/upload/v1788847049/Gemini_Generated_Image_9fvh39fvh39fvh39_wgoydg.jpg",
+    imageUrl: "https://res.cloudinary.com/upvkzb3p/image/upload/v1788847049/Gemini_Generated_Image_9fvh39fvh39fvh39_wgoydg.jpg"
   },
   {
     id: "home-appliances",

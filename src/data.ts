@@ -4,6 +4,7 @@ import { ALL_PRODUCTS } from "./data/all_products";
 
 export const CATEGORIES: Category[] = NEW_CATEGORIES;
 export const PRODUCTS: Product[] = ALL_PRODUCTS;
+export { ALL_PRODUCTS };
 
 export const PROMO_BANNERS: PromoBanner[] = [
   {

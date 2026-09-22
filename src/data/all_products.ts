@@ -5,6 +5,7 @@ import { STAPLES_SPICES_RAW } from "./staples_spices";
 import { SNACKS_BEVERAGES_FROZEN_RAW } from "./snacks_beverages_frozen";
 import { HOME_BABY_BAKERY_RAW } from "./home_baby_bakery";
 import { OFFERS_RAW } from "./offers";
+import { SHUTKI_PRODUCTS_RAW } from "./shutki_products";
 import { UNIQUE_UNSPLASH_MAP } from "./unique_unsplash_images";
 
 const allRaw = [
@@ -13,7 +14,8 @@ const allRaw = [
   ...STAPLES_SPICES_RAW,
   ...SNACKS_BEVERAGES_FROZEN_RAW,
   ...HOME_BABY_BAKERY_RAW,
-  ...OFFERS_RAW
+  ...OFFERS_RAW,
+  ...SHUTKI_PRODUCTS_RAW
 ];
 
 const seenImages = new Set<string>();
@@ -83,6 +85,9 @@ export const ALL_PRODUCTS: Product[] = allRaw.map((raw: any) => {
     sku: sku,
     subcategory: raw.subcategory || "General",
     tags: raw.tags || [raw.category],
+    displayOrder: typeof raw.displayOrder === "number" ? raw.displayOrder : (typeof raw.order === "number" ? raw.order : undefined),
+    order: typeof raw.order === "number" ? raw.order : (typeof raw.displayOrder === "number" ? raw.displayOrder : undefined),
+    options: raw.options || [],
     ingredientsBn: "",
     ingredientsEn: "",
     weightSizeOptions: [raw.unitEn],

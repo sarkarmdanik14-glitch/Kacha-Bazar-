@@ -65,6 +65,17 @@ export const UNIQUE_UNSPLASH_MAP: Record<string, string> = {
   "f28": "photo-1615485288772-23c2a138eb1c", // Grapefruit (Jambura)
   "f29": "photo-1569591159212-b02ea8a9f239", // Maryum Dates
   "f30": "photo-1590502593747-42a996133562", // Kagzi Lemon
+  "f31": "photo-1525385133512-2f3bdd039054", // Fresh Green Coconut (Small)
+  "f32": "photo-1589182373726-e4f658ab50f0", // Dry Coconut (Large)
+  "f33": "photo-1544551763-46a013bb70d5", // Dry Coconut (Small)
+  "f34": "photo-1571771894821-ce9b6c11b08e", // Chini Champa Banana (Large)
+  "f35": "photo-1603833665858-e61d17a86224", // Chini Champa Banana (Small)
+  "f36": "photo-1528825871115-3581a5387919", // Sabri Banana (Medium)
+  "f37": "photo-1587132137056-bfbf0166836e", // Sabri Banana (Small)
+  "f38": "photo-1481349518771-20055b2a7b24", // Sagar Banana (Small)
+  "f39": "photo-1596755094514-f87e34085b2c", // Keen Banana (Large)
+  "f40": "photo-1568702846914-96b305d2aaeb", // Keen Banana (Medium)
+  "f41": "photo-1553279768-865429fa0078", // Katimon Mango
 
   // ================= 3. FISH (fi1 to fi30) =================
   "fi1": "photo-1534482421-64566f976cfa", // Hilsha Fish
@@ -414,37 +425,25 @@ export const UNIQUE_UNSPLASH_MAP: Record<string, string> = {
   "pc29": "photo-1535585209827-a15fcdbc4c2d", // Parachute Advansed Gold Oil
   "pc30": "photo-1593005510509-d05b264f1c9c", // Parachute Oil Twin
 
-  // ================= 12. HOME & CLEANING (hc1 to hc30) =================
-  "hc1": "photo-1563453392212-326f5e854473", // Vim Liquid Dishwash
-  "hc2": "photo-1506976785307-8732e854ad03", // Vim Dishwash Soap Bar
-  "hc3": "photo-1535585209827-a15fcdbc4c2d", // Wheel Washing Powder
-  "hc4": "photo-1563453392212-326f5e854473", // Surf Excel Powder
-  "hc5": "photo-1506976785307-8732e854ad03", // Rin Washing Powder
-  "hc6": "photo-1535585209827-a15fcdbc4c2d", // Rin Detergent Soap Bar
-  "hc7": "photo-1563453392212-326f5e854473", // Harpic Toilet Cleaner
-  "hc8": "photo-1506976785307-8732e854ad03", // Harpic Bathroom Cleaner
-  "hc9": "photo-1535585209827-a15fcdbc4c2d", // Lysol Disinfectant
-  "hc10": "photo-1563453392212-326f5e854473", // Savlon Antiseptic Liquid
-  "hc11": "photo-1506976785307-8732e854ad03", // Dettol Antiseptic Liquid
-  "hc12": "photo-1535585209827-a15fcdbc4c2d", // Glass Cleaner Spray
-  "hc13": "photo-1563453392212-326f5e854473", // Bleaching Powder Bag
-  "hc14": "photo-1506976785307-8732e854ad03", // Toilet Tissue Roll
-  "hc15": "photo-1535585209827-a15fcdbc4c2d", // Kitchen Towel Roll
-  "hc16": "photo-1563453392212-326f5e854473", // Facial Tissue Box
-  "hc17": "photo-1506976785307-8732e854ad03", // Wet Wipes Packet
-  "hc18": "photo-1535585209827-a15fcdbc4c2d", // Odonil Air Freshener
-  "hc19": "photo-1563453392212-326f5e854473", // Mortein Mosquito Coil
-  "hc20": "photo-1506976785307-8732e854ad03", // Good Knight Liquid Vaporizer
-  "hc21": "photo-1535585209827-a15fcdbc4c2d", // Hit Aerosol Insect Killer
-  "hc22": "photo-1563453392212-326f5e854473", // Garbage Bags Black
-  "hc23": "photo-1506976785307-8732e854ad03", // Scrub Pad Scrubber
-  "hc24": "photo-1535585209827-a15fcdbc4c2d", // Dishwashing Sponge Foam
-  "hc25": "photo-1563453392212-326f5e854473", // Floor Cleaning Mop
-  "hc26": "photo-1506976785307-8732e854ad03", // Toilet Brush Plastic
-  "hc27": "photo-1535585209827-a15fcdbc4c2d", // Comfort Fabric Softener
-  "hc28": "photo-1563453392212-326f5e854473", // Shoe Polish Black Wax
-  "hc29": "photo-1506976785307-8732e854ad03", // Camphor Solid Camphor
-  "hc30": "photo-1535585209827-a15fcdbc4c2d", // Naphthalene Balls Pest
+  // ================= 12. CHIPS CORNER (cc1 to cc18) =================
+  "cc1": "photo-1566478989037-eec170784d0b", // Siris Pinter Chips
+  "cc2": "photo-1528735602780-2552fd46c7af", // Alu Pinter Chips
+  "cc3": "photo-1621996346565-e3d5d6281699", // Princepuri Chips
+  "cc4": "photo-1527515637462-cff94eecc1ac", // Fish Angar Chips
+  "cc5": "photo-1576402187878-974f70c890a5", // Bombay Chips
+  "cc6": "photo-1514944298350-482d82997bb2", // Dhong Dhong Chips
+  "cc7": "photo-1576107232684-1279f3908594", // Sobji Chips
+  "cc8": "photo-1613919113640-25732ec5e61f", // Jhikmiki Chips
+  "cc9": "photo-1601050690597-df0568f70950", // Fuchka Chips
+  "cc10": "photo-1625869016774-3a92be2ae2cd", // Chaka Chips
+  "cc11": "photo-1589301760014-d929f3979dbc", // Rosuner Kua Chips
+  "cc12": "photo-1606491956689-2ea866880c84", // Moong Dal Angar Chips
+  "cc13": "photo-1601050690117-94f5f6fa8bd7", // Jhal Angar Chips
+  "cc14": "photo-1505253758473-96b7015fcd40", // Color Lace Chips
+  "cc15": "photo-1563805042-7684c019e1cb", // Zero Chips
+  "cc16": "photo-1541592106381-b31e9677c0e5", // Angul Chips
+  "cc17": "photo-1589302168068-964664d93dc0", // Jhutki Semai
+  "cc18": "photo-1518013431117-eb1465fa5752", // Baromeshali Chips
 
   // ================= 13. BABY CARE (bc1 to bc30) =================
   "bc1": "photo-1506976785307-8732e854ad03", // Pampers Diapers XL

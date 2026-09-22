@@ -12,7 +12,8 @@ import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, CartItem, Review, ProductOption } from "./types";
-import { CATEGORIES } from "./data";
+import { CATEGORIES, ALL_PRODUCTS } from "./data";
+import { RESTAURANT_MENU_SECTIONS } from "./data/restaurant_new_items";
 
 import PortalModal from "./components/portal/PortalModal";
 import CheckoutModal from "./components/CheckoutModal";
@@ -530,18 +531,29 @@ export default function App() {
       collection(db, "products"),
       (snap) => {
         const items: Product[] = [];
+        const deletedIds = new Set<string>();
         snap.forEach((doc) => {
           const data = doc.data();
           if (data.isDeleted === true || data.status === "deleted" || data.deleted === true) {
+            deletedIds.add(doc.id);
             return;
           }
           items.push(mapDocToProduct(doc.id, data));
         });
-        setProducts(items);
+
+        // Merge initial catalog items from ALL_PRODUCTS so newly added products
+        // (including all Restaurant menu items across all 25 sections) are immediately available
+        // in both customer storefront & admin panel, while preserving any edits saved to Firestore
+        const firestoreIds = new Set(items.map(p => p.id));
+        const missingInitial = ALL_PRODUCTS.filter(p => !firestoreIds.has(p.id) && !deletedIds.has(p.id));
+
+        setProducts([...items, ...missingInitial]);
         setLoadingProducts(false);
       },
       (err) => {
         console.warn("Firestore products sync notice:", err.message);
+        // Fallback to ALL_PRODUCTS on network or permission notice
+        setProducts(ALL_PRODUCTS);
         setLoadingProducts(false);
       }
     );
@@ -2159,7 +2171,19 @@ export default function App() {
 
             // Unique subcategories
             const allCatProducts = availableProducts.filter(p => isCategoryMatch(p.category, selectedCategory));
-            const subcategories = ["all", ...Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean)))];
+            const isRestaurantCat = isCategoryMatch(selectedCategory, "bakery-sweets");
+
+            let subcategories: string[] = [];
+            if (isRestaurantCat) {
+              const existingSubs = Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean)));
+              const orderedSubs = [
+                ...RESTAURANT_MENU_SECTIONS.filter(s => existingSubs.includes(s)),
+                ...existingSubs.filter(s => !RESTAURANT_MENU_SECTIONS.includes(s))
+              ];
+              subcategories = ["all", ...orderedSubs];
+            } else {
+              subcategories = ["all", ...Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean)))];
+            }
 
             // Sort products
             const sortedProducts = [...catProducts].sort((a, b) => {
@@ -2223,7 +2247,7 @@ export default function App() {
                         onChange={(e) => setSortBy(e.target.value)}
                         className="p-1.5 px-2.5 text-xs bg-white border border-slate-200 rounded-xl font-bold outline-none text-slate-700 cursor-pointer hover:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition shadow-2xs"
                       >
-                        <option value="default">{lang === "bn" ? "ডিফল্ট / প্রাসঙ্গিকতা" : "Default / Relevance"}</option>
+                        <option value="default">{lang === "bn" ? "ডিফল্ট / মেনু ক্রম" : "Default / Menu Order"}</option>
                         <option value="price-low">{lang === "bn" ? "মূল্য: কম থেকে বেশি" : "Price: Low to High"}</option>
                         <option value="price-high">{lang === "bn" ? "মূল্য: বেশি থেকে কম" : "Price: High to Low"}</option>
                         <option value="rating">{lang === "bn" ? "জনপ্রিয়তা / রেটিং" : "Popularity / Star Rating"}</option>
@@ -2269,27 +2293,110 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Grid */}
+                {/* Products Display: Grouped by section headings for Restaurant, or standard grid for other categories */}
                 {!loadingProducts && sortedProducts.length > 0 && (
-                  <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mt-5">
-                    {sortedProducts.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        lang={lang}
-                        fmtNum={fmtNum}
-                        wishlist={wishlist}
-                        toggleWishlist={toggleWishlist}
-                        cart={cart}
-                        addToCart={addToCart}
-                        updateCartQuantity={updateCartQuantity}
-                        removeFromCart={removeFromCart}
-                        handleBuyNow={handleBuyNow}
-                        openQuickView={openQuickView}
-                        handleProductImgError={handleProductImgError}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    {isRestaurantCat && sortBy === "default" && selectedSubcategory === "all" ? (
+                      // Section-wise separated view for Restaurant category
+                      <div className="space-y-7 mt-3">
+                        {subcategories
+                          .filter(sub => sub !== "all")
+                          .map((secName) => {
+                            const secProducts = sortedProducts.filter(p => p.subcategory === secName);
+                            if (secProducts.length === 0) return null;
+                            return (
+                              <div key={secName} className="bg-slate-50/40 rounded-2xl p-2.5 sm:p-3.5 border border-slate-100">
+                                <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-emerald-500/20 px-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-2 sm:w-2.5 h-4 sm:h-5 bg-emerald-600 rounded-xs"></span>
+                                    <h3 className="text-xs sm:text-sm md:text-base font-black text-slate-800 tracking-wide uppercase">
+                                      {secName}
+                                    </h3>
+                                  </div>
+                                  <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-800 bg-white border border-emerald-200/80 shadow-2xs px-2.5 py-0.5 rounded-full">
+                                    {secProducts.length} {lang === "bn" ? "আইটেম" : "items"}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                                  {secProducts.map((product) => (
+                                    <ProductCard
+                                      key={product.id}
+                                      product={product}
+                                      lang={lang}
+                                      fmtNum={fmtNum}
+                                      wishlist={wishlist}
+                                      toggleWishlist={toggleWishlist}
+                                      cart={cart}
+                                      addToCart={addToCart}
+                                      updateCartQuantity={updateCartQuantity}
+                                      removeFromCart={removeFromCart}
+                                      handleBuyNow={handleBuyNow}
+                                      openQuickView={openQuickView}
+                                      handleProductImgError={handleProductImgError}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    ) : isRestaurantCat && sortBy === "default" && selectedSubcategory !== "all" ? (
+                      // Single selected section view for Restaurant category
+                      <div className="mt-3 bg-slate-50/40 rounded-2xl p-2.5 sm:p-3.5 border border-slate-100">
+                        <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-emerald-500/20 px-1">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 sm:w-2.5 h-4 sm:h-5 bg-emerald-600 rounded-xs"></span>
+                            <h3 className="text-xs sm:text-sm md:text-base font-black text-slate-800 tracking-wide uppercase">
+                              {selectedSubcategory}
+                            </h3>
+                          </div>
+                          <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-800 bg-white border border-emerald-200/80 shadow-2xs px-2.5 py-0.5 rounded-full">
+                            {sortedProducts.length} {lang === "bn" ? "আইটেম" : "items"}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                          {sortedProducts.map((product) => (
+                            <ProductCard
+                              key={product.id}
+                              product={product}
+                              lang={lang}
+                              fmtNum={fmtNum}
+                              wishlist={wishlist}
+                              toggleWishlist={toggleWishlist}
+                              cart={cart}
+                              addToCart={addToCart}
+                              updateCartQuantity={updateCartQuantity}
+                              removeFromCart={removeFromCart}
+                              handleBuyNow={handleBuyNow}
+                              openQuickView={openQuickView}
+                              handleProductImgError={handleProductImgError}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      // Standard grid view for other categories or sorted list
+                      <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mt-5">
+                        {sortedProducts.map((product) => (
+                          <ProductCard
+                            key={product.id}
+                            product={product}
+                            lang={lang}
+                            fmtNum={fmtNum}
+                            wishlist={wishlist}
+                            toggleWishlist={toggleWishlist}
+                            cart={cart}
+                            addToCart={addToCart}
+                            updateCartQuantity={updateCartQuantity}
+                            removeFromCart={removeFromCart}
+                            handleBuyNow={handleBuyNow}
+                            openQuickView={openQuickView}
+                            handleProductImgError={handleProductImgError}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             );

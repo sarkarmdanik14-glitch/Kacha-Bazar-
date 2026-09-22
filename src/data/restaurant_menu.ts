@@ -1,4 +1,8 @@
-// 35 Restaurant Menu Items as requested by user
+import { NEW_RESTAURANT_PRODUCTS, RESTAURANT_MENU_SECTIONS } from "./restaurant_new_items";
+
+export { NEW_RESTAURANT_PRODUCTS, RESTAURANT_MENU_SECTIONS };
+
+// Existing 35 Restaurant Menu Items + New Menu Items as requested by user
 export const RESTAURANT_MENU_RAW: any[] = [
   {
     id: "rest1",
@@ -598,5 +602,6 @@ export const RESTAURANT_MENU_RAW: any[] = [
     tags: ["mughlai", "half-mughlai", "restaurant"],
     order: 35,
     displayOrder: 35
-  }
+  },
+  ...NEW_RESTAURANT_PRODUCTS
 ];
