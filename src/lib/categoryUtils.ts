@@ -41,6 +41,11 @@ export function isCategoryMatch(
     return pCat === "groceries" || pCat === "staples" || pCat === "spices-oils";
   }
 
+  // If filtering by restaurant category (supports bakery-sweets, restaurant, bakery)
+  if (sCat === "bakery-sweets" || sCat === "restaurant" || sCat === "bakery") {
+    return pCat === "bakery-sweets" || pCat === "restaurant" || pCat === "bakery";
+  }
+
   return pCat === sCat;
 }
 

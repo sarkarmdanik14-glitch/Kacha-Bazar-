@@ -1,7 +1,8 @@
 import { Product, ProductOption } from "../types";
 
 // Helper to translate numbers to Bangla script
-export const toBnNum = (num: number | string): string => {
+export const toBnNum = (num: number | string | undefined | null): string => {
+  if (num === undefined || num === null || num === "") return "";
   const digits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
   return num.toString().split("").map(char => {
     const p = parseInt(char, 10);
@@ -15,7 +16,9 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     id: data.id || docId,
     nameBn: data.nameBn,
     nameEn: data.nameEn,
-    price: Number(data.price),
+    price: data.price !== undefined && data.price !== null && data.price !== "" && !isNaN(Number(data.price))
+      ? Number(data.price)
+      : undefined,
     originalPrice: data.originalPrice ? Number(data.originalPrice) : undefined,
     unitBn: data.unitBn,
     unitEn: data.unitEn,

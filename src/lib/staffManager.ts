@@ -1414,3 +1414,49 @@ export async function fetchStaffLogsFromFirestore(limitCount: number = 150): Pro
   }
 }
 
+/**
+ * Real-time listener for the Firestore staff_activity_logs collection.
+ * Triggers callback immediately on any new or updated activity logs across all sessions.
+ */
+export function subscribeToStaffLogsCollection(callback: (logs: StaffActivityLog[]) => void, limitCount: number = 150): () => void {
+  try {
+    const logsCol = collection(db, "staff_activity_logs");
+    const q = query(logsCol, orderBy("createdAt", "desc"), limit(limitCount));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const logs: StaffActivityLog[] = [];
+      snapshot.forEach(docSnap => {
+        const d = docSnap.data();
+        let createdAtStr = new Date().toISOString();
+        if (d.createdAt) {
+          if (typeof d.createdAt.toDate === "function") {
+            createdAtStr = d.createdAt.toDate().toISOString();
+          } else if (typeof d.createdAt === "string") {
+            createdAtStr = d.createdAt;
+          }
+        }
+        logs.push({
+          id: docSnap.id,
+          staffId: d.staffId || "",
+          staffName: d.staffName || "Staff Member",
+          staffRole: d.staffRole || "admin",
+          action: d.action || "",
+          module: d.module || "staff_management",
+          details: d.details || "",
+          targetId: d.targetId || "",
+          createdAt: createdAtStr,
+          ipAddress: d.ipAddress || ""
+        });
+      });
+      callback(logs);
+    }, (error) => {
+      console.warn("Staff logs real-time listener notice:", error.message);
+    });
+
+    return unsubscribe;
+  } catch (err) {
+    console.error("Failed to subscribe to Firestore staff logs collection:", err);
+    return () => {};
+  }
+}
+
+

@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, Share2, Eye, Plus, Minus, Trash2, X, 
   MapPin, Bell, User, Check, Send, Tag, Gift, Award, Smartphone, 
   QrCode, ArrowRight, ArrowLeft, ThumbsUp, Info, ChevronDown, ChevronUp, CheckCircle, Percent, Volume2,
-  Phone, PhoneCall, Mail, ExternalLink, Navigation, Locate, Copy, Zap, Printer, Download, FileText, Loader2, Wifi, WifiOff, MessageSquare, Globe, Home
+  Phone, PhoneCall, Mail, ExternalLink, Navigation, Locate, Copy, Zap, Printer, Download, FileText, Loader2, Wifi, WifiOff, MessageSquare, Globe, Home, Utensils
 } from "lucide-react";
 import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
@@ -22,6 +22,7 @@ import { seedDatabase, db, collection, onSnapshot, auth, onAuthStateChanged, doc
 import { calculateDeliveryFeeFromSettings } from "./lib/delivery";
 import { visitorTracker } from "./lib/visitorTracker";
 import { initVoiceWelcome } from "./lib/voiceWelcome";
+import { matchesProductSearch } from "./lib/banglishSearch";
 
 import { BannerSlider } from "./components/BannerSlider";
 import { CartItemRow } from "./components/CartItemRow";
@@ -1111,6 +1112,7 @@ export default function App() {
       case "Dog": return <Dog className="w-5 h-5 md:w-6 md:h-6" />;
       case "Tag": return <Tag className="w-5 h-5 md:w-6 md:h-6" />;
       case "Sparkles": return <Sparkles className="w-5 h-5 md:w-6 md:h-6" />;
+      case "Utensils": return <Utensils className="w-5 h-5 md:w-6 md:h-6" />;
       default: return <LayoutGrid className="w-5 h-5 md:w-6 md:h-6" />;
     }
   };
@@ -1181,15 +1183,9 @@ export default function App() {
 
   // Product Filter Core (Memoized to avoid expensive filtering on unrelated state changes)
   const filteredProducts = useMemo(() => {
-    const normSearch = searchQuery.toLowerCase();
     return availableProducts.filter((product) => {
       const matchesCategory = isCategoryMatch(product.category, selectedCategory);
-      const matchesSearch = 
-        product.nameBn.toLowerCase().includes(normSearch) || 
-        product.nameEn.toLowerCase().includes(normSearch) || 
-        product.descriptionBn.toLowerCase().includes(normSearch) ||
-        product.descriptionEn.toLowerCase().includes(normSearch) ||
-        (product.brand && product.brand.toLowerCase().includes(normSearch));
+      const matchesSearch = matchesProductSearch(product, searchQuery);
       return matchesCategory && matchesSearch;
     });
   }, [availableProducts, selectedCategory, searchQuery]);
@@ -2157,13 +2153,7 @@ export default function App() {
             const catProducts = availableProducts.filter((product) => {
               const matchesCategory = isCategoryMatch(product.category, selectedCategory);
               const matchesSubcategory = selectedSubcategory === "all" || product.subcategory === selectedSubcategory;
-              const normSearch = searchQuery.toLowerCase();
-              const matchesSearch = 
-                product.nameBn.toLowerCase().includes(normSearch) || 
-                product.nameEn.toLowerCase().includes(normSearch) || 
-                product.descriptionBn.toLowerCase().includes(normSearch) || 
-                product.descriptionEn.toLowerCase().includes(normSearch) || 
-                (product.brand && product.brand.toLowerCase().includes(normSearch));
+              const matchesSearch = matchesProductSearch(product, searchQuery);
               return matchesCategory && matchesSubcategory && matchesSearch;
             });
 

@@ -19,6 +19,7 @@ import {
   logStaffActivity,
   fetchStaffFromFirestore,
   subscribeToStaffCollection,
+  subscribeToStaffLogsCollection,
   createStaffInFirestore,
   updateStaffInFirestore,
   deleteStaffFromFirestore,
@@ -168,15 +169,23 @@ export default function AdminStaffManagementTab({
     fetchStaff();
     fetchLogs();
 
-    // Subscribe to real-time updates from Firebase Firestore
-    const unsubscribe = subscribeToStaffCollection((updatedStaff) => {
-      if (Array.isArray(updatedStaff) && updatedStaff.length > 0) {
+    // Subscribe to real-time updates from Firebase Firestore for staff
+    const unsubscribeStaff = subscribeToStaffCollection((updatedStaff) => {
+      if (Array.isArray(updatedStaff)) {
         setStaffList(updatedStaff);
       }
     });
 
+    // Subscribe to real-time updates from Firebase Firestore for activity logs
+    const unsubscribeLogs = subscribeToStaffLogsCollection((updatedLogs) => {
+      if (Array.isArray(updatedLogs)) {
+        setActivityLogs(updatedLogs);
+      }
+    });
+
     return () => {
-      unsubscribe();
+      unsubscribeStaff();
+      unsubscribeLogs();
     };
   }, []);
 
@@ -709,7 +718,7 @@ export default function AdminStaffManagementTab({
             </p>
           </div>
           <div className="bg-slate-850/60 rounded-2xl p-3 border border-slate-750">
-            <p className="text-[11px] text-teal-400 font-bold">{getTranslation("অনলাইন এখন", "Currently Online")}</p>
+            <p className="text-[11px] text-teal-400 font-bold">{getTranslation("অনলাইনে এখন", "Currently Online")}</p>
             <p className="text-lg sm:text-xl font-black text-teal-300 mt-0.5 flex items-center space-x-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-teal-400 animate-ping inline-block" />
               <span>{staffList.filter(s => s.onlineStatus === "online").length}</span>

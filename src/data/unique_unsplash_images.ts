@@ -98,6 +98,66 @@ export const UNIQUE_UNSPLASH_MAP: Record<string, string> = {
   "fi29": "photo-1621510456152-321303be189d", // Shidal Chepa
   "fi30": "photo-1582515073490-39981397c445", // Churi Dried
 
+  // ================= 3.1 NEW FISH (fi31 to fi52) =================
+  "fi31": "photo-1534482421-64566f976cfa", // Hilsha Fish 1.5kg
+  "fi32": "photo-1544551763-46a013bb70d5", // Hilsha Fish 1.3kg
+  "fi33": "photo-1519708227418-c8fd9a32b7a2", // Hilsha Fish 1kg
+  "fi34": "photo-1534604973900-c43ab4c2e0ab", // Hilsha Fish 800-900g
+  "fi35": "photo-1615141982883-c7ad0e69fd62", // Hilsha Fish 600-700g
+  "fi36": "photo-1524704654690-b56c05c78a00", // Hilsha Fish 400-500g
+  "fi37": "photo-1516685018646-549198525c1b", // Hilsha Fish 3 pcs/kg
+  "fi38": "photo-1532550907401-a500c9a57435", // Hilsha Fish 4 pcs/kg
+  "fi39": "photo-1545601445-496798ad4333", // Hilsha Fish 6-7 pcs/kg
+  "fi40": "photo-1551248429-40975aa4de74", // Golda Chingri 10 pcs/kg
+  "fi41": "photo-1535401991746-da3d9055713e", // Golda Chingri 30 pcs/kg
+  "fi42": "photo-1559737607-98780c2f2f36", // Golda Chingri Small
+  "fi43": "photo-1565680018434-b513d5e5fd47", // Bagda Chingri 30 pcs/kg
+  "fi44": "photo-1509042239860-f550ce710b93", // Bagda Chingri Medium
+  "fi45": "photo-1544025162-d76694265947", // Bagda Chingri Small
+  "fi46": "photo-1504387828024-3ac2e0e1b194", // Chapila Fish
+  "fi47": "photo-1548345680-f5475ea5df84", // Chandana Fish
+  "fi48": "photo-1534080391025-a87d0c7d41a4", // Kalosh Surma
+  "fi49": "photo-1579871494447-9811cf80d66c", // Narkel Surma
+  "fi50": "photo-1475855581690-80accde3ae2b", // Tuna Fish
+  "fi51": "photo-1504674900247-0877df9cc836", // Koti Fish
+  "fi52": "photo-1503075131036-ef10200f68d6", // Shoma Pata Fish
+
+  // ================= 3.2 NEW FISH (fi53 to fi86) =================
+  "fi53": "photo-1544551763-46a013bb70d5", // Deshi Koi Fish (Large)
+  "fi54": "photo-1524704654690-b56c05c78a00", // Hybrid Koi Fish
+  "fi55": "photo-1534482421-64566f976cfa", // River Boal Fish (4-5 kg)
+  "fi56": "photo-1519708227418-c8fd9a32b7a2", // River Boal Fish (2-3 kg)
+  "fi57": "photo-1534604973900-c43ab4c2e0ab", // River Boal Fish (1-2 kg)
+  "fi58": "photo-1615141982883-c7ad0e69fd62", // River Boal Fish (500g-1kg)
+  "fi59": "photo-1532550907401-a500c9a57435", // Fresh Shol Fish (1-1.5 kg)
+  "fi60": "photo-1545601445-496798ad4333", // Fresh Shol Fish (800g-1kg)
+  "fi61": "photo-1516685018646-549198525c1b", // Fresh Rui Fish (5 kg)
+  "fi62": "photo-1504387828024-3ac2e0e1b194", // Fresh Rui Fish (3-4 kg)
+  "fi63": "photo-1548345680-f5475ea5df84", // Live Rui Fish (2-3 kg)
+  "fi64": "photo-1534080391025-a87d0c7d41a4", // Fresh Rui Fish (1-2 kg)
+  "fi65": "photo-1579871494447-9811cf80d66c", // River Ayre Fish (4-5 kg)
+  "fi66": "photo-1475855581690-80accde3ae2b", // River Ayre Fish (2.5-3.5 kg)
+  "fi67": "photo-1504674900247-0877df9cc836", // River Ayre Fish (1-2 kg)
+  "fi68": "photo-1503075131036-ef10200f68d6", // River Baim Fish (Medium)
+  "fi69": "photo-1519708227418-c8fd9a32b7a2", // River Baim Fish (Small)
+  "fi70": "photo-1534482421-64566f976cfa", // Katla Fish (4-5 kg)
+  "fi71": "photo-1544551763-46a013bb70d5", // Fresh Katla Fish (2.5-3.5 kg)
+  "fi72": "photo-1524704654690-b56c05c78a00", // River Katla Fish (1-2 kg)
+  "fi73": "photo-1534604973900-c43ab4c2e0ab", // Fresh Pabda Fish (Large)
+  "fi74": "photo-1615141982883-c7ad0e69fd62", // Pabda Fish (Medium)
+  "fi75": "photo-1532550907401-a500c9a57435", // Fresh Shing Fish (Large)
+  "fi76": "photo-1545601445-496798ad4333", // Live Shing Fish (Medium)
+  "fi77": "photo-1516685018646-549198525c1b", // Telapia Fish (Large)
+  "fi78": "photo-1504387828024-3ac2e0e1b194", // Telapia Fish (Medium)
+  "fi79": "photo-1548345680-f5475ea5df84", // Tangra Fish (Large)
+  "fi80": "photo-1534080391025-a87d0c7d41a4", // Tangra Fish (Medium)
+  "fi81": "photo-1579871494447-9811cf80d66c", // Gulsha Fish (Large)
+  "fi82": "photo-1475855581690-80accde3ae2b", // Gulsha Fish (Medium)
+  "fi83": "photo-1504674900247-0877df9cc836", // River Batasi Fish
+  "fi84": "photo-1503075131036-ef10200f68d6", // River Bacha Fish
+  "fi85": "photo-1534482421-64566f976cfa", // River Guti Fish
+  "fi86": "photo-1544551763-46a013bb70d5", // Silver Carp Fish
+
   // ================= 4. MEAT (me1 to me30) =================
   "me1": "photo-1603048588665-791ca8aea617", // Beef Bone-in
   "me2": "photo-1544025162-d76694265947", // Beef Boneless
@@ -418,37 +478,42 @@ export const UNIQUE_UNSPLASH_MAP: Record<string, string> = {
   "bc29": "photo-1535585209827-a15fcdbc4c2d", // Philips Avent Feeding Bottle
   "bc30": "photo-1563453392212-326f5e854473", // Johnsons Baby Shampoo Honey
 
-  // ================= 14. BAKERY & SWEETS (ba1 to ba30) =================
-  "ba1": "photo-1587314168485-3236d6710814", // Lalchamcham Sweet
-  "ba2": "photo-1509440159596-0249088772ff", // Well Food Bun Bread
-  "ba3": "photo-1587314168485-3236d6710814", // Bonoful Plain Cake
-  "ba4": "photo-1509440159596-0249088772ff", // Bonoful Dry Cake Rusk
-  "ba5": "photo-1587314168485-3236d6710814", // Shahi Rasgulla Sweets
-  "ba6": "photo-1509440159596-0249088772ff", // Premium White Bread
-  "ba7": "photo-1587314168485-3236d6710814", // Milk Bread Premium
-  "ba8": "photo-1509440159596-0249088772ff", // Sweet Toast Biscuits
-  "ba9": "photo-1587314168485-3236d6710814", // Black Forest Cake Ripe
-  "ba10": "photo-1509440159596-0249088772ff", // Chocolate Pastry Slice
-  "ba11": "photo-1587314168485-3236d6710814", // Vanilla Pastry Creamy
-  "ba12": "photo-1509440159596-0249088772ff", // Cream Bun Twin Pack
-  "ba13": "photo-1587314168485-3236d6710814", // Butter Croissant Pastry
-  "ba14": "photo-1509440159596-0249088772ff", // Chocolate Doughnut Ring
-  "ba15": "photo-1587314168485-3236d6710814", // Cupcakes Vanilla Pack
-  "ba16": "photo-1509440159596-0249088772ff", // Ruti Homestyle Handmade
-  "ba17": "photo-1587314168485-3236d6710814", // Brown Bread Organic
-  "ba18": "photo-1509440159596-0249088772ff", // Multigrain Bread Diet
-  "ba19": "photo-1587314168485-3236d6710814", // Garlic Bread Slices
-  "ba20": "photo-1509440159596-0249088772ff", // Shahi Tukda Sweet Dessert
-  "ba21": "photo-1587314168485-3236d6710814", // Kalojam Sweet Traditional
-  "ba22": "photo-1509440159596-0249088772ff", // Kaju Barfi Sweets
-  "ba23": "photo-1587314168485-3236d6710814", // Laddu Motichur Premium
-  "ba24": "photo-1509440159596-0249088772ff", // Sandesh Milk Sweets
-  "ba25": "photo-1587314168485-3236d6710814", // Rasmala Sweets Box
-  "ba26": "photo-1509440159596-0249088772ff", // Sweet Curd / Mishti Doi
-  "ba27": "photo-1587314168485-3236d6710814", // Doi Cup Vanilla Flavor
-  "ba28": "photo-1509440159596-0249088772ff", // Butter Cookies Jar
-  "ba29": "photo-1587314168485-3236d6710814", // Shahi Jilapi Twist
-  "ba30": "photo-1509440159596-0249088772ff", // Cream Roll Roll Cakes
+  // ================= 14. RESTAURANT MENU (rest1 to rest35) =================
+  "rest1": "photo-1516684732162-798a0062be99", // Steamed Rice (ভাত)
+  "rest2": "photo-1546833999-b9f581a1996d", // Khichuri (খিচুরী)
+  "rest3": "photo-1563379091339-03b21ab4a4f8", // Biryani (বিরানী)
+  "rest4": "photo-1598515214211-89d3c73ae83b", // Full Size Chicken Grill (গ্রীল ফুল সাইজ)
+  "rest5": "photo-1589302168068-964664d93dc0", // Tehari (তেহেরী)
+  "rest6": "photo-1544025162-d76694265947", // Mutton Meat Curry (খাসির মাংস)
+  "rest7": "photo-1603894584373-5ac82b2ae398", // Chicken Meat Curry (মুরগীর মাংস)
+  "rest8": "photo-1582169296194-e5d648411dff", // Cooked Egg Curry (ডিম রান্না)
+  "rest9": "photo-1534939561126-855b8675edd7", // Small Fish Curry (ছোট মাছ)
+  "rest10": "photo-1519708227418-c8fd9a32b7a2", // Shutki Fish Bhuna (শুটকি মাছ)
+  "rest11": "photo-1534422298391-e4f8c172dddb", // Rui Fish Curry Large (রুই মাছ বড়)
+  "rest12": "photo-1540420773420-3366772f4999", // Mixed Vegetable Curry (সবজি)
+  "rest13": "photo-1546833998-877b37c2e5c4", // Daal (ডাউল)
+  "rest14": "photo-1626074353765-517a681e40be", // Paratha (পরোটা)
+  "rest15": "photo-1509440159596-0249088772ff", // Roti (রুটি)
+  "rest16": "photo-1565557623262-b51c2513a641", // Tandoor Roti (তন্দুর রুটি)
+  "rest17": "photo-1601050690597-df0568f70950", // Singara (সিঙ্গারা)
+  "rest18": "photo-1568901346375-23c9450c58cd", // Egg Chop (ডিমের চপ)
+  "rest19": "photo-1589301760014-d929f3979dbc", // Mughlai (মোগলাই)
+  "rest20": "photo-1525351484163-7529414344d8", // Fried Egg (ডিম ভাজা)
+  "rest21": "photo-1587314168485-3236d6710814", // Shada Mishti (সাদা মিষ্টি)
+  "rest22": "photo-1599785209707-a456fc1337bb", // Chomchom Kheer (চমচম ক্ষির মাখানো)
+  "rest23": "photo-1551024709-8f23befc6f87", // Dudhiya Sandesh (দুধিয়া সন্দেশ)
+  "rest24": "photo-1541781774459-bb2af2f05b55", // Kalo Jam (কালো জাম)
+  "rest25": "photo-1556881286-fc6915169721", // Ghol (ঘোল)
+  "rest26": "photo-1579372786545-d24232daf58c", // Badsha Bhog (বাদশা ভোগ)
+  "rest27": "photo-1578985545062-69928b1d9587", // Malai (মালাই)
+  "rest28": "photo-1488477181946-6428a0291777", // Doi Large Size (দই বড় সাইজ)
+  "rest29": "photo-1571212515416-fef01fc43637", // Doi Shara (দই সাড়া)
+  "rest30": "photo-1488477181946-6428a0291777", // Special Doi Large (স্পেশাল দই বড় সাইজ)
+  "rest31": "photo-1544025162-d76694265947", // Chaap Quarter (চাপ কোয়ার্টার)
+  "rest32": "photo-1598515214211-89d3c73ae83b", // Grill (গ্রীল)
+  "rest33": "photo-1565557623262-b51c2513a641", // Naan (নান)
+  "rest34": "photo-1626074353765-517a681e40be", // Tandoori (তাান্দুরি)
+  "rest35": "photo-1589301760014-d929f3979dbc", // Half Mughlai (হাফ মোগলাই)
 
   // ================= 15. OFFERS & BEST SELLERS (of1 to of30) =================
   "of1": "photo-1596040033229-a9821ebd058d", // Ramadan Bazaar Combo

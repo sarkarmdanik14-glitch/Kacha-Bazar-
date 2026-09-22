@@ -10,6 +10,7 @@ import { db, doc, setDoc, updateDoc, deleteDoc, collection, addDoc } from "../..
 import { ProductOption } from "../../types";
 import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
 import { isCategoryMatch, normalizeCategoryId } from "../../lib/categoryUtils";
+import { matchesProductSearch } from "../../lib/banglishSearch";
 
 interface AdminProductsTabProps {
   products: any[];
@@ -792,12 +793,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   // Global search products list
   const globalFilteredProducts = products
     .filter(p => !isProductDeleted(p))
-    .filter(p => 
-      (p.nameEn?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-       p.nameBn?.includes(searchTerm) || 
-       p.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       p.sku?.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    .filter(p => matchesProductSearch(p, searchTerm));
 
   return (
     <div className="space-y-6 text-slate-700 font-sans">

@@ -29,6 +29,7 @@ import {
   DailySalesPoint
 } from "../../lib/salesAnalytics";
 import { isCategoryMatch, normalizeCategoryId } from "../../lib/categoryUtils";
+import { matchesProductSearch } from "../../lib/banglishSearch";
 
 interface AdminDailySalesTabProps {
   orders: any[];
@@ -208,11 +209,7 @@ export default function AdminDailySalesTab({
         }
         // Search query
         if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase().trim();
-          const matchBn = p.nameBn.toLowerCase().includes(q);
-          const matchEn = p.nameEn.toLowerCase().includes(q);
-          const matchCat = p.category.toLowerCase().includes(q);
-          return matchBn || matchEn || matchCat;
+          return matchesProductSearch(p, searchQuery);
         }
         return true;
       })

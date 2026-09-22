@@ -20,6 +20,7 @@ import {
   logoutPartnerSession,
   computePartnerMetricsFromOrders
 } from "../../lib/partnerManager";
+import { matchesProductSearch } from "../../lib/banglishSearch";
 import { 
   Store, ShoppingBag, Layers, DollarSign, TrendingUp, 
   Plus, Edit, Trash2, CheckCircle2, AlertTriangle, 
@@ -612,10 +613,7 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {products
-                  .filter(p => 
-                    p.nameBn.toLowerCase().includes(productSearch.toLowerCase()) || 
-                    p.nameEn.toLowerCase().includes(productSearch.toLowerCase())
-                  )
+                  .filter(p => matchesProductSearch(p, productSearch))
                   .map((prod) => (
                     <div
                       key={prod.id}

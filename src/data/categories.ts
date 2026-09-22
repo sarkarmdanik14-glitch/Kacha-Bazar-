@@ -122,9 +122,9 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: "bakery-sweets",
-    nameBn: "বেকারি ও মিষ্টি",
-    nameEn: "Bakery & Sweets",
-    iconName: "Candy",
+    nameBn: "রেস্টুরেন্ট",
+    nameEn: "Restaurant",
+    iconName: "Utensils",
     colorClass: "bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100",
     borderColor: "border-fuchsia-100",
     displayOrder: 13

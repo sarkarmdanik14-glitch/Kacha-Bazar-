@@ -1,9 +1,10 @@
 {
   "daily": {
-    "2026-09-20": {
+    "2026-09-22": {
       "views": 1,
-      "uniqueVisitors": 1,
+      "uniqueVisitors": 2,
       "visitorIds": [
+        "vis_5c57f4ad429f4f2a",
         "vis_d1af8cca2aba47d2"
       ]
     }
@@ -11,8 +12,8 @@
   "sessions": {
     "vis_d1af8cca2aba47d2": {
       "visitorId": "vis_d1af8cca2aba47d2",
-      "startedAt": 1789914377056,
-      "lastActive": 1789919453533,
+      "startedAt": 1790058018246,
+      "lastActive": 1790069571992,
       "isOnline": true
     }
   }

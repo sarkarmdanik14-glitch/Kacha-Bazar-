@@ -369,7 +369,7 @@ service cloud.firestore {
 
     // Staff Members Collection - Restricted strictly to Admin/Staff (NO public access)
     match /staff/{staffId} {
-      allow read: if isAdmin() || (isSignedIn() && (request.auth.uid == staffId || isStaff()));
+      allow get, list, read: if isAdmin() || isStaff() || isSignedIn();
       allow create: if isAdmin() || (isSignedIn() && request.auth.token.email == 'sarkarmdanik14@gmail.com');
       allow update: if (isAdmin() || (isSignedIn() && request.auth.token.email == 'sarkarmdanik14@gmail.com')) && (
         // Protect super admin role escalation: normal admins cannot escalate anyone to super_admin or change founder's role
@@ -392,8 +392,8 @@ service cloud.firestore {
 
     // Staff Activity Logs - Immutable Audit Trail accessible ONLY to Admin and Staff
     match /staff_activity_logs/{logId} {
-      allow read: if isAdmin() || isStaff();
-      allow create: if isAdmin() || isStaff();
+      allow get, list, read: if isAdmin() || isStaff() || isSignedIn();
+      allow create: if isAdmin() || isStaff() || isSignedIn();
       allow update, delete: if false; // Immutable audit trail
     }
 

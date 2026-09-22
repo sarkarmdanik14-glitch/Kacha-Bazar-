@@ -193,14 +193,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           
           {/* Price Row */}
           <div className="flex items-baseline gap-1 mb-1 leading-none">
-            <span className="text-xs sm:text-[13px] md:text-sm font-black text-[#008958] tracking-tight leading-none">
-              ৳{fmtNum(product.price)}
-            </span>
-            {product.originalPrice && product.originalPrice > product.price ? (
-              <span className="text-[8.5px] sm:text-[9.5px] font-normal text-slate-400 line-through leading-none">
-                ৳{fmtNum(product.originalPrice)}
+            {product.price !== undefined && product.price !== null && product.price > 0 ? (
+              <>
+                <span className="text-xs sm:text-[13px] md:text-sm font-black text-[#008958] tracking-tight leading-none">
+                  ৳{fmtNum(product.price)}
+                </span>
+                {product.originalPrice && product.originalPrice > product.price ? (
+                  <span className="text-[8.5px] sm:text-[9.5px] font-normal text-slate-400 line-through leading-none">
+                    ৳{fmtNum(product.originalPrice)}
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <span className="text-xs sm:text-[13px] font-bold text-slate-400 tracking-tight leading-none">
+                —
               </span>
-            ) : null}
+            )}
           </div>
 
           {/* Action Area */}

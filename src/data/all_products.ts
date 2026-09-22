@@ -49,7 +49,7 @@ export const ALL_PRODUCTS: Product[] = allRaw.map((raw: any) => {
 
   // Calculate default original price if a discount exists but originalPrice is missing
   let originalPrice = raw.originalPrice;
-  if (!originalPrice && raw.discount && raw.discount > 0) {
+  if (!originalPrice && raw.discount && raw.discount > 0 && typeof raw.price === "number") {
     originalPrice = Math.round(raw.price / (1 - raw.discount / 100));
   }
 

@@ -25,7 +25,7 @@ export interface Product {
   id: string;
   nameBn: string;
   nameEn: string;
-  price: number;
+  price?: number;
   originalPrice?: number;
   unitBn: string;
   unitEn: string;
