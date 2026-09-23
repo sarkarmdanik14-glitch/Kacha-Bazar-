@@ -3,6 +3,7 @@ import { VEGETABLES_FRUITS_RAW } from "./vegetables_fruits";
 import { FISH_MEAT_DAIRY_RAW } from "./fish_meat_dairy";
 import { STAPLES_SPICES_RAW } from "./staples_spices";
 import { SNACKS_BEVERAGES_FROZEN_RAW } from "./snacks_beverages_frozen";
+import { DRY_FOOD_RAW } from "./dry_food";
 import { HOME_BABY_BAKERY_RAW } from "./home_baby_bakery";
 import { OFFERS_RAW } from "./offers";
 import { SHUTKI_PRODUCTS_RAW } from "./shutki_products";
@@ -13,6 +14,7 @@ const allRaw = [
   ...FISH_MEAT_DAIRY_RAW,
   ...STAPLES_SPICES_RAW,
   ...SNACKS_BEVERAGES_FROZEN_RAW,
+  ...DRY_FOOD_RAW,
   ...HOME_BABY_BAKERY_RAW,
   ...OFFERS_RAW,
   ...SHUTKI_PRODUCTS_RAW

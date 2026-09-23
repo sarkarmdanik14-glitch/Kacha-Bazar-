@@ -11,6 +11,7 @@ import { ProductOption } from "../../types";
 import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
 import { isCategoryMatch, normalizeCategoryId } from "../../lib/categoryUtils";
 import { matchesProductSearch } from "../../lib/banglishSearch";
+import { DRY_FOOD_RAW } from "../../data/dry_food";
 
 interface AdminProductsTabProps {
   products: any[];
@@ -111,6 +112,54 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   // Bulk CSV state
   const [bulkCsvText, setBulkCsvText] = useState<string>("");
   const [importingBulk, setImportingBulk] = useState<boolean>(false);
+
+  // One-time automatic sync for Dry Food category & products in Firestore
+  useEffect(() => {
+    if (!user) return;
+    const hasSyncedKey = "kacha_bazar_dry_food_synced_v2";
+    if (sessionStorage.getItem(hasSyncedKey)) return;
+
+    const performDryFoodSync = async () => {
+      try {
+        sessionStorage.setItem(hasSyncedKey, "true");
+        // 1. Update/set category document in Firestore
+        await setDoc(doc(db, "categories", "frozen"), {
+          id: "frozen",
+          nameBn: "ড্রাই ফুড",
+          nameEn: "Dry Food",
+          iconName: "Package",
+          colorClass: "bg-amber-50 text-amber-700 hover:bg-amber-100",
+          borderColor: "border-amber-100",
+          displayOrder: 9
+        }, { merge: true });
+
+        // 2. Remove all old products from former "হিমায়িত খাদ্য" category (fr1 - fr30)
+        for (let i = 1; i <= 30; i++) {
+          const oldRef = doc(db, "products", `fr${i}`);
+          try {
+            await deleteDoc(oldRef);
+          } catch {
+            await setDoc(oldRef, { isDeleted: true, status: "inactive" }, { merge: true }).catch(() => {});
+          }
+        }
+
+        // 3. Write/sync all 39 Dry Food products to Firestore
+        for (const prod of DRY_FOOD_RAW) {
+          const prodRef = doc(db, "products", prod.id);
+          await setDoc(prodRef, {
+            ...prod,
+            isDeleted: false,
+            status: "active",
+            isAvailable: true
+          }, { merge: true });
+        }
+      } catch (e) {
+        console.warn("Dry food background sync notice:", e);
+      }
+    };
+
+    performDryFoodSync();
+  }, [user]);
 
   // Escape key listener to immediately close open modals and restore full interaction
   useEffect(() => {

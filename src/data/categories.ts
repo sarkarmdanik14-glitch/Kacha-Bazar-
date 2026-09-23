@@ -86,11 +86,11 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: "frozen",
-    nameBn: "হিমায়িত খাদ্য",
-    nameEn: "Frozen Foods",
-    iconName: "Snowflake",
-    colorClass: "bg-sky-50 text-sky-700 hover:bg-sky-100",
-    borderColor: "border-sky-100",
+    nameBn: "ড্রাই ফুড",
+    nameEn: "Dry Food",
+    iconName: "Package",
+    colorClass: "bg-amber-50 text-amber-700 hover:bg-amber-100",
+    borderColor: "border-amber-100",
     displayOrder: 9
   },
   {

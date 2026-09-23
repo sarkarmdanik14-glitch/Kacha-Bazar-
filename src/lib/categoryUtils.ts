@@ -46,17 +46,26 @@ export function isCategoryMatch(
     return pCat === "bakery-sweets" || pCat === "restaurant" || pCat === "bakery";
   }
 
+  // If filtering by dry-food or frozen
+  if (sCat === "frozen" || sCat === "dry-food" || sCat === "dryfood") {
+    return pCat === "frozen" || pCat === "dry-food" || pCat === "dryfood";
+  }
+
   return pCat === sCat;
 }
 
 /**
- * Normalizes category IDs so that legacy "staples" or "spices-oils" map to "groceries".
+ * Normalizes category IDs so that legacy "staples" or "spices-oils" map to "groceries",
+ * and "dry-food" maps to "frozen".
  */
 export function normalizeCategoryId(catId: string | undefined | null): string {
   if (!catId) return "all";
   const lower = catId.toLowerCase().trim();
   if (lower === "staples" || lower === "spices-oils") {
     return "groceries";
+  }
+  if (lower === "dry-food" || lower === "dryfood") {
+    return "frozen";
   }
   return catId;
 }
@@ -96,6 +105,14 @@ export function mergeCategoryCards(categories: any[]): any[] {
         order: 2
       });
       groceryAdded = true;
+    } else if (cat.id === "frozen" || cat.id === "dry-food" || cat.id === "dryfood") {
+      result.push({
+        ...cat,
+        id: "frozen",
+        nameBn: "ড্রাই ফুড",
+        nameEn: "Dry Food",
+        iconName: cat.iconName || "Package"
+      });
     } else {
       result.push(cat);
     }

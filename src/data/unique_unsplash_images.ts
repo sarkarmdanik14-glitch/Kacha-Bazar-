@@ -361,37 +361,46 @@ export const UNIQUE_UNSPLASH_MAP: Record<string, string> = {
   "be29": "photo-1551024601-bec78aea704b", // Pran Lassi Cup
   "be30": "photo-1527960659-549a1d028d57", // Coca Cola Zero Can
 
-  // ================= 10. FROZEN FOODS (fr1 to fr30) =================
-  "fr1": "photo-1563453392212-326f5e854473", // Plain Paratha Frozen
-  "fr2": "photo-1506976785307-8732e854ad03", // Aloo Puri Frozen
-  "fr3": "photo-1535585209827-a15fcdbc4c2d", // Dal Puri Frozen
-  "fr4": "photo-1563453392212-326f5e854473", // Chicken Samosa Frozen
-  "fr5": "photo-1506976785307-8732e854ad03", // Chicken Spring Roll
-  "fr6": "photo-1535585209827-a15fcdbc4c2d", // Frozen Singara Pack
-  "fr7": "photo-1563453392212-326f5e854473", // Chicken Nuggets Crispy
-  "fr8": "photo-1506976785307-8732e854ad03", // Chicken Popcorn Snacks
-  "fr9": "photo-1535585209827-a15fcdbc4c2d", // French Fries Frozen
-  "fr10": "photo-1563453392212-326f5e854473", // Fish Finger Premium
-  "fr11": "photo-1506976785307-8732e854ad03", // Frozen Green Peas (Matarsuti)
-  "fr12": "photo-1535585209827-a15fcdbc4c2d", // Sweet Corn Kernel Frozen
-  "fr13": "photo-1563453392212-326f5e854473", // Mixed Vegetables Frozen
-  "fr14": "photo-1506976785307-8732e854ad03", // Frozen Beef Kabab Patty
-  "fr15": "photo-1535585209827-a15fcdbc4c2d", // Chicken Meatball Frozen
-  "fr16": "photo-1563453392212-326f5e854473", // Beef Meatball Frozen
-  "fr17": "photo-1506976785307-8732e854ad03", // Shami Kabab Beef Frozen
-  "fr18": "photo-1535585209827-a15fcdbc4c2d", // Shami Kabab Chicken
-  "fr19": "photo-1563453392212-326f5e854473", // Paratha Homestyle Multi
-  "fr20": "photo-1506976785307-8732e854ad03", // Chapati Wheat Frozen
-  "fr21": "photo-1535585209827-a15fcdbc4c2d", // Frozen Naan Bread
-  "fr22": "photo-1563453392212-326f5e854473", // Chicken Burger Patty
-  "fr23": "photo-1506976785307-8732e854ad03", // Beef Burger Patty
-  "fr24": "photo-1535585209827-a15fcdbc4c2d", // Breaded Fish Fillet
-  "fr25": "photo-1563453392212-326f5e854473", // Sweet Potato Fries
-  "fr26": "photo-1506976785307-8732e854ad03", // Frozen Hash Browns
-  "fr27": "photo-1535585209827-a15fcdbc4c2d", // Chicken Sausage Premium
-  "fr28": "photo-1563453392212-326f5e854473", // Beef Pepperoni Frozen
-  "fr29": "photo-1506976785307-8732e854ad03", // Chicken Seekh Kabab
-  "fr30": "photo-1535585209827-a15fcdbc4c2d", // Beef Seekh Kabab
+  // ================= 10. DRY FOOD (df1 to df39) =================
+  "df1": "photo-1508061253366-f7da158b6d46", // কাঠ বাদাম
+  "df2": "photo-1590080875515-8a3a8dc5735e", // চিয়া সিড বীজ
+  "df3": "photo-1596797038530-2c107229654b", // ব্ল্যাক কিসমিস
+  "df4": "photo-1584308666744-24d5c474f2ae", // গোল্ডেন কিসমিস (India)
+  "df5": "photo-1596797038530-2c107229654b", // গোল্ডেন কিসমিস (Afghanistan)
+  "df6": "photo-1509912760195-4f40f2f35492", // কাজু বাদাম (India)
+  "df7": "photo-1509912760195-4f40f2f35492", // কাজু বাদাম (USA)
+  "df8": "photo-1536816579748-4ecb3f03d72a", // আখরোট (India)
+  "df9": "photo-1514733670139-4d87a1941d55", // ইসবগুলের ভুষি
+  "df10": "photo-1590080875515-8a3a8dc5735e", // সাদা তিল (India)
+  "df11": "photo-1595855759920-86582396756a", // সূর্যমুখী সিড
+  "df12": "photo-1595855759920-86582396756a", // মিষ্টি কুমড়ার বিচি
+  "df13": "photo-1590080875515-8a3a8dc5735e", // তুকমা দানা
+  "df14": "photo-1596797038530-2c107229654b", // আলু বোখারা শুকনা
+  "df15": "photo-1569591159212-b02ea8a9f239", // আলু বোখারা ভিজা
+  "df16": "photo-1514733670139-4d87a1941d55", // বাকুড়া প্লাস (বাল্ক)
+  "df17": "photo-1590080875515-8a3a8dc5735e", // তাল মাখনা
+  "df18": "photo-1590080875515-8a3a8dc5735e", // হালিম দানা
+  "df19": "photo-1590080875515-8a3a8dc5735e", // তিসি
+  "df20": "photo-1590080875515-8a3a8dc5735e", // কালিজিরা (Premium)
+  "df21": "photo-1515543237350-b3eea1ec8082", // কাবলি ছোলা (Packet)
+  "df22": "photo-1587049352846-4a222e784d38", // মধু (লিচু)
+  "df23": "photo-1587049352851-8d4e89133924", // মধু (নেচারাল)
+  "df24": "photo-1509912760195-4f40f2f35492", // থাই নাট ৫০০ গ্রাম
+  "df25": "photo-1509912760195-4f40f2f35492", // থাই নাট ২৫০ গ্রাম
+  "df26": "photo-1508061253366-f7da158b6d46", // মিক্স নাট থাই ২৫০ গ্রাম
+  "df27": "photo-1569591159212-b02ea8a9f239", // মরিয়ম (Super) খেজুর
+  "df28": "photo-1596797038530-2c107229654b", // পাকিস্তানি খুরমা খেজুর
+  "df29": "photo-1569591159212-b02ea8a9f239", // আম্বারা (জাম্বু) খেজুর
+  "df30": "photo-1596797038530-2c107229654b", // রামা গোল্ড খুরমা খেজুর
+  "df31": "photo-1569591159212-b02ea8a9f239", // ধাবাস খেজুর
+  "df32": "photo-1596797038530-2c107229654b", // রেড লুলু (বরই) খেজুর
+  "df33": "photo-1569591159212-b02ea8a9f239", // ধাবাস সাদ দাম
+  "df34": "photo-1596797038530-2c107229654b", // সুকারি খেজুর
+  "df35": "photo-1569591159212-b02ea8a9f239", // কালমি খেজুর (বড়)
+  "df36": "photo-1596797038530-2c107229654b", // গ্লাস খেজুর (ছোট)
+  "df37": "photo-1569591159212-b02ea8a9f239", // গ্লাস (মরিয়ম) খেজুর
+  "df38": "photo-1596797038530-2c107229654b", // মরিয়ম (Low) খেজুর
+  "df39": "photo-1569591159212-b02ea8a9f239", // মাবরুম খেজুর
 
   // ================= 11. PERSONAL CARE (pc1 to pc30) =================
   "pc1": "photo-1584622650111-993a426fbf0a", // Lifebuoy Soap

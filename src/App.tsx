@@ -538,6 +538,10 @@ export default function App() {
             deletedIds.add(doc.id);
             return;
           }
+          // Completely remove ALL old products from the former "হিমায়িত খাদ্য" category
+          if (/^fr\d+$/.test(doc.id) || (data.category === "frozen" && !doc.id.startsWith("df"))) {
+            return;
+          }
           items.push(mapDocToProduct(doc.id, data));
         });
 
@@ -578,11 +582,13 @@ export default function App() {
         if (!snap.empty) {
           snap.forEach((doc) => {
             const data = doc.data();
+            const catId = doc.id || data.id;
+            const isFrozenCat = catId === "frozen" || data.nameBn === "হিমায়িত খাদ্য";
             cats.push({
-              id: doc.id || data.id,
-              nameBn: data.nameBn,
-              nameEn: data.nameEn,
-              iconName: data.iconName || "Sparkles",
+              id: catId,
+              nameBn: isFrozenCat ? "ড্রাই ফুড" : data.nameBn,
+              nameEn: isFrozenCat ? "Dry Food" : data.nameEn,
+              iconName: isFrozenCat ? "Package" : (data.iconName || "Sparkles"),
               colorClass: data.colorClass || "from-emerald-500 to-teal-600",
               borderColor: data.borderColor || "border-slate-200",
               image: data.image || data.imageUrl,

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { checkAndRewardReferral } from "../../lib/referral";
 import { mergeCategoryCards } from "../../lib/categoryUtils";
+import { ALL_PRODUCTS } from "../../data/all_products";
 
 // Import modular sub-panels
 import AdminDashboardReport from "./AdminDashboardReport";
@@ -202,9 +203,15 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
           if (data.isDeleted === true || data.status === "deleted" || data.deleted === true) {
             return;
           }
+          // Completely remove ALL old products from former "হিমায়িত খাদ্য" category
+          if (/^fr\d+$/.test(doc.id) || (data.category === "frozen" && !doc.id.startsWith("df"))) {
+            return;
+          }
           prods.push({ id: doc.id, ...data });
         });
-        setProducts(prods);
+        const firestoreIds = new Set(prods.map(p => p.id));
+        const missingInitial = ALL_PRODUCTS.filter(p => !firestoreIds.has(p.id));
+        setProducts([...prods, ...missingInitial]);
         setLoading(false);
       },
       (err) => {
@@ -245,7 +252,16 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
       (snapshot) => {
         const cats: any[] = [];
         snapshot.forEach((doc) => {
-          cats.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          const catId = doc.id || data.id;
+          const isFrozenCat = catId === "frozen" || data.nameBn === "হিমায়িত খাদ্য";
+          cats.push({
+            id: catId,
+            ...data,
+            nameBn: isFrozenCat ? "ড্রাই ফুড" : data.nameBn,
+            nameEn: isFrozenCat ? "Dry Food" : data.nameEn,
+            iconName: isFrozenCat ? "Package" : (data.iconName || "Sparkles")
+          });
         });
         const mergedCats = mergeCategoryCards(cats);
         mergedCats.sort((a, b) => {
