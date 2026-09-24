@@ -437,7 +437,7 @@ export default function CustomerVoiceCallModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-lg animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       {/* Hidden Remote Audio Element for WebRTC Live Stream */}
       <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
 

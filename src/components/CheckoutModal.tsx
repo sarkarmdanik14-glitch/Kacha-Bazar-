@@ -21,6 +21,7 @@ import {
   Mail, ExternalLink, Navigation, Locate, AlertTriangle
 } from "lucide-react";
 import { calculateDeliveryFeeFromSettings, calculateHaversineDistance, DeliveryZone } from "../lib/delivery";
+import { resolveProductDisplayUnit } from "../lib/productWeightUtils";
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -739,7 +740,7 @@ export default function CheckoutModal({
                       const itemPrice = item.selectedOption ? item.selectedOption.price : item.product.price;
                       let weightText = item.selectedOption
                         ? (item.selectedOption.customLabel || `${item.selectedOption.value} ${item.selectedOption.unit === 'g' ? (lang === 'bn' ? 'গ্রাম' : 'g') : item.selectedOption.unit === 'kg' ? (lang === 'bn' ? 'কেজি' : 'kg') : item.selectedOption.unit}`)
-                        : (lang === "bn" ? item.product.unitBn : item.product.unitEn);
+                        : resolveProductDisplayUnit(item.product, lang);
 
                       return (
                         <div key={`${item.product.id}_${idx}`} className="flex justify-between items-center py-2.5 first:pt-0 last:pb-0 text-xs">
@@ -824,24 +825,25 @@ export default function CheckoutModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <form onSubmit={handleCheckout} className="bg-white w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl relative flex flex-col max-h-[92vh] animate-scale-up border border-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+      <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden animate-scale-up border border-slate-100">
         
         {/* Header */}
-        <div className="bg-slate-50 border-b border-slate-100 px-5 py-4 flex items-center justify-between shrink-0">
+        <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center space-x-2.5 text-emerald-700">
             <ShieldCheck className="w-5 h-5" />
             <h3 className="font-black text-slate-800 text-sm uppercase tracking-tight">
               {getTranslation("নিরাপদ গেটওয়ে চেকআউট", "Secure Gateway Checkout")}
             </h3>
           </div>
-          <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg">
+          <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-slate-50/50 min-h-0">
+        <form onSubmit={handleCheckout} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          {/* Scrollable Form Body */}
+          <div className="overflow-y-auto flex-1 p-6 space-y-4">
           
           {/* Section: Order Summary */}
           <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-3">
@@ -854,7 +856,7 @@ export default function CheckoutModal({
                 const itemPrice = item.selectedOption ? item.selectedOption.price : item.product.price;
                 let weightText = item.selectedOption
                   ? (item.selectedOption.customLabel || `${item.selectedOption.value} ${item.selectedOption.unit === 'g' ? (lang === 'bn' ? 'গ্রাম' : 'g') : item.selectedOption.unit === 'kg' ? (lang === 'bn' ? 'কেজি' : 'kg') : item.selectedOption.unit}`)
-                  : (lang === "bn" ? item.product.unitBn : item.product.unitEn);
+                  : resolveProductDisplayUnit(item.product, lang);
 
                 return (
                   <div key={`${item.product.id}_${idx}`} className="flex justify-between items-center py-2 first:pt-0 last:pb-0 text-xs">
@@ -1195,28 +1197,38 @@ export default function CheckoutModal({
         </div>
 
         {/* Fixed Footer: Checkout Total details */}
-        <div className="bg-slate-900 text-white p-4.5 flex justify-between items-center shrink-0 border-t border-slate-800">
+        <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-between items-center bg-gray-50/50">
           <div>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">{getTranslation("মোট বিল", "Grand Total Bill")}</span>
-            <span className="text-xl font-black text-emerald-400">৳{computedGrandTotal}</span>
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{getTranslation("মোট বিল", "Grand Total Bill")}</span>
+            <span className="text-xl font-black text-emerald-600">৳{computedGrandTotal}</span>
           </div>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-xs px-5 py-3 rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow"
-          >
-            {submitting ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <span>{getTranslation("অর্ডার নিশ্চিত করুন", "Confirm Purchase")}</span>
-                <ArrowRight className="w-4 h-4 stroke-[3.5px]" />
-              </>
-            )}
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              {getTranslation("বাতিল", "Cancel")}
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-xs px-5 py-2.5 rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow"
+            >
+              {submitting ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <span>{getTranslation("অর্ডার নিশ্চিত করুন", "Confirm Purchase")}</span>
+                  <ArrowRight className="w-4 h-4 stroke-[3.5px]" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

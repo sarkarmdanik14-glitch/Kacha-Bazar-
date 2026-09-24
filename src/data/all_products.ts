@@ -7,7 +7,11 @@ import { DRY_FOOD_RAW } from "./dry_food";
 import { HOME_BABY_BAKERY_RAW } from "./home_baby_bakery";
 import { OFFERS_RAW } from "./offers";
 import { SHUTKI_PRODUCTS_RAW } from "./shutki_products";
+import { VEHICLES_RAW } from "./vehicles_rental";
+import { MOBILE_ZONE_RAW } from "./mobile_zone";
 import { UNIQUE_UNSPLASH_MAP } from "./unique_unsplash_images";
+import { GROCERY_SUBCATEGORY_MAP, GROCERY_ORDER_MAP, getResolvedGrocerySubcategory, getResolvedGroceryDisplayOrder } from "./grocery_subcategories";
+import { resolveProductUnit } from "../lib/productWeightUtils";
 
 const allRaw = [
   ...VEGETABLES_FRUITS_RAW,
@@ -17,14 +21,16 @@ const allRaw = [
   ...DRY_FOOD_RAW,
   ...HOME_BABY_BAKERY_RAW,
   ...OFFERS_RAW,
-  ...SHUTKI_PRODUCTS_RAW
+  ...SHUTKI_PRODUCTS_RAW,
+  ...VEHICLES_RAW,
+  ...MOBILE_ZONE_RAW
 ];
 
 const seenImages = new Set<string>();
 
 export const ALL_PRODUCTS: Product[] = allRaw.map((raw: any) => {
-  // Use unique high-resolution image ID map if available, otherwise fallback to raw.img
-  const rawImgId = UNIQUE_UNSPLASH_MAP[raw.id] || raw.img || "photo-1542838132-92c53300491e";
+  // Use direct image if provided, unique high-resolution image ID map, or raw.img
+  const rawImgId = raw.image || UNIQUE_UNSPLASH_MAP[raw.id] || raw.img || "photo-1542838132-92c53300491e";
   
   let imageUrl = "";
   if (rawImgId.startsWith("http")) {
@@ -50,6 +56,9 @@ export const ALL_PRODUCTS: Product[] = allRaw.map((raw: any) => {
   if (category === "staples" || category === "spices-oils") {
     category = "groceries";
   }
+  if (category === "baby-care") {
+    category = "pharmacy";
+  }
 
   // Calculate default original price if a discount exists but originalPrice is missing
   let originalPrice = raw.originalPrice;
@@ -60,22 +69,32 @@ export const ALL_PRODUCTS: Product[] = allRaw.map((raw: any) => {
   // Create a realistic SKU
   const sku = `KB-${category.substring(0, 3).toUpperCase()}-${raw.id.toUpperCase()}`;
 
+  const resolvedUnits = resolveProductUnit({
+    id: raw.id,
+    nameBn: raw.nameBn,
+    nameEn: raw.nameEn,
+    unitBn: raw.unitBn,
+    unitEn: raw.unitEn,
+    category: category,
+    subcategory: getResolvedGrocerySubcategory(raw.id, raw.nameBn, raw.nameEn, raw.subcategory, category)
+  });
+
   return {
     id: raw.id,
     nameBn: raw.nameBn,
     nameEn: raw.nameEn,
     price: raw.price,
     originalPrice: originalPrice,
-    unitBn: raw.unitBn,
-    unitEn: raw.unitEn,
+    unitBn: raw.unitBn || resolvedUnits.unitBn,
+    unitEn: raw.unitEn || resolvedUnits.unitEn,
     category: category,
     image: imageUrl,
     isFlashSale: raw.isFlashSale || false,
     discount: raw.discount || 0,
     rating: raw.rating || parseFloat((4.2 + Math.random() * 0.7).toFixed(1)),
     stock: raw.stock !== undefined ? raw.stock : Math.floor(Math.random() * 60) + 10,
-    descriptionBn: raw.descBn || "",
-    descriptionEn: raw.descEn || "",
+    descriptionBn: raw.descriptionBn || raw.descBn || "",
+    descriptionEn: raw.descriptionEn || raw.descEn || "",
     isBestSelling: raw.isBestSelling || false,
     isNewArrival: raw.isNewArrival || false,
     isPopular: raw.isPopular || false,
@@ -85,10 +104,10 @@ export const ALL_PRODUCTS: Product[] = allRaw.map((raw: any) => {
     brand: raw.brand || "কাচা বাজার",
     reviewCount: raw.reviewCount || Math.floor(Math.random() * 120) + 15,
     sku: sku,
-    subcategory: raw.subcategory || "General",
+    subcategory: getResolvedGrocerySubcategory(raw.id, raw.nameBn, raw.nameEn, raw.subcategory, category),
     tags: raw.tags || [raw.category],
-    displayOrder: typeof raw.displayOrder === "number" ? raw.displayOrder : (typeof raw.order === "number" ? raw.order : undefined),
-    order: typeof raw.order === "number" ? raw.order : (typeof raw.displayOrder === "number" ? raw.displayOrder : undefined),
+    displayOrder: getResolvedGroceryDisplayOrder(raw.id, raw.nameBn, raw.nameEn, getResolvedGrocerySubcategory(raw.id, raw.nameBn, raw.nameEn, raw.subcategory, category), raw.displayOrder ?? raw.order),
+    order: getResolvedGroceryDisplayOrder(raw.id, raw.nameBn, raw.nameEn, getResolvedGrocerySubcategory(raw.id, raw.nameBn, raw.nameEn, raw.subcategory, category), raw.displayOrder ?? raw.order),
     options: raw.options || [],
     ingredientsBn: "",
     ingredientsEn: "",

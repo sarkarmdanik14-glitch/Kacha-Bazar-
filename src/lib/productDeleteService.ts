@@ -1,4 +1,4 @@
-import { db, doc, deleteDoc, updateDoc, collection, getDocs, serverTimestamp } from "./firebase";
+import { db, doc, deleteDoc, updateDoc, setDoc, collection, getDocs, serverTimestamp } from "./firebase";
 
 export interface OrderUsageCheckResult {
   hasOrders: boolean;
@@ -93,7 +93,8 @@ export async function executeDeleteProduct(
 
   if (options.hasOrders) {
     // Perform Soft Delete (Inactivation)
-    await updateDoc(prodRef, {
+    await setDoc(prodRef, {
+      id: productId,
       isDeleted: true,
       deleted: true,
       isAvailable: false,
@@ -102,7 +103,7 @@ export async function executeDeleteProduct(
       deletedAt: serverTimestamp(),
       deletedBy: options.user?.email || options.user?.fullName || options.user?.displayName || options.user?.uid || "admin",
       updatedAt: serverTimestamp()
-    });
+    }, { merge: true });
 
     return {
       success: true,
@@ -123,7 +124,8 @@ export async function executeDeleteProduct(
     } catch (err: any) {
       // If hard delete fails due to rules, fallback to soft-delete
       console.warn("Permanent delete failed, attempting soft-delete fallback:", err);
-      await updateDoc(prodRef, {
+      await setDoc(prodRef, {
+        id: productId,
         isDeleted: true,
         deleted: true,
         isAvailable: false,
@@ -132,7 +134,7 @@ export async function executeDeleteProduct(
         deletedAt: serverTimestamp(),
         deletedBy: options.user?.email || options.user?.uid || "admin",
         updatedAt: serverTimestamp()
-      });
+      }, { merge: true });
       return {
         success: true,
         mode: "soft_delete",

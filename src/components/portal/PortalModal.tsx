@@ -384,7 +384,7 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xs z-50 flex items-center justify-center p-0 md:p-2 lg:p-3" id="portal-modal-overlay">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-2 lg:p-3 bg-black/50 backdrop-blur-sm overflow-y-auto" id="portal-modal-overlay">
       
       {/* Floating toasts */}
       <div className="fixed top-5 right-5 space-y-2 z-[2000] max-w-sm">
@@ -398,24 +398,16 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
 
       <div className="bg-white w-full h-full md:h-[96vh] md:max-h-[96vh] max-w-[98vw] 2xl:max-w-[1720px] md:rounded-2xl rounded-none overflow-hidden shadow-2xl relative flex flex-col animate-scale-up">
         
-        {/* Portal Header controller */}
-        <div className="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between shrink-0 text-white">
-          <div className="flex items-center space-x-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-            <h1 className="font-black text-slate-100 text-xs sm:text-sm tracking-tight flex items-center gap-1.5 uppercase">
-              <Shield className="w-4 h-4 text-emerald-400" />
-              <span>{getTranslation("কাচা বাজার ক্লাউড পোর্টাল", "Kacha Bazar System Portal")}</span>
-            </h1>
-          </div>
-          
-          <button 
-            onClick={onClose}
-            className="p-1.5 px-2.5 rounded-xl hover:bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer flex items-center space-x-1.5 border border-slate-750 bg-slate-850"
-          >
-            <X className="w-4 h-4" />
-            <span className="text-[10px] font-black hidden sm:inline uppercase">{getTranslation("বন্ধ করুন", "Return to Store")}</span>
-          </button>
-        </div>
+        {/* Floating close button (Replaces bulky dark header strip) */}
+        <button 
+          onClick={onClose}
+          aria-label={getTranslation("বন্ধ করুন", "Close")}
+          title={getTranslation("বন্ধ করুন", "Return to Store")}
+          className="absolute top-3 right-3 z-50 p-1.5 px-3 rounded-full bg-slate-900/90 hover:bg-slate-900 text-white shadow-lg backdrop-blur-xs transition cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+        >
+          <X className="w-4 h-4" />
+          <span className="text-[11px] hidden sm:inline">{getTranslation("বন্ধ করুন", "Exit")}</span>
+        </button>
 
         {/* Content body */}
         <div className="flex-1 min-h-0 bg-slate-50 overflow-hidden flex flex-col">

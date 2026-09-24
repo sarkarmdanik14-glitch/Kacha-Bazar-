@@ -822,9 +822,9 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
 
       {/* CREATE NEW MEMBER MODAL */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-scale-up">
-            <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden animate-scale-up">
+            <div className="flex-shrink-0 bg-slate-900 text-white p-5 flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Award className="w-5 h-5 text-emerald-400" />
                 <h3 className="font-black text-base">
@@ -840,7 +840,8 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
               </button>
             </div>
 
-            <form onSubmit={handleCreateNewMember} className="p-6 space-y-4">
+            <form onSubmit={handleCreateNewMember} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="overflow-y-auto flex-1 p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">
@@ -941,8 +942,10 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:bg-white focus:border-emerald-500 outline-none"
                 />
               </div>
+              </div>
 
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+              {/* Fixed Footer */}
+              <div className="flex-shrink-0 p-4 border-t flex flex-wrap gap-2 justify-end bg-gray-50/50">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}

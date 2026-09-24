@@ -264,6 +264,13 @@ export const UNIQUE_UNSPLASH_MAP: Record<string, string> = {
   "st28": "photo-1586201375761-83865001e31c", // Lachha Semai Premium
   "st29": "photo-1596040033229-a9821ebd058d", // Date Palm Gur Molasses
   "st30": "photo-1546549032-9571cd6b27df", // Pran Chinigura Rice
+  "st31": "photo-1586201375761-83865001e31c", // Dinajpur Kalijira Rice
+  "st32": "photo-1596040033229-a9821ebd058d", // BR-28 Parboiled Rice
+  "st33": "photo-1546549032-9571cd6b27df", // BR-29 Rice
+  "st34": "photo-1586201375761-83865001e31c", // Paijam Parboiled Rice
+  "st35": "photo-1596040033229-a9821ebd058d", // Dinajpur Atap Rice
+  "st36": "photo-1546549032-9571cd6b27df", // Biryani Special Basmati Rice
+  "st37": "photo-1586201375761-83865001e31c", // Swarna Parboiled Rice
 
   // ================= 7. SPICES & COOKING ESSENTIALS (sp1 to sp30) =================
   "sp1": "photo-1596040033229-a9821ebd058d", // Turmeric Powder
@@ -454,37 +461,37 @@ export const UNIQUE_UNSPLASH_MAP: Record<string, string> = {
   "cc17": "photo-1589302168068-964664d93dc0", // Jhutki Semai
   "cc18": "photo-1518013431117-eb1465fa5752", // Baromeshali Chips
 
-  // ================= 13. BABY CARE (bc1 to bc30) =================
-  "bc1": "photo-1506976785307-8732e854ad03", // Pampers Diapers XL
-  "bc2": "photo-1535585209827-a15fcdbc4c2d", // Huggies Diapers Pants
-  "bc3": "photo-1563453392212-326f5e854473", // Johnsons Baby Soap
-  "bc4": "photo-1506976785307-8732e854ad03", // Johnsons Baby Lotion
-  "bc5": "photo-1535585209827-a15fcdbc4c2d", // Johnsons Baby Oil
-  "bc6": "photo-1563453392212-326f5e854473", // Johnsons Baby Powder
-  "bc7": "photo-1506976785307-8732e854ad03", // Johnsons No Tears Shampoo
-  "bc8": "photo-1535585209827-a15fcdbc4c2d", // Lactogen 1 Baby Formula
-  "bc9": "photo-1563453392212-326f5e854473", // Lactogen 2 Milk Powder
-  "bc10": "photo-1506976785307-8732e854ad03", // Cerelac Wheat Apple
-  "bc11": "photo-1535585209827-a15fcdbc4c2d", // Cerelac Rice 3 Fruits
-  "bc12": "photo-1563453392212-326f5e854473", // Baby Wipes Bashundhara
-  "bc13": "photo-1506976785307-8732e854ad03", // Baby Cotton Buds Box
-  "bc14": "photo-1535585209827-a15fcdbc4c2d", // Kodomo Baby Toothbrush
-  "bc15": "photo-1563453392212-326f5e854473", // Kodomo Baby Toothpaste
-  "bc16": "photo-1506976785307-8732e854ad03", // Baby Feeding Feeder
-  "bc17": "photo-1535585209827-a15fcdbc4c2d", // Baby Pacifier Dummy
-  "bc18": "photo-1563453392212-326f5e854473", // Baby Nail Clipper Grooming
-  "bc19": "photo-1506976785307-8732e854ad03", // Baby Rattle Toys Set
-  "bc20": "photo-1535585209827-a15fcdbc4c2d", // Baby Bib Soft Cotton
-  "bc21": "photo-1563453392212-326f5e854473", // Baby Diaper Rash Cream
-  "bc22": "photo-1506976785307-8732e854ad03", // Baby Liquid Cleanser
-  "bc23": "photo-1535585209827-a15fcdbc4c2d", // Baby Mosquito Net
-  "bc24": "photo-1563453392212-326f5e854473", // Baby Cotton Towel
-  "bc25": "photo-1506976785307-8732e854ad03", // Baby Socks Warm Twin
-  "bc26": "photo-1535585209827-a15fcdbc4c2d", // Baby Soft Comb Brush
-  "bc27": "photo-1563453392212-326f5e854473", // Baby Bath Tub Plastic
-  "bc28": "photo-1506976785307-8732e854ad03", // Baby Carrier Belt Wrap
-  "bc29": "photo-1535585209827-a15fcdbc4c2d", // Philips Avent Feeding Bottle
-  "bc30": "photo-1563453392212-326f5e854473", // Johnsons Baby Shampoo Honey
+  // ================= 13. PHARMACY (ph1 to ph30) =================
+  "ph1": "photo-1584308666744-24d5c474f2ae", // Napa Extra Tablet
+  "ph2": "photo-1471864190281-a93a3070b6de", // Ace Plus Tablet
+  "ph3": "photo-1587854692152-cbe660dbde88", // Seclo 20mg Capsule
+  "ph4": "photo-1584308666744-24d5c474f2ae", // Sergel 20mg Capsule
+  "ph5": "photo-1550572017-edd951aa8f72", // Pantonix 20mg Tablet
+  "ph6": "photo-1585435557343-3b092031a831", // Fexo 120mg Tablet
+  "ph7": "photo-1584017911766-d451b3d0e843", // Alatrol 10mg Tablet
+  "ph8": "photo-1587854692152-cbe660dbde88", // Tusca Cough Syrup
+  "ph9": "photo-1576073804825-9ff73a9856f6", // SMC ORSaline-N
+  "ph10": "photo-1556760544-74068565f05c", // SMC Tasty Saline Orange
+  "ph11": "photo-1584308666744-24d5c474f2ae", // Savlon Antiseptic Liquid
+  "ph12": "photo-1556228720-195a672e8a03", // Savlon Antiseptic Cream
+  "ph13": "photo-1584308666744-24d5c474f2ae", // Dettol Antiseptic Liquid
+  "ph14": "photo-1577401239170-897942555fb3", // Ceevit Chewable Tablet
+  "ph15": "photo-1584017911766-d451b3d0e843", // Bextram Gold Multivitamin
+  "ph16": "photo-1556228720-195a672e8a03", // Burnsil Burn Cream
+  "ph17": "photo-1584308666744-24d5c474f2ae", // Neoseptin Plus Powder
+  "ph18": "photo-1584308666744-24d5c474f2ae", // Band-Aid Waterproof
+  "ph19": "photo-1584308666744-24d5c474f2ae", // 3M Micropore Tape
+  "ph20": "photo-1584308666744-24d5c474f2ae", // Sterile Gauze Bandage
+  "ph21": "photo-1584308666744-24d5c474f2ae", // Medical Cotton Wool
+  "ph22": "photo-1584515979956-d9f6e5d09982", // Digital Thermometer
+  "ph23": "photo-1584017911766-d451b3d0e843", // Vicks VapoRub Balm
+  "ph24": "photo-1584308666744-24d5c474f2ae", // Vicks Nasal Inhaler
+  "ph25": "photo-1584017911766-d451b3d0e843", // Antacid Plus Tablet
+  "ph26": "photo-1584308666744-24d5c474f2ae", // Flagyl 400mg Tablet
+  "ph27": "photo-1584308666744-24d5c474f2ae", // Povidone-Iodine Gargle
+  "ph28": "photo-1584308666744-24d5c474f2ae", // Refresh Tears Eye Drop
+  "ph29": "photo-1550572017-edd951aa8f72", // E-Cap 400IU Vitamin E
+  "ph30": "photo-1584308666744-24d5c474f2ae", // Crepe Bandage 4 Inch
 
   // ================= 14. RESTAURANT MENU (rest1 to rest35) =================
   "rest1": "photo-1516684732162-798a0062be99", // Steamed Rice (ভাত)

@@ -444,80 +444,106 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
 
       {/* Wallet Adjustment Modal */}
       {showWalletModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white max-w-sm w-full p-4 sm:p-6 rounded-3xl border border-slate-100 shadow-2xl relative animate-scale-up text-slate-700 max-h-[90vh] overflow-y-auto">
-            <button 
-              onClick={() => setShowWalletModal(false)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-slate-150 text-slate-400 hover:text-slate-700"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">
-              {getTranslation("ওয়ালেট তহবিল সমন্বয়", "Adjust User Wallet Funds")}
-            </h3>
-            
-            <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl mb-4 text-xs font-bold">
-              <div>Name: {selectedUser.displayName}</div>
-              <div className="text-[10px] text-slate-400 mt-1">Current Balance: ৳{selectedUser.balance || 0}</div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 animate-scale-up text-slate-700">
+            {/* Header */}
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold border border-emerald-100 shrink-0">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-800">
+                    {getTranslation("ওয়ালেট তহবিল সমন্বয়", "Adjust User Wallet Funds")}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    {selectedUser.displayName || selectedUser.email}
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowWalletModal(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <form onSubmit={handleSaveWalletAdjustment} className="space-y-4">
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Adjustment Type</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    type="button" 
-                    onClick={() => setAdjustType("deposit")}
-                    className={`py-2 rounded-xl text-xs font-black cursor-pointer uppercase ${
-                      adjustType === "deposit" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {getTranslation("আমানত (Deposit)", "Deposit")}
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setAdjustType("withdraw")}
-                    className={`py-2 rounded-xl text-xs font-black cursor-pointer uppercase ${
-                      adjustType === "withdraw" ? "bg-red-600 text-white" : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {getTranslation("উত্তোলন (Withdraw)", "Withdraw")}
-                  </button>
+            <form onSubmit={handleSaveWalletAdjustment} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="overflow-y-auto flex-1 p-6 space-y-4">
+                <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold">
+                  <div>Name: {selectedUser.displayName}</div>
+                  <div className="text-[10px] text-slate-400 mt-1">Current Balance: ৳{selectedUser.balance || 0}</div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Adjustment Type</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      type="button" 
+                      onClick={() => setAdjustType("deposit")}
+                      className={`py-2 rounded-xl text-xs font-black cursor-pointer uppercase ${
+                        adjustType === "deposit" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {getTranslation("আমানত (Deposit)", "Deposit")}
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setAdjustType("withdraw")}
+                      className={`py-2 rounded-xl text-xs font-black cursor-pointer uppercase ${
+                        adjustType === "withdraw" ? "bg-red-600 text-white" : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {getTranslation("উত্তোলন (Withdraw)", "Withdraw")}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Amount (৳)</label>
+                  <input 
+                    type="number" 
+                    required 
+                    min={1} 
+                    value={adjustAmount} 
+                    onChange={(e) => setAdjustAmount(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Audit Trail Reason / Notes</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="e.g. Campaign winner prize, Delivery compensation" 
+                    value={adjustReason} 
+                    onChange={(e) => setAdjustReason(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Amount (৳)</label>
-                <input 
-                  type="number" 
-                  required 
-                  min={1} 
-                  value={adjustAmount} 
-                  onChange={(e) => setAdjustAmount(Number(e.target.value))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
-                />
+              {/* Fixed Footer */}
+              <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end bg-gray-50/50">
+                <button 
+                  type="button"
+                  onClick={() => setShowWalletModal(false)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  {getTranslation("বাতিল", "Cancel")}
+                </button>
+                <button 
+                  type="submit"
+                  disabled={savingWallet}
+                  className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-black uppercase shadow transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {savingWallet && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{getTranslation("সমন্বয় নিশ্চিত করুন", "Confirm Balance Change")}</span>
+                </button>
               </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Audit Trail Reason / Notes</label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="e.g. Campaign winner prize, Delivery compensation" 
-                  value={adjustReason} 
-                  onChange={(e) => setAdjustReason(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-emerald-500" 
-                />
-              </div>
-
-              <button 
-                type="submit"
-                disabled={savingWallet}
-                className="w-full bg-slate-900 hover:bg-black text-white rounded-xl py-2.5 text-xs font-black uppercase cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                {savingWallet && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                <span>{getTranslation("সমন্বয় নিশ্চিত করুন", "Confirm Balance Change")}</span>
-              </button>
             </form>
           </div>
         </div>

@@ -31,13 +31,31 @@ export const CATEGORIES: Category[] = [
     imageUrl: "https://res.cloudinary.com/upvkzb3p/image/upload/v1784818982/aisure-2f9b0144-2a3f-4bf8-ac23-9bb0efcf7756_r428ci.webp"
   },
   {
+    id: "bakery-sweets",
+    nameBn: "রেস্টুরেন্ট",
+    nameEn: "Restaurant",
+    iconName: "Utensils",
+    colorClass: "bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100",
+    borderColor: "border-fuchsia-100",
+    displayOrder: 3
+  },
+  {
     id: "fish",
     nameBn: "তাজা মাছ",
     nameEn: "Fresh Fish",
     iconName: "Fish",
     colorClass: "bg-cyan-50 text-cyan-700 hover:bg-cyan-100",
     borderColor: "border-cyan-100",
-    displayOrder: 3
+    displayOrder: 4
+  },
+  {
+    id: "snacks-biscuits",
+    nameBn: "কনফেকশনারি",
+    nameEn: "Confectionery",
+    iconName: "Cookie",
+    colorClass: "bg-pink-50 text-pink-700 hover:bg-pink-100",
+    borderColor: "border-pink-100",
+    displayOrder: 5
   },
   {
     id: "meat",
@@ -46,7 +64,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Beef",
     colorClass: "bg-red-50 text-red-700 hover:bg-red-100",
     borderColor: "border-red-100",
-    displayOrder: 4
+    displayOrder: 6
   },
   {
     id: "fruits",
@@ -55,7 +73,7 @@ export const CATEGORIES: Category[] = [
     iconName: "Apple",
     colorClass: "bg-amber-50 text-amber-700 hover:bg-amber-100",
     borderColor: "border-amber-100",
-    displayOrder: 5
+    displayOrder: 7
   },
   {
     id: "dairy-eggs",
@@ -64,24 +82,6 @@ export const CATEGORIES: Category[] = [
     iconName: "Egg",
     colorClass: "bg-lime-50 text-lime-700 hover:bg-lime-100",
     borderColor: "border-lime-100",
-    displayOrder: 6
-  },
-  {
-    id: "snacks-biscuits",
-    nameBn: "স্ন্যাক্স ও বিস্কুট",
-    nameEn: "Snacks & Biscuits",
-    iconName: "Cookie",
-    colorClass: "bg-pink-50 text-pink-700 hover:bg-pink-100",
-    borderColor: "border-pink-100",
-    displayOrder: 7
-  },
-  {
-    id: "beverages",
-    nameBn: "কোমল পানীয় ও জুস",
-    nameEn: "Beverages",
-    iconName: "Coffee",
-    colorClass: "bg-teal-50 text-teal-700 hover:bg-teal-100",
-    borderColor: "border-teal-100",
     displayOrder: 8
   },
   {
@@ -114,22 +114,13 @@ export const CATEGORIES: Category[] = [
     imageUrl: "https://res.cloudinary.com/upvkzb3p/image/upload/v1785309507/aisure-3561e436-078a-4e79-8f45-3236c76ff2c2_w71g9q.webp"
   },
   {
-    id: "baby-care",
-    nameBn: "শিশুর যত্ন ও ডায়াপার",
-    nameEn: "Baby Care",
-    iconName: "Baby",
-    colorClass: "bg-purple-50 text-purple-700 hover:bg-purple-100",
-    borderColor: "border-purple-100",
+    id: "pharmacy",
+    nameBn: "ফার্মেসি",
+    nameEn: "Pharmacy",
+    iconName: "Pill",
+    colorClass: "bg-teal-50 text-teal-700 hover:bg-teal-100",
+    borderColor: "border-teal-100",
     displayOrder: 12
-  },
-  {
-    id: "bakery-sweets",
-    nameBn: "রেস্টুরেন্ট",
-    nameEn: "Restaurant",
-    iconName: "Utensils",
-    colorClass: "bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100",
-    borderColor: "border-fuchsia-100",
-    displayOrder: 13
   },
   {
     id: "offers",
@@ -138,16 +129,16 @@ export const CATEGORIES: Category[] = [
     iconName: "Tag",
     colorClass: "bg-rose-50 text-rose-700 hover:bg-rose-100",
     borderColor: "border-rose-100",
-    displayOrder: 14
+    displayOrder: 13
   },
   {
-    id: "organic-herbal",
-    nameBn: "অর্গানিক ও ভেষজ",
-    nameEn: "Organic & Herbal",
-    iconName: "Sparkles",
+    id: "buy-sell",
+    nameBn: "বাই-সেল জোন",
+    nameEn: "Buy & Sell Zone",
+    iconName: "Repeat",
     colorClass: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
     borderColor: "border-emerald-100",
-    displayOrder: 15
+    displayOrder: 14
   },
   {
     id: "pet-care",
@@ -156,17 +147,41 @@ export const CATEGORIES: Category[] = [
     iconName: "Fish",
     colorClass: "bg-orange-50 text-orange-700 hover:bg-orange-100",
     borderColor: "border-orange-100",
-    displayOrder: 16,
+    displayOrder: 15,
     image: "https://res.cloudinary.com/upvkzb3p/image/upload/v1788847049/Gemini_Generated_Image_9fvh39fvh39fvh39_wgoydg.jpg",
     imageUrl: "https://res.cloudinary.com/upvkzb3p/image/upload/v1788847049/Gemini_Generated_Image_9fvh39fvh39fvh39_wgoydg.jpg"
   },
   {
-    id: "home-appliances",
-    nameBn: "গৃহস্থালি সরঞ্জাম",
-    nameEn: "Home & Kitchenware",
-    iconName: "Droplet",
-    colorClass: "bg-teal-50 text-teal-800 hover:bg-teal-100",
-    borderColor: "border-teal-100",
-    displayOrder: 17
+    id: "pet-food-care",
+    nameBn: "ইভেন্ট ম্যানেজমেন্ট",
+    nameEn: "Event Management",
+    iconName: "Calendar",
+    colorClass: "bg-purple-50 text-purple-700 hover:bg-purple-100",
+    borderColor: "border-purple-100",
+    displayOrder: 16
+  },
+  {
+    id: "vehicles",
+    nameBn: "যানবাহন",
+    nameEn: "Vehicles & Transport",
+    iconName: "Truck",
+    colorClass: "bg-blue-50 text-blue-700 hover:bg-blue-100",
+    borderColor: "border-blue-100",
+    displayOrder: 17,
+    image: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=600&auto=format&fit=crop&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=600&auto=format&fit=crop&q=80"
+  },
+  {
+    id: "mobile-zone",
+    nameBn: "মোবাইল জোন",
+    nameEn: "Mobile Zone",
+    iconName: "Smartphone",
+    colorClass: "bg-indigo-50 text-indigo-700 hover:bg-indigo-100",
+    borderColor: "border-indigo-100",
+    displayOrder: 18,
+    image: "https://images.unsplash.com/photo-1511707171634-5f897ff02540?w=600&auto=format&fit=crop&q=80",
+    imageUrl: "https://images.unsplash.com/photo-1511707171634-5f897ff02540?w=600&auto=format&fit=crop&q=80"
   }
 ];
+
+export { mobileZoneCategory } from "./mobile_zone";

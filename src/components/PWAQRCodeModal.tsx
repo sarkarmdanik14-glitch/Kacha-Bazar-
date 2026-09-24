@@ -74,13 +74,13 @@ export const PWAQRCodeModal: React.FC<PWAQRCodeModalProps> = ({ isOpen, onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
       <div 
         id="pwa-qrcode-modal"
-        className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-emerald-100 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
+        className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200"
       >
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-700 text-white p-4 sm:p-5 flex items-center justify-between">
+        <div className="flex-shrink-0 bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-700 text-white p-4 sm:p-5 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center border border-white/20 shadow-inner">
               <QrCode className="w-5 h-5 text-white" />
@@ -104,7 +104,7 @@ export const PWAQRCodeModal: React.FC<PWAQRCodeModalProps> = ({ isOpen, onClose,
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-5">
+        <div className="overflow-y-auto flex-1 p-6 space-y-4">
           {/* Printable QR Code Poster Card */}
           <div 
             ref={posterRef}
@@ -222,6 +222,17 @@ export const PWAQRCodeModal: React.FC<PWAQRCodeModalProps> = ({ isOpen, onClose,
               <li>{lang === "bn" ? "‘অ্যাপ ইনস্টল করুন’ বাটনে ট্যাপ করলেই হোমস্ক্রিনে যুক্ত হয়ে যাবে।" : "Tap 'Install App' to add standalone app to home screen."}</li>
             </ol>
           </div>
+        </div>
+
+        {/* Fixed Footer */}
+        <div className="flex-shrink-0 p-4 border-t flex flex-wrap gap-2 justify-end bg-gray-50/50">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+          >
+            {lang === "bn" ? "বন্ধ করুন" : "Close"}
+          </button>
         </div>
       </div>
     </div>

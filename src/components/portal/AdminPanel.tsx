@@ -42,7 +42,8 @@ import AdminVoiceCallTab from "./AdminVoiceCallTab";
 import AdminIncomingCallModal from "./AdminIncomingCallModal";
 import AdminStaffManagementTab from "./AdminStaffManagementTab";
 import AdminPartnerShopsTab from "./AdminPartnerShopsTab";
-import { MessageSquare, Printer, Layout, PhoneCall, Users, Menu } from "lucide-react";
+import AdminBuySellTab from "./AdminBuySellTab";
+import { MessageSquare, Printer, Layout, PhoneCall, Users, Menu, Tag } from "lucide-react";
 import OrderMemoModal from "./OrderMemoModal";
 import { hasPermission, logStaffActivity, sendStaffHeartbeat, DEFAULT_ROLES } from "../../lib/staffManager";
 
@@ -98,6 +99,7 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
     { id: "daily_sales", module: "daily_sales", labelBn: "দৈনিক সেলস ওভারভিউ", labelEn: "Daily Sales Overview", icon: <BarChart3 className="w-4 h-4" /> },
     { id: "orders", module: "orders", labelBn: "অর্ডার ট্র্যাকিং", labelEn: "All Orders", icon: <ShoppingBag className="w-4 h-4" /> },
     { id: "products", module: "products", labelBn: "পণ্য ও ক্যাটাগরি", labelEn: "Products & Categories", icon: <Layers className="w-4 h-4" /> },
+    { id: "buy_sell", module: "products", labelBn: "🏷️ বাই-সেল মার্কেট", labelEn: "🏷️ Buy & Sell Marketplace", icon: <Tag className="w-4 h-4" /> },
     { id: "memo_management", module: "memo_management", labelBn: "মেমো ম্যানেজমেন্ট", labelEn: "Memo Management", icon: <Printer className="w-4 h-4" /> },
     { id: "staff_management", module: "staff_management", labelBn: "👥 স্টাফ ম্যানেজমেন্ট", labelEn: "Staff Management", icon: <Users className="w-4 h-4" /> },
     { id: "partner_shops", module: "partner_shops", labelBn: "🏪 পার্টনার শপস", labelEn: "Partner Shops", icon: <Store className="w-4 h-4" /> },
@@ -254,6 +256,17 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
         snapshot.forEach((doc) => {
           const data = doc.data();
           const catId = doc.id || data.id;
+
+          if (
+            catId === "home-appliances" ||
+            ((data.nameBn === "মোবাইল জোন" || data.nameEn === "Mobile Zone") &&
+              catId !== "mobile-zone" &&
+              catId !== "mobile" &&
+              catId !== "mobiles")
+          ) {
+            return;
+          }
+
           const isFrozenCat = catId === "frozen" || data.nameBn === "হিমায়িত খাদ্য";
           cats.push({
             id: catId,
@@ -341,7 +354,8 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
   const handleUpdateOrderStatus = async (orderId: string, status: string) => {
     try {
       await updateDoc(doc(db, "orders", orderId), {
-        orderStatus: status
+        orderStatus: status,
+        updatedAt: serverTimestamp()
       });
       triggerToast(`অর্ডার স্ট্যাটাস আপডেট করা হয়েছে: ${status}`, `Order status updated to: ${status}`);
 
@@ -451,6 +465,18 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
     } catch (err) {
       console.error("Error assigning rider:", err);
       triggerToast("রাইডার নিয়োগ ব্যর্থ হয়েছে।", "Failed to assign rider.");
+    }
+  };
+
+  // Delete Order permanently from Firestore
+  const handleDeleteOrder = async (orderId: string) => {
+    if (!confirm(getTranslation("আপনি কি নিশ্চিতভাবে এই অর্ডারটি ডাটাবেজ থেকে সম্পূর্ণ মুছে ফেলতে চান?", "Are you sure you want to permanently delete this order from the database?"))) return;
+    try {
+      await deleteDoc(doc(db, "orders", orderId));
+      triggerToast("অর্ডার সফলভাবে ডিলিট করা হয়েছে!", "Order deleted successfully from database!");
+    } catch (err: any) {
+      console.error("Error deleting order:", err);
+      triggerToast("অর্ডার ডিলিট ব্যর্থ হয়েছে।", "Failed to delete order.");
     }
   };
 
@@ -747,6 +773,7 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
                   handleUpdateOrderStatus={handleUpdateOrderStatus}
                   handleUpdatePaymentStatus={handleUpdatePaymentStatus}
                   handleAssignRider={handleAssignRider}
+                  handleDeleteOrder={handleDeleteOrder}
                 />
               </div>
             )}
@@ -755,6 +782,13 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
             {activeTab === "products" && (
               <div className="space-y-6 animate-fade-in">
                 <AdminProductsTab products={products} categories={categories} orders={orders} user={user} lang={lang} triggerToast={triggerToast} />
+              </div>
+            )}
+
+            {/* TAB: BUY & SELL MARKETPLACE */}
+            {activeTab === "buy_sell" && (
+              <div className="space-y-6 animate-fade-in">
+                <AdminBuySellTab currentUser={user} lang={lang} triggerToast={triggerToast} />
               </div>
             )}
 

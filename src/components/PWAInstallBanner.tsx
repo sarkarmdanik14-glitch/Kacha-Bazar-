@@ -213,7 +213,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
     <>
       {/* 1. Dedicated Landing Modal for QR Code Scan Visitors */}
       {showLandingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
           <div 
             id="pwa-qr-landing-card"
             className="bg-white max-w-sm w-full rounded-3xl p-5 sm:p-6 shadow-2xl border border-emerald-100 text-center space-y-4 animate-in zoom-in-95 duration-200 relative overflow-hidden"
@@ -381,7 +381,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
 
       {/* 3. Success Celebration Modal */}
       {showSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-in fade-in">
           <div className="bg-white max-w-sm w-full rounded-3xl p-6 text-center space-y-4 shadow-2xl border border-emerald-100 animate-in zoom-in-95">
             <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-600">
               <CheckCircle2 className="w-10 h-10" />
@@ -408,7 +408,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
 
       {/* 4. iOS / Unsupported Browser Manual Installation Guide Modal */}
       {showIOSGuide && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-sm w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in zoom-in-95 border border-emerald-100">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">

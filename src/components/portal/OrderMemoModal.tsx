@@ -160,7 +160,7 @@ export default function OrderMemoModal({
   const storeLogo = logoDataUrl || storeLogoRaw;
   const storeName = memoConfig?.storeName || getTranslation("কাঁচা বাজার", "Kancha Bazar");
   const storeTagline = memoConfig?.storeTagline || getTranslation("বিশুদ্ধ ও নিরাপদ খাদ্যের প্রতিশ্রুতি", "The Assurance of Pure & Fresh Food");
-  const supportPhone = memoConfig?.supportPhone || "+8801722638985";
+  const supportPhone = memoConfig?.supportPhone || "+8801615581975";
 
   // 1. Resolve Seller Officer from order, staff profile, or memo settings
   const matchedSellerOfficer: StaffMember | any | null = (() => {
@@ -361,12 +361,12 @@ export default function OrderMemoModal({
         : (Array.isArray(order.cart) ? order.cart : []));
 
   return (
-    <div className="order-memo-modal-overlay fixed inset-0 z-[1000] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+    <div className="order-memo-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
       {/* On-screen Modal Window */}
-      <div className="order-memo-modal-card bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-2xl w-full max-h-[90vh] overflow-y-auto flex flex-col relative animate-scale-up">
+      <div className="order-memo-modal-card max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden relative animate-scale-up">
         
         {/* Header Bar with Action Buttons */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10 no-print">
+        <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-white z-10 no-print">
           <div className="flex items-center space-x-2.5">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <FileText className="w-5 h-5" />
@@ -397,7 +397,7 @@ export default function OrderMemoModal({
               className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
             >
               {downloadingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              <span>{downloadingPDF ? getTranslation("তৈরি হচ্ছে...", "Generating...") : getTranslation("পিডিএফ ডাউনলোড", "Download PDF")}</span>
+              <span className="hidden sm:inline">{downloadingPDF ? getTranslation("তৈরি হচ্ছে...", "Generating...") : getTranslation("পিডিএফ", "PDF")}</span>
             </button>
 
             <button
@@ -405,7 +405,7 @@ export default function OrderMemoModal({
               className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
             >
               <Printer className="w-4 h-4 text-slate-600" />
-              <span>{getTranslation("প্রিন্ট করুন", "Print Memo")}</span>
+              <span className="hidden sm:inline">{getTranslation("প্রিন্ট", "Print")}</span>
             </button>
 
             <button
@@ -419,7 +419,7 @@ export default function OrderMemoModal({
 
         {/* Optional QR Seal Drawer */}
         {showVerificationDrawer && (
-          <div className="bg-emerald-950 text-white p-4 border-b border-emerald-800 flex items-center justify-between text-xs animate-fade-in no-print">
+          <div className="flex-shrink-0 bg-emerald-950 text-white p-4 border-b border-emerald-800 flex items-center justify-between text-xs animate-fade-in no-print">
             <div className="flex items-center gap-3">
               {qrDataUrl ? (
                 <img src={qrDataUrl} alt="QR Seal" className="w-12 h-12 bg-white p-1 rounded-xl shrink-0" />
@@ -450,7 +450,7 @@ export default function OrderMemoModal({
         )}
 
         {/* Printable Memo Content Container */}
-        <div className="p-4 sm:p-8 pb-10 sm:pb-12 flex-1 printable-memo-container">
+        <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4 printable-memo-container">
           <div 
             id="printable-memo-card" 
             ref={memoRef} 
@@ -738,6 +738,36 @@ export default function OrderMemoModal({
             </div>
 
           </div>
+        </div>
+
+        {/* Fixed Footer Actions */}
+        <div className="flex-shrink-0 p-4 border-t flex flex-wrap gap-2 justify-end bg-gray-50/50 no-print">
+          <button
+            type="button"
+            onClick={handleDownloadPDF}
+            disabled={downloadingPDF}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+          >
+            {downloadingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            <span>{downloadingPDF ? getTranslation("তৈরি হচ্ছে...", "Generating...") : getTranslation("পিডিএফ ডাউনলোড", "Download PDF")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer border border-slate-200"
+          >
+            <Printer className="w-4 h-4 text-slate-600" />
+            <span>{getTranslation("প্রিন্ট করুন", "Print Memo")}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+          >
+            {getTranslation("বন্ধ করুন", "Close")}
+          </button>
         </div>
       </div>
     </div>

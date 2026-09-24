@@ -9,7 +9,17 @@ import { initializeApp as initAdminApp, getApps as getAdminApps } from "firebase
 import { getFirestore as getAdminFirestore, FieldValue } from "firebase-admin/firestore";
 import { initializeApp as initWebApp, getApps as getWebApps } from "firebase/app";
 import { getFirestore as getWebFirestoreSdk, doc, setDoc, addDoc, collection } from "firebase/firestore";
-import firebaseAppletConfig from "./firebase-applet-config.json";
+
+// Safely load firebase config in both bundled CJS, native ESM, and Node 22+ type stripping
+let firebaseAppletConfig: any = {};
+try {
+  const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(configPath)) {
+    firebaseAppletConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  }
+} catch (e) {
+  console.warn("Could not load firebase-applet-config.json:", e);
+}
 
 // Load server environment variables from .env
 dotenv.config();
@@ -42,7 +52,7 @@ function getWebFirestore() {
 }
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json({ limit: "10mb" }));
 
@@ -2356,13 +2366,13 @@ app.post("/api/staff/firebase-session", rateLimiter(20, 60000), async (req, res)
 
 // Vite Middleware & Server Lifecycle
 async function startServer() {
-  const isProduction = process.env.NODE_ENV === "production";
   const distPath = path.join(process.cwd(), "dist");
+  const isDev = process.env.npm_lifecycle_event === "dev" || (process.env.NODE_ENV !== "production" && !fs.existsSync(path.join(distPath, "index.html")));
 
   // Serve static assets from public directory
   app.use(express.static(path.join(process.cwd(), "public")));
 
-  if (!isProduction) {
+  if (isDev) {
     try {
       const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
@@ -2370,10 +2380,12 @@ async function startServer() {
         appType: "spa",
       });
       app.use(vite.middlewares);
+      console.log("Vite development middleware attached.");
     } catch (err) {
       console.error("Failed to initialize Vite middleware in development mode:", err);
     }
   } else {
+    console.log("Serving static production build from:", distPath);
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"), (err) => {
@@ -2395,29 +2407,30 @@ async function startServer() {
     }
   });
 
-  // Primary listener on port 3000 (standard internal port for dev server & reverse proxy)
+  // Primary listener on PORT (e.g. 8080 in Cloud Run production, or 3000 in dev)
   const primaryServer = http.createServer(app);
+  primaryServer.on("error", (err: any) => {
+    console.error(`Primary server error on port ${PORT}:`, err);
+  });
   primaryServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+    console.log(`Server successfully listening on http://0.0.0.0:${PORT}`);
   });
 
-  // Secondary listener for Cloud Run ingress (e.g. PORT=8080 in production)
-  const envPort = process.env.PORT ? parseInt(process.env.PORT, 10) : null;
-  if (envPort && envPort !== PORT && !isNaN(envPort)) {
+  // If Cloud Run or custom env provided a port other than 3000,
+  // also attempt to listen on port 3000 for local dev reverse proxy compatibility
+  if (PORT !== 3000) {
     try {
       const secondaryServer = http.createServer(app);
       secondaryServer.on("error", (err: any) => {
-        if (err.code === "EADDRINUSE") {
-          console.log(`Port ${envPort} already bound by upstream reverse proxy; active on port ${PORT}`);
-        } else {
-          console.warn(`Secondary listener warning on port ${envPort}:`, err);
+        if (err.code !== "EADDRINUSE" && err.code !== "EACCES") {
+          console.warn(`Secondary listener notice on port 3000:`, err.message);
         }
       });
-      secondaryServer.listen(envPort, "0.0.0.0", () => {
-        console.log(`Server also listening on port ${envPort} (Cloud Run ingress)`);
+      secondaryServer.listen(3000, "0.0.0.0", () => {
+        console.log(`Server also listening on internal port 3000`);
       });
-    } catch (e) {
-      console.warn(`Could not start secondary listener on port ${envPort}:`, e);
+    } catch {
+      // Non-critical
     }
   }
 }

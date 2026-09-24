@@ -39,7 +39,8 @@ import {
   limit,
   onSnapshot,
   writeBatch,
-  runTransaction
+  runTransaction,
+  arrayUnion
 } from "firebase/firestore";
 import config from "../../firebase-applet-config.json";
 
@@ -105,6 +106,7 @@ export {
   onSnapshot,
   writeBatch,
   runTransaction,
+  arrayUnion,
   RecaptchaVerifier,
   signInWithPhoneNumber
 };
@@ -194,6 +196,38 @@ export async function seedDatabase(initialCategories: any[], initialProducts: an
           ...cop,
           expiryDate: Timestamp.fromDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
         });
+      }
+    }
+
+    // 5. Ensure Pharmacy category exists and old baby care products are removed
+    await setDoc(doc(db, "categories", "pharmacy"), {
+      id: "pharmacy",
+      nameBn: "ফার্মেসি",
+      nameEn: "Pharmacy",
+      iconName: "Pill",
+      colorClass: "bg-teal-50 text-teal-700 hover:bg-teal-100",
+      borderColor: "border-teal-100",
+      displayOrder: 12,
+      order: 12,
+      isAvailable: true
+    }, { merge: true }).catch(() => {});
+
+    await deleteDoc(doc(db, "categories", "baby-care")).catch(() => {});
+    await deleteDoc(doc(db, "categories", "home-appliances")).catch(() => {});
+    for (let i = 1; i <= 30; i++) {
+      deleteDoc(doc(db, "products", `bc${i}`)).catch(() => {});
+    }
+
+    // Ensure pharmacy products are seeded
+    const phCheck = await getDoc(doc(db, "products", "ph1"));
+    if (!phCheck.exists()) {
+      const pharmacyProds = initialProducts.filter(p => p.category === "pharmacy");
+      for (const prod of pharmacyProds) {
+        await setDoc(doc(db, "products", prod.id.toString()), {
+          ...prod,
+          isAvailable: true,
+          status: "active"
+        }, { merge: true }).catch(() => {});
       }
     }
 

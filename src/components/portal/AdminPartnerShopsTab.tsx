@@ -643,9 +643,9 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
 
       {/* ADD / EDIT PARTNER SHOP MODAL */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
-          <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-slate-100 my-8">
-            <div className="bg-slate-900 px-6 py-4 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden animate-fade-in">
+            <div className="flex-shrink-0 bg-slate-900 px-6 py-4 text-white flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Store className="w-5 h-5 text-emerald-400" />
                 <h3 className="font-black text-base">
@@ -663,7 +663,8 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
               </button>
             </div>
 
-            <form onSubmit={handleSaveShop} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleSaveShop} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="overflow-y-auto flex-1 p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Shop Name */}
                 <div>
@@ -867,9 +868,10 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
                   </div>
                 </div>
               </div>
+              </div>
 
-              {/* Buttons */}
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+              {/* Fixed Footer */}
+              <div className="flex-shrink-0 p-4 border-t flex flex-wrap gap-2 justify-end bg-gray-50/50">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}

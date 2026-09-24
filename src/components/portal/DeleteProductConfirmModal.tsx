@@ -110,7 +110,7 @@ export default function DeleteProductConfirmModal({
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget && !deleting) {
           onClose();
@@ -118,11 +118,11 @@ export default function DeleteProductConfirmModal({
       }}
     >
       <div 
-        className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
+        className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+        <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center space-x-3">
             <div className={`p-2.5 rounded-xl ${orderCheck.hasOrders ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-600"}`}>
               {orderCheck.hasOrders ? (
@@ -153,7 +153,7 @@ export default function DeleteProductConfirmModal({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-4">
+        <div className="overflow-y-auto flex-1 p-6 space-y-4">
           
           {/* Product Summary Card */}
           <div className="flex items-center space-x-4 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
@@ -241,7 +241,7 @@ export default function DeleteProductConfirmModal({
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-3">
+        <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end bg-gray-50/50">
           <button
             type="button"
             onClick={onClose}

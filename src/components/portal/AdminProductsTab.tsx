@@ -4,14 +4,18 @@ import {
   Plus, Edit, Trash2, Upload, Download, Check, X, RefreshCw, 
   Layers, ChevronRight, FileText, ImageIcon, ArrowUp, ArrowDown,
   Eye, EyeOff, Search, Filter, CheckCircle2, XCircle, Salad,
-  Grid, Tag, Settings, Sparkles, Package, FolderPlus, Flame, Coffee, Apple, Milk, ShoppingBag, Sliders, Fish
+  Grid, Tag, Settings, Sparkles, Package, FolderPlus, Flame, Coffee, Apple, Milk, ShoppingBag, Sliders, Fish, Pill
 } from "lucide-react";
-import { db, doc, setDoc, updateDoc, deleteDoc, collection, addDoc } from "../../lib/firebase";
+import { db, doc, setDoc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp } from "../../lib/firebase";
 import { ProductOption } from "../../types";
 import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
 import { isCategoryMatch, normalizeCategoryId } from "../../lib/categoryUtils";
 import { matchesProductSearch } from "../../lib/banglishSearch";
 import { DRY_FOOD_RAW } from "../../data/dry_food";
+import { PHARMACY_PRODUCTS_RAW } from "../../data/pharmacy_products";
+import { GROCERY_SUBCATEGORY_MAP, GROCERY_ORDER_MAP, GROCERY_SECTIONS, getResolvedGrocerySubcategory, getResolvedGroceryDisplayOrder } from "../../data/grocery_subcategories";
+import { resolveProductUnit } from "../../lib/productWeightUtils";
+import { ALL_PRODUCTS } from "../../data/all_products";
 
 interface AdminProductsTabProps {
   products: any[];
@@ -113,16 +117,16 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   const [bulkCsvText, setBulkCsvText] = useState<string>("");
   const [importingBulk, setImportingBulk] = useState<boolean>(false);
 
-  // One-time automatic sync for Dry Food category & products in Firestore
+  // One-time automatic sync for Dry Food category, Restaurant (#3) & Confectionery (#5) in Firestore
   useEffect(() => {
     if (!user) return;
-    const hasSyncedKey = "kacha_bazar_dry_food_synced_v2";
+    const hasSyncedKey = "kacha_bazar_cat_reorder_restaurant3_confectionery5_v1";
     if (sessionStorage.getItem(hasSyncedKey)) return;
 
     const performDryFoodSync = async () => {
       try {
         sessionStorage.setItem(hasSyncedKey, "true");
-        // 1. Update/set category document in Firestore
+        // 1. Update/set category documents in Firestore for Restaurant (#3) and Confectionery (#5)
         await setDoc(doc(db, "categories", "frozen"), {
           id: "frozen",
           nameBn: "ড্রাই ফুড",
@@ -130,8 +134,33 @@ export default function AdminProductsTab({ products, categories, orders = [], us
           iconName: "Package",
           colorClass: "bg-amber-50 text-amber-700 hover:bg-amber-100",
           borderColor: "border-amber-100",
-          displayOrder: 9
+          displayOrder: 9,
+          order: 9
         }, { merge: true });
+
+        await setDoc(doc(db, "categories", "bakery-sweets"), {
+          id: "bakery-sweets",
+          nameBn: "রেস্টুরেন্ট",
+          nameEn: "Restaurant",
+          iconName: "Utensils",
+          displayOrder: 3,
+          order: 3
+        }, { merge: true });
+
+        await setDoc(doc(db, "categories", "snacks-biscuits"), {
+          id: "snacks-biscuits",
+          nameBn: "কনফেকশনারি",
+          nameEn: "Confectionery",
+          iconName: "Cookie",
+          displayOrder: 5,
+          order: 5
+        }, { merge: true });
+
+        await setDoc(doc(db, "categories", "fish"), { displayOrder: 4, order: 4 }, { merge: true });
+        await setDoc(doc(db, "categories", "meat"), { displayOrder: 6, order: 6 }, { merge: true });
+        await setDoc(doc(db, "categories", "fruits"), { displayOrder: 7, order: 7 }, { merge: true });
+        await setDoc(doc(db, "categories", "dairy-eggs"), { displayOrder: 8, order: 8 }, { merge: true });
+        await setDoc(doc(db, "categories", "beverages"), { isMerged: true, disabled: true, isAvailable: false }, { merge: true });
 
         // 2. Remove all old products from former "হিমায়িত খাদ্য" category (fr1 - fr30)
         for (let i = 1; i <= 30; i++) {
@@ -153,13 +182,85 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             isAvailable: true
           }, { merge: true });
         }
+
+        // 4. Sync Grocery products subcategories & order in Firestore
+        for (const [prodId, subcat] of Object.entries(GROCERY_SUBCATEGORY_MAP)) {
+          const prodRef = doc(db, "products", prodId);
+          await setDoc(prodRef, {
+            subcategory: subcat,
+            category: "groceries",
+            displayOrder: GROCERY_ORDER_MAP[prodId] ?? 999,
+            order: GROCERY_ORDER_MAP[prodId] ?? 999
+          }, { merge: true }).catch(() => {});
+        }
+
+        // 5. Sync crystal clear product units (kg, gram, piece, liter, ml) across all existing products
+        for (const prod of products) {
+          if (!prod || !prod.id) continue;
+          const resolved = resolveProductUnit(prod);
+          if (resolved.unitBn !== prod.unitBn || resolved.unitEn !== prod.unitEn) {
+            const prodRef = doc(db, "products", prod.id);
+            await setDoc(prodRef, {
+              unitBn: resolved.unitBn,
+              unitEn: resolved.unitEn
+            }, { merge: true }).catch(() => {});
+          }
+        }
+
+        // 6. Sync Pharmacy (ফার্মেসি) Category & remove old baby-care products
+        await setDoc(doc(db, "categories", "pharmacy"), {
+          id: "pharmacy",
+          nameBn: "ফার্মেসি",
+          nameEn: "Pharmacy",
+          iconName: "Pill",
+          colorClass: "bg-teal-50 text-teal-700 hover:bg-teal-100",
+          borderColor: "border-teal-100",
+          displayOrder: 12,
+          order: 12,
+          isAvailable: true
+        }, { merge: true });
+
+        // Update legacy baby-care category doc if exists
+        await setDoc(doc(db, "categories", "baby-care"), {
+          id: "pharmacy",
+          nameBn: "ফার্মেসি",
+          nameEn: "Pharmacy",
+          iconName: "Pill",
+          colorClass: "bg-teal-50 text-teal-700 hover:bg-teal-100",
+          borderColor: "border-teal-100",
+          displayOrder: 12,
+          order: 12,
+          isAvailable: false,
+          isMerged: true
+        }, { merge: true }).catch(() => {});
+
+        // Remove all old products from former "শিশুর যত্ন ও ডায়াপার" category (bc1 - bc30)
+        for (let i = 1; i <= 30; i++) {
+          const oldRef = doc(db, "products", `bc${i}`);
+          try {
+            await deleteDoc(oldRef);
+          } catch {
+            await setDoc(oldRef, { isDeleted: true, status: "inactive" }, { merge: true }).catch(() => {});
+          }
+        }
+
+        // Write/sync all 30 Pharmacy medicine products to Firestore
+        for (const prod of PHARMACY_PRODUCTS_RAW) {
+          const prodRef = doc(db, "products", prod.id);
+          await setDoc(prodRef, {
+            ...prod,
+            isDeleted: false,
+            status: "active",
+            isAvailable: true
+          }, { merge: true });
+        }
       } catch (e) {
-        console.warn("Dry food background sync notice:", e);
+        console.warn("Dry food, pharmacy and grocery sync notice:", e);
       }
     };
 
     performDryFoodSync();
-  }, [user]);
+  }, [user, products]);
 
   // Escape key listener to immediately close open modals and restore full interaction
   useEffect(() => {
@@ -289,7 +390,8 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         colorClass: catColor.trim() || "bg-emerald-50 text-emerald-700",
         borderColor: catBorder.trim() || "border-emerald-100",
         image: catImage.trim(),
-        imageUrl: catImage.trim()
+        imageUrl: catImage.trim(),
+        updatedAt: serverTimestamp()
       };
 
       await setDoc(doc(db, "categories", payload.id), payload, { merge: true });
@@ -317,6 +419,11 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       case "sparkles": return <Sparkles className="w-5 h-5" />;
       case "package": return <Package className="w-5 h-5" />;
       case "shoppingbag": return <ShoppingBag className="w-5 h-5" />;
+      case "repeat":
+      case "tag": return <Tag className="w-5 h-5" />;
+      case "pill":
+      case "cross":
+      case "medicine": return <Pill className="w-5 h-5" />;
       default: return <Salad className="w-5 h-5" />;
     }
   };
@@ -421,7 +528,8 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         disabled: !modalCatIsAvailable,
         displayOrder: Number(modalCatDisplayOrder) || 0,
         order: Number(modalCatDisplayOrder) || 0,
-        updatedAt: new Date()
+        updatedAt: serverTimestamp(),
+        ...(editingCategoryModal ? {} : { createdAt: serverTimestamp() })
       };
 
       await setDoc(doc(db, "categories", finalId), payload, { merge: true });
@@ -446,7 +554,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       await setDoc(doc(db, "categories", catId), {
         isAvailable: newStatus,
         disabled: !newStatus,
-        updatedAt: new Date()
+        updatedAt: serverTimestamp()
       }, { merge: true });
 
       triggerToast(
@@ -502,7 +610,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     setProdOrigPrice(p.originalPrice || p.price || 0);
     setProdUnitEn(p.unitEn || "");
     setProdUnitBn(p.unitBn || "");
-    setProdCategory(isCategoryMatch(p.category, "groceries") ? "groceries" : (p.category || selectedCatId || "vegetables"));
+    const effectiveCat = isCategoryMatch(p.category, "groceries")
+      ? "groceries"
+      : (isCategoryMatch(p.category, "snacks-biscuits") ? "snacks-biscuits" : (p.category || selectedCatId || "vegetables"));
+    setProdCategory(effectiveCat);
     setProdStock(p.stock || 0);
     setProdImage(p.image || "");
     setProdDescEn(p.descriptionEn || "");
@@ -575,7 +686,8 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         isAvailable: prodIsAvailable,
         displayOrder: Number(prodDisplayOrder) || 0,
         order: Number(prodDisplayOrder) || 0,
-        updatedAt: new Date()
+        updatedAt: serverTimestamp(),
+        ...(editingProduct ? {} : { createdAt: serverTimestamp() })
       };
 
       await setDoc(doc(db, "products", prodId), payload, { merge: true });
@@ -592,13 +704,39 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     }
   };
 
+  // Helper to remove any undefined fields before sending to Firestore
+  const sanitizeForFirestore = (obj: any) => {
+    if (!obj || typeof obj !== "object") return {};
+    const clean: Record<string, any> = {};
+    for (const [key, val] of Object.entries(obj)) {
+      if (val !== undefined) {
+        clean[key] = val;
+      }
+    }
+    return clean;
+  };
+
   // Quick enable/disable toggle
   const handleToggleProductAvailability = async (productId: string, currentStatus: boolean) => {
     try {
       const nextStatus = !currentStatus;
-      await updateDoc(doc(db, "products", productId), {
-        isAvailable: nextStatus
-      });
+      const targetProd = products.find(p => p.id === productId) || ALL_PRODUCTS.find(p => p.id === productId);
+
+      const payload = targetProd
+        ? {
+            ...sanitizeForFirestore(targetProd),
+            id: productId,
+            isAvailable: nextStatus,
+            updatedAt: new Date()
+          }
+        : {
+            id: productId,
+            isAvailable: nextStatus,
+            updatedAt: new Date()
+          };
+
+      await setDoc(doc(db, "products", productId), payload, { merge: true });
+
       triggerToast(
         nextStatus ? "পণ্যটি এখন ক্যাটালগে সক্রিয়!" : "পণ্যটি ক্যাটালগে লুকানো/নিষ্ক্রিয় করা হয়েছে!",
         nextStatus ? "Product enabled and visible to shoppers!" : "Product disabled/hidden from catalog!"
@@ -626,8 +764,23 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     const newTargetOrder = currentOrder === targetOrder ? (direction === "up" ? targetOrder + 1 : Math.max(0, targetOrder - 1)) : currentOrder;
 
     try {
-      await updateDoc(doc(db, "products", currentItem.id), { displayOrder: newCurrentOrder, order: newCurrentOrder });
-      await updateDoc(doc(db, "products", targetItem.id), { displayOrder: newTargetOrder, order: newTargetOrder });
+      const currentPayload = {
+        ...sanitizeForFirestore(currentItem),
+        id: currentItem.id,
+        displayOrder: newCurrentOrder,
+        order: newCurrentOrder,
+        updatedAt: new Date()
+      };
+      const targetPayload = {
+        ...sanitizeForFirestore(targetItem),
+        id: targetItem.id,
+        displayOrder: newTargetOrder,
+        order: newTargetOrder,
+        updatedAt: new Date()
+      };
+
+      await setDoc(doc(db, "products", currentItem.id), currentPayload, { merge: true });
+      await setDoc(doc(db, "products", targetItem.id), targetPayload, { merge: true });
       triggerToast("পণ্যের পজিশন পরিবর্তন করা হয়েছে!", "Product reordered successfully!");
     } catch (err) {
       console.error("Error reordering product:", err);
@@ -1354,7 +1507,8 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                     globalFilteredProducts.map((p) => {
                       const isAvailable = p.isAvailable !== false;
                       const catInfo = categories.find(c => c.id === p.category) || 
-                        (isCategoryMatch(p.category, "groceries") ? categories.find(c => c.id === "groceries") : undefined);
+                        (isCategoryMatch(p.category, "groceries") ? categories.find(c => c.id === "groceries") : undefined) ||
+                        (isCategoryMatch(p.category, "snacks-biscuits") ? categories.find(c => c.id === "snacks-biscuits") : undefined);
                       return (
                         <tr key={p.id} className="hover:bg-slate-50 transition">
                           <td className="p-3">
@@ -1433,14 +1587,14 @@ export default function AdminProductsTab({ products, categories, orders = [], us
               setShowProductForm(false);
             }
           }}
-          className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs flex flex-col items-center justify-center overflow-y-auto z-[9999] animate-fade-in p-3 sm:p-4 md:p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-fade-in"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[92vh] sm:max-h-[90vh] relative z-10"
+            className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden relative z-10"
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 sm:px-6 py-3.5 sm:py-4 bg-white shrink-0 sticky top-0 z-20">
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center space-x-2.5">
                 <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold border border-emerald-100 shrink-0">
                   <Layers className="w-4 h-4" />
@@ -1465,9 +1619,11 @@ export default function AdminProductsTab({ products, categories, orders = [], us
               </button>
             </div>
 
-            {/* Scrollable Form Body */}
-            <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(92vh-5rem)] sm:max-h-[calc(90vh-5rem)] flex-1 min-h-0">
-              <form onSubmit={handleSaveProduct} className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            {/* Form */}
+            <form onSubmit={handleSaveProduct} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {/* Scrollable Form Body */}
+              <div className="overflow-y-auto flex-1 p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div>
                 <label className="font-bold text-slate-700 block mb-1">{getTranslation("ক্যাটাগরি *", "Category *")}</label>
                 <select 
@@ -1591,15 +1747,18 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                 </label>
               </div>
 
-              <div className="md:col-span-2 flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button type="button" onClick={() => setShowProductForm(false)} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold uppercase">{getTranslation("বাতিল", "Cancel")}</button>
-                <button type="submit" disabled={savingProduct} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-1.5 cursor-pointer">
+                </div>
+              </div>
+
+              {/* Fixed Footer */}
+              <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end bg-gray-50/50">
+                <button type="button" onClick={() => setShowProductForm(false)} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">{getTranslation("বাতিল", "Cancel")}</button>
+                <button type="submit" disabled={savingProduct} className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
                   {savingProduct && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>{getTranslation("সংরক্ষণ করুন", "Save Product")}</span>
                 </button>
               </div>
             </form>
-            </div>
           </div>
         </div>,
         document.body
@@ -1611,23 +1770,38 @@ export default function AdminProductsTab({ products, categories, orders = [], us
           "vegetables": 1,
           "groceries": 2,
           "staples": 2,
-          "fish": 3,
-          "meat": 4,
-          "fruits": 5,
-          "dairy-eggs": 6,
-          "snacks-biscuits": 7,
-          "beverages": 8,
+          "spices-oils": 2,
+          "bakery-sweets": 3,
+          "restaurant": 3,
+          "bakery": 3,
+          "fish": 4,
+          "snacks-biscuits": 5,
+          "confectionery": 5,
+          "beverages": 5,
+          "meat": 6,
+          "fruits": 7,
+          "dairy-eggs": 8,
           "frozen": 9,
           "personal-care": 10,
           "household": 11,
+          "pharmacy": 12,
           "baby-care": 12,
-          "bakery-sweets": 13,
-          "offers": 14,
-          "organic-herbal": 15,
-          "pet-care": 16,
-          "home-appliances": 17
+          "offers": 13,
+          "buy-sell": 14,
+          "organic-herbal": 14,
+          "buysell": 14,
+          "pet-care": 15,
+          "pet-food-care": 16,
+          "vehicles": 17,
+          "transport": 17,
+          "car-rental": 17,
+          "mobile-zone": 18,
+          "mobile": 18,
+          "mobiles": 18
         };
-        const sortedAllCats = categories.filter(c => c.id !== "all").sort((a, b) => {
+        const sortedAllCats = categories
+          .filter(c => c.id !== "all" && c.id !== "home-appliances" && !((c.nameBn === "মোবাইল জোন" || c.nameEn === "Mobile Zone") && c.id !== "mobile-zone"))
+          .sort((a, b) => {
           const orderA = typeof a.displayOrder === "number" ? a.displayOrder : (typeof a.order === "number" ? a.order : (PRIORITY_ORDER_MAP[a.id] ?? 9999));
           const orderB = typeof b.displayOrder === "number" ? b.displayOrder : (typeof b.order === "number" ? b.order : (PRIORITY_ORDER_MAP[b.id] ?? 9999));
           return orderA - orderB;
@@ -1965,14 +2139,14 @@ export default function AdminProductsTab({ products, categories, orders = [], us
               setShowCategoryModal(false);
             }
           }}
-          className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs flex flex-col items-center justify-center overflow-y-auto z-[9999] animate-fade-in p-3 sm:p-4 md:p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-fade-in"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[92vh] sm:max-h-[90vh] relative z-10"
+            className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden relative z-10"
           >
             {/* Modal Header */}
-            <div className="flex justify-between items-center border-b border-slate-100 px-5 sm:px-6 py-3.5 sm:py-4 bg-white shrink-0 sticky top-0 z-20">
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="min-w-0">
                 <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
                   {editingCategoryModal ? getTranslation("ক্যাটাগরি আপডেট", "Edit Category") : getTranslation("নতুন ক্যাটাগরি", "New Category")}
@@ -1995,9 +2169,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
               </button>
             </div>
 
-            {/* Scrollable Modal Form Body */}
-            <div className="p-5 sm:p-6 overflow-y-auto max-h-[calc(92vh-5rem)] sm:max-h-[calc(90vh-5rem)] flex-1 min-h-0">
-              <form onSubmit={handleSaveCategoryModal} className="space-y-4">
+            {/* Form */}
+            <form onSubmit={handleSaveCategoryModal} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {/* Scrollable Modal Form Body */}
+              <div className="overflow-y-auto flex-1 p-6 space-y-4">
               {/* Category ID (Slug) */}
               <div>
                 <label className="text-xs font-black text-slate-700 uppercase block mb-1">
@@ -2153,27 +2328,27 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                   </label>
                 </div>
               </div>
+              </div>
 
-              {/* Modal Buttons */}
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              {/* Fixed Modal Footer Buttons */}
+              <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end bg-gray-50/50">
                 <button 
                   type="button" 
                   onClick={() => setShowCategoryModal(false)}
-                  className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold uppercase cursor-pointer"
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   {getTranslation("বাতিল", "Cancel")}
                 </button>
                 <button 
                   type="submit" 
                   disabled={savingCategoryModal}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   {savingCategoryModal && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>{getTranslation("সেভ করুন", "Save Category")}</span>
                 </button>
               </div>
             </form>
-            </div>
           </div>
         </div>,
         document.body

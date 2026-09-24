@@ -1031,7 +1031,7 @@ export default function StaffIdCardModal({
 
   if (loadingStaff) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 flex flex-col items-center justify-center shadow-2xl text-center">
           <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin mb-3" />
           <p className="text-white text-sm font-bold">{getTranslation("স্টাফ আইডি কার্ড লোড হচ্ছে...", "Loading Staff ID Card...")}</p>
@@ -1042,7 +1042,7 @@ export default function StaffIdCardModal({
 
   if (!activeStaff) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center">
           <AlertCircle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
           <h4 className="text-white font-bold text-base mb-1">{getTranslation("স্টাফ তথ্য পাওয়া যায়নি", "Staff Record Not Found")}</h4>
@@ -1061,11 +1061,11 @@ export default function StaffIdCardModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] my-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-fade-in">
+      <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-5xl bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden animate-scale-up">
         
         {/* Modal Top Header */}
-        <div className="p-4 sm:p-5 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3">
+        <div className="flex-shrink-0 p-4 sm:p-5 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3">
           <div className="flex items-center space-x-3.5">
             <div className="w-11 h-11 rounded-2xl overflow-hidden border border-slate-700 bg-white p-1 flex items-center justify-center shrink-0 shadow-sm">
               <img 
@@ -1132,7 +1132,7 @@ export default function StaffIdCardModal({
         </div>
 
         {/* Toolbar & Controls */}
-        <div className="px-4 py-2.5 bg-slate-850 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        <div className="flex-shrink-0 px-4 py-2.5 bg-slate-850 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2.5 text-xs">
           {/* Side view toggles & Responsive Zoom */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-750">
@@ -1227,7 +1227,7 @@ export default function StaffIdCardModal({
         </div>
 
         {/* Modal Main Content Area */}
-        <div className="p-3 sm:p-4 md:p-5 overflow-y-auto flex-1 bg-slate-950 flex flex-col items-center justify-center min-h-[380px]">
+        <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4 bg-slate-950 flex flex-col items-center">
           
           {/* ========================================================================= */}
           {/* EDIT FORM MODE */}
@@ -1777,7 +1777,7 @@ export default function StaffIdCardModal({
         </div>
 
         {/* Modal Footer Info */}
-        <div className="px-5 py-3 bg-slate-900 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+        <div className="flex-shrink-0 p-4 border-t border-slate-800 flex flex-wrap gap-2 justify-between items-center bg-slate-900 text-xs text-slate-400">
           <div className="flex items-center space-x-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>
@@ -1788,10 +1788,17 @@ export default function StaffIdCardModal({
             </span>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
             <span className="text-[11px] text-slate-500 font-mono">
               Staff: {activeStaff.fullName} ({activeStaff.staffId})
             </span>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              {getTranslation("বন্ধ করুন", "Close")}
+            </button>
           </div>
         </div>
 

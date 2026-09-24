@@ -1686,10 +1686,10 @@ export default function AdminStaffManagementTab({
       {/* MODAL 1: COMPLETE STAFF PROFILE MODAL */}
       {/* ========================================================================= */}
       {selectedStaffForView && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col border border-slate-200 shadow-2xl animate-scale-up overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 animate-scale-up">
             {/* Modal Header */}
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center space-x-2.5">
                 <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
                   <Users className="w-4 h-4" />
@@ -1712,7 +1712,7 @@ export default function AdminStaffManagementTab({
             </div>
 
             {/* Modal Body - Scrollable */}
-            <div className="p-5 overflow-y-auto space-y-6 divide-y divide-slate-100 text-xs text-slate-700">
+            <div className="overflow-y-auto flex-1 p-6 space-y-4 divide-y divide-slate-100 text-xs text-slate-700">
               
               {/* Profile Card Summary Banner */}
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 pb-2">
@@ -2038,8 +2038,12 @@ export default function AdminStaffManagementTab({
                   <span>{getTranslation("পাসওয়ার্ড রিসেট", "Password")}</span>
                 </button>
               </div>
+            </div>
 
+            {/* Modal Footer */}
+            <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end bg-gray-50/50">
               <button
+                type="button"
                 onClick={() => setSelectedStaffForView(null)}
                 className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
               >
@@ -2054,9 +2058,9 @@ export default function AdminStaffManagementTab({
       {/* MODAL 2: EDIT STAFF BASIC INFO */}
       {/* ========================================================================= */}
       {selectedStaffForEdit && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 border border-slate-200 shadow-xl animate-scale-up">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 animate-scale-up">
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <h3 className="font-black text-slate-800 text-sm flex items-center space-x-2">
                 <Edit2 className="w-4 h-4 text-blue-600" />
                 <span>{getTranslation("স্টাফ তথ্য এডিট করুন", "Edit Staff Information")}</span>
@@ -2069,18 +2073,19 @@ export default function AdminStaffManagementTab({
               </button>
             </div>
 
-            <form onSubmit={handleEditStaffSubmit} className="space-y-4">
-              {/* Permanent Staff ID notice */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 block">{getTranslation("স্টাফ আইডি (স্থায়ী)", "Staff ID (Permanent)")}</span>
-                  <span className="text-xs font-black text-slate-800">{selectedStaffForEdit.staffId}</span>
+            <form onSubmit={handleEditStaffSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="overflow-y-auto flex-1 p-6 space-y-4">
+                {/* Permanent Staff ID notice */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block">{getTranslation("স্টাফ আইডি (স্থায়ী)", "Staff ID (Permanent)")}</span>
+                    <span className="text-xs font-black text-slate-800">{selectedStaffForEdit.staffId}</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    {getTranslation("অপরিবর্তনীয়", "Immutable")}
+                  </span>
                 </div>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                  <Lock className="w-3 h-3" />
-                  {getTranslation("অপরিবর্তনীয়", "Immutable")}
-                </span>
-              </div>
 
               <div>
                 <label className="block text-xs font-black text-slate-700 mb-1">{getTranslation("পূর্ণ নাম", "Full Name")}</label>
@@ -2262,7 +2267,9 @@ export default function AdminStaffManagementTab({
                 </div>
               )}
 
-              <div className="flex justify-end space-x-2 pt-4 border-t border-slate-100">
+              </div>
+
+              <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end bg-gray-50/50">
                 <button
                   type="button"
                   onClick={() => setSelectedStaffForEdit(null)}
@@ -2286,9 +2293,9 @@ export default function AdminStaffManagementTab({
       {/* MODAL 3: CUSTOMIZE GRANULAR PERMISSIONS */}
       {/* ========================================================================= */}
       {selectedStaffForPerms && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col border border-slate-200 shadow-xl animate-scale-up">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 animate-scale-up">
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div>
                 <h3 className="font-black text-slate-800 text-sm flex items-center space-x-2">
                   <Shield className="w-4 h-4 text-purple-600" />
@@ -2306,7 +2313,7 @@ export default function AdminStaffManagementTab({
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+            <div className="overflow-y-auto flex-1 p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {PERMISSION_MODULES.map((m) => (
                   <div key={m.id} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
@@ -2335,7 +2342,7 @@ export default function AdminStaffManagementTab({
               </div>
             </div>
 
-            <div className="p-4 border-t border-slate-100 flex items-center justify-between shrink-0 bg-slate-50 rounded-b-3xl">
+            <div className="flex-shrink-0 p-4 border-t border-slate-100 flex items-center justify-between bg-gray-50/50">
               <div className="flex items-center space-x-2">
                 <button
                   type="button"
@@ -2383,9 +2390,9 @@ export default function AdminStaffManagementTab({
       {/* MODAL 4: RESET STAFF PASSWORD */}
       {/* ========================================================================= */}
       {selectedStaffForPassword && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 border border-slate-200 shadow-xl animate-scale-up">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 animate-scale-up">
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <h3 className="font-black text-slate-800 text-sm flex items-center space-x-2">
                 <Key className="w-4 h-4 text-amber-600" />
                 <span>{getTranslation("পাসওয়ার্ড রিসেট করুন", "Reset Password")}</span>
@@ -2398,39 +2405,41 @@ export default function AdminStaffManagementTab({
               </button>
             </div>
 
-            <p className="text-xs text-slate-600 mb-4">
-              {getTranslation(
-                `স্টাফ ${selectedStaffForPassword.fullName} (${selectedStaffForPassword.staffId})-এর জন্য নতুন পাসওয়ার্ড দিন:`,
-                `Enter new secure password for ${selectedStaffForPassword.fullName}:`
-              )}
-            </p>
+            <form onSubmit={handleResetPasswordSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="overflow-y-auto flex-1 p-6 space-y-4 text-xs text-slate-600">
+                <p>
+                  {getTranslation(
+                    `স্টাফ ${selectedStaffForPassword.fullName} (${selectedStaffForPassword.staffId})-এর জন্য নতুন পাসওয়ার্ড দিন:`,
+                    `Enter new secure password for ${selectedStaffForPassword.fullName}:`
+                  )}
+                </p>
 
-            <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-black text-slate-700 mb-1">
-                  {getTranslation("নতুন পাসওয়ার্ড (ন্যূনতম ৬ অক্ষর)", "New Password (Min 6 chars)")}
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    minLength={6}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter new password"
-                    className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-amber-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                <div>
+                  <label className="block text-xs font-black text-slate-700 mb-1">
+                    {getTranslation("নতুন পাসওয়ার্ড (ন্যূনতম ৬ অক্ষর)", "New Password (Min 6 chars)")}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-amber-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end bg-gray-50/50">
                 <button
                   type="button"
                   onClick={() => setSelectedStaffForPassword(null)}
@@ -2455,23 +2464,25 @@ export default function AdminStaffManagementTab({
       {/* MODAL 5: DELETE STAFF CONFIRMATION */}
       {/* ========================================================================= */}
       {selectedStaffForDelete && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 border border-slate-200 shadow-xl animate-scale-up text-center">
-            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-3">
-              <AlertTriangle className="w-6 h-6" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 animate-scale-up text-center">
+            <div className="overflow-y-auto flex-1 p-6 space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-3">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+
+              <h4 className="font-black text-slate-800 text-base">
+                {getTranslation("স্টাফ অ্যাকাউন্ট মুছে ফেলতে চান?", "Delete Staff Account?")}
+              </h4>
+              <p className="text-xs text-slate-500">
+                {getTranslation(
+                  `আপনি কি নিশ্চিত যে "${selectedStaffForDelete.fullName}" (${selectedStaffForDelete.staffId})-কে স্থায়ীভাবে মুছে ফেলতে চান?`,
+                  `Are you sure you want to permanently delete "${selectedStaffForDelete.fullName}" (${selectedStaffForDelete.staffId})?`
+                )}
+              </p>
             </div>
 
-            <h4 className="font-black text-slate-800 text-base">
-              {getTranslation("স্টাফ অ্যাকাউন্ট মুছে ফেলতে চান?", "Delete Staff Account?")}
-            </h4>
-            <p className="text-xs text-slate-500 mt-2">
-              {getTranslation(
-                `আপনি কি নিশ্চিত যে "${selectedStaffForDelete.fullName}" (${selectedStaffForDelete.staffId})-কে স্থায়ীভাবে মুছে ফেলতে চান?`,
-                `Are you sure you want to permanently delete "${selectedStaffForDelete.fullName}" (${selectedStaffForDelete.staffId})?`
-              )}
-            </p>
-
-            <div className="flex items-center justify-center space-x-3 mt-6">
+            <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-center bg-gray-50/50">
               <button
                 type="button"
                 onClick={() => setSelectedStaffForDelete(null)}
@@ -2495,10 +2506,10 @@ export default function AdminStaffManagementTab({
       {/* MODAL: SALARY MANAGEMENT & DISBURSEMENT */}
       {/* ========================================================================= */}
       {selectedStaffForSalary && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col border border-slate-200 shadow-2xl animate-scale-up overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 animate-scale-up">
             {/* Modal Header */}
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-amber-50/50 shrink-0">
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-amber-50/50">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shadow-xs">
                   <Wallet className="w-5 h-5" />
@@ -2521,7 +2532,7 @@ export default function AdminStaffManagementTab({
             </div>
 
             {/* Modal Content */}
-            <div className="p-5 overflow-y-auto space-y-5 text-xs text-slate-700">
+            <div className="overflow-y-auto flex-1 p-6 space-y-4 text-xs text-slate-700">
               {/* Summary Cards */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
@@ -2686,7 +2697,7 @@ export default function AdminStaffManagementTab({
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
+            <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end bg-gray-50/50">
               <button
                 type="button"
                 onClick={() => setSelectedStaffForSalary(null)}

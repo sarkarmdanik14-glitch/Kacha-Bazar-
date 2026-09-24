@@ -6,14 +6,17 @@ import {
   ChevronLeft, ChevronRight, Share2, Eye, Plus, Minus, Trash2, X, 
   MapPin, Bell, User, Check, Send, Tag, Gift, Award, Smartphone, 
   QrCode, ArrowRight, ArrowLeft, ThumbsUp, Info, ChevronDown, ChevronUp, CheckCircle, Percent, Volume2,
-  Phone, PhoneCall, Mail, ExternalLink, Navigation, Locate, Copy, Zap, Printer, Download, FileText, Loader2, Wifi, WifiOff, MessageSquare, Globe, Home, Utensils
+  Phone, PhoneCall, Mail, ExternalLink, Navigation, Locate, Copy, Zap, Printer, Download, FileText, Loader2, Wifi, WifiOff, MessageSquare, Globe, Home, Utensils, Pill, Repeat
 } from "lucide-react";
+import BuySellMarketplace from "./components/buysell/BuySellMarketplace";
 import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, CartItem, Review, ProductOption } from "./types";
 import { CATEGORIES, ALL_PRODUCTS } from "./data";
+import { resolveProductDisplayUnit } from "./lib/productWeightUtils";
 import { RESTAURANT_MENU_SECTIONS } from "./data/restaurant_new_items";
+import { GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data/grocery_subcategories";
 
 import PortalModal from "./components/portal/PortalModal";
 import CheckoutModal from "./components/CheckoutModal";
@@ -583,6 +586,18 @@ export default function App() {
           snap.forEach((doc) => {
             const data = doc.data();
             const catId = doc.id || data.id;
+
+            // Permanently ignore empty/obsolete home-appliances or duplicate mobile zone cards
+            if (
+              catId === "home-appliances" ||
+              ((data.nameBn === "মোবাইল জোন" || data.nameEn === "Mobile Zone") &&
+                catId !== "mobile-zone" &&
+                catId !== "mobile" &&
+                catId !== "mobiles")
+            ) {
+              return;
+            }
+
             const isFrozenCat = catId === "frozen" || data.nameBn === "হিমায়িত খাদ্য";
             cats.push({
               id: catId,
@@ -606,7 +621,7 @@ export default function App() {
           }
         });
 
-        // Merge "staples" (চাল ও ডাল) and "spices-oils" (মসলা ও রান্নার তেল) into "groceries" (মুদি পণ্য)
+        // Merge categories and enforce single Mobile Zone card
         const mergedCats = mergeCategoryCards(cats);
 
         // Priority order map for required categories
@@ -614,26 +629,40 @@ export default function App() {
           "vegetables": 1,
           "groceries": 2,
           "staples": 2,
-          "fish": 3,
-          "meat": 4,
-          "fruits": 5,
-          "dairy-eggs": 6,
-          "snacks-biscuits": 7,
-          "beverages": 8,
+          "spices-oils": 2,
+          "bakery-sweets": 3,
+          "restaurant": 3,
+          "bakery": 3,
+          "fish": 4,
+          "snacks-biscuits": 5,
+          "confectionery": 5,
+          "beverages": 5,
+          "meat": 6,
+          "fruits": 7,
+          "dairy-eggs": 8,
           "frozen": 9,
           "personal-care": 10,
           "household": 11,
+          "pharmacy": 12,
           "baby-care": 12,
-          "bakery-sweets": 13,
-          "offers": 14,
-          "organic-herbal": 15,
-          "pet-care": 16,
-          "home-appliances": 17
+          "offers": 13,
+          "buy-sell": 14,
+          "organic-herbal": 14,
+          "buysell": 14,
+          "pet-care": 15,
+          "pet-food-care": 16,
+          "vehicles": 17,
+          "transport": 17,
+          "car-rental": 17,
+          "mobile-zone": 18,
+          "mobile": 18,
+          "mobiles": 18
         };
 
-        // Remove duplicates if any
+        // Remove duplicates strictly by ID and nameBn so only one "মোবাইল জোন" is ever rendered
         const uniqueCats = mergedCats.filter((c, index, self) =>
-          index === self.findIndex((t) => t.id === c.id)
+          index === self.findIndex((t) => t.id === c.id) &&
+          index === self.findIndex((t) => t.nameBn === c.nameBn)
         );
 
         // Sort categories according to explicit displayOrder, PRIORITY_ORDER_MAP, or name
@@ -1123,7 +1152,10 @@ export default function App() {
       case "Cookie": return <Cookie className="w-5 h-5 md:w-6 md:h-6" />;
       case "Droplet": return <Droplet className="w-5 h-5 md:w-6 md:h-6" />;
       case "Heart": return <Heart className="w-5 h-5 md:w-6 md:h-6" />;
-      case "Baby": return <Baby className="w-5 h-5 md:w-6 md:h-6" />;
+      case "Pill":
+      case "Cross":
+      case "Medicine": return <Pill className="w-5 h-5 md:w-6 md:h-6" />;
+      case "Baby": return <Pill className="w-5 h-5 md:w-6 md:h-6" />;
       case "Candy": return <Candy className="w-5 h-5 md:w-6 md:h-6" />;
       case "Snowflake": return <Snowflake className="w-5 h-5 md:w-6 md:h-6" />;
       case "Coffee": return <Coffee className="w-5 h-5 md:w-6 md:h-6" />;
@@ -1131,6 +1163,12 @@ export default function App() {
       case "Tag": return <Tag className="w-5 h-5 md:w-6 md:h-6" />;
       case "Sparkles": return <Sparkles className="w-5 h-5 md:w-6 md:h-6" />;
       case "Utensils": return <Utensils className="w-5 h-5 md:w-6 md:h-6" />;
+      case "Repeat": return <Repeat className="w-5 h-5 md:w-6 md:h-6" />;
+      case "Truck":
+      case "Car": return <Truck className="w-5 h-5 md:w-6 md:h-6" />;
+      case "Smartphone":
+      case "Phone":
+      case "Mobile": return <Smartphone className="w-5 h-5 md:w-6 md:h-6" />;
       default: return <LayoutGrid className="w-5 h-5 md:w-6 md:h-6" />;
     }
   };
@@ -2156,6 +2194,14 @@ export default function App() {
 
           </>
         )
+      ) : normalizeCategoryId(selectedCategory) === "buy-sell" ? (
+        <BuySellMarketplace
+          currentUser={loggedInUser}
+          lang={lang}
+          onBackToHome={handleBackToHome}
+          triggerToast={triggerToast}
+          onOpenAuth={() => setShowPortalModal(true)}
+        />
       ) : (
         <div className="max-w-7xl mx-auto px-4 mt-6">
           {/* Category Page Header Banner */}
@@ -2167,17 +2213,26 @@ export default function App() {
                         CATEGORIES.find(c => c.id === selectedCategory) || 
                         { id: selectedCategory, nameBn: "মুদি পণ্য", nameEn: "Groceries", colorClass: "bg-amber-50 text-amber-800", borderColor: "border-amber-100", iconName: "Wheat" };
 
+            const isRestaurantCat = isCategoryMatch(selectedCategory, "bakery-sweets");
+            const isGroceryCat = isCategoryMatch(selectedCategory, "groceries");
+            const isVehicleCat = isCategoryMatch(selectedCategory, "vehicles");
+            const isMobileZoneCat = isCategoryMatch(selectedCategory, "mobile-zone");
+            const isSectionedCategory = isRestaurantCat || isGroceryCat || isMobileZoneCat;
+
             // Filter products
             const catProducts = availableProducts.filter((product) => {
               const matchesCategory = isCategoryMatch(product.category, selectedCategory);
-              const matchesSubcategory = selectedSubcategory === "all" || product.subcategory === selectedSubcategory;
+              const effectiveSubcategory = isGroceryCat 
+                ? getResolvedGrocerySubcategory(product.id, product.nameBn, product.nameEn, product.subcategory, product.category)
+                : (product.subcategory || "").toLowerCase();
+              const targetSub = selectedSubcategory.toLowerCase();
+              const matchesSubcategory = targetSub === "all" || effectiveSubcategory === targetSub;
               const matchesSearch = matchesProductSearch(product, searchQuery);
               return matchesCategory && matchesSubcategory && matchesSearch;
             });
 
             // Unique subcategories
             const allCatProducts = availableProducts.filter(p => isCategoryMatch(p.category, selectedCategory));
-            const isRestaurantCat = isCategoryMatch(selectedCategory, "bakery-sweets");
 
             let subcategories: string[] = [];
             if (isRestaurantCat) {
@@ -2185,6 +2240,29 @@ export default function App() {
               const orderedSubs = [
                 ...RESTAURANT_MENU_SECTIONS.filter(s => existingSubs.includes(s)),
                 ...existingSubs.filter(s => !RESTAURANT_MENU_SECTIONS.includes(s))
+              ];
+              subcategories = ["all", ...orderedSubs];
+            } else if (isGroceryCat) {
+              const existingSubs = Array.from(new Set(allCatProducts.map(p => getResolvedGrocerySubcategory(p.id, p.nameBn, p.nameEn, p.subcategory, p.category)).filter(Boolean)));
+              const orderedSubs = [
+                ...GROCERY_SECTIONS.filter(s => existingSubs.includes(s)),
+                ...existingSubs.filter(s => !GROCERY_SECTIONS.includes(s as any))
+              ];
+              subcategories = ["all", ...orderedSubs];
+            } else if (isVehicleCat) {
+              const VEHICLE_ORDERED_SUBS = ["ambulance", "microbus", "bus", "auto", "cng", "pickup", "van", "car"];
+              const existingSubs = Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean)));
+              const orderedSubs = [
+                ...VEHICLE_ORDERED_SUBS.filter(s => existingSubs.includes(s)),
+                ...existingSubs.filter(s => !VEHICLE_ORDERED_SUBS.includes(s))
+              ];
+              subcategories = ["all", ...orderedSubs];
+            } else if (isMobileZoneCat) {
+              const MOBILE_ORDERED_SUBS = ["vivo", "redmi", "infinix"];
+              const existingSubs = Array.from(new Set(allCatProducts.map(p => (p.subcategory || "").toLowerCase()).filter(Boolean)));
+              const orderedSubs = [
+                ...MOBILE_ORDERED_SUBS.filter(s => existingSubs.includes(s)),
+                ...existingSubs.filter(s => !MOBILE_ORDERED_SUBS.includes(s))
               ];
               subcategories = ["all", ...orderedSubs];
             } else {
@@ -2204,6 +2282,91 @@ export default function App() {
 
             return (
               <>
+                {/* Vehicle Rental Notice Banner */}
+                {isVehicleCat && (
+                  <div className="mb-4 p-3.5 bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-50 border border-blue-200/80 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                        <Truck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-black text-blue-900 leading-snug">
+                          {lang === "bn" ? "যানবাহন ও গাড়ি ভাড়া সেবা (২৪/৭ চালু)" : "Vehicle & Transport Rental Services (24/7 Available)"}
+                        </h4>
+                        <p className="text-[11px] sm:text-xs text-blue-700 leading-snug mt-0.5">
+                          {lang === "bn" 
+                            ? "অ্যাম্বুলেন্স, মাইক্রোবাস, বাস, পিকআপ, অটো, সিএনজি ও ভ্যান সার্ভিস। দূরত্ব ও গন্তব্য অনুযায়ী ভাড়া আলোচনা সাপেক্ষে।" 
+                            : "Ambulance, Microbus, Bus, Pickup, Auto, CNG & Van. Fare is negotiable based on trip."}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                      <a 
+                        href="tel:+8801615581975"
+                        className="flex-1 sm:flex-none px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      >
+                        <PhoneCall className="w-3.5 h-3.5" />
+                        <span>{lang === "bn" ? "কল করুন" : "Call Now"}</span>
+                      </a>
+                      <a 
+                        href={`https://wa.me/8801615581975?text=${encodeURIComponent("আসসালামু আলাইকুম, আমি যানবাহন ভাড়ার জন্য অনুসন্ধান করতে চাই।")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-1 sm:flex-none px-3.5 py-2 bg-[#25D366] hover:bg-[#20bd5a] text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>WhatsApp</span>
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mobile Zone Official Showroom Notice Banner */}
+                {isMobileZoneCat && (
+                  <div className="mb-4 p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl border border-indigo-500/30 shadow-md relative overflow-hidden">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0 shadow-md">
+                          <Smartphone className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-xs sm:text-sm font-black text-white leading-snug tracking-wide">
+                              {lang === "bn" ? "অফিসিয়াল মোবাইল জোন (Vivo • Redmi • Infinix)" : "Official Mobile Zone (Vivo • Redmi • Infinix)"}
+                            </h4>
+                            <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                              {lang === "bn" ? "✓ ১০০% অফিসিয়াল ওয়ারেন্টি" : "✓ 100% Official Warranty"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] sm:text-xs text-indigo-200/90 leading-snug mt-0.5">
+                            {lang === "bn" 
+                              ? "সিল প্যাক স্মার্টফোন, অরিজিনাল ক্যাশমেমো ও দ্রুততম হোম ডেলিভারি। চেক করে মূল্য পরিশোধ করুন।" 
+                              : "Brand new factory sealed handsets with official invoice & fast doorstep delivery."}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                        <a 
+                          href="tel:+8801615581975"
+                          className="flex-1 sm:flex-none px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                        >
+                          <PhoneCall className="w-3.5 h-3.5" />
+                          <span>{lang === "bn" ? "হটলাইন" : "Hotline"}</span>
+                        </a>
+                        <a 
+                          href={`https://wa.me/8801615581975?text=${encodeURIComponent("আসসালামু আলাইকুম, আমি মোবাইল জোন থেকে স্মার্টফোন কিনতে আগ্রহী।")}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 sm:flex-none px-3.5 py-2 bg-[#25D366] hover:bg-[#20bd5a] text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>WhatsApp</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Filtering, Subcategory, & Sorting Bar */}
                 <div className="flex flex-col lg:flex-row gap-3 justify-between items-start lg:items-center">
                   <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none max-w-full snap-x">
@@ -2218,25 +2381,56 @@ export default function App() {
 
                     <div className="h-4 w-[1px] bg-slate-200 shrink-0 mx-0.5"></div>
 
-                    {subcategories.map((sub: string) => (
-                      <button
-                        key={sub}
-                        onClick={() => {
-                          setSelectedSubcategory(sub);
-                          triggerToast(
-                            `সাবক্যাটাগরি: ${sub === "all" ? (lang === "bn" ? "সব" : "All") : sub}`,
-                            `Subcategory: ${sub === "all" ? "All" : sub}`
-                          );
-                        }}
-                        className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer snap-start border ${
-                          selectedSubcategory === sub
-                            ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                        }`}
-                      >
-                        {sub === "all" ? (lang === "bn" ? "সব পণ্য" : "All Products") : sub}
-                      </button>
-                    ))}
+                    {subcategories.map((sub: string) => {
+                      let label = sub === "all" 
+                        ? (lang === "bn" 
+                            ? (isVehicleCat ? "সব যানবাহন" : isMobileZoneCat ? "সব ব্র্যান্ড" : "সব পণ্য") 
+                            : (isVehicleCat ? "All Vehicles" : isMobileZoneCat ? "All Brands" : "All Products")) 
+                        : sub;
+                      if (isVehicleCat) {
+                        const VEHICLE_SUBCAT_LABELS: Record<string, { bn: string; en: string }> = {
+                          ambulance: { bn: "🚑 অ্যাম্বুলেন্স", en: "🚑 Ambulance" },
+                          microbus: { bn: "🚐 মাইক্রোবাস", en: "🚐 Microbus" },
+                          bus: { bn: "🚌 বাস সার্ভিস", en: "🚌 Bus Service" },
+                          auto: { bn: "🛺 অটো সার্ভিস", en: "🛺 Electric Auto" },
+                          cng: { bn: "🛵 সিএনজি সার্ভিস", en: "🛵 CNG Service" },
+                          pickup: { bn: "🚚 পিকআপ ট্রাক", en: "🚚 Pickup Truck" },
+                          van: { bn: "🛞 ভ্যান সার্ভিস", en: "🛞 Van Service" },
+                          car: { bn: "🚗 প্রাইভেট কার", en: "🚗 Private Car" }
+                        };
+                        if (VEHICLE_SUBCAT_LABELS[sub]) {
+                          label = VEHICLE_SUBCAT_LABELS[sub][lang];
+                        }
+                      } else if (isMobileZoneCat) {
+                        const MOBILE_SUBCAT_LABELS: Record<string, { bn: string; en: string }> = {
+                          vivo: { bn: "🔵 Vivo (ভিভো)", en: "🔵 Vivo" },
+                          redmi: { bn: "🟠 Redmi (রেডমি)", en: "🟠 Redmi" },
+                          infinix: { bn: "🟢 Infinix (ইনফিনিক্স)", en: "🟢 Infinix" }
+                        };
+                        if (MOBILE_SUBCAT_LABELS[sub.toLowerCase()]) {
+                          label = MOBILE_SUBCAT_LABELS[sub.toLowerCase()][lang];
+                        }
+                      }
+                      return (
+                        <button
+                          key={sub}
+                          onClick={() => {
+                            setSelectedSubcategory(sub);
+                            triggerToast(
+                              `সাবক্যাটাগরি: ${label}`,
+                              `Subcategory: ${label}`
+                            );
+                          }}
+                          className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer snap-start border ${
+                            selectedSubcategory.toLowerCase() === sub.toLowerCase()
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   <div className="flex items-center space-x-3 shrink-0 w-full lg:w-auto justify-between lg:justify-end">
@@ -2299,29 +2493,93 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Products Display: Grouped by section headings for Restaurant, or standard grid for other categories */}
+                {/* Products Display: Grouped by section headings for Restaurant and Groceries, or standard grid for other categories */}
                 {!loadingProducts && sortedProducts.length > 0 && (
                   <>
-                    {isRestaurantCat && sortBy === "default" && selectedSubcategory === "all" ? (
-                      // Section-wise separated view for Restaurant category
+                    {isSectionedCategory && sortBy === "default" && selectedSubcategory === "all" ? (
+                      // Section-wise separated view for Restaurant, Grocery, & Mobile Zone categories
                       <div className="space-y-7 mt-3">
                         {subcategories
                           .filter(sub => sub !== "all")
                           .map((secName) => {
-                            const secProducts = sortedProducts.filter(p => p.subcategory === secName);
+                            const secProducts = sortedProducts.filter(p => {
+                              if (isGroceryCat) {
+                                const effSub = getResolvedGrocerySubcategory(p.id, p.nameBn, p.nameEn, p.subcategory, p.category);
+                                return effSub === secName;
+                              }
+                              if (isMobileZoneCat) {
+                                return (p.subcategory || "").toLowerCase() === secName.toLowerCase();
+                              }
+                              return p.subcategory === secName;
+                            });
                             if (secProducts.length === 0) return null;
+
+                            const getMobileBrandHeader = (brandKey: string) => {
+                              const k = brandKey.toLowerCase();
+                              if (k === "vivo") {
+                                return {
+                                  title: lang === "bn" ? "Vivo (ভিভো) অফিসিয়াল স্মার্টফোন" : "Vivo Official Smartphones",
+                                  tagline: lang === "bn" ? "অরা লাইট ক্যামেরা • স্লিম ডিজাইন • লং লাস্টিং ব্যাটারি" : "Aura Light Portrait • Ultra Slim • Long Battery",
+                                  pill: "vivo",
+                                  pillBg: "bg-blue-600 text-white",
+                                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                                };
+                              }
+                              if (k === "redmi") {
+                                return {
+                                  title: lang === "bn" ? "Redmi (রেডমি / শাওমি) অফিসিয়াল স্মার্টফোন" : "Redmi / Xiaomi Official Smartphones",
+                                  tagline: lang === "bn" ? "টার্বো চার্জিং • হাই-রেজোলিউশন ক্যামেরা • পাওয়ারফুল প্রসেসর" : "Turbo Fast Charging • Ultra Clear Camera • Power Engine",
+                                  pill: "REDMI",
+                                  pillBg: "bg-orange-600 text-white",
+                                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                                };
+                              }
+                              if (k === "infinix") {
+                                return {
+                                  title: lang === "bn" ? "Infinix (ইনফিনিক্স) স্মার্টফোন ও ট্যাবলেট" : "Infinix Official Smartphones & Tablets",
+                                  tagline: lang === "bn" ? "বিগ ডিসপ্লে • গেমিং পাওয়ার • বাজেট ফ্রেন্ডলি ফাস্ট চার্জিং" : "Huge Display • Extreme Gaming • Rapid Charge",
+                                  pill: "Infinix",
+                                  pillBg: "bg-emerald-600 text-white",
+                                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                                };
+                              }
+                              return null;
+                            };
+
+                            const brandInfo = isMobileZoneCat ? getMobileBrandHeader(secName) : null;
+
                             return (
                               <div key={secName} className="bg-slate-50/40 rounded-2xl p-2.5 sm:p-3.5 border border-slate-100">
-                                <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-emerald-500/20 px-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="w-2 sm:w-2.5 h-4 sm:h-5 bg-emerald-600 rounded-xs"></span>
-                                    <h3 className="text-xs sm:text-sm md:text-base font-black text-slate-800 tracking-wide uppercase">
-                                      {secName}
-                                    </h3>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3 pb-2 border-b border-emerald-500/20 px-1">
+                                  <div className="flex items-center gap-2.5 flex-wrap">
+                                    {brandInfo ? (
+                                      <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-wider uppercase shadow-2xs ${brandInfo.pillBg}`}>
+                                        {brandInfo.pill}
+                                      </span>
+                                    ) : (
+                                      <span className="w-2 sm:w-2.5 h-4 sm:h-5 bg-emerald-600 rounded-xs"></span>
+                                    )}
+                                    <div>
+                                      <h3 className="text-xs sm:text-sm md:text-base font-black text-slate-800 tracking-wide">
+                                        {brandInfo ? brandInfo.title : secName}
+                                      </h3>
+                                      {brandInfo && (
+                                        <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">
+                                          {brandInfo.tagline}
+                                        </p>
+                                      )}
+                                    </div>
                                   </div>
-                                  <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-800 bg-white border border-emerald-200/80 shadow-2xs px-2.5 py-0.5 rounded-full">
-                                    {secProducts.length} {lang === "bn" ? "আইটেম" : "items"}
-                                  </span>
+                                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                                    {brandInfo && (
+                                      <span className="text-[9.5px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
+                                        ✓ {brandInfo.warranty}
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-800 bg-white border border-emerald-200/80 shadow-2xs px-2.5 py-0.5 rounded-full">
+                                      {secProducts.length} {lang === "bn" ? (isMobileZoneCat ? "মডেল" : "আইটেম") : (isMobileZoneCat ? "models" : "items")}
+                                    </span>
+                                  </div>
                                 </div>
                                 <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
                                   {secProducts.map((product) => (
@@ -2346,40 +2604,96 @@ export default function App() {
                             );
                           })}
                       </div>
-                    ) : isRestaurantCat && sortBy === "default" && selectedSubcategory !== "all" ? (
-                      // Single selected section view for Restaurant category
-                      <div className="mt-3 bg-slate-50/40 rounded-2xl p-2.5 sm:p-3.5 border border-slate-100">
-                        <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-emerald-500/20 px-1">
-                          <div className="flex items-center gap-2">
-                            <span className="w-2 sm:w-2.5 h-4 sm:h-5 bg-emerald-600 rounded-xs"></span>
-                            <h3 className="text-xs sm:text-sm md:text-base font-black text-slate-800 tracking-wide uppercase">
-                              {selectedSubcategory}
-                            </h3>
+                    ) : isSectionedCategory && sortBy === "default" && selectedSubcategory !== "all" ? (
+                      // Single selected section view for Restaurant, Grocery, & Mobile Zone categories
+                      (() => {
+                        const getSingleBrandHeader = (brandKey: string) => {
+                          const k = brandKey.toLowerCase();
+                          if (k === "vivo") {
+                            return {
+                              title: lang === "bn" ? "Vivo (ভিভো) অফিসিয়াল স্মার্টফোন" : "Vivo Official Smartphones",
+                              tagline: lang === "bn" ? "অরা লাইট ক্যামেরা • স্লিম ডিজাইন • লং লাস্টিং ব্যাটারি" : "Aura Light Portrait • Ultra Slim • Long Battery",
+                              pill: "vivo",
+                              pillBg: "bg-blue-600 text-white",
+                              warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                            };
+                          }
+                          if (k === "redmi") {
+                            return {
+                              title: lang === "bn" ? "Redmi (রেডমি / শাওমি) অফিসিয়াল স্মার্টফোন" : "Redmi / Xiaomi Official Smartphones",
+                              tagline: lang === "bn" ? "টার্বো চার্জিং • হাই-রেজোলিউশন ক্যামেরা • পাওয়ারফুল প্রসেসর" : "Turbo Fast Charging • Ultra Clear Camera • Power Engine",
+                              pill: "REDMI",
+                              pillBg: "bg-orange-600 text-white",
+                              warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                            };
+                          }
+                          if (k === "infinix") {
+                            return {
+                              title: lang === "bn" ? "Infinix (ইনফিনিক্স) স্মার্টফোন ও ট্যাবলেট" : "Infinix Official Smartphones & Tablets",
+                              tagline: lang === "bn" ? "বিগ ডিসপ্লে • গেমিং পাওয়ার • বাজেট ফ্রেন্ডলি ফাস্ট চার্জিং" : "Huge Display • Extreme Gaming • Rapid Charge",
+                              pill: "Infinix",
+                              pillBg: "bg-emerald-600 text-white",
+                              warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                            };
+                          }
+                          return null;
+                        };
+                        const brandInfo = isMobileZoneCat ? getSingleBrandHeader(selectedSubcategory) : null;
+                        return (
+                          <div className="mt-3 bg-slate-50/40 rounded-2xl p-2.5 sm:p-3.5 border border-slate-100">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3 pb-2 border-b border-emerald-500/20 px-1">
+                              <div className="flex items-center gap-2.5 flex-wrap">
+                                {brandInfo ? (
+                                  <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-wider uppercase shadow-2xs ${brandInfo.pillBg}`}>
+                                    {brandInfo.pill}
+                                  </span>
+                                ) : (
+                                  <span className="w-2 sm:w-2.5 h-4 sm:h-5 bg-emerald-600 rounded-xs"></span>
+                                )}
+                                <div>
+                                  <h3 className="text-xs sm:text-sm md:text-base font-black text-slate-800 tracking-wide">
+                                    {brandInfo ? brandInfo.title : selectedSubcategory}
+                                  </h3>
+                                  {brandInfo && (
+                                    <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">
+                                      {brandInfo.tagline}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                                {brandInfo && (
+                                  <span className="text-[9.5px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
+                                    ✓ {brandInfo.warranty}
+                                  </span>
+                                )}
+                                <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-800 bg-white border border-emerald-200/80 shadow-2xs px-2.5 py-0.5 rounded-full">
+                                  {sortedProducts.length} {lang === "bn" ? (isMobileZoneCat ? "মডেল" : "আইটেম") : (isMobileZoneCat ? "models" : "items")}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                              {sortedProducts.map((product) => (
+                                <ProductCard
+                                  key={product.id}
+                                  product={product}
+                                  lang={lang}
+                                  fmtNum={fmtNum}
+                                  wishlist={wishlist}
+                                  toggleWishlist={toggleWishlist}
+                                  cart={cart}
+                                  addToCart={addToCart}
+                                  updateCartQuantity={updateCartQuantity}
+                                  removeFromCart={removeFromCart}
+                                  handleBuyNow={handleBuyNow}
+                                  openQuickView={openQuickView}
+                                  handleProductImgError={handleProductImgError}
+                                />
+                              ))}
+                            </div>
                           </div>
-                          <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-800 bg-white border border-emerald-200/80 shadow-2xs px-2.5 py-0.5 rounded-full">
-                            {sortedProducts.length} {lang === "bn" ? "আইটেম" : "items"}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                          {sortedProducts.map((product) => (
-                            <ProductCard
-                              key={product.id}
-                              product={product}
-                              lang={lang}
-                              fmtNum={fmtNum}
-                              wishlist={wishlist}
-                              toggleWishlist={toggleWishlist}
-                              cart={cart}
-                              addToCart={addToCart}
-                              updateCartQuantity={updateCartQuantity}
-                              removeFromCart={removeFromCart}
-                              handleBuyNow={handleBuyNow}
-                              openQuickView={openQuickView}
-                              handleProductImgError={handleProductImgError}
-                            />
-                          ))}
-                        </div>
-                      </div>
+                        );
+                      })()
                     ) : (
                       // Standard grid view for other categories or sorted list
                       <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mt-5">
@@ -2427,7 +2741,9 @@ export default function App() {
                 <img src={product.image} className="w-12 h-12 object-cover rounded-lg shrink-0" onError={handleProductImgError} />
                 <div className="min-w-0">
                   <h4 className="text-xs font-bold text-slate-800 truncate">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
-                  <p className="text-[10px] text-slate-400">{lang === "bn" ? `ইউনিট: ${product.unitBn}` : `Unit: ${product.unitEn}`}</p>
+                  <p className="text-[10px] font-bold text-slate-700 bg-slate-100 inline-block px-1.5 py-0.5 rounded border border-slate-200/80 mt-0.5">
+                    {resolveProductDisplayUnit(product, lang)}
+                  </p>
                   <p className="text-xs font-black text-emerald-600 mt-0.5">৳{fmtNum(product.price)}</p>
                 </div>
               </div>
@@ -2560,8 +2876,8 @@ export default function App() {
               <p className="font-medium text-slate-300 flex items-center gap-1.5">
                 <Phone className="w-3 h-3 text-emerald-400 shrink-0" />
                 <span className="text-slate-400">{lang === "bn" ? "হটলাইন:" : "Hotline:"}</span>
-                <a href={`tel:${homeConfig?.footerConfig?.phone || "+8801722638985"}`} className="hover:text-emerald-400 transition font-bold text-white">
-                  {homeConfig?.footerConfig?.phone || "+8801722638985"}
+                <a href={`tel:${homeConfig?.footerConfig?.phone || "+8801615581975"}`} className="hover:text-emerald-400 transition font-bold text-white">
+                  {homeConfig?.footerConfig?.phone || "+8801615581975"}
                 </a>
               </p>
               <div className="font-medium text-slate-300 flex items-center gap-1.5 flex-wrap">
@@ -2824,8 +3140,8 @@ export default function App() {
 
       {/* ================= VOICE SEARCH SIMULATION MODAL ================= */}
       {voiceSearching && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl border border-emerald-50 animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden text-center p-6 border border-emerald-50">
             <Volume2 className="w-12 h-12 text-emerald-600 mx-auto animate-ping" />
             <h3 className="text-lg font-bold text-slate-800 mt-4">
               {lang === "bn" ? "আমরা শুনছি..." : "Listening closely..."}
@@ -2837,6 +3153,14 @@ export default function App() {
               {[...Array(5)].map((_, i) => (
                 <div key={i} className={`w-1.5 bg-emerald-500 rounded-full animate-pulse`} style={{ height: `${20 + Math.random() * 30}px`, animationDelay: `${i * 150}ms` }}></div>
               ))}
+            </div>
+            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-center">
+              <button 
+                onClick={() => setVoiceSearching(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                {lang === "bn" ? "বাতিল" : "Cancel"}
+              </button>
             </div>
           </div>
         </div>
@@ -3003,7 +3327,9 @@ export default function App() {
                       <img src={product.image} className="w-12 h-12 object-cover rounded-lg shrink-0" onError={handleProductImgError} />
                       <div className="flex-1 min-w-0">
                         <h4 className="text-xs font-bold text-slate-800 truncate">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
-                        <p className="text-[9px] text-slate-400">{lang === "bn" ? `ইউনিট: ${product.unitBn}` : `Unit: ${product.unitEn}`}</p>
+                        <p className="text-[9.5px] font-bold text-slate-700 bg-slate-100 inline-block px-1.5 py-0.5 rounded border border-slate-200/80 mt-0.5">
+                          {resolveProductDisplayUnit(product, lang)}
+                        </p>
                         <p className="text-xs font-black text-emerald-600 mt-1">৳{fmtNum(product.price)}</p>
                         
                         <div className="flex gap-2 mt-2.5">
@@ -3035,17 +3361,28 @@ export default function App() {
 
       {/* ================= QUICK VIEW DETAIL MODAL ================= */}
       {selectedProduct && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-2xl relative animate-in fade-in zoom-in duration-250">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in duration-250">
             
-            <button 
-              onClick={() => setSelectedProduct(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition cursor-pointer z-10"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {/* Header */}
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="min-w-0 pr-4">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{selectedProduct.brand}</span>
+                <h3 className="text-base sm:text-lg font-bold text-slate-800 leading-tight truncate">
+                  {lang === "bn" ? selectedProduct.nameBn : selectedProduct.nameEn}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setSelectedProduct(null)}
+                className="p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition cursor-pointer shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            {/* Scrollable Body */}
+            <div className="overflow-y-auto flex-1 p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Product Image Panel */}
               <div className="relative">
@@ -3076,9 +3413,14 @@ export default function App() {
                     <span className="text-xs font-bold text-slate-500">{fmtNum(selectedProduct.rating)} ({fmtNum(selectedProduct.reviewCount || 10)} {lang === "bn" ? "রিভিউ" : "reviews"})</span>
                   </div>
 
-                  <p className="text-xs text-slate-500 font-bold mt-2">
-                    {lang === "bn" ? `পরিমাপ: ${selectedProduct.unitBn}` : `Measurement: ${selectedProduct.unitEn}`}
-                  </p>
+                  <div className="flex items-center gap-2 mt-2.5">
+                    <span className="text-xs font-bold text-slate-500">
+                      {lang === "bn" ? "পরিমাপ / ওজন:" : "Measurement / Weight:"}
+                    </span>
+                    <span className="inline-flex items-center text-xs font-black text-slate-800 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md shadow-2xs">
+                      {resolveProductDisplayUnit(selectedProduct, lang)}
+                    </span>
+                  </div>
 
                   {/* Partner Shop Supplier Badge & Selection */}
                   {(selectedProduct.partnerShopName || (selectedProduct.availableShops && selectedProduct.availableShops.length > 0)) && (
@@ -3178,56 +3520,118 @@ export default function App() {
                 </div>
 
                 <div className="mt-6 pt-3 border-t border-slate-100">
-                  <div className="flex items-baseline space-x-2 mb-4">
-                    <span className="text-2xl font-black text-emerald-600">
-                      ৳{fmtNum(selectedProductOption ? selectedProductOption.price : selectedProduct.price)}
-                    </span>
-                    {selectedProduct.originalPrice && !selectedProductOption && (
-                      <span className="text-sm text-slate-400 line-through">৳{fmtNum(selectedProduct.originalPrice)}</span>
-                    )}
-                  </div>
+                  {selectedProduct.category === "vehicles" || selectedProduct.unitBn?.includes("আলোচনা") ? (
+                    <div>
+                      <div className="bg-blue-50 border border-blue-200/90 p-3 rounded-xl mb-4">
+                        <div className="flex items-center gap-2">
+                          <Truck className="w-5 h-5 text-blue-600 shrink-0" />
+                          <div>
+                            <p className="text-sm font-black text-blue-900 leading-tight">
+                              {lang === "bn" ? "ভাড়া: আলোচনা সাপেক্ষে" : "Fare: Negotiable on Discussion"}
+                            </p>
+                            <p className="text-[11px] text-blue-700 leading-tight mt-0.5">
+                              {lang === "bn" 
+                                ? "গন্তব্য, ভ্রমণের সময় এবং রোড ট্রিপ অনুযায়ী ভাড়া আলোচনা সাপেক্ষে নির্ধারিত হবে।" 
+                                : "Fare is finalized based on distance, timing and destination."}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
 
-                  <div className="flex gap-3">
-                    <button 
-                      onClick={() => {
-                        addToCart(selectedProduct, 1, true, selectedProductOption || undefined);
-                      }}
-                      className={`flex-1 py-2.5 font-bold text-xs rounded-xl transition shadow flex items-center justify-center space-x-1 cursor-pointer ${
-                        cart.some(item => 
-                          item.product.id === selectedProduct.id && 
-                          ((!item.selectedOption && !selectedProductOption) || 
-                           (item.selectedOption && selectedProductOption && item.selectedOption.value === selectedProductOption.value && item.selectedOption.unit === selectedProductOption.unit))
-                        ) 
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-600 hover:bg-emerald-100" 
-                          : "bg-emerald-600 text-white hover:bg-emerald-700"
-                      }`}
-                    >
-                      {cart.some(item => 
-                        item.product.id === selectedProduct.id && 
-                        ((!item.selectedOption && !selectedProductOption) || 
-                         (item.selectedOption && selectedProductOption && item.selectedOption.value === selectedProductOption.value && item.selectedOption.unit === selectedProductOption.unit))
-                      ) ? (
-                        <>
-                          <Check className="w-4 h-4" />
-                          <span>{lang === "bn" ? "✓ কার্টে যোগ হয়েছে" : "✓ Added to Cart"}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-4 h-4" />
-                          <span>{lang === "bn" ? "কার্ট করুন" : "Add to Cart"}</span>
-                        </>
+                      <div className="flex flex-col sm:flex-row gap-2.5">
+                        <a 
+                          href="tel:+8801615581975"
+                          className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-xl transition shadow flex items-center justify-center space-x-2 cursor-pointer"
+                        >
+                          <PhoneCall className="w-4 h-4" />
+                          <span>{lang === "bn" ? "সরাসরি কল করে বুকিং দিন" : "Call to Book Directly"}</span>
+                        </a>
+                        <a 
+                          href={`https://wa.me/8801615581975?text=${encodeURIComponent(`আসসালামু আলাইকুম, আমি কাঁচা বাজার থেকে ${selectedProduct.nameBn} ভাড়ায় বুকিং করতে আগ্রহী। বিস্তারিত ও ভাড়া জানাবেন দয়া করে।`)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 py-3 px-4 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs sm:text-sm rounded-xl transition shadow flex items-center justify-center space-x-2 cursor-pointer"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          <span>{lang === "bn" ? "WhatsApp-এ বুকিং দিন" : "Book via WhatsApp"}</span>
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {isCategoryMatch(selectedProduct.category, "mobile-zone") && (
+                        <div className="mb-3.5 p-2.5 bg-indigo-50/90 border border-indigo-200/80 rounded-xl flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+                            <div>
+                              <p className="text-xs font-black text-indigo-900 leading-tight">
+                                {lang === "bn" ? "১ বছরের অফিসিয়াল ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Brand Warranty"}
+                              </p>
+                              <p className="text-[10px] text-indigo-700 leading-tight mt-0.5">
+                                {lang === "bn" ? "অরিজিনাল সিল প্যাক • হ্যান্ডসেট চেক করে পেমেন্ট" : "100% Factory Sealed Handset • Doorstep inspection"}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[9px] font-extrabold bg-indigo-600 text-white px-2 py-0.5 rounded-full shrink-0 shadow-2xs">
+                            {selectedProduct.brand} Official
+                          </span>
+                        </div>
                       )}
-                    </button>
-                    <button 
-                      onClick={() => {
-                        handleBuyNow(selectedProduct, selectedProductOption || undefined);
-                        setSelectedProduct(null);
-                      }}
-                      className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer"
-                    >
-                      {lang === "bn" ? "কিনুন এখনই" : "Buy Now"}
-                    </button>
-                  </div>
+
+                      <div className="flex items-baseline space-x-2 mb-4">
+                        <span className="text-2xl font-black text-emerald-600">
+                          ৳{fmtNum(typeof (selectedProductOption ? selectedProductOption.price : selectedProduct.price) === "number" ? (selectedProductOption ? selectedProductOption.price : selectedProduct.price).toLocaleString("en-IN") : (selectedProductOption ? selectedProductOption.price : selectedProduct.price))}
+                        </span>
+                        {selectedProduct.originalPrice && !selectedProductOption && (
+                          <span className="text-sm text-slate-400 line-through">
+                            ৳{fmtNum(typeof selectedProduct.originalPrice === "number" ? selectedProduct.originalPrice.toLocaleString("en-IN") : selectedProduct.originalPrice)}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={() => {
+                            addToCart(selectedProduct, 1, true, selectedProductOption || undefined);
+                          }}
+                          className={`flex-1 py-2.5 font-bold text-xs rounded-xl transition shadow flex items-center justify-center space-x-1 cursor-pointer ${
+                            cart.some(item => 
+                              item.product.id === selectedProduct.id && 
+                              ((!item.selectedOption && !selectedProductOption) || 
+                               (item.selectedOption && selectedProductOption && item.selectedOption.value === selectedProductOption.value && item.selectedOption.unit === selectedProductOption.unit))
+                            ) 
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-600 hover:bg-emerald-100" 
+                              : "bg-emerald-600 text-white hover:bg-emerald-700"
+                          }`}
+                        >
+                          {cart.some(item => 
+                            item.product.id === selectedProduct.id && 
+                            ((!item.selectedOption && !selectedProductOption) || 
+                             (item.selectedOption && selectedProductOption && item.selectedOption.value === selectedProductOption.value && item.selectedOption.unit === selectedProductOption.unit))
+                          ) ? (
+                            <>
+                              <Check className="w-4 h-4" />
+                              <span>{lang === "bn" ? "✓ কার্টে যোগ হয়েছে" : "✓ Added to Cart"}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4" />
+                              <span>{lang === "bn" ? "কার্ট করুন" : "Add to Cart"}</span>
+                            </>
+                          )}
+                        </button>
+                        <button 
+                          onClick={() => {
+                            handleBuyNow(selectedProduct, selectedProductOption || undefined);
+                            setSelectedProduct(null);
+                          }}
+                          className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+                        >
+                          {lang === "bn" ? "কিনুন এখনই" : "Buy Now"}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
 
               </div>
@@ -3401,6 +3805,18 @@ export default function App() {
               </div>
             </div>
 
+            </div>
+
+            {/* Fixed Footer */}
+            <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end bg-gray-50/50">
+              <button
+                type="button"
+                onClick={() => setSelectedProduct(null)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                {lang === "bn" ? "বন্ধ করুন" : "Close"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3453,34 +3869,38 @@ export default function App() {
 
       {/* ================= ABOUT US MODAL ================= */}
       {showAboutModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative animate-in zoom-in duration-250 flex flex-col max-h-[90vh]">
-            <button 
-              onClick={() => setShowAboutModal(false)} 
-              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center space-x-3 border-b border-slate-100 pb-3 mb-4 shrink-0">
-              {logoImg ? (
-                <img 
-                  src={logoImg} 
-                  alt="Kacha Bazar Logo" 
-                  className="w-10 h-10 object-contain rounded-full border border-emerald-100 bg-white"
-                  referrerPolicy="no-referrer"
-                />
-              ) : null}
-              <div>
-                <h3 className="text-base font-black text-slate-800">
-                  {lang === "bn" ? "আমাদের সম্পর্কে" : "About Us"}
-                </h3>
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                  {lang === "bn" ? "কাচা বাজার — আপনার বিশ্বস্ত প্রতিষ্ঠান" : "Kacha Bazar — Your Trusted Brand"}
-                </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden animate-in zoom-in duration-250">
+            {/* Header */}
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center space-x-3">
+                {logoImg ? (
+                  <img 
+                    src={logoImg} 
+                    alt="Kacha Bazar Logo" 
+                    className="w-10 h-10 object-contain rounded-full border border-emerald-100 bg-white"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : null}
+                <div>
+                  <h3 className="text-base font-black text-slate-800">
+                    {lang === "bn" ? "আমাদের সম্পর্কে" : "About Us"}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                    {lang === "bn" ? "কাচা বাজার — আপনার বিশ্বস্ত প্রতিষ্ঠান" : "Kacha Bazar — Your Trusted Brand"}
+                  </p>
+                </div>
               </div>
+              <button 
+                onClick={() => setShowAboutModal(false)} 
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             
-            <div className="overflow-y-auto pr-1 space-y-4 text-xs text-slate-600 leading-relaxed">
+            {/* Scrollable Body */}
+            <div className="overflow-y-auto flex-1 p-6 space-y-4 text-xs text-slate-600 leading-relaxed">
               <p>
                 {lang === "bn" 
                   ? "কাচা বাজার একটি সম্পূর্ণ আধুনিক, পরিবেশ-বান্ধব ও শতভাগ নিরাপদ ই-কমার্স প্ল্যাটফর্ম। আমাদের মূল লক্ষ্য হলো গ্রামীণ অঞ্চলের কৃষকদের কঠোর পরিশ্রমের ফসল কোনো মধ্যস্বত্বভোগী ছাড়া সরাসরি শহরের ভোক্তাদের কাছে পৌঁছে দেওয়া। এর মাধ্যমে আমরা যেমন কৃষকদের তাদের উৎপাদিত ফসলের সঠিক মূল্য নিশ্চিত করছি, তেমনি গ্রাহকদের জন্য নিশ্চিত করছি সম্পূর্ণ তাজা ও বিষমুক্ত খাদ্যের সংস্থান।"
@@ -3515,7 +3935,7 @@ export default function App() {
                     <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
                     <div>
                       <span className="font-bold text-slate-700">{lang === "bn" ? "সাপোর্ট ফোন নম্বর:" : "Support Phone:"} </span>
-                      <a href="tel:+8801722638985" className="text-emerald-600 hover:underline font-bold">+8801722638985</a>
+                      <a href="tel:+8801615581975" className="text-emerald-600 hover:underline font-bold">+8801615581975</a>
                     </div>
                   </div>
                   
@@ -3530,7 +3950,8 @@ export default function App() {
               </div>
             </div>
             
-            <div className="border-t border-slate-100 pt-3 mt-4 shrink-0 flex justify-end">
+            {/* Fixed Footer */}
+            <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end bg-gray-50/50">
               <button 
                 onClick={() => setShowAboutModal(false)}
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer"
@@ -3544,29 +3965,33 @@ export default function App() {
 
       {/* ================= CONTACT US MODAL ================= */}
       {showContactModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative animate-in zoom-in duration-250 flex flex-col max-h-[90vh]">
-            <button 
-              onClick={() => setShowContactModal(false)} 
-              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center space-x-3 border-b border-slate-100 pb-3 mb-4 shrink-0">
-              <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <Mail className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden animate-in zoom-in duration-250">
+            {/* Header */}
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-800">
+                    {lang === "bn" ? "যোগাযোগ করুন" : "Contact Us"}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                    {lang === "bn" ? "কাচা বাজার কাস্টমার রিলেশন" : "Kacha Bazar Customer Relations"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-black text-slate-800">
-                  {lang === "bn" ? "যোগাযোগ করুন" : "Contact Us"}
-                </h3>
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                  {lang === "bn" ? "কাচা বাজার কাস্টমার রিলেশন" : "Kacha Bazar Customer Relations"}
-                </p>
-              </div>
+              <button 
+                onClick={() => setShowContactModal(false)} 
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             
-            <div className="overflow-y-auto pr-1 space-y-4 text-xs text-slate-600">
+            {/* Scrollable Body */}
+            <div className="overflow-y-auto flex-1 p-6 space-y-4 text-xs text-slate-600">
               <p className="leading-relaxed">
                 {lang === "bn" 
                   ? "আমাদের পণ্য বা সেবা সম্পর্কে জিজ্ঞাসা, পরামর্শ বা মতামত জানাতে নিচের কন্টাক্ট নাম্বারে সরাসরি ফোন করুন অথবা ইমেইল করুন। আমাদের কাস্টমার সার্ভিস টিম চব্বিশ ঘণ্টা আপনার সহায়তায় নিয়োজিত রয়েছে।"
@@ -3579,7 +4004,7 @@ export default function App() {
                     <Phone className="w-5 h-5 text-emerald-600 shrink-0" />
                     <div>
                       <p className="text-[9px] text-slate-400 font-bold uppercase">{lang === "bn" ? "কল করুন" : "Call Support"}</p>
-                      <a href="tel:+8801722638985" className="text-slate-800 font-extrabold hover:text-emerald-600 hover:underline text-xs">+8801722638985</a>
+                      <a href="tel:+8801615581975" className="text-slate-800 font-extrabold hover:text-emerald-600 hover:underline text-xs">+8801615581975</a>
                     </div>
                   </div>
                   
@@ -3615,7 +4040,8 @@ export default function App() {
               </div>
             </div>
             
-            <div className="border-t border-slate-100 pt-3 mt-4 shrink-0 flex justify-end">
+            {/* Fixed Footer */}
+            <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end bg-gray-50/50">
               <button 
                 onClick={() => setShowContactModal(false)}
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer"
@@ -3629,29 +4055,33 @@ export default function App() {
 
       {/* ================= HELP & SUPPORT MODAL ================= */}
       {showHelpModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative animate-in zoom-in duration-250 flex flex-col max-h-[90vh]">
-            <button 
-              onClick={() => setShowHelpModal(false)} 
-              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center space-x-3 border-b border-slate-100 pb-3 mb-4 shrink-0">
-              <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <Info className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden animate-in zoom-in duration-250">
+            {/* Header */}
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <Info className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-800">
+                    {lang === "bn" ? "সাহায্য ও সহযোগিতা" : "Help & Support"}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                    {lang === "bn" ? "কাচা বাজার কাস্টমার কেয়ার" : "Kacha Bazar Support Desk"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-black text-slate-800">
-                  {lang === "bn" ? "সাহায্য ও সহযোগিতা" : "Help & Support"}
-                </h3>
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                  {lang === "bn" ? "কাচা বাজার কাস্টমার কেয়ার" : "Kacha Bazar Support Desk"}
-                </p>
-              </div>
+              <button 
+                onClick={() => setShowHelpModal(false)} 
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             
-            <div className="overflow-y-auto pr-1 space-y-4 text-xs text-slate-600 leading-relaxed">
+            {/* Scrollable Body */}
+            <div className="overflow-y-auto flex-1 p-6 space-y-4 text-xs text-slate-600 leading-relaxed">
               <div className="space-y-2">
                 <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wide">
                   {lang === "bn" ? "কাস্টমার সাপোর্ট ডেস্ক" : "Customer Support Desk"}
@@ -3668,7 +4098,7 @@ export default function App() {
                   <Phone className="w-4.5 h-4.5 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
                     <span className="font-bold text-slate-700 block">{lang === "bn" ? "সাপোর্ট ফোন নম্বর:" : "Support Phone:"}</span>
-                    <a href="tel:+8801722638985" className="text-emerald-600 hover:underline font-extrabold text-sm block mt-0.5">+8801722638985</a>
+                    <a href="tel:+8801615581975" className="text-emerald-600 hover:underline font-extrabold text-sm block mt-0.5">+8801615581975</a>
                     <span className="text-[10px] text-slate-400 block mt-0.5">{lang === "bn" ? "✦ ২৪ ঘন্টা সচল" : "✦ 24/7 Available"}</span>
                   </div>
                 </div>
@@ -3703,7 +4133,8 @@ export default function App() {
               </div>
             </div>
             
-            <div className="border-t border-slate-100 pt-3 mt-4 shrink-0 flex justify-end">
+            {/* Fixed Footer */}
+            <div className="flex-shrink-0 p-4 border-t border-slate-100 flex flex-wrap gap-2 justify-end bg-gray-50/50">
               <button 
                 onClick={() => setShowHelpModal(false)}
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer"

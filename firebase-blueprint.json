@@ -408,6 +408,128 @@
         "uniqueVisitors": "number",
         "lastUpdated": "timestamp"
       }
+    },
+    {
+      "name": "buy_sell_listings",
+      "description": "Public Buy & Sell Marketplace user listings with product details, pricing, condition and seller contacts",
+      "fields": {
+        "id": "string",
+        "title": "string",
+        "titleBn": "string",
+        "description": "string",
+        "price": "number",
+        "isNegotiable": "boolean",
+        "category": "string",
+        "condition": "string",
+        "location": "string",
+        "images": "array",
+        "sellerUid": "string",
+        "sellerName": "string",
+        "sellerPhone": "string",
+        "sellerEmail": "string",
+        "sellerWhatsApp": "string",
+        "allowCall": "boolean",
+        "allowWhatsApp": "boolean",
+        "status": "string",
+        "views": "number",
+        "reportCount": "number",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      }
+    },
+    {
+      "name": "buy_sell_reports",
+      "description": "User reports on inappropriate, misleading, or sold Buy & Sell listings for admin moderation",
+      "fields": {
+        "id": "string",
+        "listingId": "string",
+        "listingTitle": "string",
+        "sellerUid": "string",
+        "reportedByUid": "string",
+        "reportedByName": "string",
+        "reason": "string",
+        "details": "string",
+        "status": "string",
+        "createdAt": "timestamp"
+      }
+    },
+    {
+      "name": "buy_sell_chats",
+      "description": "In-app buyer-seller chat conversations for Buy & Sell listings",
+      "fields": {
+        "id": "string",
+        "listingId": "string",
+        "listingTitle": "string",
+        "listingPrice": "number",
+        "listingImage": "string",
+        "sellerUid": "string",
+        "sellerName": "string",
+        "buyerUid": "string",
+        "buyerName": "string",
+        "lastMessage": "string",
+        "lastMessageAt": "timestamp",
+        "messages": "array"
+      }
+    },
+    {
+      "name": "memos",
+      "description": "Official customer purchase invoices, printed receipts, and order memos with digital signatures",
+      "fields": {
+        "id": "string",
+        "orderId": "string",
+        "memoNumber": "string",
+        "customerName": "string",
+        "customerPhone": "string",
+        "customerAddress": "string",
+        "items": "array",
+        "subtotal": "number",
+        "deliveryCharge": "number",
+        "discount": "number",
+        "total": "number",
+        "paymentMethod": "string",
+        "paymentStatus": "string",
+        "orderStatus": "string",
+        "notes": "string",
+        "preparedBy": "string",
+        "sellerOfficerName": "string",
+        "sellerOfficerId": "string",
+        "sellerOfficerSignature": "string",
+        "founderSignature": "string",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      }
+    },
+    {
+      "name": "invoices",
+      "description": "Customer invoice records mirroring memos collection for tax and accounting audits",
+      "fields": {
+        "id": "string",
+        "invoiceNumber": "string",
+        "orderId": "string",
+        "customerName": "string",
+        "customerPhone": "string",
+        "total": "number",
+        "items": "array",
+        "status": "string",
+        "createdAt": "timestamp"
+      }
+    },
+    {
+      "name": "banner_management",
+      "description": "Marketing promotions, hero sliders, and category deal banners synced with homepage",
+      "fields": {
+        "id": "string",
+        "titleBn": "string",
+        "titleEn": "string",
+        "tagBn": "string",
+        "tagEn": "string",
+        "bgGradient": "string",
+        "image": "string",
+        "linkUrl": "string",
+        "isActive": "boolean",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      }
     }
   ]
 }

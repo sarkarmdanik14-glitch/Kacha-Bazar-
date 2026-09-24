@@ -1,8 +1,9 @@
 import React from "react";
 import { 
-  Heart, Star, ShoppingCart, ShoppingBag, Plus, Minus, Trash2, AlertCircle 
+  Heart, Star, ShoppingCart, ShoppingBag, AlertCircle, Phone, Truck 
 } from "lucide-react";
 import { Product, CartItem } from "../types";
+import { resolveProductDisplayUnit } from "../lib/productWeightUtils";
 
 interface ProductCardProps {
   product: Product;
@@ -28,8 +29,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   toggleWishlist,
   cart,
   addToCart,
-  updateCartQuantity,
-  removeFromCart,
   handleBuyNow,
   openQuickView,
   handleProductImgError,
@@ -52,33 +51,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     (lang === "bn" ? "ফ্রেশ গ্রোসারি" : "Fresh Grocery")
   ).toUpperCase();
 
-  // Unit display fallback
-  const unitLabel = lang === "bn" 
-    ? (product.unitBn || "১ কেজি") 
-    : (product.unitEn || "1 kg");
+  // Unit display fallback with smart resolution
+  const unitLabel = resolveProductDisplayUnit(product, lang);
 
   // Display Names
   const displayName = lang === "bn" ? product.nameBn : product.nameEn;
   const secondaryName = lang === "bn" ? product.nameEn : product.nameBn;
 
-  // Handlers for in-card quantity modification
-  const handleIncrement = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (updateCartQuantity) {
-      updateCartQuantity(product.id, 1, cartItem?.selectedOption);
-    } else {
-      addToCart(product, 1, false);
-    }
-  };
-
-  const handleDecrement = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (updateCartQuantity) {
-      updateCartQuantity(product.id, -1, cartItem?.selectedOption);
-    } else if (removeFromCart && inCartQty === 1) {
-      removeFromCart(product.id, cartItem?.selectedOption);
-    }
-  };
+  // Detect if product is a vehicle rental
+  const isVehicle = product.category === "vehicles" || (product.unitBn && product.unitBn.includes("আলোচনা"));
 
   return (
     <div 
@@ -163,7 +144,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </p>
 
           {/* Rating & Weight Meta Row */}
-          <div className="flex items-center justify-between gap-1 text-[9.5px] sm:text-[10.5px] leading-none mb-1">
+          <div className="flex items-center justify-between gap-1 text-[9.5px] sm:text-[10.5px] leading-none mb-1.5">
             <div className="flex items-center gap-0.5 shrink-0">
               <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 fill-amber-400 shrink-0" />
               <span className="font-bold text-slate-700">
@@ -171,7 +152,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               </span>
             </div>
 
-            <span className="text-slate-500 font-medium text-[9px] sm:text-[10px] whitespace-nowrap shrink-0 text-right">
+            <span className="inline-flex items-center font-bold text-slate-700 bg-slate-100 hover:bg-slate-200/60 border border-slate-200/90 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] whitespace-nowrap shrink-0 text-right shadow-2xs">
               {unitLabel}
             </span>
           </div>
@@ -192,17 +173,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="pt-0.5">
           
           {/* Price Row */}
-          <div className="flex items-baseline gap-1 mb-1 leading-none">
-            {product.price !== undefined && product.price !== null && product.price > 0 ? (
+          <div className="flex items-baseline flex-wrap gap-1 mb-1 leading-none">
+            {isVehicle ? (
+              <span className="text-[10px] sm:text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200/90 px-1.5 py-0.5 rounded leading-tight">
+                {lang === "bn" ? "ভাড়া আলোচনা সাপেক্ষে" : "Fare on discussion"}
+              </span>
+            ) : product.price !== undefined && product.price !== null && product.price > 0 ? (
               <>
                 <span className="text-xs sm:text-[13px] md:text-sm font-black text-[#008958] tracking-tight leading-none">
-                  ৳{fmtNum(product.price)}
+                  ৳{fmtNum(typeof product.price === "number" ? product.price.toLocaleString("en-IN") : product.price)}
                 </span>
                 {product.originalPrice && product.originalPrice > product.price ? (
                   <span className="text-[8.5px] sm:text-[9.5px] font-normal text-slate-400 line-through leading-none">
-                    ৳{fmtNum(product.originalPrice)}
+                    ৳{fmtNum(typeof product.originalPrice === "number" ? product.originalPrice.toLocaleString("en-IN") : product.originalPrice)}
                   </span>
                 ) : null}
+                <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 leading-none">
+                  / {unitLabel}
+                </span>
               </>
             ) : (
               <span className="text-xs sm:text-[13px] font-bold text-slate-400 tracking-tight leading-none">
@@ -220,56 +208,66 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <AlertCircle className="w-2.5 h-2.5 shrink-0" />
               <span className="whitespace-nowrap">{lang === "bn" ? "স্টক শেষ" : "Out of Stock"}</span>
             </button>
-          ) : inCartQty > 0 ? (
-            /* In-Cart Quantity Control */
-            <div className="w-full flex items-center justify-between bg-emerald-50/80 border border-emerald-500 rounded-md p-0.5 shadow-2xs">
-              <button
-                type="button"
-                onClick={handleDecrement}
-                className="w-5 h-5 sm:w-6 sm:h-6 rounded bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 border border-emerald-200/60 shadow-2xs flex items-center justify-center transition-all active:scale-90 cursor-pointer shrink-0"
-                title={inCartQty === 1 ? (lang === "bn" ? "কার্ট থেকে মুছুন" : "Remove from cart") : (lang === "bn" ? "পরিমাণ কমান" : "Decrease quantity")}
+          ) : isVehicle ? (
+            /* Vehicle Action Buttons: Call & Rent */
+            <div className="grid grid-cols-2 gap-1">
+              <a 
+                href="tel:+8801615581975"
+                onClick={(e) => e.stopPropagation()}
+                className="py-1 px-1 bg-white hover:bg-blue-50 active:bg-blue-100 text-blue-700 border border-blue-300 font-bold text-[9.5px] sm:text-[10.5px] rounded-md transition-all duration-150 shadow-2xs cursor-pointer flex items-center justify-center gap-1 active:scale-95 whitespace-nowrap min-w-0"
+                title={lang === "bn" ? "সরাসরি কল করুন (+8801615581975)" : "Call directly (+8801615581975)"}
               >
-                {inCartQty === 1 ? (
-                  <Trash2 className="w-2.5 h-2.5 text-rose-500" />
-                ) : (
-                  <Minus className="w-2.5 h-2.5 font-bold text-emerald-800" />
-                )}
-              </button>
-
-              <div className="flex items-center justify-center px-1">
-                <span className="text-[10.5px] sm:text-xs font-black text-emerald-900 font-mono leading-none">
-                  {fmtNum(inCartQty)}
+                <Phone className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-blue-600 shrink-0" />
+                <span className="whitespace-nowrap leading-none">
+                  {lang === "bn" ? "কল দিন" : "Call"}
                 </span>
-              </div>
+              </a>
 
-              <button
+              <button 
                 type="button"
-                onClick={handleIncrement}
-                className="w-5 h-5 sm:w-6 sm:h-6 rounded bg-[#008958] hover:bg-emerald-700 text-white shadow-2xs flex items-center justify-center transition-all active:scale-90 cursor-pointer shrink-0"
-                title={lang === "bn" ? "পরিমাণ বাড়ান" : "Increase quantity"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openQuickView(product);
+                }}
+                className="py-1 px-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-[9.5px] sm:text-[10.5px] rounded-md transition-all duration-150 shadow-2xs cursor-pointer flex items-center justify-center gap-0.5 active:scale-95 whitespace-nowrap min-w-0"
+                title={lang === "bn" ? "ভাড়া ও বুকিং বিবরণী" : "Rent & Booking"}
               >
-                <Plus className="w-2.5 h-2.5 font-bold" />
+                <Truck className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white shrink-0" />
+                <span className="whitespace-nowrap leading-none">
+                  {lang === "bn" ? "ভাড়া নিন" : "Rent"}
+                </span>
               </button>
             </div>
           ) : (
             /* Dual Buttons: Left Cart (Outline) + Right Order (Filled Emerald) */
             <div className="grid grid-cols-2 gap-1">
-              {/* Left: Cart Button */}
+              {/* Left: Cart Button - Directly adds product to cart */}
               <button 
                 type="button"
-                onClick={() => addToCart(product)}
-                className="py-1 px-1 bg-white hover:bg-emerald-50 active:bg-emerald-100 text-[#008958] border border-[#008958] font-bold text-[9.5px] sm:text-[10.5px] rounded-md transition-all duration-150 shadow-2xs cursor-pointer flex items-center justify-center gap-0.5 active:scale-95 whitespace-nowrap min-w-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addToCart(product);
+                }}
+                className="py-1 px-1 bg-white hover:bg-emerald-50 active:bg-emerald-100 text-[#008958] border border-[#008958] font-bold text-[9.5px] sm:text-[10.5px] rounded-md transition-all duration-150 shadow-2xs cursor-pointer flex items-center justify-center gap-1 active:scale-95 whitespace-nowrap min-w-0"
               >
                 <ShoppingCart className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-[#008958] shrink-0" />
                 <span className="whitespace-nowrap leading-none">
                   {lang === "bn" ? "কার্ট" : "Cart"}
                 </span>
+                {inCartQty > 0 && (
+                  <span className="ml-0.5 px-1 py-0.2 bg-[#008958] text-white text-[8px] sm:text-[8.5px] rounded-full font-bold font-mono leading-none">
+                    {fmtNum(inCartQty)}
+                  </span>
+                )}
               </button>
 
               {/* Right: Order / Buy Now Button */}
               <button 
                 type="button"
-                onClick={() => handleBuyNow(product)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleBuyNow(product);
+                }}
                 className="py-1 px-1 bg-[#008958] hover:bg-[#007a4e] active:bg-emerald-900 text-white font-bold text-[9.5px] sm:text-[10.5px] rounded-md transition-all duration-150 shadow-2xs cursor-pointer flex items-center justify-center gap-0.5 active:scale-95 whitespace-nowrap min-w-0"
                 title={lang === "bn" ? "এখনই অর্ডার করুন" : "Buy Now"}
               >

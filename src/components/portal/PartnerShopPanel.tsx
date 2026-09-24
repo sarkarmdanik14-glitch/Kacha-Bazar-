@@ -211,7 +211,8 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
     try {
       if (editingProduct) {
         // Update product in Firestore
-        await updateDoc(doc(db, "products", editingProduct.id), {
+        await setDoc(doc(db, "products", editingProduct.id), {
+          id: editingProduct.id,
           nameBn: prodNameBn,
           nameEn: prodNameEn,
           price: Number(prodPrice),
@@ -224,7 +225,7 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
           descriptionEn: prodDescEn,
           isAvailable: prodIsAvailable,
           updatedAt: serverTimestamp()
-        });
+        }, { merge: true });
 
         // Also update local state
         setProducts(prev => prev.map(p => p.id === editingProduct.id ? {
@@ -285,7 +286,7 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
   const handleAdjustStock = async (prod: Product, delta: number) => {
     const newStock = Math.max(0, (prod.stock || 0) + delta);
     try {
-      await updateDoc(doc(db, "products", prod.id), { stock: newStock });
+      await setDoc(doc(db, "products", prod.id), { id: prod.id, stock: newStock, updatedAt: serverTimestamp() }, { merge: true });
       setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, stock: newStock } : p));
       triggerToast(`স্টক আপডেট: ${newStock} ${prod.unitBn}`, `Stock updated: ${newStock} ${prod.unitEn}`);
     } catch (err) {
@@ -297,7 +298,7 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
   const handleToggleAvailability = async (prod: Product) => {
     const newAvail = prod.isAvailable === false ? true : false;
     try {
-      await updateDoc(doc(db, "products", prod.id), { isAvailable: newAvail });
+      await setDoc(doc(db, "products", prod.id), { id: prod.id, isAvailable: newAvail, updatedAt: serverTimestamp() }, { merge: true });
       setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, isAvailable: newAvail } : p));
       triggerToast(
         newAvail ? "পণ্যটি ইন-স্টকে রাখা হয়েছে।" : "পণ্যটি আউট-অফ-স্টক করা হয়েছে।",
@@ -917,9 +918,9 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
 
       {/* ADD / EDIT PRODUCT MODAL */}
       {showProductModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
-          <div className="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl border border-slate-100 my-8">
-            <div className="bg-slate-900 px-6 py-4 text-white flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden animate-fade-in">
+            <div className="flex-shrink-0 bg-slate-900 px-6 py-4 text-white flex items-center justify-between">
               <h3 className="font-black text-base">
                 {editingProduct 
                   ? getTranslation("পণ্য সম্পাদনা করুন", "Edit Product")
@@ -934,7 +935,8 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
               </button>
             </div>
 
-            <form onSubmit={handleSaveProduct} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleSaveProduct} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="overflow-y-auto flex-1 p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
@@ -1059,9 +1061,10 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
                   className="w-4 h-4 accent-emerald-600 rounded cursor-pointer"
                 />
               </div>
+              </div>
 
-              {/* Action Buttons */}
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+              {/* Fixed Action Buttons */}
+              <div className="flex-shrink-0 p-4 border-t flex flex-wrap gap-2 justify-end bg-gray-50/50">
                 <button
                   type="button"
                   onClick={() => setShowProductModal(false)}
@@ -1085,9 +1088,9 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
 
       {/* PAYOUT REQUEST MODAL */}
       {showPayoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl border border-slate-100 p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden animate-fade-in">
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <h3 className="font-black text-base text-slate-900">
                 {getTranslation("উইথড্র / পে-আউট রিকোয়েস্ট", "Request Payout")}
               </h3>
@@ -1096,54 +1099,56 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
               </button>
             </div>
 
-            <p className="text-xs text-slate-500">
-              {getTranslation("আপনার বর্তমান ব্যালেন্স থেকে পে-আউট রিকোয়েস্ট এডমিনের কাছে পাঠানো হবে।", "Your payout request will be submitted to the admin for disbursement.")}
-            </p>
+            <div className="overflow-y-auto flex-1 p-6 space-y-4">
+              <p className="text-xs text-slate-500">
+                {getTranslation("আপনার বর্তমান ব্যালেন্স থেকে পে-আউট রিকোয়েস্ট এডমিনের কাছে পাঠানো হবে।", "Your payout request will be submitted to the admin for disbursement.")}
+              </p>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
-                  {getTranslation("টাকার পরিমাণ (৳)", "Amount (BDT ৳)")}
-                </label>
-                <input
-                  type="number"
-                  placeholder="যেমনঃ ৫০০০"
-                  value={payoutAmount || ""}
-                  onChange={(e) => setPayoutAmount(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-black outline-none focus:bg-white focus:border-emerald-500"
-                />
-              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
+                    {getTranslation("টাকার পরিমাণ (৳)", "Amount (BDT ৳)")}
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="যেমনঃ ৫০০০"
+                    value={payoutAmount || ""}
+                    onChange={(e) => setPayoutAmount(parseFloat(e.target.value) || 0)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-black outline-none focus:bg-white focus:border-emerald-500"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
-                  {getTranslation("পেমেন্ট মেথড", "Payment Method")}
-                </label>
-                <select
-                  value={payoutMethod}
-                  onChange={(e) => setPayoutMethod(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none"
-                >
-                  <option value="bKash">bKash (বিকাশ)</option>
-                  <option value="Nagad">Nagad (নগদ)</option>
-                  <option value="Bank Transfer">Bank Transfer (ব্যাংক অ্যাকাউন্ট)</option>
-                </select>
-              </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
+                    {getTranslation("পেমেন্ট মেথড", "Payment Method")}
+                  </label>
+                  <select
+                    value={payoutMethod}
+                    onChange={(e) => setPayoutMethod(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold outline-none"
+                  >
+                    <option value="bKash">bKash (বিকাশ)</option>
+                    <option value="Nagad">Nagad (নগদ)</option>
+                    <option value="Bank Transfer">Bank Transfer (ব্যাংক অ্যাকাউন্ট)</option>
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
-                  {getTranslation("অ্যাকাউন্ট নম্বর / বিবরণ", "Account Number / Details")}
-                </label>
-                <input
-                  type="text"
-                  placeholder="01XXXXXXXXX"
-                  value={payoutAccount}
-                  onChange={(e) => setPayoutAccount(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold outline-none"
-                />
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
+                    {getTranslation("অ্যাকাউন্ট নম্বর / বিবরণ", "Account Number / Details")}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="01XXXXXXXXX"
+                    value={payoutAccount}
+                    onChange={(e) => setPayoutAccount(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold outline-none"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="pt-3 flex items-center justify-end space-x-3">
+            <div className="flex-shrink-0 p-4 border-t flex flex-wrap gap-2 justify-end bg-gray-50/50">
               <button
                 onClick={() => setShowPayoutModal(false)}
                 className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold cursor-pointer"

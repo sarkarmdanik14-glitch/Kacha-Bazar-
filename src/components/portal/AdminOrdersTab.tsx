@@ -3,8 +3,10 @@ import {
   ShoppingBag, Search, Filter, RefreshCw, Bike, Clock, 
   CheckCircle2, XCircle, AlertCircle, Printer, User, Phone, 
   MapPin, DollarSign, CreditCard, ChevronDown, ChevronUp,
-  Package, Check, X, ShieldAlert, Sparkles, Copy, ArrowUpDown
+  Package, Check, X, ShieldAlert, Sparkles, Copy, ArrowUpDown,
+  Trash2, Plus
 } from "lucide-react";
+import { db, doc, setDoc, deleteDoc, serverTimestamp } from "../../lib/firebase";
 
 interface AdminOrdersTabProps {
   orders: any[];
@@ -15,6 +17,7 @@ interface AdminOrdersTabProps {
   handleUpdateOrderStatus: (orderId: string, status: string) => Promise<void>;
   handleUpdatePaymentStatus: (orderId: string, status: string) => Promise<void>;
   handleAssignRider: (orderId: string, riderId: string) => Promise<void>;
+  handleDeleteOrder?: (orderId: string) => Promise<void>;
 }
 
 export default function AdminOrdersTab({
@@ -25,7 +28,8 @@ export default function AdminOrdersTab({
   onSelectMemoOrder,
   handleUpdateOrderStatus,
   handleUpdatePaymentStatus,
-  handleAssignRider
+  handleAssignRider,
+  handleDeleteOrder
 }: AdminOrdersTabProps) {
   const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
 
@@ -36,7 +40,22 @@ export default function AdminOrdersTab({
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"auto" | "cards" | "table">("auto");
+
+  // Create Manual Order Modal State
+  const [showCreateOrderModal, setShowCreateOrderModal] = useState<boolean>(false);
+  const [creatingOrder, setCreatingOrder] = useState<boolean>(false);
+  const [manualCustomerName, setManualCustomerName] = useState<string>("");
+  const [manualCustomerPhone, setManualCustomerPhone] = useState<string>("");
+  const [manualCustomerAddress, setManualCustomerAddress] = useState<string>("");
+  const [manualItemName, setManualItemName] = useState<string>("");
+  const [manualItemQty, setManualItemQty] = useState<number>(1);
+  const [manualItemPrice, setManualItemPrice] = useState<number>(0);
+  const [manualDeliveryCharge, setManualDeliveryCharge] = useState<number>(40);
+  const [manualPaymentMethod, setManualPaymentMethod] = useState<string>("Cash on Delivery");
+  const [manualPaymentStatus, setManualPaymentStatus] = useState<string>("pending");
+  const [manualNotes, setManualNotes] = useState<string>("");
 
   // Active riders list
   const activeRidersList = useMemo(() => {
@@ -128,6 +147,90 @@ export default function AdminOrdersTab({
     }
   };
 
+  const onDeleteOrder = async (orderId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (deletingOrderId) return;
+    setDeletingOrderId(orderId);
+    try {
+      if (handleDeleteOrder) {
+        await handleDeleteOrder(orderId);
+      } else {
+        if (!confirm(getTranslation("আপনি কি নিশ্চিতভাবে এই অর্ডারটি ডাটাবেজ থেকে মুছে ফেলতে চান?", "Are you sure you want to permanently delete this order?"))) return;
+        await deleteDoc(doc(db, "orders", orderId));
+        triggerToast("অর্ডার সফলভাবে মুছে ফেলা হয়েছে!", "Order deleted successfully from database!");
+      }
+      if (expandedOrderId === orderId) setExpandedOrderId(null);
+    } catch (err) {
+      console.error("Error deleting order:", err);
+      triggerToast("অর্ডার ডিলিট ব্যর্থ হয়েছে।", "Failed to delete order.");
+    } finally {
+      setDeletingOrderId(null);
+    }
+  };
+
+  const handleSaveManualOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualCustomerPhone.trim()) {
+      triggerToast("গ্রাহকের ফোন নম্বর দিন।", "Please provide customer phone number.");
+      return;
+    }
+    setCreatingOrder(true);
+    try {
+      const orderId = "KB-ORD-" + Date.now().toString(36).toUpperCase();
+      const itemSubtotal = (Number(manualItemPrice) || 0) * (Number(manualItemQty) || 1);
+      const orderTotal = itemSubtotal + (Number(manualDeliveryCharge) || 0);
+
+      const newOrder = {
+        id: orderId,
+        orderId: orderId,
+        customerId: "manual_admin",
+        customerName: manualCustomerName.trim() || (lang === "bn" ? "অফলাইন গ্রাহক" : "Walk-in Customer"),
+        customerPhone: manualCustomerPhone.trim(),
+        customerAddress: manualCustomerAddress.trim() || (lang === "bn" ? "কাঁচা বাজার কাউন্টার" : "Kacha Bazar Counter"),
+        items: manualItemName.trim() ? [
+          {
+            product: {
+              nameBn: manualItemName.trim(),
+              nameEn: manualItemName.trim(),
+              price: Number(manualItemPrice) || 0,
+              image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=200&q=80"
+            },
+            quantity: Number(manualItemQty) || 1,
+            unit: "item"
+          }
+        ] : [],
+        subtotal: itemSubtotal,
+        deliveryFee: Number(manualDeliveryCharge) || 0,
+        deliveryCharge: Number(manualDeliveryCharge) || 0,
+        discount: 0,
+        total: orderTotal,
+        totalAmount: orderTotal,
+        orderStatus: "pending",
+        paymentMethod: manualPaymentMethod,
+        paymentStatus: manualPaymentStatus,
+        notes: manualNotes.trim(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      await setDoc(doc(db, "orders", orderId), newOrder);
+      triggerToast("নতুন অর্ডার সফলভাবে তৈরি করা হয়েছে!", "Manual order added successfully to database!");
+      setShowCreateOrderModal(false);
+      setManualCustomerName("");
+      setManualCustomerPhone("");
+      setManualCustomerAddress("");
+      setManualItemName("");
+      setManualItemPrice(0);
+      setManualItemQty(1);
+      setManualNotes("");
+    } catch (err: any) {
+      console.error("Error creating manual order:", err);
+      triggerToast("অর্ডার তৈরি ব্যর্থ হয়েছে।", "Failed to create order.");
+    } finally {
+      setCreatingOrder(false);
+    }
+  };
+
   return (
     <div className="w-full space-y-4 sm:space-y-6">
       
@@ -152,8 +255,16 @@ export default function AdminOrdersTab({
           </div>
         </div>
 
-        {/* Live Counters */}
+        {/* Live Counters & Create Order */}
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowCreateOrderModal(true)}
+            className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm cursor-pointer active:scale-95"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>{getTranslation("নতুন অর্ডার তৈরি", "Create Order")}</span>
+          </button>
           <div className="bg-slate-800/80 border border-slate-700/80 px-3 py-1.5 rounded-xl text-center">
             <span className="text-[10px] uppercase font-bold text-slate-400 block">{getTranslation("মোট অর্ডার", "Total Orders")}</span>
             <span className="text-sm sm:text-base font-black text-emerald-400 font-mono">{orders.length}</span>
@@ -441,8 +552,8 @@ export default function AdminOrdersTab({
                     </select>
                   </div>
 
-                  {/* Action Buttons: Status updates + Memo */}
-                  <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
+                  {/* Action Buttons: Status updates + Memo + Delete */}
+                  <div className="grid grid-cols-5 gap-1.5 pt-2 border-t border-slate-100">
                     <button
                       type="button"
                       disabled={updatingOrderId === o.id}
@@ -483,6 +594,20 @@ export default function AdminOrdersTab({
                     >
                       <Printer className="w-3 h-3 text-emerald-400 shrink-0" />
                       <span>{getTranslation("চালান", "Memo")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deletingOrderId === o.id}
+                      onClick={(e) => onDeleteOrder(o.id, e)}
+                      className="py-2 rounded-xl text-[10px] font-black uppercase transition flex items-center justify-center gap-1 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 shadow-xs cursor-pointer active:scale-95"
+                      title={getTranslation("অর্ডার মুছে ফেলুন", "Delete Order")}
+                    >
+                      {deletingOrderId === o.id ? (
+                        <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
+                      ) : (
+                        <Trash2 className="w-3 h-3 shrink-0" />
+                      )}
+                      <span>{getTranslation("মুছুন", "Delete")}</span>
                     </button>
                   </div>
 
@@ -816,6 +941,21 @@ export default function AdminOrdersTab({
                               <Printer className="w-3 h-3 text-emerald-400" />
                               <span>{getTranslation("চালান", "Memo")}</span>
                             </button>
+
+                            {/* Button: Delete Order */}
+                            <button
+                              disabled={deletingOrderId === o.id}
+                              onClick={(e) => onDeleteOrder(o.id, e)}
+                              className="h-7 px-1.5 rounded-md text-[10px] font-black uppercase transition flex items-center gap-0.5 cursor-pointer bg-red-50 hover:bg-red-600 text-red-600 hover:text-white shadow-2xs border border-red-200 hover:border-red-600 whitespace-nowrap"
+                              title={getTranslation("অর্ডার চিরতরে মুছে ফেলুন", "Delete Order Permanently")}
+                            >
+                              {deletingOrderId === o.id ? (
+                                <RefreshCw className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3 h-3" />
+                              )}
+                              <span>{getTranslation("মুছুন", "Delete")}</span>
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -899,6 +1039,190 @@ export default function AdminOrdersTab({
         </div>
 
       </div>
+
+      {/* Manual Order Creation Modal */}
+      {showCreateOrderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                  <ShoppingBag className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-sm sm:text-base">
+                    {getTranslation("নতুন অর্ডার তৈরি করুন", "Create Manual Order")}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {getTranslation("অফলাইন/কাউন্টার বা ফোন অর্ডারের সরাসরি এন্ট্রি", "Direct entry for phone/walk-in purchases")}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateOrderModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveManualOrder} className="space-y-3.5 text-xs">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">{getTranslation("গ্রাহকের নাম", "Customer Name")}</label>
+                <input
+                  type="text"
+                  value={manualCustomerName}
+                  onChange={(e) => setManualCustomerName(e.target.value)}
+                  placeholder={getTranslation("যেমন: মোঃ রফিকুল ইসলাম", "e.g. Md. Rafiqul Islam")}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">{getTranslation("গ্রাহকের ফোন নম্বর *", "Customer Phone *")}</label>
+                  <input
+                    type="tel"
+                    required
+                    value={manualCustomerPhone}
+                    onChange={(e) => setManualCustomerPhone(e.target.value)}
+                    placeholder="017XXXXXXXX"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">{getTranslation("ডেলিভারি ঠিকানা", "Delivery Address")}</label>
+                  <input
+                    type="text"
+                    value={manualCustomerAddress}
+                    onChange={(e) => setManualCustomerAddress(e.target.value)}
+                    placeholder={getTranslation("যেমন: চাঁচকৈড় বাজার, গুরুদাসপুর", "e.g. Chanchkoir Bazar")}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+                <div className="font-black text-slate-700 text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{getTranslation("পণ্যের বিবরণ", "Product Details")}</span>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-600">{getTranslation("পণ্যের নাম ও বিবরণ", "Product Name")}</label>
+                  <input
+                    type="text"
+                    value={manualItemName}
+                    onChange={(e) => setManualItemName(e.target.value)}
+                    placeholder={getTranslation("যেমন: প্রিমিয়াম নাজিরশাইল চাল (৫ কেজি)", "e.g. Premium Rice 5kg")}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-600">{getTranslation("পরিমাণ (Quantity)", "Quantity")}</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={manualItemQty}
+                      onChange={(e) => setManualItemQty(Number(e.target.value) || 1)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-600">{getTranslation("একক দাম (Unit Price ৳)", "Unit Price (৳)")}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={manualItemPrice}
+                      onChange={(e) => setManualItemPrice(Number(e.target.value) || 0)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">{getTranslation("ডেলিভারি চার্জ (৳)", "Delivery Fee (৳)")}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={manualDeliveryCharge}
+                    onChange={(e) => setManualDeliveryCharge(Number(e.target.value) || 0)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">{getTranslation("পেমেন্ট পদ্ধতি", "Payment Method")}</label>
+                  <select
+                    value={manualPaymentMethod}
+                    onChange={(e) => setManualPaymentMethod(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="Cash on Delivery">Cash on Delivery</option>
+                    <option value="bKash">bKash</option>
+                    <option value="Nagad">Nagad</option>
+                    <option value="Counter Cash">Counter Cash</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">{getTranslation("পেমেন্ট অবস্থা", "Payment Status")}</label>
+                  <select
+                    value={manualPaymentStatus}
+                    onChange={(e) => setManualPaymentStatus(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="pending">Pending (বাকি/অপেক্ষমান)</option>
+                    <option value="paid">Paid (পরিশোধিত)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700">{getTranslation("বিশেষ নোট", "Notes")}</label>
+                <input
+                  type="text"
+                  value={manualNotes}
+                  onChange={(e) => setManualNotes(e.target.value)}
+                  placeholder={getTranslation("যেমন: আর্জেন্ট ডেলিভারি", "e.g. Urgent Delivery")}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Summary */}
+              <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-2xl flex items-center justify-between text-xs">
+                <span className="font-extrabold text-emerald-900">{getTranslation("মোট প্রদেয় বিল:", "Grand Total:")}</span>
+                <span className="font-black text-emerald-700 font-mono text-base">
+                  ৳{((manualItemPrice || 0) * (manualItemQty || 1) + (manualDeliveryCharge || 0)).toLocaleString()}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateOrderModal(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition cursor-pointer"
+                >
+                  {getTranslation("বাতিল", "Cancel")}
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingOrder}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-5 py-2 rounded-xl flex items-center gap-1.5 transition shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  {creatingOrder ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                  <span>{creatingOrder ? getTranslation("তৈরি হচ্ছে...", "Creating...") : getTranslation("অর্ডার নিশ্চিত করুন", "Confirm Order")}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

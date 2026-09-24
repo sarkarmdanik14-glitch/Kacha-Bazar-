@@ -7,13 +7,28 @@
         "vis_5c57f4ad429f4f2a",
         "vis_d1af8cca2aba47d2"
       ]
+    },
+    "2026-09-24": {
+      "views": 2,
+      "uniqueVisitors": 3,
+      "visitorIds": [
+        "vis_f4d1ac3bddff48f2",
+        "vis_e936ef02972a4a6b",
+        "vis_d1af8cca2aba47d2"
+      ]
     }
   },
   "sessions": {
+    "vis_e936ef02972a4a6b": {
+      "visitorId": "vis_e936ef02972a4a6b",
+      "startedAt": 1790240734184,
+      "lastActive": 1790246571961,
+      "isOnline": true
+    },
     "vis_d1af8cca2aba47d2": {
       "visitorId": "vis_d1af8cca2aba47d2",
-      "startedAt": 1790058018246,
-      "lastActive": 1790090922795,
+      "startedAt": 1790245923888,
+      "lastActive": 1790246726218,
       "isOnline": true
     }
   }

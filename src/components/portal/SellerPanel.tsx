@@ -231,7 +231,7 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
 
       if (editingProduct) {
         // Edit existing
-        await updateDoc(doc(db, "products", editingProduct.id), payload);
+        await setDoc(doc(db, "products", editingProduct.id), payload, { merge: true });
         triggerToast("পণ্য সফলভাবে আপডেট করা হয়েছে!", "Product updated successfully!");
       } else {
         // Add new

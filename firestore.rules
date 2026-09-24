@@ -285,10 +285,26 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Banners - Publicly viewable for carousel, managed strictly by Admin
+    // Banners & Banner Management - Publicly viewable for carousel, managed strictly by Admin
     match /banners/{bannerId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
+    }
+
+    match /banner_management/{bannerId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Memos & Invoices - Creating, viewing, updating, and deleting customer memos and official invoices
+    match /memos/{memoId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || isStaff();
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || isStaff();
     }
 
     // Settings - Publicly viewable for store configuration, managed strictly by Admin
@@ -409,6 +425,45 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if true;
       allow delete: if true;
+    }
+
+    // Buy & Sell Listings - Publicly viewable marketplace, create by signed in user, manage by owner or admin
+    match /buy_sell_listings/{listingId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.sellerUid == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && (
+        resource.data.sellerUid == request.auth.uid || 
+        // Allow view count or report count increment without overwriting sellerUid
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'reportCount', 'updatedAt']))
+      ));
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.sellerUid == request.auth.uid);
+    }
+
+    // Buy & Sell Reports - Submitted by users/visitors, viewable and manageable by Admin
+    match /buy_sell_reports/{reportId} {
+      allow read: if isAdmin() || isStaff();
+      allow create: if true;
+      allow update, delete: if isAdmin() || isStaff();
+    }
+
+    // Buy & Sell Chats - Direct chat between buyer and seller for a listing
+    match /buy_sell_chats/{chatId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.sellerUid == request.auth.uid || 
+        resource.data.buyerUid == request.auth.uid
+      ));
+      allow create: if isSignedIn() && (
+        request.resource.data.buyerUid == request.auth.uid || 
+        request.resource.data.sellerUid == request.auth.uid
+      );
+      allow update: if isAdmin() || (isSignedIn() && (
+        resource.data.sellerUid == request.auth.uid || 
+        resource.data.buyerUid == request.auth.uid
+      ));
+      allow delete: if isAdmin() || (isSignedIn() && (
+        resource.data.sellerUid == request.auth.uid || 
+        resource.data.buyerUid == request.auth.uid
+      ));
     }
   }
 }

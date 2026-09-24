@@ -107,7 +107,7 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
     },
     callToOrder: {
       enabled: true,
-      phone: "+8801722638985",
+      phone: "+8801615581975",
       timeBn: "সকাল ৮:০০ - রাত ১০:০০",
       timeEn: "8:00 AM - 10:00 PM",
       instructionsBn: "ঝটপট কল করুন",
@@ -150,7 +150,7 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
       enabled: true,
       aboutBn: "আমাদের মিশন হলো সর্বোচ্চ তাজা ও বিষমুক্ত সবজি, তাজা মাছ, মাংস ও মুদি পণ্য সরাসরি কৃষকদের মাঠ থেকে তুলে গ্রাহকদের ঘরের দরজায় পৌঁছে দেওয়া।",
       aboutEn: "We are committed to delivering 100% formalin-free, organic, and daily harvested food items direct-from-farmers to your kitchen.",
-      phone: "+8801722638985",
+      phone: "+8801615581975",
       email: "sarkarmdanik14@gmail.com",
       addressBn: "চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর, বাংলাদেশ",
       addressEn: "Chanchkoir Bazar, Gurudaspur, Natore, Bangladesh",
@@ -662,9 +662,9 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
 
       {/* Hero Modal */}
       {showHeroModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden">
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <h3 className="font-black text-slate-800 text-sm">
                 {editingHero ? getTranslation("হিরো ব্যানার এডিট করুন", "Edit Hero Banner") : getTranslation("নতুন হিরো ব্যানার যোগ করুন", "Add New Hero Banner")}
               </h3>
@@ -673,7 +673,8 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
               </button>
             </div>
 
-            <form onSubmit={handleSaveHeroBanner} className="space-y-4">
+            <form onSubmit={handleSaveHeroBanner} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="overflow-y-auto flex-1 p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Title (Bengali) *</label>
@@ -726,8 +727,9 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
                   {getTranslation("হিরো ব্যানার সক্রিয় রাখুন", "Enable / Activate Hero Banner")}
                 </label>
               </div>
+              </div>
 
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+              <div className="flex-shrink-0 p-4 border-t flex flex-wrap gap-2 justify-end bg-gray-50/50">
                 <button type="button" onClick={() => setShowHeroModal(false)} className="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-200 cursor-pointer">Cancel</button>
                 <button type="submit" className="px-5 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 cursor-pointer shadow">Save Banner</button>
               </div>
@@ -846,9 +848,9 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
 
       {/* Promo Modal */}
       {showPromoModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+          <div className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden">
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <h3 className="font-black text-slate-800 text-sm">
                 {editingPromo ? getTranslation("প্রোমো ব্যানার এডিট করুন", "Edit Promo Banner") : getTranslation("নতুন প্রোমো ব্যানার যোগ করুন", "Add Promo Banner")}
               </h3>
@@ -857,7 +859,8 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
               </button>
             </div>
 
-            <form onSubmit={handleSavePromoBanner} className="space-y-4">
+            <form onSubmit={handleSavePromoBanner} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="overflow-y-auto flex-1 p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Title (Bengali) *</label>
@@ -887,8 +890,9 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
                   <button type="button" onClick={() => triggerUploadClick("promo")} className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">Upload</button>
                 </div>
               </div>
+              </div>
 
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+              <div className="flex-shrink-0 p-4 border-t flex flex-wrap gap-2 justify-end bg-gray-50/50">
                 <button type="button" onClick={() => setShowPromoModal(false)} className="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
                 <button type="submit" className="px-5 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl cursor-pointer shadow">Save Promo</button>
               </div>
@@ -926,7 +930,7 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Hotline Phone Number *</label>
-              <input type="text" value={homeConfig.callToOrder?.phone || "+8801722638985"} onChange={(e) => setHomeConfig((prev: any) => ({ ...prev, callToOrder: { ...prev.callToOrder, phone: e.target.value } }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold focus:bg-white outline-none" />
+              <input type="text" value={homeConfig.callToOrder?.phone || "+8801615581975"} onChange={(e) => setHomeConfig((prev: any) => ({ ...prev, callToOrder: { ...prev.callToOrder, phone: e.target.value } }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold focus:bg-white outline-none" />
             </div>
 
             <div>
@@ -1196,7 +1200,7 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
 
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Helpline Phone Number</label>
-              <input type="text" value={homeConfig.footerConfig?.phone || "+8801722638985"} onChange={(e) => setHomeConfig((prev: any) => ({ ...prev, footerConfig: { ...prev.footerConfig, phone: e.target.value } }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold focus:bg-white outline-none" />
+              <input type="text" value={homeConfig.footerConfig?.phone || "+8801615581975"} onChange={(e) => setHomeConfig((prev: any) => ({ ...prev, footerConfig: { ...prev.footerConfig, phone: e.target.value } }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-bold focus:bg-white outline-none" />
             </div>
 
             <div>

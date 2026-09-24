@@ -108,9 +108,9 @@ async function syncAndSeed() {
     deliveryCharge: 45,
     freeDeliveryThreshold: 500,
     referralBonusAmount: 50,
-    bKashNumber: "01722638985", // Matching updated order contact phone
-    nagadNumber: "01722638985",
-    rocketNumber: "01722638985"
+    bKashNumber: "01615581975", // Matching updated order contact phone
+    nagadNumber: "01615581975",
+    rocketNumber: "01615581975"
   });
 
   console.log("\n==================================================");

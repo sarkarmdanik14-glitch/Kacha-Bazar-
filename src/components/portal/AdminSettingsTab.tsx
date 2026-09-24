@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import logoImg from "../../assets/images/logo_1783882658678.jpg";
-import { db, doc, setDoc, deleteDoc, collection } from "../../lib/firebase";
+import { db, doc, setDoc, deleteDoc, collection, serverTimestamp } from "../../lib/firebase";
 import { DeliveryZone, DEFAULT_DELIVERY_ZONES, DEFAULT_STORE_LOCATION } from "../../lib/delivery";
 
 interface AdminSettingsTabProps {
@@ -230,7 +230,8 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         enableBkash,
         enableNagad,
         enableRocket,
-        deliveryChargesByLocation: deliveryChargesMap
+        deliveryChargesByLocation: deliveryChargesMap,
+        updatedAt: serverTimestamp()
       };
 
       await setDoc(doc(db, "settings", "global"), payload, { merge: true });
@@ -254,7 +255,8 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         lng: Number(storeLng)
       };
       await setDoc(doc(db, "settings", "global"), {
-        storeLocation
+        storeLocation,
+        updatedAt: serverTimestamp()
       }, { merge: true });
       triggerToast("স্টোর লোকেশন সফলভাবে আপডেট করা হয়েছে!", "Store location successfully updated!");
     } catch (err) {
@@ -422,14 +424,21 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         tagEn: banTagEn,
         bgGradient: banGradient,
         image: banImage || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=200&q=80",
-        isActive: banActive
+        isActive: banActive,
+        updatedAt: serverTimestamp()
       };
 
-      await setDoc(doc(db, "banners", payload.id), payload);
+      await setDoc(doc(db, "banners", payload.id), payload, { merge: true });
+      try {
+        await setDoc(doc(db, "banner_management", payload.id), payload, { merge: true });
+      } catch {
+        // optional mirror sync
+      }
       triggerToast("ব্যানার সংরক্ষিত হয়েছে!", "Banner configuration saved!");
       setShowBannerForm(false);
     } catch (err) {
       console.error(err);
+      triggerToast("ব্যানার সংরক্ষণ করতে সমস্যা হয়েছে!", "Failed to save banner.");
     } finally {
       setSavingBanner(false);
     }
@@ -440,9 +449,15 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
     if (!confirm(getTranslation("ব্যানার ডিলিট করতে চান?", "Delete this promotional banner?"))) return;
     try {
       await deleteDoc(doc(db, "banners", id));
+      try {
+        await deleteDoc(doc(db, "banner_management", id));
+      } catch {
+        // optional mirror delete
+      }
       triggerToast("ব্যানার ডিলিট করা হয়েছে!", "Banner successfully removed!");
     } catch (err) {
       console.error(err);
+      triggerToast("ব্যানার মুছতে সমস্যা হয়েছে!", "Failed to delete banner.");
     }
   };
 
