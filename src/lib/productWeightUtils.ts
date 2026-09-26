@@ -175,6 +175,66 @@ export const resolveProductDisplayUnit = (
   return lang === "bn" ? resolved.unitBn : resolved.unitEn;
 };
 
+// Helper to cleanly sort products by default / menu order with robust fallbacks
+export const sortByDefaultOrder = (a: any, b: any): number => {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+
+  const parseOrder = (p: any): number | null => {
+    if (typeof p?.order === "number" && !isNaN(p.order)) return p.order;
+    if (typeof p?.menuOrder === "number" && !isNaN(p.menuOrder)) return p.menuOrder;
+    if (typeof p?.displayOrder === "number" && !isNaN(p.displayOrder)) return p.displayOrder;
+    if (typeof p?.order === "string" && p.order.trim() !== "" && !isNaN(Number(p.order))) return Number(p.order);
+    if (typeof p?.menuOrder === "string" && p.menuOrder.trim() !== "" && !isNaN(Number(p.menuOrder))) return Number(p.menuOrder);
+    if (typeof p?.displayOrder === "string" && p.displayOrder.trim() !== "" && !isNaN(Number(p.displayOrder))) return Number(p.displayOrder);
+    return null;
+  };
+
+  const orderA = parseOrder(a);
+  const orderB = parseOrder(b);
+
+  // If both have explicit numeric orders
+  if (orderA !== null && orderB !== null) {
+    if (orderA !== orderB) return orderA - orderB;
+  } else if (orderA !== null && orderB === null) {
+    // Explicitly ordered items appear first
+    return -1;
+  } else if (orderA === null && orderB !== null) {
+    return 1;
+  }
+
+  // Fallback 1: Creation date (newest first)
+  const getCreatedTime = (p: any): number => {
+    if (!p) return 0;
+    if (p.createdAt?.seconds) return p.createdAt.seconds * 1000;
+    if (p.createdAt?._seconds) return p.createdAt._seconds * 1000;
+    if (p.createdAt instanceof Date) return p.createdAt.getTime();
+    if (typeof p.createdAt === "string") {
+      const ms = new Date(p.createdAt).getTime();
+      if (!isNaN(ms)) return ms;
+    }
+    if (typeof p.createdAt === "number" && !isNaN(p.createdAt)) return p.createdAt;
+    return 0;
+  };
+
+  const timeA = getCreatedTime(a);
+  const timeB = getCreatedTime(b);
+  if (timeA !== 0 && timeB !== 0 && timeA !== timeB) {
+    return timeB - timeA;
+  }
+
+  // Fallback 2: Name in Bengali or English
+  const nameA = (a.nameBn || a.nameEn || a.title || "").trim();
+  const nameB = (b.nameBn || b.nameEn || b.title || "").trim();
+  if (nameA && nameB && nameA !== nameB) {
+    return nameA.localeCompare(nameB, "bn");
+  }
+
+  // Fallback 3: Product ID
+  return (a.id || "").localeCompare(b.id || "");
+};
+
 // Helper to map Firestore doc data to Product type
 export const mapDocToProduct = (docId: string, data: any): Product => {
   const rawCat = data.category || (docId.startsWith("st") || docId.startsWith("sp") ? "groceries" : "others");
@@ -183,9 +243,16 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
   const resolvedSubcategory = isGrocery
     ? getResolvedGrocerySubcategory(data.id || docId, data.nameBn, data.nameEn, data.subcategory, resolvedCategory)
     : (data.subcategory || "General");
+
+  const parseNumOrder = (val: any): number | undefined => {
+    if (typeof val === "number" && !isNaN(val)) return val;
+    if (typeof val === "string" && val.trim() !== "" && !isNaN(Number(val))) return Number(val);
+    return undefined;
+  };
+  const rawOrder = parseNumOrder(data.menuOrder) ?? parseNumOrder(data.displayOrder) ?? parseNumOrder(data.order);
   const resolvedOrder = isGrocery
-    ? getResolvedGroceryDisplayOrder(data.id || docId, data.nameBn, data.nameEn, resolvedSubcategory, data.displayOrder ?? data.order)
-    : (typeof data.displayOrder === "number" ? data.displayOrder : (typeof data.order === "number" ? data.order : undefined));
+    ? getResolvedGroceryDisplayOrder(data.id || docId, data.nameBn, data.nameEn, resolvedSubcategory, rawOrder)
+    : rawOrder;
 
   const resolvedUnits = resolveProductUnit({
     id: data.id || docId,
@@ -243,7 +310,9 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     status: data.status || (data.isDeleted ? "deleted" : "active"),
     isAvailable: (data.isDeleted || data.status === "deleted" || data.deleted) ? false : (data.isAvailable !== false),
     displayOrder: resolvedOrder,
-    order: resolvedOrder
+    order: resolvedOrder,
+    menuOrder: rawOrder,
+    createdAt: data.createdAt
   } as Product;
 };
 

@@ -70,6 +70,8 @@ export interface Product {
   isAvailable?: boolean;
   displayOrder?: number;
   order?: number;
+  menuOrder?: number;
+  createdAt?: any;
 }
 
 export interface Subcategory {

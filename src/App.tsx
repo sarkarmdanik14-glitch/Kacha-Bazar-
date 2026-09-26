@@ -53,7 +53,8 @@ import {
   getOptionLabel,
   getWeightOnlyLabel,
   calculateProductPriceForWeight,
-  validateWeightLimit
+  validateWeightLimit,
+  sortByDefaultOrder
 } from "./lib/productWeightUtils";
 import { isCategoryMatch, normalizeCategoryId, mergeCategoryCards } from "./lib/categoryUtils";
 import { SAFE_PRODUCT_PLACEHOLDER } from "./lib/masterImageRegistry";
@@ -522,11 +523,7 @@ export default function App() {
 
   const availableProducts = useMemo(() => {
     const filtered = products.filter(p => p.isAvailable !== false && !p.isDeleted && p.status !== "deleted" && !p.deleted);
-    return filtered.sort((a, b) => {
-      const orderA = typeof (a as any).displayOrder === "number" ? (a as any).displayOrder : (typeof (a as any).order === "number" ? (a as any).order : 9999);
-      const orderB = typeof (b as any).displayOrder === "number" ? (b as any).displayOrder : (typeof (b as any).order === "number" ? (b as any).order : 9999);
-      return orderA - orderB;
-    });
+    return filtered.sort((a, b) => sortByDefaultOrder(a, b));
   }, [products]);
 
   // Real-time synchronization of products, categories, reviews, banners, and home config from Firestore
@@ -2237,40 +2234,53 @@ export default function App() {
 
             // Filter products
             const catProducts = availableProducts.filter((product) => {
-              const matchesCategory = isCategoryMatch(product.category, selectedCategory);
-              const effectiveSubcategory = isGroceryCat 
-                ? getResolvedGrocerySubcategory(product.id, product.nameBn, product.nameEn, product.subcategory, product.category)
-                : (product.subcategory || "").toLowerCase();
-              const targetSub = selectedSubcategory.toLowerCase();
+              const matchesCategory = isCategoryMatch(product.category || (product as any).categoryId, selectedCategory);
+              if (!matchesCategory) return false;
 
-              const matchedSubObj = matchingDbSubs.find(
-                s => s.nameBn.toLowerCase() === targetSub || (s.nameEn && s.nameEn.toLowerCase() === targetSub)
-              );
+              const targetSub = (selectedSubcategory || "all").toLowerCase().trim();
+              let matchesSubcategory = targetSub === "all";
+              if (!matchesSubcategory) {
+                const prodSub = (product.subcategory || "").toLowerCase().trim();
+                const prodSubId = (product.subcategoryId || "").toLowerCase().trim();
+                const effectiveSub = (isGroceryCat 
+                  ? getResolvedGrocerySubcategory(product.id, product.nameBn, product.nameEn, product.subcategory, product.category)
+                  : (product.subcategory || "")).toLowerCase().trim();
 
-              const matchesSubcategory = targetSub === "all" || 
-                effectiveSubcategory === targetSub || 
-                (matchedSubObj && (product.subcategoryId === matchedSubObj.id || (product.subcategory && product.subcategory.toLowerCase() === matchedSubObj.nameBn.toLowerCase())));
+                const matchedSubObj = matchingDbSubs.find(
+                  s => s.nameBn.toLowerCase().trim() === targetSub || (s.nameEn && s.nameEn.toLowerCase().trim() === targetSub) || s.id.toLowerCase().trim() === targetSub
+                );
+
+                matchesSubcategory = 
+                  effectiveSub === targetSub || 
+                  prodSub === targetSub || 
+                  prodSubId === targetSub || 
+                  Boolean(matchedSubObj && (
+                    product.subcategoryId === matchedSubObj.id || 
+                    (prodSub && prodSub === matchedSubObj.nameBn.toLowerCase().trim()) ||
+                    (prodSub && matchedSubObj.nameEn && prodSub === matchedSubObj.nameEn.toLowerCase().trim())
+                  ));
+              }
 
               const matchesSearch = matchesProductSearch(product, searchQuery);
-              return matchesCategory && matchesSubcategory && matchesSearch;
+              return matchesSubcategory && matchesSearch;
             });
 
             // Unique subcategories
-            const allCatProducts = availableProducts.filter(p => isCategoryMatch(p.category, selectedCategory));
+            const allCatProducts = availableProducts.filter(p => isCategoryMatch(p.category || (p as any).categoryId, selectedCategory));
 
             let subcategories: string[] = [];
             if (matchingDbSubs.length > 0) {
               const dynamicSubs = matchingDbSubs.map(s => s.nameBn);
               subcategories = ["all", ...dynamicSubs];
             } else if (isRestaurantCat) {
-              const existingSubs = Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean)));
+              const existingSubs = Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean))) as string[];
               const orderedSubs = [
                 ...RESTAURANT_MENU_SECTIONS.filter(s => existingSubs.includes(s)),
                 ...existingSubs.filter(s => !RESTAURANT_MENU_SECTIONS.includes(s))
               ];
               subcategories = ["all", ...orderedSubs];
             } else if (isGroceryCat) {
-              const existingSubs = Array.from(new Set(allCatProducts.map(p => getResolvedGrocerySubcategory(p.id, p.nameBn, p.nameEn, p.subcategory, p.category)).filter(Boolean)));
+              const existingSubs = Array.from(new Set(allCatProducts.map(p => getResolvedGrocerySubcategory(p.id, p.nameBn, p.nameEn, p.subcategory, p.category)).filter(Boolean))) as string[];
               const orderedSubs = [
                 ...GROCERY_SECTIONS.filter(s => existingSubs.includes(s)),
                 ...existingSubs.filter(s => !GROCERY_SECTIONS.includes(s as any))
@@ -2278,7 +2288,7 @@ export default function App() {
               subcategories = ["all", ...orderedSubs];
             } else if (isVehicleCat) {
               const VEHICLE_ORDERED_SUBS = ["ambulance", "microbus", "bus", "auto", "cng", "pickup", "van", "car"];
-              const existingSubs = Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean)));
+              const existingSubs = Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean))) as string[];
               const orderedSubs = [
                 ...VEHICLE_ORDERED_SUBS.filter(s => existingSubs.includes(s)),
                 ...existingSubs.filter(s => !VEHICLE_ORDERED_SUBS.includes(s))
@@ -2286,26 +2296,117 @@ export default function App() {
               subcategories = ["all", ...orderedSubs];
             } else if (isMobileZoneCat) {
               const MOBILE_ORDERED_SUBS = ["vivo", "redmi", "infinix"];
-              const existingSubs = Array.from(new Set(allCatProducts.map(p => (p.subcategory || "").toLowerCase()).filter(Boolean)));
+              const existingSubs = Array.from(new Set(allCatProducts.map(p => (p.subcategory || "").toLowerCase()).filter(Boolean))) as string[];
               const orderedSubs = [
                 ...MOBILE_ORDERED_SUBS.filter(s => existingSubs.includes(s)),
                 ...existingSubs.filter(s => !MOBILE_ORDERED_SUBS.includes(s))
               ];
               subcategories = ["all", ...orderedSubs];
             } else {
-              subcategories = ["all", ...Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean)))];
+              subcategories = ["all", ...(Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean))) as string[])];
             }
 
             // Sort products
             const sortedProducts = [...catProducts].sort((a, b) => {
-              if (sortBy === "price-low") return a.price - b.price;
-              if (sortBy === "price-high") return b.price - a.price;
-              if (sortBy === "rating") return b.rating - a.rating;
-              if (sortBy === "discount") return (b.discount || 0) - (a.discount || 0);
-              const orderA = typeof (a as any).displayOrder === "number" ? (a as any).displayOrder : (typeof (a as any).order === "number" ? (a as any).order : 9999);
-              const orderB = typeof (b as any).displayOrder === "number" ? (b as any).displayOrder : (typeof (b as any).order === "number" ? (b as any).order : 9999);
-              return orderA - orderB;
+              if (sortBy === "price-low") {
+                const priceA = typeof a.price === "number" ? a.price : 0;
+                const priceB = typeof b.price === "number" ? b.price : 0;
+                return priceA - priceB;
+              }
+              if (sortBy === "price-high") {
+                const priceA = typeof a.price === "number" ? a.price : 0;
+                const priceB = typeof b.price === "number" ? b.price : 0;
+                return priceB - priceA;
+              }
+              if (sortBy === "rating") {
+                const ratingA = typeof a.rating === "number" ? a.rating : 0;
+                const ratingB = typeof b.rating === "number" ? b.rating : 0;
+                return ratingB - ratingA;
+              }
+              if (sortBy === "discount") {
+                const discA = typeof a.discount === "number" ? a.discount : 0;
+                const discB = typeof b.discount === "number" ? b.discount : 0;
+                return discB - discA;
+              }
+              return sortByDefaultOrder(a, b);
             });
+
+            // Mobile Zone brand header helper
+            const getMobileBrandHeader = (brandKey: string) => {
+              const k = (brandKey || "").toLowerCase();
+              if (k === "vivo") {
+                return {
+                  title: lang === "bn" ? "Vivo (ভিভো) অফিসিয়াল স্মার্টফোন" : "Vivo Official Smartphones",
+                  tagline: lang === "bn" ? "অরা লাইট ক্যামেরা • স্লিম ডিজাইন • লং লাস্টিং ব্যাটারি" : "Aura Light Portrait • Ultra Slim • Long Battery",
+                  pill: "vivo",
+                  pillBg: "bg-blue-600 text-white",
+                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                };
+              }
+              if (k === "redmi") {
+                return {
+                  title: lang === "bn" ? "Redmi (রেডমি / শাওমি) অফিসিয়াল স্মার্টফোন" : "Redmi / Xiaomi Official Smartphones",
+                  tagline: lang === "bn" ? "টার্বো চার্জিং • হাই-রেজোলিউশন ক্যামেরা • পাওয়ারফুল প্রসেসর" : "Turbo Fast Charging • Ultra Clear Camera • Power Engine",
+                  pill: "REDMI",
+                  pillBg: "bg-orange-600 text-white",
+                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                };
+              }
+              if (k === "infinix") {
+                return {
+                  title: lang === "bn" ? "Infinix (ইনফিনিক্স) স্মার্টফোন ও ট্যাবলেট" : "Infinix Official Smartphones & Tablets",
+                  tagline: lang === "bn" ? "বিগ ডিসপ্লে • গেমিং পাওয়ার • বাজেট ফ্রেন্ডলি ফাস্ট চার্জিং" : "Huge Display • Extreme Gaming • Rapid Charge",
+                  pill: "Infinix",
+                  pillBg: "bg-emerald-600 text-white",
+                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                };
+              }
+              return null;
+            };
+
+            // Pre-calculate sections for sectioned categories when default sorting & "all" subcategory is selected
+            const sectionGroups: { name: string; products: Product[]; brandInfo?: any }[] = [];
+            let unsectionedProducts: Product[] = [];
+
+            if (isSectionedCategory && sortBy === "default" && selectedSubcategory === "all") {
+              const nonAllSubs = subcategories.filter(sub => sub !== "all");
+              const matchedIds = new Set<string>();
+
+              nonAllSubs.forEach((secName) => {
+                const secKey = secName.toLowerCase().trim();
+                const matchedDbSub = matchingDbSubs.find(
+                  s => s.nameBn.toLowerCase().trim() === secKey || (s.nameEn && s.nameEn.toLowerCase().trim() === secKey) || s.id.toLowerCase().trim() === secKey
+                );
+
+                const prods = sortedProducts.filter((p) => {
+                  if (matchedIds.has(p.id)) return false;
+
+                  if (isGroceryCat) {
+                    const effSub = getResolvedGrocerySubcategory(p.id, p.nameBn, p.nameEn, p.subcategory, p.category);
+                    if (effSub && effSub.toLowerCase().trim() === secKey) return true;
+                  }
+                  if (isMobileZoneCat) {
+                    if ((p.subcategory || "").toLowerCase().trim() === secKey) return true;
+                  }
+                  if ((p.subcategory || "").toLowerCase().trim() === secKey) return true;
+                  if (matchedDbSub && (p.subcategoryId === matchedDbSub.id || (p.subcategory && p.subcategory.toLowerCase().trim() === matchedDbSub.nameBn.toLowerCase().trim()))) {
+                    return true;
+                  }
+                  return false;
+                });
+
+                if (prods.length > 0) {
+                  prods.forEach(p => matchedIds.add(p.id));
+                  sectionGroups.push({
+                    name: secName,
+                    products: prods,
+                    brandInfo: isMobileZoneCat ? getMobileBrandHeader(secName) : null
+                  });
+                }
+              });
+
+              unsectionedProducts = sortedProducts.filter(p => !matchedIds.has(p.id));
+            }
 
             return (
               <>
@@ -2505,167 +2606,131 @@ export default function App() {
                     <h3 className="text-sm font-bold text-slate-800">{lang === "bn" ? "কোন পণ্য পাওয়া যায়নি!" : "No products found!"}</h3>
                     <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
                       {lang === "bn" 
-                        ? "অনুগ্রহ করে বানান চেক করুন অথবা ক্লিয়ার সার্চ বাটন ক্লিক করে পুনরায় চেষ্টা করুন।" 
+                        ? "অনুগ্রহ করে ফিল্টার পরিবর্তন করুন অথবা সব ফিল্টার রিসেট করে পুনরায় চেষ্টা করুন।" 
                         : "Please adjust your search terms or filter constraints and try again."}
                     </p>
-                    <button
-                      onClick={() => {
-                        setSearchQuery("");
-                        setSelectedSubcategory("all");
-                      }}
-                      className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition cursor-pointer"
-                    >
-                      {lang === "bn" ? "সব ফিল্টার রিসেট করুন" : "Reset All Filters"}
-                    </button>
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        onClick={() => {
+                          setSearchQuery("");
+                          setSelectedSubcategory("all");
+                          setSortBy("default");
+                        }}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+                      >
+                        {lang === "bn" ? "সব ফিল্টার রিসেট করুন" : "Reset All Filters"}
+                      </button>
+                      <button
+                        onClick={handleBackToHome}
+                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+                      >
+                        {lang === "bn" ? "হোমপেজে ফিরে যান" : "Back to Home"}
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* Products Display: Grouped by section headings for Restaurant and Groceries, or standard grid for other categories */}
+                {/* Products Display: Grouped by section headings when sectionGroups exist, or standard responsive grid */}
                 {!loadingProducts && sortedProducts.length > 0 && (
                   <>
-                    {isSectionedCategory && sortBy === "default" && selectedSubcategory === "all" ? (
-                      // Section-wise separated view for Restaurant, Grocery, & Mobile Zone categories
+                    {isSectionedCategory && sortBy === "default" && selectedSubcategory === "all" && sectionGroups.length > 0 ? (
+                      // Section-wise separated view with all sections that have products, plus any remaining items
                       <div className="space-y-7 mt-3">
-                        {subcategories
-                          .filter(sub => sub !== "all")
-                          .map((secName) => {
-                            const secProducts = sortedProducts.filter(p => {
-                              if (isGroceryCat) {
-                                const effSub = getResolvedGrocerySubcategory(p.id, p.nameBn, p.nameEn, p.subcategory, p.category);
-                                return effSub === secName;
-                              }
-                              if (isMobileZoneCat) {
-                                return (p.subcategory || "").toLowerCase() === secName.toLowerCase();
-                              }
-                              return p.subcategory === secName;
-                            });
-                            if (secProducts.length === 0) return null;
-
-                            const getMobileBrandHeader = (brandKey: string) => {
-                              const k = brandKey.toLowerCase();
-                              if (k === "vivo") {
-                                return {
-                                  title: lang === "bn" ? "Vivo (ভিভো) অফিসিয়াল স্মার্টফোন" : "Vivo Official Smartphones",
-                                  tagline: lang === "bn" ? "অরা লাইট ক্যামেরা • স্লিম ডিজাইন • লং লাস্টিং ব্যাটারি" : "Aura Light Portrait • Ultra Slim • Long Battery",
-                                  pill: "vivo",
-                                  pillBg: "bg-blue-600 text-white",
-                                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
-                                };
-                              }
-                              if (k === "redmi") {
-                                return {
-                                  title: lang === "bn" ? "Redmi (রেডমি / শাওমি) অফিসিয়াল স্মার্টফোন" : "Redmi / Xiaomi Official Smartphones",
-                                  tagline: lang === "bn" ? "টার্বো চার্জিং • হাই-রেজোলিউশন ক্যামেরা • পাওয়ারফুল প্রসেসর" : "Turbo Fast Charging • Ultra Clear Camera • Power Engine",
-                                  pill: "REDMI",
-                                  pillBg: "bg-orange-600 text-white",
-                                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
-                                };
-                              }
-                              if (k === "infinix") {
-                                return {
-                                  title: lang === "bn" ? "Infinix (ইনফিনিক্স) স্মার্টফোন ও ট্যাবলেট" : "Infinix Official Smartphones & Tablets",
-                                  tagline: lang === "bn" ? "বিগ ডিসপ্লে • গেমিং পাওয়ার • বাজেট ফ্রেন্ডলি ফাস্ট চার্জিং" : "Huge Display • Extreme Gaming • Rapid Charge",
-                                  pill: "Infinix",
-                                  pillBg: "bg-emerald-600 text-white",
-                                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
-                                };
-                              }
-                              return null;
-                            };
-
-                            const brandInfo = isMobileZoneCat ? getMobileBrandHeader(secName) : null;
-
-                            return (
-                              <div key={secName} className="bg-slate-50/40 rounded-2xl p-2.5 sm:p-3.5 border border-slate-100">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3 pb-2 border-b border-emerald-500/20 px-1">
-                                  <div className="flex items-center gap-2.5 flex-wrap">
-                                    {brandInfo ? (
-                                      <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-wider uppercase shadow-2xs ${brandInfo.pillBg}`}>
-                                        {brandInfo.pill}
-                                      </span>
-                                    ) : (
-                                      <span className="w-2 sm:w-2.5 h-4 sm:h-5 bg-emerald-600 rounded-xs"></span>
-                                    )}
-                                    <div>
-                                      <h3 className="text-xs sm:text-sm md:text-base font-black text-slate-800 tracking-wide">
-                                        {brandInfo ? brandInfo.title : secName}
-                                      </h3>
-                                      {brandInfo && (
-                                        <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">
-                                          {brandInfo.tagline}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-                                    {brandInfo && (
-                                      <span className="text-[9.5px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
-                                        ✓ {brandInfo.warranty}
-                                      </span>
-                                    )}
-                                    <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-800 bg-white border border-emerald-200/80 shadow-2xs px-2.5 py-0.5 rounded-full">
-                                      {secProducts.length} {lang === "bn" ? (isMobileZoneCat ? "মডেল" : "আইটেম") : (isMobileZoneCat ? "models" : "items")}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                                  {secProducts.map((product) => (
-                                    <ProductCard
-                                      key={product.id}
-                                      product={product}
-                                      lang={lang}
-                                      fmtNum={fmtNum}
-                                      wishlist={wishlist}
-                                      toggleWishlist={toggleWishlist}
-                                      cart={cart}
-                                      addToCart={addToCart}
-                                      updateCartQuantity={updateCartQuantity}
-                                      removeFromCart={removeFromCart}
-                                      handleBuyNow={handleBuyNow}
-                                      openQuickView={openQuickView}
-                                      handleProductImgError={handleProductImgError}
-                                    />
-                                  ))}
+                        {sectionGroups.map((section) => (
+                          <div key={section.name} className="bg-slate-50/40 rounded-2xl p-2.5 sm:p-3.5 border border-slate-100">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3 pb-2 border-b border-emerald-500/20 px-1">
+                              <div className="flex items-center gap-2.5 flex-wrap">
+                                {section.brandInfo ? (
+                                  <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-wider uppercase shadow-2xs ${section.brandInfo.pillBg}`}>
+                                    {section.brandInfo.pill}
+                                  </span>
+                                ) : (
+                                  <span className="w-2 sm:w-2.5 h-4 sm:h-5 bg-emerald-600 rounded-xs"></span>
+                                )}
+                                <div>
+                                  <h3 className="text-xs sm:text-sm md:text-base font-black text-slate-800 tracking-wide">
+                                    {section.brandInfo ? section.brandInfo.title : section.name}
+                                  </h3>
+                                  {section.brandInfo && (
+                                    <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">
+                                      {section.brandInfo.tagline}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
-                            );
-                          })}
+                              <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                                {section.brandInfo && (
+                                  <span className="text-[9.5px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
+                                    ✓ {section.brandInfo.warranty}
+                                  </span>
+                                )}
+                                <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-800 bg-white border border-emerald-200/80 shadow-2xs px-2.5 py-0.5 rounded-full">
+                                  {section.products.length} {lang === "bn" ? (isMobileZoneCat ? "মডেল" : "আইটেম") : (isMobileZoneCat ? "models" : "items")}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                              {section.products.map((product) => (
+                                <ProductCard
+                                  key={product.id}
+                                  product={product}
+                                  lang={lang}
+                                  fmtNum={fmtNum}
+                                  wishlist={wishlist}
+                                  toggleWishlist={toggleWishlist}
+                                  cart={cart}
+                                  addToCart={addToCart}
+                                  updateCartQuantity={updateCartQuantity}
+                                  removeFromCart={removeFromCart}
+                                  handleBuyNow={handleBuyNow}
+                                  openQuickView={openQuickView}
+                                  handleProductImgError={handleProductImgError}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* If any products were unsectioned, display them so NOTHING is hidden */}
+                        {unsectionedProducts.length > 0 && (
+                          <div className="bg-slate-50/40 rounded-2xl p-2.5 sm:p-3.5 border border-slate-100">
+                            <div className="flex items-center justify-between mb-3 pb-2 border-b border-emerald-500/20 px-1">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 sm:w-2.5 h-4 sm:h-5 bg-teal-600 rounded-xs"></span>
+                                <h3 className="text-xs sm:text-sm md:text-base font-black text-slate-800 tracking-wide">
+                                  {lang === "bn" ? "অন্যান্য সামগ্রী ও পণ্য" : "Other Products & Items"}
+                                </h3>
+                              </div>
+                              <span className="text-[10px] sm:text-[11px] font-extrabold text-teal-800 bg-white border border-teal-200/80 shadow-2xs px-2.5 py-0.5 rounded-full">
+                                {unsectionedProducts.length} {lang === "bn" ? "আইটেম" : "items"}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                              {unsectionedProducts.map((product) => (
+                                <ProductCard
+                                  key={product.id}
+                                  product={product}
+                                  lang={lang}
+                                  fmtNum={fmtNum}
+                                  wishlist={wishlist}
+                                  toggleWishlist={toggleWishlist}
+                                  cart={cart}
+                                  addToCart={addToCart}
+                                  updateCartQuantity={updateCartQuantity}
+                                  removeFromCart={removeFromCart}
+                                  handleBuyNow={handleBuyNow}
+                                  openQuickView={openQuickView}
+                                  handleProductImgError={handleProductImgError}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : isSectionedCategory && sortBy === "default" && selectedSubcategory !== "all" ? (
-                      // Single selected section view for Restaurant, Grocery, & Mobile Zone categories
+                      // Single selected section view
                       (() => {
-                        const getSingleBrandHeader = (brandKey: string) => {
-                          const k = brandKey.toLowerCase();
-                          if (k === "vivo") {
-                            return {
-                              title: lang === "bn" ? "Vivo (ভিভো) অফিসিয়াল স্মার্টফোন" : "Vivo Official Smartphones",
-                              tagline: lang === "bn" ? "অরা লাইট ক্যামেরা • স্লিম ডিজাইন • লং লাস্টিং ব্যাটারি" : "Aura Light Portrait • Ultra Slim • Long Battery",
-                              pill: "vivo",
-                              pillBg: "bg-blue-600 text-white",
-                              warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
-                            };
-                          }
-                          if (k === "redmi") {
-                            return {
-                              title: lang === "bn" ? "Redmi (রেডমি / শাওমি) অফিসিয়াল স্মার্টফোন" : "Redmi / Xiaomi Official Smartphones",
-                              tagline: lang === "bn" ? "টার্বো চার্জিং • হাই-রেজোলিউশন ক্যামেরা • পাওয়ারফুল প্রসেসর" : "Turbo Fast Charging • Ultra Clear Camera • Power Engine",
-                              pill: "REDMI",
-                              pillBg: "bg-orange-600 text-white",
-                              warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
-                            };
-                          }
-                          if (k === "infinix") {
-                            return {
-                              title: lang === "bn" ? "Infinix (ইনফিনিক্স) স্মার্টফোন ও ট্যাবলেট" : "Infinix Official Smartphones & Tablets",
-                              tagline: lang === "bn" ? "বিগ ডিসপ্লে • গেমিং পাওয়ার • বাজেট ফ্রেন্ডলি ফাস্ট চার্জিং" : "Huge Display • Extreme Gaming • Rapid Charge",
-                              pill: "Infinix",
-                              pillBg: "bg-emerald-600 text-white",
-                              warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
-                            };
-                          }
-                          return null;
-                        };
-                        const brandInfo = isMobileZoneCat ? getSingleBrandHeader(selectedSubcategory) : null;
+                        const brandInfo = isMobileZoneCat ? getMobileBrandHeader(selectedSubcategory) : null;
                         return (
                           <div className="mt-3 bg-slate-50/40 rounded-2xl p-2.5 sm:p-3.5 border border-slate-100">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3 pb-2 border-b border-emerald-500/20 px-1">
@@ -2722,7 +2787,7 @@ export default function App() {
                         );
                       })()
                     ) : (
-                      // Standard grid view for other categories or sorted list
+                      // Standard clean responsive grid view for all categories, sorts, and layouts
                       <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mt-5">
                         {sortedProducts.map((product) => (
                           <ProductCard
