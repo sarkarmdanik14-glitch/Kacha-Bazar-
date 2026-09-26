@@ -594,6 +594,7 @@ export default function App() {
             }
 
             const isFrozenCat = catId === "frozen" || data.nameBn === "হিমায়িত খাদ্য";
+            const catImg = (data.image || data.imageUrl || data.banner || data.bannerUrl || "").trim();
             cats.push({
               id: catId,
               nameBn: isFrozenCat ? "ড্রাই ফুড" : data.nameBn,
@@ -601,7 +602,9 @@ export default function App() {
               iconName: isFrozenCat ? "Package" : (data.iconName || "Sparkles"),
               colorClass: data.colorClass || "from-emerald-500 to-teal-600",
               borderColor: data.borderColor || "border-slate-200",
-              image: data.image || data.imageUrl,
+              image: catImg,
+              imageUrl: catImg,
+              banner: catImg,
               isAvailable: data.isAvailable !== false,
               displayOrder: typeof data.displayOrder === "number" ? data.displayOrder : (typeof data.order === "number" ? data.order : undefined),
               order: typeof data.order === "number" ? data.order : (typeof data.displayOrder === "number" ? data.displayOrder : undefined)

@@ -111,6 +111,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   const [savingCategory, setSavingCategory] = useState<boolean>(false);
   const [uploadingCatImage, setUploadingCatImage] = useState<boolean>(false);
   const catFileInputRef = useRef<HTMLInputElement>(null);
+  const lastSavedCategoryImages = useRef<Record<string, string>>({});
 
   // General Category Modal state (for creating/editing category in "categories" subtab)
   const [showCategoryModal, setShowCategoryModal] = useState<boolean>(false);
@@ -307,21 +308,28 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showProductForm, showCategoryModal, showSubcategoryModal]);
 
-  // Load category information whenever selectedCatId changes
+  // Load category information whenever selectedCatId or categories changes
   useEffect(() => {
     const currentCat = categories.find(c => c.id === selectedCatId);
     if (currentCat) {
       setCatNameBn(currentCat.nameBn || "");
       setCatNameEn(currentCat.nameEn || "");
       setCatIcon(currentCat.iconName || "Salad");
-      setCatImage(currentCat.image || currentCat.imageUrl || "");
+      
+      const savedLocal = lastSavedCategoryImages.current[selectedCatId];
+      const remoteImg = (currentCat.image || currentCat.imageUrl || (currentCat as any).banner || (currentCat as any).bannerUrl || "").trim();
+      // Keep saved image in local state so real-time listeners don't revert to old default values
+      const resolvedImg = savedLocal !== undefined ? savedLocal : remoteImg;
+      setCatImage(resolvedImg);
+
       setCatColor(currentCat.colorClass || "bg-emerald-50 text-emerald-700");
       setCatBorder(currentCat.borderColor || "border-emerald-100");
     } else if (selectedCatId === "vegetables") {
       setCatNameBn("তাজা শাক-সবজি");
       setCatNameEn("Fresh Vegetables");
       setCatIcon("Salad");
-      setCatImage("");
+      const savedLocal = lastSavedCategoryImages.current["vegetables"];
+      setCatImage(savedLocal !== undefined ? savedLocal : "");
       setCatColor("bg-emerald-50 text-emerald-700");
       setCatBorder("border-emerald-100");
     }
@@ -360,6 +368,9 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       const url = await uploadImageWithFallback(file, { folder: "categories" });
       if (url) {
         setCatImage(url);
+        if (selectedCatId) {
+          lastSavedCategoryImages.current[selectedCatId] = url;
+        }
         triggerToast("ক্যাটাগরি ছবি সফলভাবে আপলোড হয়েছে!", "Category image uploaded successfully!");
       } else {
         throw new Error("Could not process image");
@@ -383,19 +394,40 @@ export default function AdminProductsTab({ products, categories, orders = [], us
 
     setSavingCategory(true);
     try {
+      const cleanImg = catImage.trim();
+      const catId = selectedCatId.trim().toLowerCase();
       const payload: any = {
-        id: selectedCatId.trim().toLowerCase(),
+        id: catId,
         nameBn: catNameBn.trim(),
         nameEn: catNameEn.trim(),
         iconName: catIcon.trim() || "Salad",
         colorClass: catColor.trim() || "bg-emerald-50 text-emerald-700",
         borderColor: catBorder.trim() || "border-emerald-100",
-        image: catImage.trim(),
-        imageUrl: catImage.trim(),
+        image: cleanImg,
+        imageUrl: cleanImg,
+        banner: cleanImg,
+        bannerUrl: cleanImg,
         updatedAt: serverTimestamp()
       };
 
       await setDoc(doc(db, "categories", payload.id), payload, { merge: true });
+
+      // Save into cache ref & ensure local input state retains the Cloudinary image URL
+      lastSavedCategoryImages.current[catId] = cleanImg;
+      setCatImage(cleanImg);
+
+      // Optimistically update categories array item so immediate re-render displays new image
+      const matchedCat = categories.find(c => c.id === catId);
+      if (matchedCat) {
+        matchedCat.nameBn = payload.nameBn;
+        matchedCat.nameEn = payload.nameEn;
+        matchedCat.iconName = payload.iconName;
+        matchedCat.image = cleanImg;
+        matchedCat.imageUrl = cleanImg;
+        matchedCat.banner = cleanImg;
+        matchedCat.bannerUrl = cleanImg;
+      }
+
       triggerToast(
         `"${catNameBn}" ক্যাটাগরি তথ্য সফলভাবে সেভ হয়েছে!`,
         `Category "${catNameEn}" profile updated successfully!`
@@ -451,7 +483,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     setModalCatNameBn(c.nameBn || "");
     setModalCatNameEn(c.nameEn || "");
     setModalCatIcon(c.iconName || "Salad");
-    setModalCatImage(c.image || c.imageUrl || "");
+    const existingImg = lastSavedCategoryImages.current[c.id] !== undefined
+      ? lastSavedCategoryImages.current[c.id]
+      : (c.image || c.imageUrl || c.banner || c.bannerUrl || "");
+    setModalCatImage(existingImg);
     setModalCatColor(c.colorClass || "bg-emerald-50 text-emerald-700");
     setModalCatBorder(c.borderColor || "border-emerald-100");
     setModalCatIsAvailable(c.isAvailable !== false && c.disabled !== true);
@@ -501,6 +536,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
 
     setSavingCategoryModal(true);
     try {
+      const cleanImg = modalCatImage.trim();
       const payload: any = {
         id: finalId,
         nameBn: modalCatNameBn.trim(),
@@ -508,8 +544,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         iconName: modalCatIcon.trim() || "Salad",
         colorClass: modalCatColor.trim() || "bg-emerald-50 text-emerald-700",
         borderColor: modalCatBorder.trim() || "border-emerald-100",
-        image: modalCatImage.trim(),
-        imageUrl: modalCatImage.trim(),
+        image: cleanImg,
+        imageUrl: cleanImg,
+        banner: cleanImg,
+        bannerUrl: cleanImg,
         isAvailable: modalCatIsAvailable,
         disabled: !modalCatIsAvailable,
         displayOrder: Number(modalCatDisplayOrder) || 0,
@@ -519,7 +557,26 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       };
 
       await setDoc(doc(db, "categories", finalId), payload, { merge: true });
+
+      // Save into cache ref & ensure local state keeps the updated image
+      lastSavedCategoryImages.current[finalId] = cleanImg;
+      if (selectedCatId === finalId) {
+        setCatImage(cleanImg);
+      }
       setSelectedCatId(finalId);
+
+      // Optimistically update in-memory category item
+      const matchedCat = categories.find(c => c.id === finalId);
+      if (matchedCat) {
+        matchedCat.nameBn = payload.nameBn;
+        matchedCat.nameEn = payload.nameEn;
+        matchedCat.iconName = payload.iconName;
+        matchedCat.image = cleanImg;
+        matchedCat.imageUrl = cleanImg;
+        matchedCat.banner = cleanImg;
+        matchedCat.bannerUrl = cleanImg;
+      }
+
       triggerToast(
         `"${modalCatNameBn}" ক্যাটাগরি সফলভাবে সেভ করা হয়েছে!`,
         `Category "${modalCatNameEn}" saved successfully!`
@@ -1280,7 +1337,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input 
                     type="url" 
-                    placeholder="https://images.unsplash.com/..." 
+                    placeholder="https://res.cloudinary.com/... or https://..." 
                     value={catImage} 
                     onChange={(e) => setCatImage(e.target.value)} 
                     className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
@@ -2707,7 +2764,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                 <div className="flex gap-2">
                   <input 
                     type="url" 
-                    placeholder="https://images.unsplash.com/..." 
+                    placeholder="https://res.cloudinary.com/... or https://..." 
                     value={modalCatImage} 
                     onChange={(e) => setModalCatImage(e.target.value)} 
                     className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"

@@ -340,9 +340,12 @@ export function mergeCategoryCards(categories: any[]): any[] {
     // 0. Mobile Zone -> Ensure only one card exists, with ID "mobile-zone"
     if (cat.id === "mobile-zone" || cat.id === "mobile" || cat.id === "mobiles") {
       if (!mobileZoneAdded) {
+        const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
         result.push({
-          ...cat,
           ...MOBILE_ZONE_CATEGORY,
+          ...cat,
+          image: catImg || MOBILE_ZONE_CATEGORY.image,
+          imageUrl: catImg || MOBILE_ZONE_CATEGORY.imageUrl,
           id: "mobile-zone",
           nameBn: "মোবাইল জোন",
           nameEn: "Mobile Zone",
@@ -356,10 +359,36 @@ export function mergeCategoryCards(categories: any[]): any[] {
       continue;
     }
 
+    // 0.1 Vehicles -> Ensure vehicles preserves custom saved image
+    if (cat.id === "vehicles" || cat.id === "transport" || cat.id === "car-rental") {
+      if (!vehiclesAdded) {
+        const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
+        result.push({
+          ...VEHICLES_CATEGORY,
+          ...cat,
+          image: catImg || VEHICLES_CATEGORY.image,
+          imageUrl: catImg || VEHICLES_CATEGORY.imageUrl,
+          id: "vehicles",
+          nameBn: "যানবাহন",
+          nameEn: "Vehicles & Transport",
+          iconName: "Truck",
+          colorClass: cat.colorClass || "bg-blue-50 text-blue-700 hover:bg-blue-100",
+          borderColor: cat.borderColor || "border-blue-100",
+          displayOrder: 17,
+          order: 17,
+          isAvailable: true
+        });
+        vehiclesAdded = true;
+      }
+      continue;
+    }
+
     // 1. Restaurant category -> Force serial #3
     if (cat.id === "bakery-sweets" || cat.id === "restaurant" || cat.id === "bakery") {
       if (!restaurantAdded) {
+        const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
         result.push({
+          ...RESTAURANT_CATEGORY,
           ...cat,
           id: "bakery-sweets",
           nameBn: "রেস্টুরেন্ট",
@@ -367,6 +396,8 @@ export function mergeCategoryCards(categories: any[]): any[] {
           iconName: cat.iconName || "Utensils",
           colorClass: cat.colorClass || "bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100",
           borderColor: cat.borderColor || "border-fuchsia-100",
+          image: catImg || RESTAURANT_CATEGORY.image || "",
+          imageUrl: catImg || RESTAURANT_CATEGORY.imageUrl || "",
           displayOrder: 3,
           order: 3
         });
@@ -378,7 +409,9 @@ export function mergeCategoryCards(categories: any[]): any[] {
     // 2. Confectionery + Beverages -> Merge into ONE card "কনফেকশনারি" at serial #5
     if (cat.id === "snacks-biscuits" || cat.id === "beverages" || cat.id === "confectionery" || cat.id === "drinks") {
       if (!confectioneryAdded) {
+        const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
         result.push({
+          ...MERGED_CONFECTIONERY_CATEGORY,
           ...cat,
           id: "snacks-biscuits",
           nameBn: "কনফেকশনারি",
@@ -386,8 +419,8 @@ export function mergeCategoryCards(categories: any[]): any[] {
           iconName: "Cookie",
           colorClass: "bg-pink-50 text-pink-700 hover:bg-pink-100",
           borderColor: "border-pink-100",
-          image: cat.id === "snacks-biscuits" ? (cat.image || cat.imageUrl) : undefined,
-          imageUrl: cat.id === "snacks-biscuits" ? (cat.imageUrl || cat.image) : undefined,
+          image: catImg || MERGED_CONFECTIONERY_CATEGORY.image || "",
+          imageUrl: catImg || MERGED_CONFECTIONERY_CATEGORY.imageUrl || "",
           displayOrder: 5,
           order: 5,
           isAvailable: true
@@ -401,36 +434,46 @@ export function mergeCategoryCards(categories: any[]): any[] {
     // 3. Groceries -> Staples + Spices-Oils into "মুদি পণ্য" at serial #2
     if (cat.id === "staples" || cat.id === "spices-oils") {
       if (!groceryAdded) {
+        const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
         result.push({
+          ...MERGED_GROCERY_CATEGORY,
           ...cat,
-          ...MERGED_GROCERY_CATEGORY
+          image: catImg || MERGED_GROCERY_CATEGORY.image,
+          imageUrl: catImg || MERGED_GROCERY_CATEGORY.imageUrl
         });
         groceryAdded = true;
       }
     } else if (cat.id === "groceries") {
+      const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
       result.push({
         ...cat,
         nameBn: "মুদি পণ্য",
         nameEn: cat.nameEn || "Groceries",
         iconName: cat.iconName || "Wheat",
-        image: cat.image || MERGED_GROCERY_CATEGORY.image,
+        image: catImg || MERGED_GROCERY_CATEGORY.image,
+        imageUrl: catImg || MERGED_GROCERY_CATEGORY.imageUrl,
         displayOrder: 2,
         order: 2
       });
       groceryAdded = true;
     } else if (cat.id === "frozen" || cat.id === "dry-food" || cat.id === "dryfood") {
+      const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
       result.push({
         ...cat,
         id: "frozen",
         nameBn: "ড্রাই ফুড",
         nameEn: "Dry Food",
         iconName: cat.iconName || "Package",
+        image: catImg || cat.image || cat.imageUrl || "",
+        imageUrl: catImg || cat.imageUrl || cat.image || "",
         displayOrder: 9,
         order: 9
       });
     } else if (cat.id === "baby-care" || cat.id === "pharmacy" || cat.id === "medicine") {
       if (!pharmacyAdded) {
+        const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
         result.push({
+          ...PHARMACY_CATEGORY,
           ...cat,
           id: "pharmacy",
           nameBn: "ফার্মেসি",
@@ -438,6 +481,8 @@ export function mergeCategoryCards(categories: any[]): any[] {
           iconName: "Pill",
           colorClass: "bg-teal-50 text-teal-700 hover:bg-teal-100",
           borderColor: "border-teal-100",
+          image: catImg || PHARMACY_CATEGORY.image || "",
+          imageUrl: catImg || PHARMACY_CATEGORY.imageUrl || "",
           displayOrder: 12,
           order: 12,
           isAvailable: true
@@ -445,6 +490,7 @@ export function mergeCategoryCards(categories: any[]): any[] {
         pharmacyAdded = true;
       }
     } else if (cat.id === "buy-sell" || cat.id === "organic-herbal" || cat.id === "buysell") {
+      const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
       result.push({
         ...cat,
         id: "buy-sell",
@@ -453,14 +499,19 @@ export function mergeCategoryCards(categories: any[]): any[] {
         iconName: "Repeat",
         colorClass: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
         borderColor: "border-emerald-100",
+        image: catImg || cat.image || cat.imageUrl || "",
+        imageUrl: catImg || cat.imageUrl || cat.image || "",
         displayOrder: 14,
         order: 14
       });
     } else {
       // Assign mapped default serial order if not explicitly set
       const defaultSerial = CATEGORY_SERIAL_MAP[cat.id];
+      const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
       result.push({
         ...cat,
+        image: catImg || cat.image || cat.imageUrl || "",
+        imageUrl: catImg || cat.imageUrl || cat.image || "",
         displayOrder: typeof cat.displayOrder === "number" ? cat.displayOrder : (typeof cat.order === "number" ? cat.order : defaultSerial),
         order: typeof cat.order === "number" ? cat.order : (typeof cat.displayOrder === "number" ? cat.displayOrder : defaultSerial)
       });

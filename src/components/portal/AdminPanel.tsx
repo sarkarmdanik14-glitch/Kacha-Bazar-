@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { checkAndRewardReferral } from "../../lib/referral";
 import { mergeCategoryCards } from "../../lib/categoryUtils";
-import { ALL_PRODUCTS } from "../../data";
+import { ALL_PRODUCTS, CATEGORIES } from "../../data";
 import { resolveAuthenticProductImage } from "../../lib/masterImageRegistry";
 
 // Import modular sub-panels
@@ -279,14 +279,34 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
           }
 
           const isFrozenCat = catId === "frozen" || data.nameBn === "হিমায়িত খাদ্য";
+          const catImg = (data.image || data.imageUrl || data.banner || data.bannerUrl || "").trim();
           cats.push({
             id: catId,
             ...data,
             nameBn: isFrozenCat ? "ড্রাই ফুড" : data.nameBn,
             nameEn: isFrozenCat ? "Dry Food" : data.nameEn,
-            iconName: isFrozenCat ? "Package" : (data.iconName || "Sparkles")
+            iconName: isFrozenCat ? "Package" : (data.iconName || "Sparkles"),
+            image: catImg,
+            imageUrl: catImg,
+            banner: catImg,
+            bannerUrl: catImg
           });
         });
+
+        // Ensure default categories are present if not yet saved in Firestore
+        CATEGORIES.forEach((defaultCat) => {
+          if (!cats.some(c => c.id === defaultCat.id)) {
+            const defImg = ((defaultCat as any).image || (defaultCat as any).imageUrl || "").trim();
+            cats.push({
+              ...defaultCat,
+              image: defImg,
+              imageUrl: defImg,
+              banner: defImg,
+              bannerUrl: defImg
+            });
+          }
+        });
+
         const mergedCats = mergeCategoryCards(cats);
         mergedCats.sort((a, b) => {
           const orderA = typeof a.displayOrder === "number" ? a.displayOrder : (typeof a.order === "number" ? a.order : 9999);
