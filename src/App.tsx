@@ -12,11 +12,10 @@ import BuySellMarketplace from "./components/buysell/BuySellMarketplace";
 import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { printOrderMemo } from "./lib/printUtils";
-import { Product, Category, CartItem, Review, ProductOption } from "./types";
-import { CATEGORIES, ALL_PRODUCTS } from "./data";
+import { Product, Category, Subcategory, CartItem, Review, ProductOption } from "./types";
+import { CATEGORIES, ALL_PRODUCTS, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
 import { resolveProductDisplayUnit } from "./lib/productWeightUtils";
-import { RESTAURANT_MENU_SECTIONS } from "./data/restaurant_new_items";
-import { GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data/grocery_subcategories";
+import { subscribeToAllSubcategories } from "./lib/subcategoryService";
 
 import PortalModal from "./components/portal/PortalModal";
 import CheckoutModal from "./components/CheckoutModal";
@@ -56,6 +55,7 @@ import {
   validateWeightLimit
 } from "./lib/productWeightUtils";
 import { isCategoryMatch, normalizeCategoryId, mergeCategoryCards } from "./lib/categoryUtils";
+import { SAFE_PRODUCT_PLACEHOLDER } from "./lib/masterImageRegistry";
 
 export default function App() {
   // Localization: 'bn' (Bangla) or 'en' (English)
@@ -71,6 +71,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [activeBanner, setActiveBanner] = useState<number>(0);
   const [showAllMobile, setShowAllMobile] = useState<boolean>(false);
+  const [dbSubcategories, setDbSubcategories] = useState<Subcategory[]>([]);
   
   // Interactive E-commerce state
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -529,16 +530,18 @@ export default function App() {
 
   // Real-time synchronization of products, categories, reviews, banners, and home config from Firestore
   useEffect(() => {
-    setLoadingProducts(true);
-    const unsubProducts = onSnapshot(
+    const productsQuery = query(
       collection(db, "products"),
+      where("isDeleted", "==", false)
+    );
+
+    const unsubProducts = onSnapshot(
+      productsQuery,
       (snap) => {
         const items: Product[] = [];
-        const deletedIds = new Set<string>();
         snap.forEach((doc) => {
           const data = doc.data();
           if (data.isDeleted === true || data.status === "deleted" || data.deleted === true) {
-            deletedIds.add(doc.id);
             return;
           }
           // Completely remove ALL old products from the former "হিমায়িত খাদ্য" category
@@ -548,13 +551,7 @@ export default function App() {
           items.push(mapDocToProduct(doc.id, data));
         });
 
-        // Merge initial catalog items from ALL_PRODUCTS so newly added products
-        // (including all Restaurant menu items across all 25 sections) are immediately available
-        // in both customer storefront & admin panel, while preserving any edits saved to Firestore
-        const firestoreIds = new Set(items.map(p => p.id));
-        const missingInitial = ALL_PRODUCTS.filter(p => !firestoreIds.has(p.id) && !deletedIds.has(p.id));
-
-        setProducts([...items, ...missingInitial]);
+        setProducts(items);
         setLoadingProducts(false);
       },
       (err) => {
@@ -770,9 +767,14 @@ export default function App() {
       (err) => console.warn("Firestore home config sync notice:", err.message)
     );
 
+    const unsubSubcategories = subscribeToAllSubcategories((subs) => {
+      setDbSubcategories(subs);
+    });
+
     return () => {
       unsubProducts();
       unsubCategories();
+      unsubSubcategories();
       unsubReviews();
       unsubBanners();
       unsubLeadership();
@@ -867,7 +869,12 @@ export default function App() {
   }, [lang]);
 
   const handleProductImgError = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=450&q=80";
+    const target = (e.currentTarget || e.target) as HTMLImageElement;
+    if (!target) return;
+    target.onerror = null;
+    if (target.dataset.triedFallback === "true") return;
+    target.dataset.triedFallback = "true";
+    target.src = SAFE_PRODUCT_PLACEHOLDER;
   }, []);
 
   // Toast triggers
@@ -1699,7 +1706,7 @@ export default function App() {
                     }}
                     className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition"
                   >
-                    <img src={prod.image} className="w-10 h-10 object-cover rounded" onError={handleProductImgError} />
+                    <img src={prod.image || (prod as any).imageUrl || SAFE_PRODUCT_PLACEHOLDER} className="w-10 h-10 object-cover rounded bg-slate-50" onError={handleProductImgError} />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold truncate text-slate-800">{lang === "bn" ? prod.nameBn : prod.nameEn}</p>
                       <p className="text-[10px] text-emerald-600 font-bold">৳{fmtNum(prod.price)} / {lang === "bn" ? prod.unitBn : prod.unitEn}</p>
@@ -2137,7 +2144,7 @@ export default function App() {
               {availableProducts.filter(p => p.rating >= 4.8 && !p.isCombo).slice(0, 3).map((product) => (
                 <div key={product.id} className="bg-white p-2 sm:p-2.5 rounded-xl border border-emerald-50/50 shadow-2xs flex flex-col justify-between group hover:shadow-md transition">
                   <div className="w-full aspect-[4/3] overflow-hidden rounded-lg mb-1.5 bg-slate-50">
-                    <img src={product.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onError={handleProductImgError} />
+                    <img src={product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onError={handleProductImgError} />
                   </div>
                   <h4 className="text-[10px] sm:text-xs font-bold text-slate-800 line-clamp-1">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
                   <div className="flex justify-between items-center mt-1.5">
@@ -2170,7 +2177,7 @@ export default function App() {
               {availableProducts.filter(p => p.isSeasonal || (homeConfig?.featuredProducts?.seasonalProductIds || []).includes(p.id)).slice(0, 3).map((product) => (
                 <div key={product.id} className="bg-white p-2 sm:p-2.5 rounded-xl border border-amber-50/50 shadow-2xs flex flex-col justify-between group hover:shadow-md transition">
                   <div className="w-full aspect-[4/3] overflow-hidden rounded-lg mb-1.5 bg-slate-50">
-                    <img src={product.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onError={handleProductImgError} />
+                    <img src={product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onError={handleProductImgError} />
                   </div>
                   <h4 className="text-[10px] sm:text-xs font-bold text-slate-800 line-clamp-1">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
                   <div className="flex justify-between items-center mt-1.5">
@@ -2219,6 +2226,11 @@ export default function App() {
             const isMobileZoneCat = isCategoryMatch(selectedCategory, "mobile-zone");
             const isSectionedCategory = isRestaurantCat || isGroceryCat || isMobileZoneCat;
 
+            // Filter subcategories for the selected category from Firestore (sorted by order asc)
+            const matchingDbSubs = dbSubcategories
+              .filter(s => s.categoryId === selectedCategory && !s.isDeleted)
+              .sort((a, b) => (a.order || 0) - (b.order || 0));
+
             // Filter products
             const catProducts = availableProducts.filter((product) => {
               const matchesCategory = isCategoryMatch(product.category, selectedCategory);
@@ -2226,7 +2238,15 @@ export default function App() {
                 ? getResolvedGrocerySubcategory(product.id, product.nameBn, product.nameEn, product.subcategory, product.category)
                 : (product.subcategory || "").toLowerCase();
               const targetSub = selectedSubcategory.toLowerCase();
-              const matchesSubcategory = targetSub === "all" || effectiveSubcategory === targetSub;
+
+              const matchedSubObj = matchingDbSubs.find(
+                s => s.nameBn.toLowerCase() === targetSub || (s.nameEn && s.nameEn.toLowerCase() === targetSub)
+              );
+
+              const matchesSubcategory = targetSub === "all" || 
+                effectiveSubcategory === targetSub || 
+                (matchedSubObj && (product.subcategoryId === matchedSubObj.id || (product.subcategory && product.subcategory.toLowerCase() === matchedSubObj.nameBn.toLowerCase())));
+
               const matchesSearch = matchesProductSearch(product, searchQuery);
               return matchesCategory && matchesSubcategory && matchesSearch;
             });
@@ -2235,7 +2255,10 @@ export default function App() {
             const allCatProducts = availableProducts.filter(p => isCategoryMatch(p.category, selectedCategory));
 
             let subcategories: string[] = [];
-            if (isRestaurantCat) {
+            if (matchingDbSubs.length > 0) {
+              const dynamicSubs = matchingDbSubs.map(s => s.nameBn);
+              subcategories = ["all", ...dynamicSubs];
+            } else if (isRestaurantCat) {
               const existingSubs = Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean)));
               const orderedSubs = [
                 ...RESTAURANT_MENU_SECTIONS.filter(s => existingSubs.includes(s)),
@@ -2738,7 +2761,7 @@ export default function App() {
                 onClick={() => openQuickView(product)}
                 className="bg-white p-2.5 rounded-xl border border-slate-100 flex items-center gap-3 hover:shadow-md cursor-pointer transition"
               >
-                <img src={product.image} className="w-12 h-12 object-cover rounded-lg shrink-0" onError={handleProductImgError} />
+                <img src={product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER} className="w-12 h-12 object-cover rounded-lg shrink-0 bg-slate-50" onError={handleProductImgError} />
                 <div className="min-w-0">
                   <h4 className="text-xs font-bold text-slate-800 truncate">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
                   <p className="text-[10px] font-bold text-slate-700 bg-slate-100 inline-block px-1.5 py-0.5 rounded border border-slate-200/80 mt-0.5">
@@ -3324,7 +3347,7 @@ export default function App() {
                   if (!product) return null;
                   return (
                     <div key={product.id} className="flex gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100 relative">
-                      <img src={product.image} className="w-12 h-12 object-cover rounded-lg shrink-0" onError={handleProductImgError} />
+                      <img src={product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER} className="w-12 h-12 object-cover rounded-lg shrink-0 bg-slate-50" onError={handleProductImgError} />
                       <div className="flex-1 min-w-0">
                         <h4 className="text-xs font-bold text-slate-800 truncate">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
                         <p className="text-[9.5px] font-bold text-slate-700 bg-slate-100 inline-block px-1.5 py-0.5 rounded border border-slate-200/80 mt-0.5">
@@ -3386,7 +3409,7 @@ export default function App() {
               
               {/* Product Image Panel */}
               <div className="relative">
-                <img src={selectedProduct.image} className="w-full h-56 sm:h-72 object-cover rounded-xl shadow-inner bg-slate-50" onError={handleProductImgError} />
+                <img src={selectedProduct.image || (selectedProduct as any).imageUrl || SAFE_PRODUCT_PLACEHOLDER} className="w-full h-56 sm:h-72 object-cover rounded-xl shadow-inner bg-slate-50" onError={handleProductImgError} />
                 {selectedProduct.discount && (
                   <span className="absolute top-3 left-3 bg-rose-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow">
                     {fmtNum(selectedProduct.discount)}% {lang === "bn" ? "ছাড়" : "OFF"}

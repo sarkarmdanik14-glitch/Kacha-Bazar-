@@ -12,6 +12,7 @@ import {
   orderBy, 
   limit, 
   query,
+  where,
   serverTimestamp,
   addDoc,
   increment
@@ -25,7 +26,8 @@ import {
 } from "lucide-react";
 import { checkAndRewardReferral } from "../../lib/referral";
 import { mergeCategoryCards } from "../../lib/categoryUtils";
-import { ALL_PRODUCTS } from "../../data/all_products";
+import { ALL_PRODUCTS } from "../../data";
+import { resolveAuthenticProductImage } from "../../lib/masterImageRegistry";
 
 // Import modular sub-panels
 import AdminDashboardReport from "./AdminDashboardReport";
@@ -195,9 +197,13 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
       (err) => console.warn("Admin orders sync notice:", err.message)
     );
 
-    // Listen to products
+    // Listen to active products (Soft Delete filter)
+    const prodsQuery = query(
+      collection(db, "products"),
+      where("isDeleted", "==", false)
+    );
     const unsubProds = onSnapshot(
-      collection(db, "products"), 
+      prodsQuery, 
       (snapshot) => {
         const prods: any[] = [];
         snapshot.forEach((doc) => {
@@ -209,11 +215,16 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
           if (/^fr\d+$/.test(doc.id) || (data.category === "frozen" && !doc.id.startsWith("df"))) {
             return;
           }
-          prods.push({ id: doc.id, ...data });
+          const rawCandidate = data.image || data.imageUrl || data.image_url || data.photoUrl || data.img || (Array.isArray(data.images) && data.images[0]) || "";
+          const resolvedImg = resolveAuthenticProductImage(doc.id, rawCandidate);
+          prods.push({ 
+            id: doc.id, 
+            ...data,
+            image: resolvedImg,
+            imageUrl: resolvedImg
+          });
         });
-        const firestoreIds = new Set(prods.map(p => p.id));
-        const missingInitial = ALL_PRODUCTS.filter(p => !firestoreIds.has(p.id));
-        setProducts([...prods, ...missingInitial]);
+        setProducts(prods);
         setLoading(false);
       },
       (err) => {

@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { Product, CartItem } from "../types";
 import { resolveProductDisplayUnit } from "../lib/productWeightUtils";
+import { SAFE_PRODUCT_PLACEHOLDER } from "../lib/masterImageRegistry";
 
 interface ProductCardProps {
   product: Product;
@@ -93,7 +94,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           className="w-full h-full cursor-pointer relative overflow-hidden"
         >
           <img 
-            src={product.image} 
+            src={product.image || (product as any).imageUrl || SAFE_PRODUCT_PLACEHOLDER} 
             alt={displayName}
             referrerPolicy="no-referrer"
             onError={handleProductImgError}

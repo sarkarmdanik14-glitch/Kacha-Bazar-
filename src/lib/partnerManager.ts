@@ -545,12 +545,12 @@ export async function authenticatePartner(identifier: string, password: string):
     };
   }
 
-  // Check password
-  const expectedPass = partner.plainPassword || "partner123";
-  if (cleanPass !== expectedPass && cleanPass !== "partner123" && cleanPass !== "admin123") {
+  // Check password strictly against the partner's designated password
+  const expectedPass = partner.plainPassword || (partner as any).password;
+  if (!expectedPass || cleanPass !== expectedPass) {
     return { 
       success: false, 
-      error: "ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড প্রবেশ করান।" 
+      error: "ভুল পাসওয়ার্ড! অনুগ্রহ করে আপনার অ্যাকাউন্টের সঠিক পাসওয়ার্ড প্রবেশ করান।" 
     };
   }
 

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { calculateDeliveryFeeFromSettings, calculateHaversineDistance, DeliveryZone } from "../lib/delivery";
 import { resolveProductDisplayUnit } from "../lib/productWeightUtils";
+import { SAFE_PRODUCT_PLACEHOLDER } from "../lib/masterImageRegistry";
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -746,10 +747,14 @@ export default function CheckoutModal({
                         <div key={`${item.product.id}_${idx}`} className="flex justify-between items-center py-2.5 first:pt-0 last:pb-0 text-xs">
                           <div className="flex items-center space-x-3 min-w-0 flex-1">
                             <img 
-                              src={item.product.image} 
+                              src={item.product.image || item.product.imageUrl || SAFE_PRODUCT_PLACEHOLDER} 
                               className="w-12 h-12 object-cover rounded-xl border border-slate-100 shrink-0 bg-slate-50" 
                               onError={(e) => {
-                                (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=450&q=80";
+                                const target = (e.currentTarget || e.target) as HTMLImageElement;
+                                target.onerror = null;
+                                if (target.dataset.triedFallback === "true") return;
+                                target.dataset.triedFallback = "true";
+                                target.src = SAFE_PRODUCT_PLACEHOLDER;
                               }}
                             />
                             <div className="min-w-0">
@@ -862,10 +867,14 @@ export default function CheckoutModal({
                   <div key={`${item.product.id}_${idx}`} className="flex justify-between items-center py-2 first:pt-0 last:pb-0 text-xs">
                     <div className="flex items-center space-x-2.5 min-w-0 flex-1">
                       <img 
-                        src={item.product.image} 
+                        src={item.product.image || item.product.imageUrl || SAFE_PRODUCT_PLACEHOLDER} 
                         className="w-10 h-10 object-cover rounded-lg border border-slate-100 shrink-0 bg-slate-50" 
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=450&q=80";
+                          const target = (e.currentTarget || e.target) as HTMLImageElement;
+                          target.onerror = null;
+                          if (target.dataset.triedFallback === "true") return;
+                          target.dataset.triedFallback = "true";
+                          target.src = SAFE_PRODUCT_PLACEHOLDER;
                         }}
                       />
                       <div className="min-w-0">

@@ -212,12 +212,6 @@ export async function seedDatabase(initialCategories: any[], initialProducts: an
       isAvailable: true
     }, { merge: true }).catch(() => {});
 
-    await deleteDoc(doc(db, "categories", "baby-care")).catch(() => {});
-    await deleteDoc(doc(db, "categories", "home-appliances")).catch(() => {});
-    for (let i = 1; i <= 30; i++) {
-      deleteDoc(doc(db, "products", `bc${i}`)).catch(() => {});
-    }
-
     // Ensure pharmacy products are seeded
     const phCheck = await getDoc(doc(db, "products", "ph1"));
     if (!phCheck.exists()) {

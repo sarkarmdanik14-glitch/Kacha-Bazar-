@@ -427,8 +427,8 @@ export default function StaffIdCardModal({
 
     // 1. Try Cloudinary if environment configured
     try {
-      const cloudName = (import.meta as any).env?.VITE_CLOUDINARY_CLOUD_NAME;
-      const uploadPreset = (import.meta as any).env?.VITE_CLOUDINARY_UPLOAD_PRESET;
+      const cloudName = (import.meta as any).env?.VITE_CLOUDINARY_CLOUD_NAME || "upvkzb3p";
+      const uploadPreset = (import.meta as any).env?.VITE_CLOUDINARY_UPLOAD_PRESET || "k0x8mjmx";
       if (cloudName && uploadPreset) {
         const formData = new FormData();
         formData.append("file", file);

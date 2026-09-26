@@ -7,3 +7,7 @@ coverage/
 bun.lock
 .env*
 !.env.example
+data/
+data/.memo_secret_key
+data/*.json
+public/uploads/

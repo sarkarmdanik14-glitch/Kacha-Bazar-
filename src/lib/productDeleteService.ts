@@ -89,58 +89,60 @@ export async function executeDeleteProduct(
   productId: string,
   options: DeleteProductOptions
 ): Promise<DeleteProductResult> {
-  const prodRef = doc(db, "products", productId);
+  const userEmail = options.user?.email || options.user?.fullName || options.user?.displayName || options.user?.uid || "admin";
 
-  if (options.hasOrders) {
-    // Perform Soft Delete (Inactivation)
-    await setDoc(prodRef, {
-      id: productId,
+  // 1. Direct client-side Firestore soft-delete using updateDoc() (Firebase v9/v10 Modular SDK)
+  try {
+    const prodRef = doc(db, "products", productId);
+    await updateDoc(prodRef, {
       isDeleted: true,
-      deleted: true,
       isAvailable: false,
-      status: "inactive",
-      availabilityStatus: "deleted",
       deletedAt: serverTimestamp(),
-      deletedBy: options.user?.email || options.user?.fullName || options.user?.displayName || options.user?.uid || "admin",
+      deletedBy: userEmail,
       updatedAt: serverTimestamp()
-    }, { merge: true });
+    });
 
     return {
       success: true,
       mode: "soft_delete",
-      messageBn: "অর্ডার হিস্ট্রির নির্ভুলতা রক্ষার্থে পণ্যটি সফট ডিলিট / নিষ্ক্রিয় করা হয়েছে এবং ইনভেন্টরি ও শপ থেকে সফলভাবে সরানো হয়েছে!",
-      messageEn: "Product preserved as soft-deleted to protect order history, and successfully removed from inventory and store catalog!"
+      messageBn: "পণ্যটি সফলভাবে সফট ডিলিট (Soft Delete) করা হয়েছে!",
+      messageEn: "Product successfully soft-deleted!"
     };
-  } else {
-    // Perform Permanent Delete
-    try {
-      await deleteDoc(prodRef);
-      return {
-        success: true,
-        mode: "permanent",
-        messageBn: "পণ্যটি ডাটাবেজ ও ইনভেন্টরি থেকে সম্পূর্ণরূপে স্থায়ীভাবে ডিলিট করা হয়েছে!",
-        messageEn: "Product permanently deleted from database and inventory successfully!"
-      };
-    } catch (err: any) {
-      // If hard delete fails due to rules, fallback to soft-delete
-      console.warn("Permanent delete failed, attempting soft-delete fallback:", err);
-      await setDoc(prodRef, {
-        id: productId,
-        isDeleted: true,
-        deleted: true,
-        isAvailable: false,
-        status: "inactive",
-        availabilityStatus: "deleted",
-        deletedAt: serverTimestamp(),
-        deletedBy: options.user?.email || options.user?.uid || "admin",
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+  } catch (clientErr: any) {
+    console.warn("Direct updateDoc notice, trying Server Admin API:", clientErr?.message);
+  }
+
+  // 2. Fallback to Server Admin API
+  try {
+    const sessionToken = typeof window !== "undefined" 
+      ? (localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session")) 
+      : null;
+
+    const res = await fetch("/api/admin/delete-product", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(sessionToken ? { "Authorization": `Bearer ${sessionToken}` } : {}),
+        "x-user-email": userEmail
+      },
+      body: JSON.stringify({
+        productId,
+        userEmail
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
       return {
         success: true,
         mode: "soft_delete",
-        messageBn: "পণ্যটি ইনভেন্টরি ও শপ থেকে সফলভাবে সরানো হয়েছে (নিষ্ক্রিয়/সফট ডিলিট)!",
-        messageEn: "Product successfully removed from active inventory and catalog (soft-deleted)!"
+        messageBn: data.message || "পণ্যটি সফলভাবে সফট ডিলিট করা হয়েছে!",
+        messageEn: "Product successfully soft-deleted!"
       };
     }
+  } catch (apiErr) {
+    console.warn("Server delete API notice:", apiErr);
   }
+
+  throw new Error("পণ্যটি ডিলিট করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।");
 }

@@ -127,8 +127,8 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
   // Product-management style image upload handler
   const processImageUpload = async (file: File): Promise<string> => {
     try {
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "demo";
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "unsigned_preset";
+      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "upvkzb3p";
+      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "k0x8mjmx";
 
       const formData = new FormData();
       formData.append("file", file);

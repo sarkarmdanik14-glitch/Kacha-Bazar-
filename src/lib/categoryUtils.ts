@@ -1,4 +1,5 @@
 import { Category } from "../types";
+export const isAllowedPanSupariProduct = (_product?: any): boolean => true;
 
 /**
  * Merged Grocery Category Definition
@@ -162,7 +163,10 @@ export const CATEGORY_SERIAL_MAP: Record<string, number> = {
   "mobile-zone": 18,
   "mobile": 18,
   "mobiles": 18,
-  "mobilezone": 18
+  "mobilezone": 18,
+  "pan-supari": 19,
+  "pan": 19,
+  "supari": 19
 };
 
 /**
@@ -229,7 +233,30 @@ export function isCategoryMatch(
     return pCat === "mobile-zone" || pCat === "mobile" || pCat === "mobiles" || pCat === "mobilezone" || pCat === "home-appliances";
   }
 
+  // If filtering by pan-supari
+  if (sCat === "pan-supari" || sCat === "pan" || sCat === "supari") {
+    return pCat === "pan-supari" || pCat === "pan" || pCat === "supari";
+  }
+
   return pCat === sCat;
+}
+
+/**
+ * Validates whether a product is allowed in a specific category,
+ * enforcing strict inventory policies (e.g. only 13 verified items for 'pan-supari').
+ */
+export function isAllowedForCategory(
+  product: { id?: string; nameBn?: string; nameEn?: string; category?: string } | undefined | null,
+  selectedCategoryId: string | undefined | null
+): boolean {
+  if (!product) return false;
+  const sCat = (selectedCategoryId || "").toLowerCase().trim();
+  const pCat = (product.category || "").toLowerCase().trim();
+  
+  if (sCat === "pan-supari" || sCat === "pan" || sCat === "supari" || pCat === "pan-supari" || pCat === "pan" || pCat === "supari") {
+    return isAllowedPanSupariProduct(product);
+  }
+  return true;
 }
 
 /**

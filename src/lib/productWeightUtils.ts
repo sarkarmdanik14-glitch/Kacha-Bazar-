@@ -1,5 +1,6 @@
 import { Product, ProductOption } from "../types";
-import { GROCERY_SUBCATEGORY_MAP, GROCERY_ORDER_MAP, getResolvedGrocerySubcategory, getResolvedGroceryDisplayOrder } from "../data/grocery_subcategories";
+import { GROCERY_SUBCATEGORY_MAP, GROCERY_ORDER_MAP, getResolvedGrocerySubcategory, getResolvedGroceryDisplayOrder } from "../data";
+import { resolveAuthenticProductImage } from "./masterImageRegistry";
 
 // Helper to translate numbers to Bangla script
 export const toBnNum = (num: number | string | undefined | null): string => {
@@ -207,7 +208,16 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     unitBn: resolvedUnits.unitBn,
     unitEn: resolvedUnits.unitEn,
     category: resolvedCategory,
-    image: data.image,
+    categoryId: data.categoryId || resolvedCategory,
+    subcategoryId: data.subcategoryId || "",
+    image: resolveAuthenticProductImage(
+      data.id || docId, 
+      data.image || data.imageUrl || data.image_url || data.photoUrl || data.img || (Array.isArray(data.images) && data.images[0]) || ""
+    ),
+    imageUrl: resolveAuthenticProductImage(
+      data.id || docId, 
+      data.image || data.imageUrl || data.image_url || data.photoUrl || data.img || (Array.isArray(data.images) && data.images[0]) || ""
+    ),
     isFlashSale: !!data.isFlashSale,
     discount: Number(data.discount || 0),
     rating: Number(data.rating || 4.5),

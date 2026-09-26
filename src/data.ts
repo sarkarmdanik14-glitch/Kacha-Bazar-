@@ -1,10 +1,30 @@
 import { Category, Product, PromoBanner, Recipe, Review } from "./types";
-import { CATEGORIES as NEW_CATEGORIES } from "./data/categories";
-import { ALL_PRODUCTS } from "./data/all_products";
 
-export const CATEGORIES: Category[] = NEW_CATEGORIES;
-export const PRODUCTS: Product[] = ALL_PRODUCTS;
-export { ALL_PRODUCTS };
+export const CATEGORIES: Category[] = [
+  { id: "all", nameBn: "সকল পণ্য", nameEn: "All Products", iconName: "LayoutGrid", colorClass: "from-emerald-500 to-teal-600", borderColor: "border-emerald-200", displayOrder: 0 },
+  { id: "vegetables", nameBn: "শাকসবজি ও ফল", nameEn: "Vegetables & Fruits", iconName: "Salad", colorClass: "bg-emerald-50 text-emerald-800", borderColor: "border-emerald-100", displayOrder: 1 },
+  { id: "groceries", nameBn: "মুদি পণ্য", nameEn: "Groceries", iconName: "ShoppingBag", colorClass: "bg-amber-50 text-amber-800", borderColor: "border-amber-100", displayOrder: 2 },
+  { id: "bakery-sweets", nameBn: "রেস্টুরেন্ট", nameEn: "Restaurant", iconName: "Utensils", colorClass: "bg-orange-50 text-orange-800", borderColor: "border-orange-100", displayOrder: 3 },
+  { id: "fish", nameBn: "তাজা মাছ", nameEn: "Fresh Fish", iconName: "Fish", colorClass: "bg-cyan-50 text-cyan-800", borderColor: "border-cyan-100", displayOrder: 4 },
+  { id: "meat", nameBn: "মাংস ও ডিম", nameEn: "Meat & Eggs", iconName: "Beef", colorClass: "bg-rose-50 text-rose-800", borderColor: "border-rose-100", displayOrder: 6 },
+  { id: "fruits", nameBn: "তাজা ফলমূল", nameEn: "Fresh Fruits", iconName: "Apple", colorClass: "bg-red-50 text-red-800", borderColor: "border-red-100", displayOrder: 7 },
+  { id: "dairy-eggs", nameBn: "দুধ ও দুগ্ধজাত", nameEn: "Dairy & Eggs", iconName: "Milk", colorClass: "bg-blue-50 text-blue-800", borderColor: "border-blue-100", displayOrder: 8 },
+  { id: "pharmacy", nameBn: "ফার্মেসি", nameEn: "Pharmacy", iconName: "Pill", colorClass: "bg-teal-50 text-teal-800", borderColor: "border-teal-100", displayOrder: 12 },
+  { id: "offers", nameBn: "অফার ও ডিল", nameEn: "Offers & Deals", iconName: "Tag", colorClass: "bg-purple-50 text-purple-800", borderColor: "border-purple-100", displayOrder: 13 }
+];
+
+export const PRODUCTS: Product[] = [];
+export const ALL_PRODUCTS: Product[] = [];
+export const RESTAURANT_MENU_SECTIONS: string[] = [];
+export const GROCERY_SECTIONS: string[] = [];
+export const isRiceOrGrainProduct = (_prod?: any): boolean => false;
+export const isDalOrPulseProduct = (_prod?: any): boolean => false;
+export const getResolvedGrocerySubcategory = (_id?: string, _nameBn?: string, _nameEn?: string, subcategory?: string, _category?: string): string => subcategory || "General";
+export const getResolvedGroceryDisplayOrder = (_id?: string, _nameBn?: string, _nameEn?: string, _sub?: string, order?: number): number | undefined => order;
+export const GROCERY_SUBCATEGORY_MAP: Record<string, string> = {};
+export const GROCERY_ORDER_MAP: Record<string, number> = {};
+export const DRY_FOOD_RAW: any[] = [];
+export const PHARMACY_PRODUCTS_RAW: any[] = [];
 
 export const PROMO_BANNERS: PromoBanner[] = [
   {

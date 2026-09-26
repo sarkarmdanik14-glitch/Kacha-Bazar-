@@ -7,15 +7,21 @@ import {
   Grid, Tag, Settings, Sparkles, Package, FolderPlus, Flame, Coffee, Apple, Milk, ShoppingBag, Sliders, Fish, Pill
 } from "lucide-react";
 import { db, doc, setDoc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp } from "../../lib/firebase";
-import { ProductOption } from "../../types";
+import { ProductOption, Subcategory } from "../../types";
+import { 
+  subscribeToAllSubcategories, 
+  updateSubcategoryOrder, 
+  saveSubcategory, 
+  softDeleteSubcategory, 
+  bootstrapInitialSubcategoriesIfNeeded 
+} from "../../lib/subcategoryService";
 import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
 import { isCategoryMatch, normalizeCategoryId } from "../../lib/categoryUtils";
 import { matchesProductSearch } from "../../lib/banglishSearch";
-import { DRY_FOOD_RAW } from "../../data/dry_food";
-import { PHARMACY_PRODUCTS_RAW } from "../../data/pharmacy_products";
-import { GROCERY_SUBCATEGORY_MAP, GROCERY_ORDER_MAP, GROCERY_SECTIONS, getResolvedGrocerySubcategory, getResolvedGroceryDisplayOrder } from "../../data/grocery_subcategories";
+import { DRY_FOOD_RAW, PHARMACY_PRODUCTS_RAW, GROCERY_SUBCATEGORY_MAP, GROCERY_ORDER_MAP, GROCERY_SECTIONS, getResolvedGrocerySubcategory, getResolvedGroceryDisplayOrder, ALL_PRODUCTS } from "../../data";
 import { resolveProductUnit } from "../../lib/productWeightUtils";
-import { ALL_PRODUCTS } from "../../data/all_products";
+import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
+import { SAFE_PRODUCT_PLACEHOLDER } from "../../lib/masterImageRegistry";
 
 interface AdminProductsTabProps {
   products: any[];
@@ -42,7 +48,18 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   };
 
   // Subtab navigation: "category_manager" is the default subtab for focused category & product management
-  const [activeCatalogSubTab, setActiveCatalogSubTab] = useState<"category_manager" | "products" | "categories" | "bulk">("category_manager");
+  const [activeCatalogSubTab, setActiveCatalogSubTab] = useState<"category_manager" | "products" | "categories" | "subcategories" | "bulk">("category_manager");
+
+  // Subcategories Real-Time State & Ordering Management
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [selectedSubcatCategoryFilter, setSelectedSubcatCategoryFilter] = useState<string>("all");
+  const [showSubcategoryModal, setShowSubcategoryModal] = useState<boolean>(false);
+  const [editingSubcategory, setEditingSubcategory] = useState<Subcategory | null>(null);
+  const [subModalCategoryId, setSubModalCategoryId] = useState<string>("groceries");
+  const [subModalNameBn, setSubModalNameBn] = useState<string>("");
+  const [subModalNameEn, setSubModalNameEn] = useState<string>("");
+  const [subModalOrder, setSubModalOrder] = useState<number>(1);
+  const [savingSubModal, setSavingSubModal] = useState<boolean>(false);
 
   // Selected Category ID for Category Manager view (defaults to "vegetables" - তাজা শাক ও সবজি)
   const [selectedCatId, setSelectedCatId] = useState<string>("vegetables");
@@ -63,6 +80,8 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   const [prodUnitEn, setProdUnitEn] = useState<string>("");
   const [prodUnitBn, setProdUnitBn] = useState<string>("");
   const [prodCategory, setProdCategory] = useState<string>("");
+  const [prodSubcategoryId, setProdSubcategoryId] = useState<string>("");
+  const [prodSubcategory, setProdSubcategory] = useState<string>("");
   const [prodStock, setProdStock] = useState<number>(10);
   const [prodImage, setProdImage] = useState<string>("");
   const [prodDescEn, setProdDescEn] = useState<string>("");
@@ -262,19 +281,31 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     performDryFoodSync();
   }, [user, products]);
 
+  // Real-time listener for subcategories and initial bootstrap
+  useEffect(() => {
+    bootstrapInitialSubcategoriesIfNeeded();
+    const unsub = subscribeToAllSubcategories((subs) => {
+      setSubcategories(subs);
+    });
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
+  }, []);
+
   // Escape key listener to immediately close open modals and restore full interaction
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (showProductForm) setShowProductForm(false);
         if (showCategoryModal) setShowCategoryModal(false);
+        if (showSubcategoryModal) setShowSubcategoryModal(false);
       }
     };
-    if (showProductForm || showCategoryModal) {
+    if (showProductForm || showCategoryModal || showSubcategoryModal) {
       window.addEventListener("keydown", handleKeyDown);
     }
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showProductForm, showCategoryModal]);
+  }, [showProductForm, showCategoryModal, showSubcategoryModal]);
 
   // Load category information whenever selectedCatId changes
   useEffect(() => {
@@ -296,79 +327,49 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     }
   }, [selectedCatId, categories]);
 
-  // Handle image upload for product via Cloudinary
+  // Handle image upload for product via universal uploader (Cloudinary upvkzb3p + Storage + Server + Base64)
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadingImage(true);
     try {
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "demo";
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "unsigned_preset";
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", uploadPreset);
-
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-        method: "POST",
-        body: formData
-      });
-
-      if (!res.ok) {
-        throw new Error(`Cloudinary returned status ${res.status}`);
-      }
-
-      const data = await res.json();
-      if (data.secure_url) {
-        setProdImage(data.secure_url);
+      const url = await uploadImageWithFallback(file, { folder: "products" });
+      if (url) {
+        setProdImage(url);
         triggerToast("ছবি সফলভাবে আপলোড হয়েছে!", "Image uploaded successfully!");
       } else {
-        throw new Error("No secure_url returned");
+        throw new Error("Could not process image");
       }
-    } catch (err) {
-      console.error("Cloudinary upload failed:", err);
-      triggerToast("ছবি আপলোড ব্যর্থ হয়েছে!", "Image upload failed!");
+    } catch (err: any) {
+      console.error("Product image upload failed:", err);
+      triggerToast(err.message || "ছবি আপলোড ব্যর্থ হয়েছে!", "Image upload failed!");
     } finally {
       setUploadingImage(false);
+      e.target.value = "";
     }
   };
 
-  // Handle image upload for Category via Cloudinary
+  // Handle image upload for Category via universal uploader
   const handleCatImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadingCatImage(true);
     try {
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "demo";
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "unsigned_preset";
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", uploadPreset);
-
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-        method: "POST",
-        body: formData
-      });
-
-      if (!res.ok) {
-        throw new Error(`Cloudinary returned status ${res.status}`);
-      }
-
-      const data = await res.json();
-      if (data.secure_url) {
-        setCatImage(data.secure_url);
-        triggerToast("ক্যাটাগরি ছবি ক্লাউডিনারি-তে আপলোড হয়েছে!", "Category image uploaded successfully!");
+      const url = await uploadImageWithFallback(file, { folder: "categories" });
+      if (url) {
+        setCatImage(url);
+        triggerToast("ক্যাটাগরি ছবি সফলভাবে আপলোড হয়েছে!", "Category image uploaded successfully!");
       } else {
-        throw new Error("No secure_url returned");
+        throw new Error("Could not process image");
       }
-    } catch (err) {
-      console.error("Cloudinary category image upload failed:", err);
-      triggerToast("ছবি আপলোড ব্যর্থ হয়েছে!", "Category image upload failed!");
+    } catch (err: any) {
+      console.error("Category image upload failed:", err);
+      triggerToast(err.message || "ছবি আপলোড ব্যর্থ হয়েছে!", "Category image upload failed!");
     } finally {
       setUploadingCatImage(false);
+      e.target.value = "";
     }
   };
 
@@ -458,41 +459,26 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     setShowCategoryModal(true);
   };
 
-  // Modal Category Image Upload via Cloudinary
+  // Modal Category Image Upload via universal uploader
   const handleModalCatImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadingModalCatImage(true);
     try {
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "demo";
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "unsigned_preset";
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", uploadPreset);
-
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-        method: "POST",
-        body: formData
-      });
-
-      if (!res.ok) {
-        throw new Error(`Cloudinary returned status ${res.status}`);
-      }
-
-      const data = await res.json();
-      if (data.secure_url) {
-        setModalCatImage(data.secure_url);
-        triggerToast("ক্যাটাগরি ছবি ক্লাউডিনারি-তে আপলোড হয়েছে!", "Category image uploaded successfully!");
+      const url = await uploadImageWithFallback(file, { folder: "categories" });
+      if (url) {
+        setModalCatImage(url);
+        triggerToast("ক্যাটাগরি ছবি সফলভাবে আপলোড হয়েছে!", "Category image uploaded successfully!");
       } else {
         throw new Error("No secure_url returned");
       }
-    } catch (err) {
-      console.error("Cloudinary category image upload failed:", err);
-      triggerToast("ছবি আপলোড ব্যর্থ হয়েছে!", "Category image upload failed!");
+    } catch (err: any) {
+      console.error("Modal category image upload failed:", err);
+      triggerToast(err.message || "ছবি আপলোড ব্যর্থ হয়েছে!", "Category image upload failed!");
     } finally {
       setUploadingModalCatImage(false);
+      e.target.value = "";
     }
   };
 
@@ -610,12 +596,21 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     setProdOrigPrice(p.originalPrice || p.price || 0);
     setProdUnitEn(p.unitEn || "");
     setProdUnitBn(p.unitBn || "");
-    const effectiveCat = isCategoryMatch(p.category, "groceries")
+    const effectiveCat = p.categoryId || (isCategoryMatch(p.category, "groceries")
       ? "groceries"
-      : (isCategoryMatch(p.category, "snacks-biscuits") ? "snacks-biscuits" : (p.category || selectedCatId || "vegetables"));
+      : (isCategoryMatch(p.category, "snacks-biscuits") ? "snacks-biscuits" : (p.category || selectedCatId || "vegetables")));
     setProdCategory(effectiveCat);
+    
+    // Resolve subcategoryId if explicitly saved or match by subcategory name
+    let matchedSubId = p.subcategoryId || "";
+    if (!matchedSubId && p.subcategory) {
+      const match = subcategories.find(s => s.categoryId === effectiveCat && (s.nameBn === p.subcategory || s.nameEn === p.subcategory));
+      if (match) matchedSubId = match.id;
+    }
+    setProdSubcategoryId(matchedSubId);
+    setProdSubcategory(p.subcategory || "");
     setProdStock(p.stock || 0);
-    setProdImage(p.image || "");
+    setProdImage(p.image || p.imageUrl || "");
     setProdDescEn(p.descriptionEn || "");
     setProdDescBn(p.descriptionBn || "");
     setProdBrand(p.brand || "");
@@ -642,6 +637,9 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     setProdUnitEn("1 kg");
     setProdUnitBn("১ কেজি");
     setProdCategory(targetCat);
+    const matchingSubs = subcategories.filter(s => s.categoryId === targetCat);
+    setProdSubcategoryId(matchingSubs.length > 0 ? matchingSubs[0].id : "");
+    setProdSubcategory(matchingSubs.length > 0 ? matchingSubs[0].nameBn : "");
     setProdStock(50);
     setProdImage("");
     setProdDescEn("");
@@ -657,7 +655,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     setShowProductForm(true);
   };
 
-  // Save product (Insert / Update)
+  // Save product (Insert / Update) - Stores categoryId and subcategoryId in Firestore
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prodNameEn.trim() || !prodNameBn.trim() || !prodCategory) {
@@ -667,6 +665,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
 
     setSavingProduct(true);
     try {
+      const resolvedImg = prodImage.trim() || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80";
+      const selectedSub = subcategories.find(s => s.id === prodSubcategoryId);
+      const resolvedSubName = selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || "General");
+
       const payload: any = {
         id: prodId,
         nameEn: prodNameEn.trim(),
@@ -675,9 +677,13 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         originalPrice: Number(prodOrigPrice) || Number(prodPrice) || 0,
         unitEn: prodUnitEn.trim() || "1 kg",
         unitBn: prodUnitBn.trim() || "১ কেজি",
+        categoryId: prodCategory, // Requirement 1: Stored explicitly in product document
+        subcategoryId: prodSubcategoryId || (selectedSub ? selectedSub.id : ""), // Requirement 1: Stored explicitly in product document
         category: prodCategory,
+        subcategory: resolvedSubName,
         stock: Number(prodStock) || 0,
-        image: prodImage.trim() || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80",
+        image: resolvedImg,
+        imageUrl: resolvedImg,
         descriptionEn: prodDescEn.trim(),
         descriptionBn: prodDescBn.trim(),
         brand: prodBrand.trim() || "Kacha Bazar",
@@ -686,6 +692,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         isAvailable: prodIsAvailable,
         displayOrder: Number(prodDisplayOrder) || 0,
         order: Number(prodDisplayOrder) || 0,
+        isDeleted: false,
         updatedAt: serverTimestamp(),
         ...(editingProduct ? {} : { createdAt: serverTimestamp() })
       };
@@ -701,6 +708,101 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       triggerToast("পণ্য সেভ করা যায়নি", "Failed to save product");
     } finally {
       setSavingProduct(false);
+    }
+  };
+
+  // Subcategory Order and CRUD Handlers
+  const handleUpdateSubcategoryOrder = async (subId: string, newOrder: number) => {
+    try {
+      await updateSubcategoryOrder(subId, newOrder);
+      triggerToast("সাবক্যাটাগরি ক্রম সফলভাবে আপডেট হয়েছে!", "Subcategory order updated!");
+    } catch (err: any) {
+      console.error("Error updating subcategory order:", err);
+      triggerToast("ক্রম আপডেট করতে সমস্যা হয়েছে!", "Failed to update subcategory order!");
+    }
+  };
+
+  const handleMoveSubcategory = async (sub: Subcategory, direction: "up" | "down") => {
+    const list = subcategories
+      .filter(s => s.categoryId === sub.categoryId)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const idx = list.findIndex(s => s.id === sub.id);
+    if (idx === -1) return;
+
+    const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
+
+    const targetSub = list[targetIdx];
+    const order1 = sub.order || (idx + 1);
+    const order2 = targetSub.order || (targetIdx + 1);
+
+    try {
+      await updateSubcategoryOrder(sub.id, order2);
+      await updateSubcategoryOrder(targetSub.id, order1);
+      triggerToast("ক্রম সফলভাবে পরিবর্তিত হয়েছে!", "Order swapped successfully!");
+    } catch (err) {
+      console.error("Failed to move subcategory:", err);
+      triggerToast("ক্রম পরিবর্তন করা যায়নি!", "Failed to reorder!");
+    }
+  };
+
+  const handleOpenAddSubcategory = (defaultCat?: string) => {
+    setEditingSubcategory(null);
+    const cat = defaultCat || (selectedSubcatCategoryFilter !== "all" ? selectedSubcatCategoryFilter : "groceries");
+    const existing = subcategories.filter(s => s.categoryId === cat);
+    setSubModalCategoryId(cat);
+    setSubModalNameBn("");
+    setSubModalNameEn("");
+    setSubModalOrder(existing.length + 1);
+    setShowSubcategoryModal(true);
+  };
+
+  const handleOpenEditSubcategory = (sub: Subcategory) => {
+    setEditingSubcategory(sub);
+    setSubModalCategoryId(sub.categoryId);
+    setSubModalNameBn(sub.nameBn);
+    setSubModalNameEn(sub.nameEn || sub.nameBn);
+    setSubModalOrder(sub.order || 1);
+    setShowSubcategoryModal(true);
+  };
+
+  const handleSaveSubcategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subModalNameBn.trim() || !subModalCategoryId) {
+      triggerToast("সাবক্যাটাগরির নাম ও ক্যাটাগরি আবশ্যক!", "Name and Category are required!");
+      return;
+    }
+    setSavingSubModal(true);
+    try {
+      await saveSubcategory({
+        id: editingSubcategory?.id,
+        categoryId: subModalCategoryId,
+        nameBn: subModalNameBn.trim(),
+        nameEn: subModalNameEn.trim() || subModalNameBn.trim(),
+        order: Number(subModalOrder) || 1
+      });
+      triggerToast(
+        editingSubcategory ? "সাবক্যাটাগরি আপডেট করা হয়েছে!" : "নতুন সাবক্যাটাগরি তৈরি হয়েছে!",
+        editingSubcategory ? "Subcategory updated!" : "Subcategory created!"
+      );
+      setShowSubcategoryModal(false);
+    } catch (err) {
+      console.error("Error saving subcategory:", err);
+      triggerToast("সংরক্ষণ করা যায়নি!", "Failed to save subcategory!");
+    } finally {
+      setSavingSubModal(false);
+    }
+  };
+
+  const handleDeleteSubcategory = async (sub: Subcategory) => {
+    if (!confirm(getTranslation(`"${sub.nameBn}" সাবক্যাটাগরি কি মুছে ফেলতে চান?`, `Delete subcategory "${sub.nameEn || sub.nameBn}"?`))) return;
+    try {
+      await softDeleteSubcategory(sub.id);
+      triggerToast("সাবক্যাটাগরি মুছে ফেলা হয়েছে!", "Subcategory deleted!");
+    } catch (err) {
+      console.error("Error deleting subcategory:", err);
+      triggerToast("ডিলিট করতে সমস্যা হয়েছে!", "Failed to delete subcategory!");
     }
   };
 
@@ -1010,6 +1112,19 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         >
           <Layers className="w-4 h-4 text-emerald-600" />
           <span>{getTranslation("ক্যাটাগরি ম্যানেজমেন্ট", "Category Management")}</span>
+        </button>
+
+        <button 
+          onClick={() => setActiveCatalogSubTab("subcategories")}
+          className={`px-4 sm:px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 transition flex items-center gap-2 ${
+            activeCatalogSubTab === "subcategories" ? "border-emerald-600 text-emerald-600 bg-emerald-50/50" : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Tag className="w-4 h-4 text-emerald-600" />
+          <span>{getTranslation("সাবক্যাটাগরি সাজানো ও অর্ডার", "Subcategory Ordering")}</span>
+          <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-0.5">
+            {subcategories.filter(s => !s.isDeleted).length}
+          </span>
         </button>
 
         <button 
@@ -1364,9 +1479,20 @@ export default function AdminProductsTab({ products, categories, orders = [], us
 
                             {/* Image Thumbnail */}
                             <td className="p-3">
-                              <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
-                                {p.image ? (
-                                  <img src={p.image} alt={p.nameEn} className="w-full h-full object-cover" />
+                              <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                                {p.image || p.imageUrl ? (
+                                  <img 
+                                    src={p.image || p.imageUrl} 
+                                    alt={p.nameEn || p.nameBn} 
+                                    className="w-full h-full object-cover" 
+                                    onError={(e) => {
+                                      const target = (e.currentTarget || e.target) as HTMLImageElement;
+                                      target.onerror = null;
+                                      if (target.dataset.triedFallback === "true") return;
+                                      target.dataset.triedFallback = "true";
+                                      target.src = SAFE_PRODUCT_PLACEHOLDER;
+                                    }}
+                                  />
                                 ) : (
                                   <ImageIcon className="w-4 h-4 text-slate-300" />
                                 )}
@@ -1512,9 +1638,20 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                       return (
                         <tr key={p.id} className="hover:bg-slate-50 transition">
                           <td className="p-3">
-                            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
-                              {p.image ? (
-                                <img src={p.image} alt={p.nameEn} className="w-full h-full object-cover" />
+                            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                              {p.image || p.imageUrl ? (
+                                <img 
+                                  src={p.image || p.imageUrl} 
+                                  alt={p.nameEn || p.nameBn} 
+                                  className="w-full h-full object-cover" 
+                                  onError={(e) => {
+                                    const target = (e.currentTarget || e.target) as HTMLImageElement;
+                                    target.onerror = null;
+                                    if (target.dataset.triedFallback === "true") return;
+                                    target.dataset.triedFallback = "true";
+                                    target.src = SAFE_PRODUCT_PLACEHOLDER;
+                                  }}
+                                />
                               ) : (
                                 <ImageIcon className="w-4 h-4 text-slate-300" />
                               )}
@@ -1625,15 +1762,67 @@ export default function AdminProductsTab({ products, categories, orders = [], us
               <div className="overflow-y-auto flex-1 p-6 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div>
-                <label className="font-bold text-slate-700 block mb-1">{getTranslation("ক্যাটাগরি *", "Category *")}</label>
+                <label className="font-bold text-slate-700 block mb-1">
+                  {getTranslation("মূল ক্যাটাগরি (Main Category) *", "Main Category *")}
+                </label>
                 <select 
                   value={prodCategory} 
-                  onChange={(e) => setProdCategory(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold"
+                  required
+                  onChange={(e) => {
+                    const newCat = e.target.value;
+                    setProdCategory(newCat);
+                    const matchingSubs = subcategories
+                      .filter(s => s.categoryId === newCat && !s.isDeleted)
+                      .sort((a, b) => (a.order || 0) - (b.order || 0));
+                    if (matchingSubs.length > 0) {
+                      setProdSubcategoryId(matchingSubs[0].id);
+                      setProdSubcategory(matchingSubs[0].nameBn || matchingSubs[0].nameEn);
+                    } else {
+                      setProdSubcategoryId("");
+                      setProdSubcategory("");
+                    }
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 >
+                  <option value="">{getTranslation("-- ক্যাটাগরি নির্বাচন করুন --", "-- Select Category --")}</option>
                   {categories.map(c => (
                     <option key={c.id} value={c.id}>{getTranslation(c.nameBn, c.nameEn)}</option>
                   ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  {getTranslation("সাবক্যাটাগরি (Subcategory)", "Subcategory")}
+                </label>
+                <select 
+                  value={prodSubcategoryId} 
+                  onChange={(e) => {
+                    const subId = e.target.value;
+                    setProdSubcategoryId(subId);
+                    const foundSub = subcategories.find(s => s.id === subId);
+                    if (foundSub) {
+                      setProdSubcategory(foundSub.nameBn || foundSub.nameEn);
+                    } else {
+                      setProdSubcategory("");
+                    }
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                >
+                  <option value="">
+                    {subcategories.filter(s => s.categoryId === prodCategory && !s.isDeleted).length === 0
+                      ? getTranslation("-- কোনো সাবক্যাটাগরি নেই --", "-- No Subcategories Available --")
+                      : getTranslation("-- সাবক্যাটাগরি নির্বাচন করুন --", "-- Select Subcategory --")
+                    }
+                  </option>
+                  {subcategories
+                    .filter(s => s.categoryId === prodCategory && !s.isDeleted)
+                    .sort((a, b) => (a.order || 0) - (b.order || 0))
+                    .map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.order ? `[#${s.order}] ` : ""}{getTranslation(s.nameBn, s.nameEn)}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -1688,11 +1877,42 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                 <div className="flex gap-2">
                   <input type="url" placeholder="https://images.unsplash.com/..." value={prodImage} onChange={(e) => setProdImage(e.target.value)} className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs" />
                   <input type="file" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" className="hidden" />
-                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0">
+                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 cursor-pointer">
                     {uploadingImage ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                    <span>{getTranslation("আপলোড", "Upload")}</span>
+                    <span>{uploadingImage ? getTranslation("আপলোড হচ্ছে...", "Uploading...") : getTranslation("ছবি আপলোড", "Upload Image")}</span>
                   </button>
                 </div>
+                {/* Product Image Live Preview Box */}
+                {prodImage && (
+                  <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200 mt-2">
+                    <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                      <img 
+                        src={prodImage} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => {
+                          const target = (e.currentTarget || e.target) as HTMLImageElement;
+                          target.onerror = null;
+                          if (target.dataset.triedFallback === "true") return;
+                          target.dataset.triedFallback = "true";
+                          target.src = SAFE_PRODUCT_PLACEHOLDER;
+                        }}
+                      />
+                    </div>
+                    <div className="text-xs text-slate-600 truncate flex-1 min-w-0">
+                      <p className="font-bold text-slate-800 text-[11px]">{getTranslation("ছবির প্রিভিউ (সফলভাবে সংযুক্ত)", "Image Preview (Attached)")}</p>
+                      <p className="text-[10px] truncate text-slate-400 mt-0.5">{prodImage}</p>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => setProdImage("")} 
+                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer"
+                      title={getTranslation("ছবি মুছুন", "Remove Image")}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Description */}
@@ -2084,6 +2304,230 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         );
       })()}
 
+      {/* ==================== SUBTAB 3: SUBCATEGORY ORDERING MANAGEMENT ==================== */}
+      {activeCatalogSubTab === "subcategories" && (() => {
+        const filteredSubs = subcategories
+          .filter(s => !s.isDeleted)
+          .filter(s => selectedSubcatCategoryFilter === "all" || s.categoryId === selectedSubcatCategoryFilter)
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        return (
+          <div className="space-y-6">
+            {/* Header Control Box */}
+            <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 bg-emerald-50 text-emerald-700 rounded-xl">
+                      <Tag className="w-5 h-5" />
+                    </span>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-black text-slate-800">
+                        {getTranslation("সাবক্যাটাগরি সাজানো ও অগ্রাধিকার ক্রম (Subcategory Ordering Management)", "Subcategory Ordering Management")}
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {getTranslation(
+                          "প্রতিটি ক্যাটাগরির সাবক্যাটাগরিগুলোর ক্রম (1, 2, 3...) নির্ধারণ করুন। ফ্রন্টএন্ডে orderBy('order', 'asc') দিয়ে এই ক্রমানুসারে প্রদর্শিত হবে।",
+                          "Set order numbers (1, 2, 3...) or swap positions using arrows. The frontend fetches subcategories sorted by orderBy('order', 'asc')."
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddSubcategory(selectedSubcatCategoryFilter !== "all" ? selectedSubcatCategoryFilter : "groceries")}
+                    className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow transition flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>{getTranslation("নতুন সাবক্যাটাগরি", "Add Subcategory")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const count = await bootstrapInitialSubcategoriesIfNeeded();
+                      triggerToast(
+                        `ডিফল্ট সাবক্যাটাগরি সিঙ্ক্রোনাইজেশন সম্পন্ন! (${count}টি সাবক্যাটাগরি)`,
+                        `Default subcategories synced! (${count} items)`
+                      );
+                    }}
+                    className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition cursor-pointer"
+                    title={getTranslation("ডিফল্ট সাবক্যাটাগরি রিলোড / সিড করুন", "Bootstrap default subcategories")}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Category Filter Selector */}
+              <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <label className="text-xs font-bold text-slate-600 shrink-0">
+                    {getTranslation("ক্যাটাগরি ফিল্টার:", "Filter Category:")}
+                  </label>
+                  <select
+                    value={selectedSubcatCategoryFilter}
+                    onChange={(e) => setSelectedSubcatCategoryFilter(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                    <option value="all">{getTranslation("সকল ক্যাটাগরি (All Categories)", "All Categories")}</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{getTranslation(c.nameBn, c.nameEn)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-xs font-bold text-slate-500">
+                  {getTranslation("মোট সাবক্যাটাগরি:", "Total Subcategories:")}{" "}
+                  <span className="text-emerald-700 font-extrabold">{filteredSubs.length}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Subcategories Table */}
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-black uppercase tracking-wider text-[11px]">
+                      <th className="p-3.5 text-center w-28">{getTranslation("অর্ডার নম্বর", "Order #")}</th>
+                      <th className="p-3.5">{getTranslation("সাবক্যাটাগরি নাম (বাংলা / English)", "Subcategory Name")}</th>
+                      <th className="p-3.5">{getTranslation("মূল ক্যাটাগরি", "Parent Category")}</th>
+                      <th className="p-3.5 text-center">{getTranslation("সংযুক্ত পণ্য", "Products")}</th>
+                      <th className="p-3.5 text-center w-36">{getTranslation("ক্রম পরিবর্তন", "Move Order")}</th>
+                      <th className="p-3.5 text-right w-24">{getTranslation("অ্যাকশন", "Actions")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {filteredSubs.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-400 font-bold">
+                          {getTranslation("এই ক্যাটাগরিতে কোনো সাবক্যাটাগরি পাওয়া যায়নি", "No subcategories found in this category")}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredSubs.map((sub, idx) => {
+                        const parentCat = categories.find(c => c.id === sub.categoryId);
+                        const assignedProdCount = products.filter(
+                          p => !isProductDeleted(p) && (p.subcategoryId === sub.id || (p.category === sub.categoryId && p.subcategory === sub.nameBn))
+                        ).length;
+
+                        return (
+                          <tr key={sub.id} className="hover:bg-slate-50/70 transition">
+                            {/* Order Number Input */}
+                            <td className="p-3 text-center">
+                              <div className="inline-flex items-center gap-1.5">
+                                <span className="text-slate-400 font-mono text-[10px]">#</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  defaultValue={sub.order || (idx + 1)}
+                                  key={`order-${sub.id}-${sub.order}`}
+                                  onBlur={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    if (!isNaN(val) && val !== sub.order) {
+                                      handleUpdateSubcategoryOrder(sub.id, val);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      const val = parseInt((e.target as HTMLInputElement).value, 10);
+                                      if (!isNaN(val) && val !== sub.order) {
+                                        handleUpdateSubcategoryOrder(sub.id, val);
+                                        (e.target as HTMLInputElement).blur();
+                                      }
+                                    }
+                                  }}
+                                  className="w-14 px-2 py-1 text-center font-mono font-bold text-xs bg-emerald-50/70 border border-emerald-200 text-emerald-800 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                  title={getTranslation("সরাসরি সংখ্যা লিখে Enter চাপুন বা বাইরে ক্লিক করুন", "Edit number and press Enter to save order")}
+                                />
+                              </div>
+                            </td>
+
+                            {/* Subcategory Name */}
+                            <td className="p-3">
+                              <div className="font-extrabold text-slate-800 text-xs sm:text-sm">
+                                {sub.nameBn}
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono">
+                                {sub.nameEn || sub.nameBn}
+                              </div>
+                            </td>
+
+                            {/* Parent Category */}
+                            <td className="p-3">
+                              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full text-[11px] font-bold">
+                                {parentCat ? getTranslation(parentCat.nameBn, parentCat.nameEn) : sub.categoryId}
+                              </span>
+                            </td>
+
+                            {/* Products count */}
+                            <td className="p-3 text-center font-bold font-mono text-slate-600">
+                              <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold">
+                                {assignedProdCount}
+                              </span>
+                            </td>
+
+                            {/* Move Up / Down Buttons */}
+                            <td className="p-3 text-center">
+                              <div className="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveSubcategory(sub, "up")}
+                                  disabled={idx === 0}
+                                  className="p-1 text-slate-600 hover:text-emerald-700 hover:bg-white rounded-lg transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                  title={getTranslation("উপরে নিন (Priority Up)", "Move Up")}
+                                >
+                                  <ArrowUp className="w-3.5 h-3.5" />
+                                </button>
+                                <span className="text-[10px] text-slate-400 font-mono px-0.5">|</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveSubcategory(sub, "down")}
+                                  disabled={idx === filteredSubs.length - 1}
+                                  className="p-1 text-slate-600 hover:text-emerald-700 hover:bg-white rounded-lg transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                  title={getTranslation("নিচে নিন (Priority Down)", "Move Down")}
+                                >
+                                  <ArrowDown className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="p-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditSubcategory(sub)}
+                                  className="p-1.5 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition cursor-pointer"
+                                  title={getTranslation("এডিট করুন", "Edit Subcategory")}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSubcategory(sub)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                  title={getTranslation("মুছে ফেলুন", "Delete Subcategory")}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ==================== SUBTAB 4: BULK CSV TOOLS ==================== */}
       {activeCatalogSubTab === "bulk" && (
         <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-xs space-y-4">
@@ -2346,6 +2790,134 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                 >
                   {savingCategoryModal && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>{getTranslation("সেভ করুন", "Save Category")}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ==================== ADD / EDIT SUBCATEGORY MODAL ==================== */}
+      {showSubcategoryModal && typeof document !== "undefined" && createPortal(
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowSubcategoryModal(false);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto animate-fade-in"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[85vh] sm:max-h-[90vh] flex flex-col w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden relative z-10"
+          >
+            {/* Header */}
+            <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md inline-block">
+                  {editingSubcategory ? getTranslation("সাবক্যাটাগরি আপডেট", "Edit Subcategory") : getTranslation("নতুন সাবক্যাটাগরি", "New Subcategory")}
+                </span>
+                <h3 className="text-sm sm:text-base font-black text-slate-800 mt-1">
+                  {editingSubcategory
+                    ? getTranslation(`"${editingSubcategory.nameBn}" এডিট করুন`, `Edit Subcategory "${editingSubcategory.nameEn || editingSubcategory.nameBn}"`)
+                    : getTranslation("নতুন সাবক্যাটাগরি যুক্ত করুন", "Add New Subcategory")
+                  }
+                </h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowSubcategoryModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition cursor-pointer border border-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveSubcategory} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="overflow-y-auto flex-1 p-6 space-y-4 text-xs">
+                {/* Parent Category */}
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    {getTranslation("মূল ক্যাটাগরি (Parent Category) *", "Parent Category *")}
+                  </label>
+                  <select 
+                    value={subModalCategoryId} 
+                    onChange={(e) => setSubModalCategoryId(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{getTranslation(c.nameBn, c.nameEn)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Name Bangla */}
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    {getTranslation("সাবক্যাটাগরির নাম (বাংলা) *", "Subcategory Name (Bangla) *")}
+                  </label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="e.g. চাল ও খাদ্যশস্য"
+                    value={subModalNameBn} 
+                    onChange={(e) => setSubModalNameBn(e.target.value)} 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+
+                {/* Name English */}
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    {getTranslation("সাবক্যাটাগরির নাম (English)", "Subcategory Name (English)")}
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Rice & Grains"
+                    value={subModalNameEn} 
+                    onChange={(e) => setSubModalNameEn(e.target.value)} 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+
+                {/* Order Field */}
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    {getTranslation("ক্রম / সিরিয়াল নম্বর (Order) *", "Sequence Order Number (1, 2, 3...) *")}
+                  </label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    required
+                    value={subModalOrder} 
+                    onChange={(e) => setSubModalOrder(Number(e.target.value))} 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold font-mono text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {getTranslation("ছোট সংখ্যাগুলো আগে প্রদর্শিত হবে (১, ২, ৩...)। ফ্রন্টএন্ড এই সংখ্যা অনুযায়ী সাজাবে।", "Lower numbers appear first (1, 2, 3...). Frontend sorts by this field.")}
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex-shrink-0 p-4 border-t border-slate-100 flex justify-end gap-2 bg-gray-50/50">
+                <button 
+                  type="button" 
+                  onClick={() => setShowSubcategoryModal(false)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  {getTranslation("বাতিল", "Cancel")}
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={savingSubModal}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {savingSubModal && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{getTranslation("সংরক্ষণ করুন", "Save Subcategory")}</span>
                 </button>
               </div>
             </form>

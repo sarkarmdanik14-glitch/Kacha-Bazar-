@@ -89,10 +89,11 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
     if (!partner?.id && !partner?.partnerId) return;
 
     setLoading(true);
-    // Query products where partnerShopId or partnerId matches
+    // Query products where partnerShopId or partnerId matches (Soft Delete filter)
     const prodQ = query(
       collection(db, "products"),
-      where("partnerShopId", "in", [partner.id, partner.partnerId])
+      where("partnerShopId", "in", [partner.id, partner.partnerId]),
+      where("isDeleted", "==", false)
     );
 
     const unsubProds = onSnapshot(

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Trash2, AlertTriangle, X, Loader2, ShieldAlert, Archive, CheckCircle2, Package } from "lucide-react";
 import { checkProductOrderUsage, executeDeleteProduct, OrderUsageCheckResult } from "../../lib/productDeleteService";
 import { toBnNum } from "../../lib/productWeightUtils";
+import { SAFE_PRODUCT_PLACEHOLDER } from "../../lib/masterImageRegistry";
 
 interface DeleteProductConfirmModalProps {
   isOpen: boolean;
@@ -158,11 +159,15 @@ export default function DeleteProductConfirmModal({
           {/* Product Summary Card */}
           <div className="flex items-center space-x-4 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
             <img 
-              src={product.image || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=150&q=80"} 
+              src={product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER} 
               alt={product.nameEn || "Product"} 
               className="w-16 h-16 rounded-lg object-cover border border-slate-200 bg-white shrink-0"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=150&q=80";
+                const target = (e.currentTarget || e.target) as HTMLImageElement;
+                target.onerror = null;
+                if (target.dataset.triedFallback === "true") return;
+                target.dataset.triedFallback = "true";
+                target.src = SAFE_PRODUCT_PLACEHOLDER;
               }}
             />
             <div className="min-w-0 flex-1">

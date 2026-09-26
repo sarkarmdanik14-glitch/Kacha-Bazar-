@@ -74,7 +74,19 @@ service cloud.firestore {
     // Categories - Publicly viewable catalog for browsing, managed strictly by Admin
     match /categories/{categoryId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if isAdmin() || isStaff();
+
+      // Subcategories as subcollection
+      match /subcategories/{subcategoryId} {
+        allow read: if true;
+        allow create, update, delete: if isAdmin() || isStaff();
+      }
+    }
+
+    // Subcategories - Top-level collection
+    match /subcategories/{subcategoryId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || isStaff();
     }
 
     // Partner Shops - Viewable by catalog visitors, managed by Admin and shop owners
@@ -90,15 +102,8 @@ service cloud.firestore {
     // Products - Publicly viewable catalog for browsing, managed strictly by Admin, authorized Staff, verified Sellers & Partners
     match /products/{productId} {
       allow read: if true;
-      allow create: if isAdmin() || isStaff() || 
-        (isSeller() && request.resource.data.sellerId == request.auth.uid) ||
-        (isSignedIn() && isShopOwner(request.resource.data.partnerShopId));
-      allow update: if isAdmin() || isStaff() || 
-        (isSeller() && resource.data.sellerId == request.auth.uid) ||
-        (isSignedIn() && isShopOwner(resource.data.partnerShopId));
-      allow delete: if isAdmin() || isStaff() || 
-        (isSeller() && resource.data.sellerId == request.auth.uid) ||
-        (isSignedIn() && isShopOwner(resource.data.partnerShopId));
+      allow create: if isAdmin() || isStaff() || (isSignedIn() && request.resource.data.sellerId == request.auth.uid);
+      allow update, delete: if isAdmin() || isStaff() || (isSignedIn() && resource.data.sellerId == request.auth.uid);
     }
 
     // Orders - Customers access ONLY their own orders. Staff, Admins & Partners access according to verified role
@@ -298,12 +303,18 @@ service cloud.firestore {
 
     // Memos & Invoices - Creating, viewing, updating, and deleting customer memos and official invoices
     match /memos/{memoId} {
-      allow read: if true;
+      allow read: if isAdmin() || isStaff() || (isSignedIn() && (
+        resource.data.customerId == request.auth.uid ||
+        (resource.data.customerEmail != null && resource.data.customerEmail == request.auth.token.email)
+      ));
       allow create, update, delete: if isAdmin() || isStaff();
     }
 
     match /invoices/{invoiceId} {
-      allow read: if true;
+      allow read: if isAdmin() || isStaff() || (isSignedIn() && (
+        resource.data.customerId == request.auth.uid ||
+        (resource.data.customerEmail != null && resource.data.customerEmail == request.auth.token.email)
+      ));
       allow create, update, delete: if isAdmin() || isStaff();
     }
 
@@ -385,7 +396,7 @@ service cloud.firestore {
 
     // Staff Members Collection - Restricted strictly to Admin/Staff (NO public access)
     match /staff/{staffId} {
-      allow get, list, read: if isAdmin() || isStaff() || isSignedIn();
+      allow get, list, read: if isAdmin() || isStaff();
       allow create: if isAdmin() || (isSignedIn() && request.auth.token.email == 'sarkarmdanik14@gmail.com');
       allow update: if (isAdmin() || (isSignedIn() && request.auth.token.email == 'sarkarmdanik14@gmail.com')) && (
         // Protect super admin role escalation: normal admins cannot escalate anyone to super_admin or change founder's role
@@ -408,7 +419,7 @@ service cloud.firestore {
 
     // Staff Activity Logs - Immutable Audit Trail accessible ONLY to Admin and Staff
     match /staff_activity_logs/{logId} {
-      allow get, list, read: if isAdmin() || isStaff() || isSignedIn();
+      allow get, list, read: if isAdmin() || isStaff();
       allow create: if isAdmin() || isStaff() || isSignedIn();
       allow update, delete: if false; // Immutable audit trail
     }
@@ -417,14 +428,14 @@ service cloud.firestore {
     match /visitor_sessions/{visitorId} {
       allow read: if true;
       allow create, update: if true;
-      allow delete: if true;
+      allow delete: if isAdmin();
     }
 
     // Daily Analytics Aggregation (Today's views and unique visitors)
     match /analytics_daily/{dateId} {
       allow read: if true;
       allow create, update: if true;
-      allow delete: if true;
+      allow delete: if isAdmin();
     }
 
     // Buy & Sell Listings - Publicly viewable marketplace, create by signed in user, manage by owner or admin

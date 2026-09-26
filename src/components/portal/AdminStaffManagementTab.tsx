@@ -524,8 +524,9 @@ export default function AdminStaffManagementTab({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // Sync update timestamp in Firestore
+      // Sync password update directly in Firestore staff collection
       await updateStaffInFirestore(selectedStaffForPassword.id, {
+        password: newPassword,
         updaterUser: currentUser,
         updaterName: currentUser?.fullName || currentUser?.displayName || "Super Admin",
         updaterRole: currentUser?.role || "super_admin"

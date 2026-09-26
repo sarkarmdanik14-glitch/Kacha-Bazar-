@@ -31,6 +31,7 @@ export interface Product {
   unitEn: string;
   category: string;
   image: string;
+  imageUrl?: string;
   isFlashSale?: boolean;
   discount?: number; // e.g. 15 for 15% off
   rating: number;
@@ -63,10 +64,27 @@ export interface Product {
   status?: string;
   deletedAt?: any;
   deletedBy?: string;
+  categoryId?: string;
+  subcategoryId?: string;
   options?: ProductOption[];
   isAvailable?: boolean;
   displayOrder?: number;
   order?: number;
+}
+
+export interface Subcategory {
+  id: string;
+  nameBn: string;
+  nameEn: string;
+  categoryId: string;
+  order: number;
+  iconName?: string;
+  image?: string;
+  imageUrl?: string;
+  isActive?: boolean;
+  isDeleted?: boolean;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface CartItem {

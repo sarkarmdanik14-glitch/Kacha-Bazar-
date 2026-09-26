@@ -1036,6 +1036,7 @@ export async function updateStaffInFirestore(
     updaterRole?: string;
     updaterUser?: any;
     staffId?: string;
+    password?: string;
   }
 ): Promise<StaffMember> {
   const { updaterName, updaterRole, updaterUser, ...fieldsToUpdate } = updateData;

@@ -22,6 +22,7 @@ import {
   ChevronRight, ArrowUpRight, FileText, PieChart
 } from "lucide-react";
 import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
+import { SAFE_PRODUCT_PLACEHOLDER } from "../../lib/masterImageRegistry";
 
 interface SellerPanelProps {
   user: any;
@@ -85,10 +86,11 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
       (err) => console.warn("Seller profile sync notice:", err.message)
     );
 
-    // Listen to products belonging to this seller
+    // Listen to products belonging to this seller (Soft Delete filter)
     const prodQuery = query(
       collection(db, "products"),
-      where("sellerId", "==", user.uid)
+      where("sellerId", "==", user.uid),
+      where("isDeleted", "==", false)
     );
     const unsubProds = onSnapshot(
       prodQuery, 
@@ -547,10 +549,14 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
                                 <tr key={p.id} className="hover:bg-slate-50/50 transition">
                                   <td className="p-4 flex items-center space-x-3">
                                     <img 
-                                      src={p.image} 
-                                      className="w-9 h-9 object-cover rounded-lg border border-slate-100" 
+                                      src={p.image || p.imageUrl || SAFE_PRODUCT_PLACEHOLDER} 
+                                      className="w-9 h-9 object-cover rounded-lg border border-slate-100 bg-slate-50" 
                                       onError={(e) => {
-                                        (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=450&q=80";
+                                        const target = (e.currentTarget || e.target) as HTMLImageElement;
+                                        target.onerror = null;
+                                        if (target.dataset.triedFallback === "true") return;
+                                        target.dataset.triedFallback = "true";
+                                        target.src = SAFE_PRODUCT_PLACEHOLDER;
                                       }}
                                     />
                                     <div>

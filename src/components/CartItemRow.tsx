@@ -7,6 +7,7 @@ import {
   calculateProductPriceForWeight, 
   validateWeightLimit 
 } from "../lib/productWeightUtils";
+import { SAFE_PRODUCT_PLACEHOLDER } from "../lib/masterImageRegistry";
 
 interface CartItemRowProps {
   item: CartItem;
@@ -166,7 +167,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
       {/* Top row: Product image, name & Delete button */}
       <div className="flex gap-2 items-center">
         <img 
-          src={item.product.image} 
+          src={item.product.image || (item.product as any).imageUrl || SAFE_PRODUCT_PLACEHOLDER} 
           className="w-10 h-10 sm:w-11 sm:h-11 object-cover rounded-lg shrink-0 bg-white border border-slate-100" 
           onError={handleProductImgError} 
           alt={item.product.nameEn}
