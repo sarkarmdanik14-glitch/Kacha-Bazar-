@@ -305,3 +305,30 @@ export interface PartnerOrderAssignment {
   items?: any[];
 }
 
+export interface LiveNoticeConfig {
+  isActive: boolean;
+  badgeBn?: string;
+  badgeEn?: string;
+  titleBn: string;
+  titleEn?: string;
+  messageBn: string;
+  messageEn?: string;
+  theme?: "rose" | "amber" | "emerald" | "blue";
+  showDotPulse?: boolean;
+  orderDisabled?: boolean;
+  updatedAt?: any;
+}
+
+export const DEFAULT_LIVE_NOTICE: LiveNoticeConfig = {
+  isActive: true,
+  badgeBn: "🔴 LIVE UPDATE",
+  badgeEn: "🔴 LIVE UPDATE",
+  titleBn: "কাঁচা বাজার ওয়েবসাইটের কাজ এখনও চলমান।",
+  titleEn: "Kacha Bazar website is currently under development.",
+  messageBn: "বর্তমানে অর্ডার গ্রহণ শুরু হয়নি। খুব শীঘ্রই অর্ডার নেওয়া শুরু হবে।",
+  messageEn: "Orders are not currently being accepted. We will start taking orders very soon.",
+  theme: "rose",
+  showDotPulse: true,
+  orderDisabled: true
+};
+

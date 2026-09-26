@@ -32,6 +32,7 @@ import { CartItemRow } from "./components/CartItemRow";
 import { ProductCard } from "./components/ProductCard";
 import { PWAInstallBanner } from "./components/PWAInstallBanner";
 import { DailyAlarmBanner } from "./components/common/DailyAlarmBanner";
+import { LiveNoticeBanner } from "./components/common/LiveNoticeBanner";
 import { FloatingContactOverlay } from "./components/FloatingContactOverlay";
 import { openPWAQRCodeModal, openPWAInstallModal } from "./utils/pwa";
 
@@ -1658,6 +1659,9 @@ export default function App() {
         </div>
 
       </header>
+
+      {/* ================= 1.5 LIVE NOTICE / ANNOUNCEMENT BANNER ================= */}
+      <LiveNoticeBanner lang={lang} />
 
       {/* ================= 2. SEARCH BAR, LIVE CHAT & QUICK CALL TO ORDER ================= */}
       <section className="max-w-7xl mx-auto px-2 sm:px-4 mt-2 sm:mt-3" id="header-action-row-section">

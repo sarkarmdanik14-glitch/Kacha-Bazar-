@@ -225,6 +225,24 @@ export async function seedDatabase(initialCategories: any[], initialProducts: an
       }
     }
 
+    // 6. Ensure Live Notice / Announcement document exists
+    const noticeSnap = await getDoc(doc(db, "settings", "notice"));
+    if (!noticeSnap.exists()) {
+      await setDoc(doc(db, "settings", "notice"), {
+        isActive: true,
+        badgeBn: "🔴 LIVE UPDATE",
+        badgeEn: "🔴 LIVE UPDATE",
+        titleBn: "কাঁচা বাজার ওয়েবসাইটের কাজ এখনও চলমান।",
+        titleEn: "Kacha Bazar website is currently under development.",
+        messageBn: "বর্তমানে অর্ডার গ্রহণ শুরু হয়নি। খুব শীঘ্রই অর্ডার নেওয়া শুরু হবে।",
+        messageEn: "Orders are not currently being accepted. We will start taking orders very soon.",
+        theme: "rose",
+        showDotPulse: true,
+        orderDisabled: true,
+        createdAt: new Date().toISOString()
+      }, { merge: true }).catch(() => {});
+    }
+
     console.log("Database seed check completed successfully!");
   } catch (err: any) {
     if (err && (err.code === "permission-denied" || err.message?.includes("permissions"))) {

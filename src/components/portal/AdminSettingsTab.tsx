@@ -2,12 +2,14 @@ import React, { useState, useEffect } from "react";
 import { 
   Settings, Check, RefreshCw, MapPin, Building, Phone, Mail, 
   ToggleLeft, ToggleRight, ImageIcon, Plus, Trash2, Edit, Upload, Navigation, ShieldAlert, Info,
-  QrCode, Smartphone, Download, Copy, ExternalLink, Sparkles, CheckCircle2, Globe, Printer
+  QrCode, Smartphone, Download, Copy, ExternalLink, Sparkles, CheckCircle2, Globe, Printer,
+  Megaphone, AlertCircle, Eye, RotateCcw, Save, Bell
 } from "lucide-react";
 import QRCode from "qrcode";
 import logoImg from "../../assets/images/logo_1783882658678.jpg";
-import { db, doc, setDoc, deleteDoc, collection, serverTimestamp } from "../../lib/firebase";
+import { db, doc, setDoc, deleteDoc, collection, serverTimestamp, onSnapshot } from "../../lib/firebase";
 import { DeliveryZone, DEFAULT_DELIVERY_ZONES, DEFAULT_STORE_LOCATION } from "../../lib/delivery";
+import { LiveNoticeConfig, DEFAULT_LIVE_NOTICE } from "../../types";
 
 interface AdminSettingsTabProps {
   settings: any;
@@ -19,8 +21,20 @@ interface AdminSettingsTabProps {
 export default function AdminSettingsTab({ settings, banners, lang, triggerToast }: AdminSettingsTabProps) {
   const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
 
-  const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "delivery" | "banners" | "pwa">("global");
+  const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "notice" | "delivery" | "banners" | "pwa">("global");
   const [savingSettings, setSavingSettings] = useState<boolean>(false);
+
+  // Live Notice / Announcement State
+  const [noticeActive, setNoticeActive] = useState<boolean>(DEFAULT_LIVE_NOTICE.isActive);
+  const [noticeBadgeBn, setNoticeBadgeBn] = useState<string>(DEFAULT_LIVE_NOTICE.badgeBn || "🔴 LIVE UPDATE");
+  const [noticeBadgeEn, setNoticeBadgeEn] = useState<string>(DEFAULT_LIVE_NOTICE.badgeEn || "🔴 LIVE UPDATE");
+  const [noticeTitleBn, setNoticeTitleBn] = useState<string>(DEFAULT_LIVE_NOTICE.titleBn);
+  const [noticeTitleEn, setNoticeTitleEn] = useState<string>(DEFAULT_LIVE_NOTICE.titleEn || "");
+  const [noticeMsgBn, setNoticeMsgBn] = useState<string>(DEFAULT_LIVE_NOTICE.messageBn);
+  const [noticeMsgEn, setNoticeMsgEn] = useState<string>(DEFAULT_LIVE_NOTICE.messageEn || "");
+  const [noticeTheme, setNoticeTheme] = useState<"rose" | "amber" | "emerald" | "blue">(DEFAULT_LIVE_NOTICE.theme || "rose");
+  const [noticePulse, setNoticePulse] = useState<boolean>(true);
+  const [savingNotice, setSavingNotice] = useState<boolean>(false);
 
   // Global Config Form states
   const [supportPhone, setSupportPhone] = useState<string>(settings?.supportPhone || "+8801700000000");
@@ -99,6 +113,88 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
       }
     }
   }, [settings]);
+
+  // Sync Live Notice config directly from Firestore
+  useEffect(() => {
+    const unsub = onSnapshot(
+      doc(db, "settings", "notice"),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const d = docSnap.data();
+          if (d.isActive !== undefined) setNoticeActive(d.isActive);
+          if (d.badgeBn) setNoticeBadgeBn(d.badgeBn);
+          if (d.badgeEn) setNoticeBadgeEn(d.badgeEn);
+          if (d.titleBn) setNoticeTitleBn(d.titleBn);
+          if (d.titleEn !== undefined) setNoticeTitleEn(d.titleEn);
+          if (d.messageBn) setNoticeMsgBn(d.messageBn);
+          if (d.messageEn !== undefined) setNoticeMsgEn(d.messageEn);
+          if (d.theme) setNoticeTheme(d.theme);
+          if (d.showDotPulse !== undefined) setNoticePulse(d.showDotPulse);
+        } else if (settings?.notice) {
+          const d = settings.notice;
+          if (d.isActive !== undefined) setNoticeActive(d.isActive);
+          if (d.badgeBn) setNoticeBadgeBn(d.badgeBn);
+          if (d.badgeEn) setNoticeBadgeEn(d.badgeEn);
+          if (d.titleBn) setNoticeTitleBn(d.titleBn);
+          if (d.titleEn !== undefined) setNoticeTitleEn(d.titleEn);
+          if (d.messageBn) setNoticeMsgBn(d.messageBn);
+          if (d.messageEn !== undefined) setNoticeMsgEn(d.messageEn);
+          if (d.theme) setNoticeTheme(d.theme);
+          if (d.showDotPulse !== undefined) setNoticePulse(d.showDotPulse);
+        }
+      },
+      (err) => console.warn("Notice doc sync notice:", err.message)
+    );
+    return () => unsub();
+  }, [settings]);
+
+  // Save Live Notice handler
+  const handleSaveNotice = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSavingNotice(true);
+    try {
+      const payload: LiveNoticeConfig = {
+        isActive: noticeActive,
+        badgeBn: noticeBadgeBn.trim() || "🔴 LIVE UPDATE",
+        badgeEn: noticeBadgeEn.trim() || "🔴 LIVE UPDATE",
+        titleBn: noticeTitleBn.trim() || DEFAULT_LIVE_NOTICE.titleBn,
+        titleEn: noticeTitleEn.trim() || (DEFAULT_LIVE_NOTICE.titleEn || ""),
+        messageBn: noticeMsgBn.trim() || DEFAULT_LIVE_NOTICE.messageBn,
+        messageEn: noticeMsgEn.trim() || (DEFAULT_LIVE_NOTICE.messageEn || ""),
+        theme: noticeTheme,
+        showDotPulse: noticePulse,
+        orderDisabled: true,
+        updatedAt: serverTimestamp()
+      };
+
+      await setDoc(doc(db, "settings", "notice"), payload, { merge: true });
+      await setDoc(doc(db, "settings", "global"), {
+        notice: payload,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      triggerToast("লাইভ নোটিশ সফলভাবে সংরক্ষিত হয়েছে!", "Live notice updated successfully!");
+    } catch (err) {
+      console.error("Save notice error:", err);
+      triggerToast("নোটিশ সেভ করতে সমস্যা হয়েছে।", "Failed to save live notice.");
+    } finally {
+      setSavingNotice(false);
+    }
+  };
+
+  // Reset Notice to Default Template
+  const handleResetNoticeTemplate = () => {
+    setNoticeActive(DEFAULT_LIVE_NOTICE.isActive);
+    setNoticeBadgeBn(DEFAULT_LIVE_NOTICE.badgeBn || "🔴 LIVE UPDATE");
+    setNoticeBadgeEn(DEFAULT_LIVE_NOTICE.badgeEn || "🔴 LIVE UPDATE");
+    setNoticeTitleBn(DEFAULT_LIVE_NOTICE.titleBn);
+    setNoticeTitleEn(DEFAULT_LIVE_NOTICE.titleEn || "");
+    setNoticeMsgBn(DEFAULT_LIVE_NOTICE.messageBn);
+    setNoticeMsgEn(DEFAULT_LIVE_NOTICE.messageEn || "");
+    setNoticeTheme(DEFAULT_LIVE_NOTICE.theme || "rose");
+    setNoticePulse(true);
+    triggerToast("ডিফল্ট নোটিশ টেমপ্লেট লোড করা হয়েছে!", "Default notice template loaded!");
+  };
 
   // Banners state
   const [showBannerForm, setShowBannerForm] = useState<boolean>(false);
@@ -475,6 +571,27 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
           {getTranslation("সাধারণ সেটিংস", "Global Profiles & Toggles")}
         </button>
         <button 
+          onClick={() => setActiveSettingsSubTab("notice")}
+          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 flex items-center gap-2 shrink-0 whitespace-nowrap transition ${
+            activeSettingsSubTab === "notice" ? "border-rose-600 text-rose-600 bg-rose-50/50" : "border-transparent text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
+          </span>
+          <span>{getTranslation("🔴 লাইভ নোটিশ", "🔴 Live Notice")}</span>
+          {noticeActive ? (
+            <span className="bg-rose-100 text-rose-700 text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+              {getTranslation("অন", "ON")}
+            </span>
+          ) : (
+            <span className="bg-slate-100 text-slate-500 text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+              {getTranslation("বন্ধ", "OFF")}
+            </span>
+          )}
+        </button>
+        <button 
           onClick={() => setActiveSettingsSubTab("delivery")}
           className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 shrink-0 whitespace-nowrap ${
             activeSettingsSubTab === "delivery" ? "border-emerald-600 text-emerald-600" : "border-transparent text-slate-400 hover:text-slate-600"
@@ -500,6 +617,341 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
           <span>{getTranslation("PWA ও QR কোড", "PWA & QR Posters")}</span>
         </button>
       </div>
+
+      {/* ================= LIVE NOTICE / ANNOUNCEMENT SUBTAB ================= */}
+      {activeSettingsSubTab === "notice" && (
+        <div className="space-y-6">
+          
+          {/* Header Description Card */}
+          <div className="bg-gradient-to-r from-rose-500/10 via-red-500/5 to-amber-500/10 border border-rose-200 p-5 rounded-2xl shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-200">
+                  <Megaphone className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black text-slate-800">
+                      {getTranslation("লাইভ নোটিশ ও এনাউন্সমেন্ট সিস্টেম", "Live Notice & Announcement System")}
+                    </h3>
+                    <span className="bg-rose-100 text-rose-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                      Realtime Sync
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5 max-w-2xl leading-relaxed">
+                    {getTranslation(
+                      "ওয়েবসাইটে ভিজিটরদের জন্য চলমান কাজ বা নোটিশ নিয়ন্ত্রণ করুন। এখান থেকে সরাসরি লেখা এডিট, অন/অফ এবং সেভ করতে পারবেন।",
+                      "Manage live alerts and announcements shown to website visitors. Edit text, toggle show/hide, and save changes in real time."
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick Template Reset */}
+              <button
+                type="button"
+                onClick={handleResetNoticeTemplate}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-2xs cursor-pointer self-start sm:self-auto shrink-0"
+                title={getTranslation("অফিসিয়াল ডিফল্ট টেক্সট লোড করুন", "Reset to Default Template")}
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                <span>{getTranslation("ডিফল্ট টেক্সট লোড", "Load Default")}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Interactive Live Preview Box */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-emerald-600" />
+                <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                  {getTranslation("লাইভ প্রিভিউ (ওয়েবসাইটে কেমন দেখাবে)", "Live Website Preview")}
+                </h4>
+              </div>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
+                noticeActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"
+              }`}>
+                {noticeActive ? getTranslation("প্রদর্শিত হবে", "Will Be Visible") : getTranslation("লুকানো থাকবে", "Currently Hidden")}
+              </span>
+            </div>
+
+            {/* Simulated Banner Container */}
+            <div className={`p-4 rounded-2xl border transition-all ${
+              noticeTheme === "rose" 
+                ? "bg-gradient-to-r from-rose-50 via-red-50 to-amber-50 border-rose-200 text-rose-950" 
+                : noticeTheme === "amber"
+                ? "bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 border-amber-200 text-amber-950"
+                : noticeTheme === "emerald"
+                ? "bg-gradient-to-r from-emerald-50 via-teal-50 to-green-50 border-emerald-200 text-emerald-950"
+                : "bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-50 border-blue-200 text-blue-950"
+            }`}>
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white shadow-xs border border-rose-200/50 flex items-center justify-center shrink-0">
+                  <div className="relative flex items-center justify-center">
+                    <span className="animate-ping absolute inline-flex h-5 w-5 rounded-full bg-rose-400 opacity-60"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-600"></span>
+                  </div>
+                </div>
+
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase text-white shadow-2xs ${
+                      noticeTheme === "rose" ? "bg-rose-600" :
+                      noticeTheme === "amber" ? "bg-amber-600" :
+                      noticeTheme === "emerald" ? "bg-emerald-600" : "bg-blue-600"
+                    }`}>
+                      {noticePulse && (
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-80"></span>
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
+                        </span>
+                      )}
+                      <span>{noticeBadgeBn || "🔴 LIVE UPDATE"}</span>
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-500 bg-white/70 px-2 py-0.5 rounded-md border border-slate-200/50">
+                      {getTranslation("জরুরি আপডেট", "Notice")}
+                    </span>
+                  </div>
+
+                  <h3 className="text-sm sm:text-base font-black tracking-tight leading-snug">
+                    {noticeTitleBn || DEFAULT_LIVE_NOTICE.titleBn}
+                  </h3>
+
+                  <p className="text-xs font-medium opacity-90 leading-relaxed">
+                    {noticeMsgBn || DEFAULT_LIVE_NOTICE.messageBn}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Form Settings Editor */}
+          <form onSubmit={handleSaveNotice} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-5">
+            
+            {/* Control Switches Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200/70">
+              
+              {/* Show / Hide Toggle */}
+              <div>
+                <label className="text-[11px] font-black text-slate-700 uppercase tracking-wide block mb-1">
+                  {getTranslation("নোটিশ প্রদর্শন (Show / Hide)", "Notice Visibility")}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setNoticeActive(!noticeActive)}
+                  className={`w-full py-2 px-3 rounded-xl border flex items-center justify-between transition cursor-pointer font-bold text-xs ${
+                    noticeActive 
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-800" 
+                      : "bg-slate-100 border-slate-300 text-slate-600"
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    {noticeActive ? (
+                      <ToggleRight className="w-5 h-5 text-emerald-600" />
+                    ) : (
+                      <ToggleLeft className="w-5 h-5 text-slate-400" />
+                    )}
+                    <span>{noticeActive ? getTranslation("নোটিশ চালু আছে", "Notice Active (Shown)") : getTranslation("নোটিশ বন্ধ আছে", "Notice Hidden")}</span>
+                  </span>
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    noticeActive ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-700"
+                  }`}>
+                    {noticeActive ? "ON" : "OFF"}
+                  </span>
+                </button>
+              </div>
+
+              {/* Pulsing Beacon Toggle */}
+              <div>
+                <label className="text-[11px] font-black text-slate-700 uppercase tracking-wide block mb-1">
+                  {getTranslation("পালসিং লাইভ আইকন", "Pulsing Live Beacon")}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setNoticePulse(!noticePulse)}
+                  className={`w-full py-2 px-3 rounded-xl border flex items-center justify-between transition cursor-pointer font-bold text-xs ${
+                    noticePulse 
+                      ? "bg-rose-50 border-rose-300 text-rose-800" 
+                      : "bg-slate-100 border-slate-300 text-slate-600"
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    {noticePulse ? (
+                      <ToggleRight className="w-5 h-5 text-rose-600" />
+                    ) : (
+                      <ToggleLeft className="w-5 h-5 text-slate-400" />
+                    )}
+                    <span>{noticePulse ? getTranslation("পালসিং চালু", "Pulse Active") : getTranslation("পালসিং বন্ধ", "Pulse Disabled")}</span>
+                  </span>
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    noticePulse ? "bg-rose-600 text-white" : "bg-slate-300 text-slate-700"
+                  }`}>
+                    {noticePulse ? "YES" : "NO"}
+                  </span>
+                </button>
+              </div>
+
+              {/* Color Theme Selector */}
+              <div>
+                <label className="text-[11px] font-black text-slate-700 uppercase tracking-wide block mb-1">
+                  {getTranslation("কালার থিম (Visual Style)", "Visual Color Theme")}
+                </label>
+                <div className="grid grid-cols-4 gap-1">
+                  {[
+                    { id: "rose", label: "লাল", colorClass: "bg-rose-500 text-white" },
+                    { id: "amber", label: "হলুদ", colorClass: "bg-amber-500 text-white" },
+                    { id: "emerald", label: "সবুজ", colorClass: "bg-emerald-600 text-white" },
+                    { id: "blue", label: "নীল", colorClass: "bg-blue-600 text-white" }
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setNoticeTheme(t.id as any)}
+                      className={`py-1.5 px-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${
+                        noticeTheme === t.id 
+                          ? `${t.colorClass} border-slate-800 shadow-xs ring-1 ring-slate-800` 
+                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Inputs: Badges and Titles */}
+            <div className="space-y-4 pt-1">
+              
+              {/* Badge Inputs */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-600 block mb-1">
+                    {getTranslation("ব্যাজ টেক্সট (বাংলা)", "Badge Label (Bangla)")}
+                  </label>
+                  <input
+                    type="text"
+                    value={noticeBadgeBn}
+                    onChange={(e) => setNoticeBadgeBn(e.target.value)}
+                    placeholder="🔴 LIVE UPDATE"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-rose-500 focus:bg-white transition"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-600 block mb-1">
+                    {getTranslation("ব্যাজ টেক্সট (English)", "Badge Label (English)")}
+                  </label>
+                  <input
+                    type="text"
+                    value={noticeBadgeEn}
+                    onChange={(e) => setNoticeBadgeEn(e.target.value)}
+                    placeholder="🔴 LIVE UPDATE"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-rose-500 focus:bg-white transition"
+                  />
+                </div>
+              </div>
+
+              {/* Title Inputs */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    {getTranslation("নোটিশের মূল শিরোনাম (বাংলা) *", "Headline Title (Bangla) *")}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={noticeTitleBn}
+                    onChange={(e) => setNoticeTitleBn(e.target.value)}
+                    placeholder="কাঁচা বাজার ওয়েবসাইটের কাজ এখনও চলমান।"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-black outline-none focus:border-rose-500 focus:bg-white transition text-slate-800"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                    {getTranslation("ডিফল্ট: কাঁচা বাজার ওয়েবসাইটের কাজ এখনও চলমান।", "Default: Kacha Bazar website is currently under development.")}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    {getTranslation("নোটিশের মূল শিরোনাম (English)", "Headline Title (English)")}
+                  </label>
+                  <input
+                    type="text"
+                    value={noticeTitleEn}
+                    onChange={(e) => setNoticeTitleEn(e.target.value)}
+                    placeholder="Kacha Bazar website is currently under development."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold outline-none focus:border-rose-500 focus:bg-white transition text-slate-800"
+                  />
+                </div>
+              </div>
+
+              {/* Message Details Inputs */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    {getTranslation("বিস্তারিত বার্তা / এনাউন্সমেন্ট (বাংলা) *", "Detailed Announcement Message (Bangla) *")}
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={noticeMsgBn}
+                    onChange={(e) => setNoticeMsgBn(e.target.value)}
+                    placeholder="বর্তমানে অর্ডার গ্রহণ শুরু হয়নি। খুব শীঘ্রই অর্ডার নেওয়া শুরু হবে।"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium outline-none focus:border-rose-500 focus:bg-white transition text-slate-800"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                    {getTranslation("ডিফল্ট: বর্তমানে অর্ডার গ্রহণ শুরু হয়নি। খুব শীঘ্রই অর্ডার নেওয়া শুরু হবে।", "Default: Orders are not currently being accepted. We will start taking orders very soon.")}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    {getTranslation("বিস্তারিত বার্তা / এনাউন্সমেন্ট (English)", "Detailed Announcement Message (English)")}
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={noticeMsgEn}
+                    onChange={(e) => setNoticeMsgEn(e.target.value)}
+                    placeholder="Orders are not currently being accepted. We will start taking orders very soon."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium outline-none focus:border-rose-500 focus:bg-white transition text-slate-800"
+                  />
+                </div>
+              </div>
+
+            </div>
+
+            {/* Submit / Save Button Bar */}
+            <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs text-slate-400 flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>
+                  {getTranslation("সেভ করার সাথে সাথে সকল ভিজিটরদের স্ক্রিনে রিয়েল-টাইম নোটিশটি হালনাগাদ হবে।", "Changes apply instantly to all active visitors in real-time.")}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="submit"
+                  disabled={savingNotice}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-md shadow-rose-200 hover:shadow-lg transition active:scale-95 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingNotice ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  <span>
+                    {savingNotice 
+                      ? getTranslation("সংরক্ষণ করা হচ্ছে...", "Saving...") 
+                      : getTranslation("নোটিশ সংরক্ষণ ও প্রকাশ করুন", "Save & Publish Notice")}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+          </form>
+
+        </div>
+      )}
 
       {activeSettingsSubTab === "global" && (
         <form onSubmit={handleSaveGlobalConfig} className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm space-y-6">
