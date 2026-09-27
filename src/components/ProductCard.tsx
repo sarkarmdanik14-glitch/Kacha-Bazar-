@@ -1,10 +1,10 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { 
   Heart, Star, ShoppingCart, ShoppingBag, AlertCircle, Phone, Truck 
 } from "lucide-react";
 import { Product, CartItem } from "../types";
 import { resolveProductDisplayUnit } from "../lib/productWeightUtils";
-import { SAFE_PRODUCT_PLACEHOLDER } from "../lib/masterImageRegistry";
+import { SAFE_PRODUCT_PLACEHOLDER, optimizeProductImageUrl } from "../lib/masterImageRegistry";
 
 interface ProductCardProps {
   product: Product;
@@ -35,12 +35,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   handleProductImgError,
   className = "",
 }) => {
+  const [isImgLoaded, setIsImgLoaded] = useState<boolean>(false);
   const isWishlisted = wishlist.includes(product.id);
   
   // Find cart items matching this product
   const cartItem = cart.find((item) => item.product.id === product.id);
   const inCartQty = cartItem ? cartItem.quantity : 0;
   const isOutOfStock = product.stock <= 0 || product.isAvailable === false;
+
+  // Optimize image URL with dynamic Cloudinary parameters (f_auto,q_auto,w_400,c_limit)
+  const rawImage = product.image || (product as any).imageUrl || SAFE_PRODUCT_PLACEHOLDER;
+  const optimizedImageSrc = useMemo(() => optimizeProductImageUrl(rawImage, 400), [rawImage]);
 
   // Category / Subcategory display
   const rawCatDisplay = (product.category === "staples" || product.category === "spices-oils")
@@ -71,6 +76,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       {/* ========================================================================= */}
       <div className="relative w-full aspect-[4/3] sm:aspect-[1/0.88] bg-slate-100 overflow-hidden border-b border-slate-100/80">
         
+        {/* Subtle Shimmer Skeleton Placeholder while downloading */}
+        {!isImgLoaded && (
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-100 via-slate-200/60 to-slate-100 animate-pulse flex items-center justify-center pointer-events-none z-0">
+            <div className="w-8 h-8 rounded-full bg-slate-200/80 flex items-center justify-center text-slate-300">
+              <ShoppingBag className="w-4 h-4 opacity-40 text-slate-400" />
+            </div>
+          </div>
+        )}
+
         {/* Wishlist Button (Top-Right Floating Circle) */}
         <button 
           type="button"
@@ -94,14 +108,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           className="w-full h-full cursor-pointer relative overflow-hidden"
         >
           <img 
-            src={product.image || (product as any).imageUrl || SAFE_PRODUCT_PLACEHOLDER} 
+            ref={(img) => {
+              if (img && img.complete && img.naturalWidth > 0 && !isImgLoaded) {
+                setIsImgLoaded(true);
+              }
+            }}
+            src={optimizedImageSrc} 
             alt={displayName}
             referrerPolicy="no-referrer"
-            onError={handleProductImgError}
             loading="lazy"
-            className={`w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 ${
-              isOutOfStock ? "opacity-35 grayscale" : ""
-            }`}
+            decoding="async"
+            width={400}
+            height={300}
+            onLoad={() => setIsImgLoaded(true)}
+            onError={(e) => {
+              setIsImgLoaded(true);
+              handleProductImgError(e);
+            }}
+            className={`w-full h-full object-cover transition-all duration-300 ease-out group-hover:scale-105 ${
+              !isImgLoaded ? "opacity-0 scale-98" : "opacity-100 scale-100"
+            } ${isOutOfStock ? "opacity-35 grayscale" : ""}`}
           />
 
           {/* Out of Stock Overlay */}

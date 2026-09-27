@@ -1,6 +1,7 @@
 import React from "react";
 import { MapPin, Phone, MessageCircle, MessageSquare, Edit2, Trash2, CheckCircle2, Clock } from "lucide-react";
 import { BuySellListing } from "../../types/buySell";
+import { optimizeProductImageUrl, SAFE_PRODUCT_PLACEHOLDER } from "../../lib/masterImageRegistry";
 
 interface BuySellCardProps {
   listing: BuySellListing;
@@ -84,11 +85,15 @@ export default function BuySellCard({
       {/* Top Image Container */}
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
         <img
-          src={listing.images?.[0] || "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=500&auto=format&fit=crop&q=80"}
+          src={optimizeProductImageUrl(listing.images?.[0] || SAFE_PRODUCT_PLACEHOLDER, 400)}
           alt={listing.title}
+          loading="lazy"
+          decoding="async"
+          width={400}
+          height={300}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           onError={(e: any) => {
-            e.target.src = "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=500&auto=format&fit=crop&q=80";
+            e.target.src = SAFE_PRODUCT_PLACEHOLDER;
           }}
         />
 

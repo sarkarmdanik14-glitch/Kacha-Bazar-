@@ -42,5 +42,43 @@ export function resolveAuthenticProductImage(productId: string | undefined | nul
   return current || SAFE_PRODUCT_PLACEHOLDER;
 }
 
+/**
+ * Injects dynamic Cloudinary formatting and compression parameters
+ * (f_auto,q_auto,w_400,c_limit/) for blazing-fast loading speeds and WebP/AVIF delivery.
+ */
+export function optimizeProductImageUrl(
+  url: string | undefined | null, 
+  width: number = 400
+): string {
+  if (!url || typeof url !== "string") return url || SAFE_PRODUCT_PLACEHOLDER;
+  const trimmed = url.trim();
+  if (!trimmed) return SAFE_PRODUCT_PLACEHOLDER;
+
+  // Cloudinary dynamic optimization
+  if (trimmed.includes("res.cloudinary.com") && trimmed.includes("/upload/")) {
+    // If already has exact auto parameters with width, avoid duplicate injection
+    if (trimmed.includes("f_auto,q_auto,w_") || (trimmed.includes("f_auto") && trimmed.includes(`w_${width}`))) {
+      return trimmed;
+    }
+    // If it has basic f_auto,q_auto without width constraint
+    if (trimmed.includes("/upload/f_auto,q_auto/")) {
+      return trimmed.replace("/upload/f_auto,q_auto/", `/upload/f_auto,q_auto,w_${width},c_limit/`);
+    }
+    if (trimmed.includes("f_auto") || trimmed.includes("q_auto")) {
+      return trimmed;
+    }
+    const params = `f_auto,q_auto,w_${width},c_limit/`;
+    return trimmed.replace("/upload/", `/upload/${params}`);
+  }
+
+  // Unsplash dynamic compression & resizing if present
+  if (trimmed.includes("images.unsplash.com") && !trimmed.includes("w=")) {
+    const separator = trimmed.includes("?") ? "&" : "?";
+    return `${trimmed}${separator}auto=format&fit=crop&w=${width}&q=80`;
+  }
+
+  return trimmed;
+}
+
 export { MASTER_PRODUCT_IMAGE_MAP };
 

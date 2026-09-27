@@ -57,7 +57,7 @@ import {
   sortByDefaultOrder
 } from "./lib/productWeightUtils";
 import { isCategoryMatch, normalizeCategoryId, mergeCategoryCards } from "./lib/categoryUtils";
-import { SAFE_PRODUCT_PLACEHOLDER } from "./lib/masterImageRegistry";
+import { SAFE_PRODUCT_PLACEHOLDER, optimizeProductImageUrl } from "./lib/masterImageRegistry";
 
 export default function App() {
   // Localization: 'bn' (Bangla) or 'en' (English)
@@ -1722,7 +1722,16 @@ export default function App() {
                     }}
                     className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition"
                   >
-                    <img src={prod.image || (prod as any).imageUrl || SAFE_PRODUCT_PLACEHOLDER} className="w-10 h-10 object-cover rounded bg-slate-50" onError={handleProductImgError} />
+                    <img 
+                      src={optimizeProductImageUrl(prod.image || (prod as any).imageUrl || SAFE_PRODUCT_PLACEHOLDER, 80)} 
+                      alt={lang === "bn" ? prod.nameBn : prod.nameEn}
+                      loading="lazy"
+                      decoding="async"
+                      width={40}
+                      height={40}
+                      className="w-10 h-10 object-cover rounded bg-slate-50" 
+                      onError={handleProductImgError} 
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold truncate text-slate-800">{lang === "bn" ? prod.nameBn : prod.nameEn}</p>
                       <p className="text-[10px] text-emerald-600 font-bold">৳{fmtNum(prod.price)} / {lang === "bn" ? prod.unitBn : prod.unitEn}</p>
@@ -2159,8 +2168,17 @@ export default function App() {
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {availableProducts.filter(p => p.rating >= 4.8 && !p.isCombo).slice(0, 3).map((product) => (
                 <div key={product.id} className="bg-white p-2 sm:p-2.5 rounded-xl border border-emerald-50/50 shadow-2xs flex flex-col justify-between group hover:shadow-md transition">
-                  <div className="w-full aspect-[4/3] overflow-hidden rounded-lg mb-1.5 bg-slate-50">
-                    <img src={product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onError={handleProductImgError} />
+                  <div className="w-full aspect-[4/3] overflow-hidden rounded-lg mb-1.5 bg-slate-100 relative">
+                    <img 
+                      src={optimizeProductImageUrl(product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER, 300)} 
+                      alt={lang === "bn" ? product.nameBn : product.nameEn}
+                      loading="lazy"
+                      decoding="async"
+                      width={300}
+                      height={225}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                      onError={handleProductImgError} 
+                    />
                   </div>
                   <h4 className="text-[10px] sm:text-xs font-bold text-slate-800 line-clamp-1">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
                   <div className="flex justify-between items-center mt-1.5">
@@ -2192,8 +2210,17 @@ export default function App() {
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {availableProducts.filter(p => p.isSeasonal || (homeConfig?.featuredProducts?.seasonalProductIds || []).includes(p.id)).slice(0, 3).map((product) => (
                 <div key={product.id} className="bg-white p-2 sm:p-2.5 rounded-xl border border-amber-50/50 shadow-2xs flex flex-col justify-between group hover:shadow-md transition">
-                  <div className="w-full aspect-[4/3] overflow-hidden rounded-lg mb-1.5 bg-slate-50">
-                    <img src={product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onError={handleProductImgError} />
+                  <div className="w-full aspect-[4/3] overflow-hidden rounded-lg mb-1.5 bg-slate-100 relative">
+                    <img 
+                      src={optimizeProductImageUrl(product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER, 300)} 
+                      alt={lang === "bn" ? product.nameBn : product.nameEn}
+                      loading="lazy"
+                      decoding="async"
+                      width={300}
+                      height={225}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                      onError={handleProductImgError} 
+                    />
                   </div>
                   <h4 className="text-[10px] sm:text-xs font-bold text-slate-800 line-clamp-1">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
                   <div className="flex justify-between items-center mt-1.5">
@@ -3431,7 +3458,16 @@ export default function App() {
                   if (!product) return null;
                   return (
                     <div key={product.id} className="flex gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100 relative">
-                      <img src={product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER} className="w-12 h-12 object-cover rounded-lg shrink-0 bg-slate-50" onError={handleProductImgError} />
+                      <img 
+                        src={optimizeProductImageUrl(product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER, 100)} 
+                        alt={lang === "bn" ? product.nameBn : product.nameEn}
+                        loading="lazy"
+                        decoding="async"
+                        width={48}
+                        height={48}
+                        className="w-12 h-12 object-cover rounded-lg shrink-0 bg-slate-100" 
+                        onError={handleProductImgError} 
+                      />
                       <div className="flex-1 min-w-0">
                         <h4 className="text-xs font-bold text-slate-800 truncate">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
                         <p className="text-[9.5px] font-bold text-slate-700 bg-slate-100 inline-block px-1.5 py-0.5 rounded border border-slate-200/80 mt-0.5">
@@ -3492,8 +3528,17 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Product Image Panel */}
-              <div className="relative">
-                <img src={selectedProduct.image || (selectedProduct as any).imageUrl || SAFE_PRODUCT_PLACEHOLDER} className="w-full h-56 sm:h-72 object-cover rounded-xl shadow-inner bg-slate-50" onError={handleProductImgError} />
+              <div className="relative aspect-[4/3] sm:aspect-square w-full rounded-xl overflow-hidden shadow-inner bg-slate-100">
+                <img 
+                  src={optimizeProductImageUrl(selectedProduct.image || (selectedProduct as any).imageUrl || SAFE_PRODUCT_PLACEHOLDER, 600)} 
+                  alt={lang === "bn" ? selectedProduct.nameBn : selectedProduct.nameEn}
+                  loading="lazy"
+                  decoding="async"
+                  width={600}
+                  height={450}
+                  className="w-full h-full object-cover rounded-xl" 
+                  onError={handleProductImgError} 
+                />
                 {selectedProduct.discount && (
                   <span className="absolute top-3 left-3 bg-rose-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow">
                     {fmtNum(selectedProduct.discount)}% {lang === "bn" ? "ছাড়" : "OFF"}
