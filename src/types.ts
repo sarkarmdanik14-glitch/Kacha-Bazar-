@@ -68,6 +68,7 @@ export interface Product {
   subcategoryId?: string;
   options?: ProductOption[];
   isAvailable?: boolean;
+  inStock?: boolean;
   displayOrder?: number;
   order?: number;
   menuOrder?: number;

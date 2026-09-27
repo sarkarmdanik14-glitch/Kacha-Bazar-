@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { checkAndRewardReferral } from "../../lib/referral";
 import { mergeCategoryCards } from "../../lib/categoryUtils";
-import { ALL_PRODUCTS, CATEGORIES } from "../../data";
+import { ALL_PRODUCTS, CATEGORIES, GROCERY_PRODUCTS_RAW } from "../../data";
 import { resolveAuthenticProductImage } from "../../lib/masterImageRegistry";
 
 // Import modular sub-panels
@@ -215,6 +215,21 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
           if (/^fr\d+$/.test(doc.id) || (data.category === "frozen" && !doc.id.startsWith("df"))) {
             return;
           }
+          // Completely remove ALL old/legacy products under "মুদি পণ্য" (groceries, staples, spices-oils, spices) except new gr1..gr51
+          const isLegacyGrocery = 
+            data.category === "groceries" || 
+            data.category === "staples" || 
+            data.category === "spices-oils" || 
+            data.category === "spices" || 
+            data.category === "oil-spices" || 
+            data.category === "মসলা ও রান্নার তেল" ||
+            doc.id.startsWith("st") || 
+            doc.id.startsWith("sp") ||
+            (doc.id.startsWith("gr") && !/^gr([1-9]|[1-4][0-9]|5[0-1])$/.test(doc.id));
+
+          if (isLegacyGrocery && !/^gr([1-9]|[1-4][0-9]|5[0-1])$/.test(doc.id)) {
+            return;
+          }
           const rawCandidate = data.image || data.imageUrl || data.image_url || data.photoUrl || data.img || (Array.isArray(data.images) && data.images[0]) || "";
           const resolvedImg = resolveAuthenticProductImage(doc.id, rawCandidate);
           prods.push({ 
@@ -224,6 +239,15 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
             imageUrl: resolvedImg
           });
         });
+
+        // Ensure all 51 new grocery products are present in prods list
+        const existingIds = new Set(prods.map(p => p.id));
+        for (const gp of GROCERY_PRODUCTS_RAW) {
+          if (!existingIds.has(gp.id)) {
+            prods.push(gp);
+          }
+        }
+
         setProducts(prods);
         setLoading(false);
       },

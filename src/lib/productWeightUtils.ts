@@ -66,6 +66,14 @@ export const resolveProductUnit = (
   const rawBn = (product.unitBn || "").trim();
   const rawEn = (product.unitEn || "").trim();
 
+  // 0. Ensure fresh grocery products (gr1 to gr51) use their exact requested units
+  if (product.id && /^gr\d+$/.test(product.id)) {
+    if (rawBn) {
+      let cleanBn = toBnNum(rawBn).trim();
+      return { unitBn: cleanBn, unitEn: rawEn || "1 unit" };
+    }
+  }
+
   // 1. Check known specific product ID overrides
   if (product.id && KNOWN_SPICE_WEIGHTS[product.id]) {
     return KNOWN_SPICE_WEIGHTS[product.id];
@@ -237,7 +245,7 @@ export const sortByDefaultOrder = (a: any, b: any): number => {
 
 // Helper to map Firestore doc data to Product type
 export const mapDocToProduct = (docId: string, data: any): Product => {
-  const rawCat = data.category || (docId.startsWith("st") || docId.startsWith("sp") ? "groceries" : "others");
+  const rawCat = data.category || (docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") ? "groceries" : "others");
   const rawCatLower = String(rawCat).toLowerCase().trim();
   const isSpicesOrStaples = 
     rawCatLower === "staples" || 
@@ -246,8 +254,8 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     rawCatLower === "oil-spices" || 
     rawCatLower === "মসলা ও রান্নার তেল" ||
     (typeof data.category === "string" && (data.category.includes("মসলা") || data.category.includes("রান্নার তেল")));
-  const resolvedCategory = isSpicesOrStaples ? "groceries" : (data.category || (docId.startsWith("st") || docId.startsWith("sp") ? "groceries" : "others"));
-  const isGrocery = resolvedCategory === "groceries" || docId.startsWith("st") || docId.startsWith("sp") || (data.id && (data.id.startsWith("st") || data.id.startsWith("sp")));
+  const resolvedCategory = isSpicesOrStaples ? "groceries" : (data.category || (docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") ? "groceries" : "others"));
+  const isGrocery = resolvedCategory === "groceries" || docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") || (data.id && (data.id.startsWith("st") || data.id.startsWith("sp") || data.id.startsWith("gr")));
   const resolvedSubcategory = isGrocery
     ? getResolvedGrocerySubcategory(data.id || docId, data.nameBn, data.nameEn, data.subcategory, resolvedCategory)
     : (data.subcategory || "General");
@@ -380,26 +388,6 @@ export const getProductWeightOptions = (product: Product): ProductOption[] => {
     ];
   }
 
-  const isPc = unitEn.includes("pc") || unitBn.includes("পিস") || unitBn.includes("টি");
-  if (isPc) {
-    return [
-      makeOpt(1, "pc", 1),
-      makeOpt(2, "pc", 2),
-      makeOpt(5, "pc", 5),
-      makeOpt(10, "pc", 10),
-    ];
-  }
-
-  const isPack = unitEn.includes("pack") || unitBn.includes("প্যাকেট") || unitBn.includes("প্যাক");
-  if (isPack) {
-    return [
-      makeOpt(1, "pack", 1),
-      makeOpt(2, "pack", 2),
-      makeOpt(3, "pack", 3),
-      makeOpt(5, "pack", 5),
-    ];
-  }
-
   if (Array.isArray(product.weightSizeOptions) && product.weightSizeOptions.length > 1) {
     return product.weightSizeOptions.map((optStr) => {
       const match = optStr.match(/([\d.]+)\s*([a-zA-Z]+)/);
@@ -427,7 +415,6 @@ export const getOptionLabel = (opt: ProductOption, lang: "bn" | "en", fmtNum: (n
     else if (opt.unit === "ml") unitText = "মি.লি.";
     else if (opt.unit === "L") unitText = "লিটার";
     else if (opt.unit.toLowerCase() === "pc" || opt.unit.toLowerCase() === "pcs") unitText = "টি";
-    else if (opt.unit.toLowerCase() === "pack" || opt.unit.toLowerCase() === "packs") unitText = "প্যাকেট";
   }
   return `${valText} ${unitText} - ৳${fmtNum(opt.price)}`;
 };
@@ -442,7 +429,6 @@ export const getWeightOnlyLabel = (opt: ProductOption, lang: "bn" | "en", fmtNum
     else if (opt.unit === "ml") unitText = "মি.লি.";
     else if (opt.unit === "L") unitText = "লিটার";
     else if (opt.unit.toLowerCase() === "pc" || opt.unit.toLowerCase() === "pcs") unitText = "টি";
-    else if (opt.unit.toLowerCase() === "pack" || opt.unit.toLowerCase() === "packs") unitText = "প্যাকেট";
   }
   return `${valText} ${unitText}`;
 };

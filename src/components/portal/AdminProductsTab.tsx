@@ -18,7 +18,7 @@ import {
 import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
 import { isCategoryMatch, normalizeCategoryId } from "../../lib/categoryUtils";
 import { matchesProductSearch } from "../../lib/banglishSearch";
-import { DRY_FOOD_RAW, PHARMACY_PRODUCTS_RAW, GROCERY_SUBCATEGORY_MAP, GROCERY_ORDER_MAP, GROCERY_SECTIONS, getResolvedGrocerySubcategory, getResolvedGroceryDisplayOrder, ALL_PRODUCTS, GROCERY_PRODUCTS_REPLACEMENT } from "../../data";
+import { DRY_FOOD_RAW, PHARMACY_PRODUCTS_RAW, GROCERY_SUBCATEGORY_MAP, GROCERY_ORDER_MAP, GROCERY_SECTIONS, GROCERY_PRODUCTS_RAW, getResolvedGrocerySubcategory, getResolvedGroceryDisplayOrder, ALL_PRODUCTS } from "../../data";
 import { resolveProductUnit } from "../../lib/productWeightUtils";
 import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 import { SAFE_PRODUCT_PLACEHOLDER } from "../../lib/masterImageRegistry";
@@ -230,32 +230,26 @@ export default function AdminProductsTab({ products, categories, orders = [], us
           }, { merge: true });
         }
 
-        // 4. Completely replace all previous grocery products with the exact 51 fresh grocery products
-        for (const prod of GROCERY_PRODUCTS_REPLACEMENT) {
+        // 4. Sync Grocery products: remove legacy products and upsert all 51 fresh grocery products
+        for (let i = 1; i <= 60; i++) {
+          const stRef = doc(db, "products", `st${i}`);
+          const spRef = doc(db, "products", `sp${i}`);
+          deleteDoc(stRef).catch(() => setDoc(stRef, { isDeleted: true, status: "deleted", isAvailable: false }, { merge: true }).catch(() => {}));
+          deleteDoc(spRef).catch(() => setDoc(spRef, { isDeleted: true, status: "deleted", isAvailable: false }, { merge: true }).catch(() => {}));
+        }
+
+        for (const prod of GROCERY_PRODUCTS_RAW) {
           const prodRef = doc(db, "products", prod.id);
           await setDoc(prodRef, {
             ...prod,
             isDeleted: false,
+            deleted: false,
             status: "active",
-            isAvailable: true
+            isAvailable: true,
+            inStock: true,
+            stock: 100,
+            updatedAt: serverTimestamp()
           }, { merge: true }).catch(() => {});
-        }
-
-        // 4.1 Delete or mark deleted all legacy grocery products not in the new 51 list
-        for (const prod of products) {
-          if (!prod || !prod.id) continue;
-          const pCat = (prod.category || "").toLowerCase().trim();
-          const isOldGrocery = 
-            (pCat === "groceries" || pCat === "staples" || pCat === "spices-oils" || pCat === "spices" || pCat === "oil-spices" || pCat === "মসলা ও রান্নার তেল") &&
-            !prod.id.startsWith("gro_");
-          if (isOldGrocery) {
-            const oldRef = doc(db, "products", prod.id);
-            try {
-              await deleteDoc(oldRef);
-            } catch {
-              await setDoc(oldRef, { isDeleted: true, deleted: true, status: "deleted", isAvailable: false }, { merge: true }).catch(() => {});
-            }
-          }
         }
 
         // 5. Sync crystal clear product units (kg, gram, piece, liter, ml) across all existing products

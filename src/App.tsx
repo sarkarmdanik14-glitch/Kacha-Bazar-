@@ -13,7 +13,7 @@ import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, Subcategory, CartItem, Review, ProductOption } from "./types";
-import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_REPLACEMENT, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
+import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
 import { resolveProductDisplayUnit } from "./lib/productWeightUtils";
 import { subscribeToAllSubcategories } from "./lib/subcategoryService";
 
@@ -525,6 +525,44 @@ export default function App() {
     return filtered.sort((a, b) => sortByDefaultOrder(a, b));
   }, [products]);
 
+  // One-time automatic sync to replace all old grocery products with the 51 fresh grocery products in Firestore
+  useEffect(() => {
+    const syncGroceriesToFirestore = async () => {
+      const syncKey = "kb_grocery_replaced_51_v2";
+      if (localStorage.getItem(syncKey)) return;
+
+      try {
+        localStorage.setItem(syncKey, "true");
+        // 1. Soft-delete / remove any previous grocery products
+        for (let i = 1; i <= 60; i++) {
+          const stRef = doc(db, "products", `st${i}`);
+          const spRef = doc(db, "products", `sp${i}`);
+          deleteDoc(stRef).catch(() => setDoc(stRef, { isDeleted: true, status: "deleted", isAvailable: false }, { merge: true }).catch(() => {}));
+          deleteDoc(spRef).catch(() => setDoc(spRef, { isDeleted: true, status: "deleted", isAvailable: false }, { merge: true }).catch(() => {}));
+        }
+
+        // 2. Upsert all 51 fresh grocery products into Firestore
+        for (const gp of GROCERY_PRODUCTS_RAW) {
+          const prodRef = doc(db, "products", gp.id);
+          await setDoc(prodRef, {
+            ...gp,
+            isDeleted: false,
+            deleted: false,
+            status: "active",
+            isAvailable: true,
+            inStock: true,
+            stock: 100,
+            updatedAt: serverTimestamp()
+          }, { merge: true }).catch((err) => console.warn(`Notice upserting ${gp.id}:`, err));
+        }
+      } catch (e) {
+        console.warn("Notice syncing fresh grocery products to Firestore:", e);
+      }
+    };
+
+    syncGroceriesToFirestore();
+  }, []);
+
   // Real-time synchronization of products, categories, reviews, banners, and home config from Firestore
   useEffect(() => {
     const productsQuery = query(
@@ -545,29 +583,29 @@ export default function App() {
           if (/^fr\d+$/.test(doc.id) || (data.category === "frozen" && !doc.id.startsWith("df"))) {
             return;
           }
-          // Completely remove all previous products under "মুদি পণ্য" (groceries)
-          const pCat = (data.category || "").toLowerCase().trim();
-          const isGroceryDoc = 
-            pCat === "groceries" || 
-            pCat === "staples" || 
-            pCat === "spices-oils" || 
-            pCat === "spices" || 
-            pCat === "oil-spices" || 
-            pCat === "মসলা ও রান্নার তেল" ||
-            (typeof data.category === "string" && (data.category.includes("মুদি") || data.category.includes("মসলা") || data.category.includes("রান্নার তেল")));
+          // Completely remove ALL old/legacy products under "মুদি পণ্য" (groceries, staples, spices-oils, spices) except new gr1..gr51
+          const isLegacyGrocery = 
+            data.category === "groceries" || 
+            data.category === "staples" || 
+            data.category === "spices-oils" || 
+            data.category === "spices" || 
+            data.category === "oil-spices" || 
+            data.category === "মসলা ও রান্নার তেল" ||
+            doc.id.startsWith("st") || 
+            doc.id.startsWith("sp") ||
+            (doc.id.startsWith("gr") && !/^gr([1-9]|[1-4][0-9]|5[0-1])$/.test(doc.id));
 
-          if (isGroceryDoc && !doc.id.startsWith("gro_")) {
+          if (isLegacyGrocery && !/^gr([1-9]|[1-4][0-9]|5[0-1])$/.test(doc.id)) {
             return;
           }
-
           items.push(mapDocToProduct(doc.id, data));
         });
 
-        // Ensure all 51 replacement grocery products are present
-        const existingGroIds = new Set(items.filter(p => p.id.startsWith("gro_")).map(p => p.id));
-        for (const groProd of GROCERY_PRODUCTS_REPLACEMENT) {
-          if (!existingGroIds.has(groProd.id)) {
-            items.push(groProd);
+        // Ensure all 51 new grocery products are present in items list
+        const existingIds = new Set(items.map(p => p.id));
+        for (const gp of GROCERY_PRODUCTS_RAW) {
+          if (!existingIds.has(gp.id)) {
+            items.push(gp);
           }
         }
 
