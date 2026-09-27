@@ -182,6 +182,33 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         await setDoc(doc(db, "categories", "dairy-eggs"), { displayOrder: 8, order: 8 }, { merge: true });
         await setDoc(doc(db, "categories", "beverages"), { isMerged: true, disabled: true, isAvailable: false }, { merge: true });
 
+        // Ensure "groceries" (মুদি পণ্য) is active and standalone "spices-oils" is merged/deleted
+        await setDoc(doc(db, "categories", "groceries"), {
+          id: "groceries",
+          nameBn: "মুদি পণ্য",
+          nameEn: "Groceries",
+          iconName: "Wheat",
+          displayOrder: 2,
+          order: 2,
+          isAvailable: true,
+          disabled: false
+        }, { merge: true });
+
+        try {
+          await deleteDoc(doc(db, "categories", "spices-oils"));
+        } catch {
+          await setDoc(doc(db, "categories", "spices-oils"), {
+            id: "groceries",
+            isAvailable: false,
+            disabled: true,
+            isMerged: true,
+            isDeleted: true
+          }, { merge: true }).catch(() => {});
+        }
+        try {
+          await deleteDoc(doc(db, "categories", "staples"));
+        } catch {}
+
         // 2. Remove all old products from former "হিমায়িত খাদ্য" category (fr1 - fr30)
         for (let i = 1; i <= 30; i++) {
           const oldRef = doc(db, "products", `fr${i}`);
@@ -212,6 +239,26 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             displayOrder: GROCERY_ORDER_MAP[prodId] ?? 999,
             order: GROCERY_ORDER_MAP[prodId] ?? 999
           }, { merge: true }).catch(() => {});
+        }
+
+        // 4.1 Reassign any products assigned to "spices-oils", "spices", "staples", or "মসলা ও রান্নার তেল" to "groceries"
+        for (const prod of products) {
+          if (!prod || !prod.id) continue;
+          if (
+            prod.category === "spices-oils" || 
+            prod.category === "spices" || 
+            prod.category === "staples" || 
+            prod.category === "oil-spices" || 
+            prod.category === "মসলা ও রান্নার তেল" ||
+            prod.categoryId === "spices-oils" ||
+            prod.categoryId === "spices"
+          ) {
+            const prodRef = doc(db, "products", prod.id);
+            await setDoc(prodRef, {
+              category: "groceries",
+              categoryId: "groceries"
+            }, { merge: true }).catch(() => {});
+          }
         }
 
         // 5. Sync crystal clear product units (kg, gram, piece, liter, ml) across all existing products
@@ -310,6 +357,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
 
   // Load category information whenever selectedCatId or categories changes
   useEffect(() => {
+    if (selectedCatId === "spices-oils" || selectedCatId === "staples" || selectedCatId === "spices") {
+      setSelectedCatId("groceries");
+      return;
+    }
     const currentCat = categories.find(c => c.id === selectedCatId);
     if (currentCat) {
       setCatNameBn(currentCat.nameBn || "");

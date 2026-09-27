@@ -593,6 +593,18 @@ export default function App() {
               return;
             }
 
+            // Permanently ignore standalone "মসলা ও রান্নার তেল" (merged into "মুদি পণ্য")
+            if (
+              catId === "spices-oils" ||
+              catId === "spices" ||
+              catId === "oil-spices" ||
+              catId === "staples" ||
+              (data.nameBn && (data.nameBn.includes("মসলা ও রান্নার তেল") || (data.nameBn.includes("মসলা") && data.nameBn.includes("তেল")))) ||
+              (data.nameEn && data.nameEn.toLowerCase().includes("spices & cooking"))
+            ) {
+              return;
+            }
+
             const isFrozenCat = catId === "frozen" || data.nameBn === "হিমায়িত খাদ্য";
             const catImg = (data.image || data.imageUrl || data.banner || data.bannerUrl || "").trim();
             cats.push({

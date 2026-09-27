@@ -26,6 +26,7 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
   { categoryId: "groceries", nameBn: "আটা, ময়দা ও সুজি", nameEn: "Flour, Maida & Suji", order: 4, isActive: true },
   { categoryId: "groceries", nameBn: "মসলাপাতি — আস্ত ও গুঁড়ো", nameEn: "Spices & Herbs", order: 5, isActive: true },
   { categoryId: "groceries", nameBn: "রেডি মসলা ও বেকিং আইটেম", nameEn: "Ready Mix & Baking Items", order: 6, isActive: true },
+  { categoryId: "groceries", nameBn: "মসলা ও রান্নার তেল", nameEn: "Spices & Cooking Oil", order: 7, isActive: true },
 
   // 2. Vegetables & Fruits (তাজা শাকসবজি ও ফল)
   { categoryId: "vegetables", nameBn: "তাজা শাক ও পাতা", nameEn: "Leafy Greens", order: 1, isActive: true },
@@ -142,7 +143,13 @@ export function subscribeToAllSubcategories(
       q,
       (snap) => {
         const list: Subcategory[] = [];
-        snap.forEach(d => list.push({ id: d.id, ...d.data() } as Subcategory));
+        snap.forEach(d => {
+          const item = { id: d.id, ...d.data() } as Subcategory;
+          if (item.categoryId === "spices-oils" || item.categoryId === "spices" || item.categoryId === "staples" || item.categoryId === "oil-spices") {
+            item.categoryId = "groceries";
+          }
+          list.push(item);
+        });
         callback(list);
       },
       (err) => {
@@ -154,7 +161,11 @@ export function subscribeToAllSubcategories(
           snap.forEach(d => {
             const data = d.data() as any;
             if (!data.isDeleted) {
-              list.push({ id: d.id, ...data } as Subcategory);
+              const item = { id: d.id, ...data } as Subcategory;
+              if (item.categoryId === "spices-oils" || item.categoryId === "spices" || item.categoryId === "staples" || item.categoryId === "oil-spices") {
+                item.categoryId = "groceries";
+              }
+              list.push(item);
             }
           });
           list.sort((a, b) => (a.order || 0) - (b.order || 0));

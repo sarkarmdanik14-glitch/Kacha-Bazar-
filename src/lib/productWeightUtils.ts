@@ -238,7 +238,15 @@ export const sortByDefaultOrder = (a: any, b: any): number => {
 // Helper to map Firestore doc data to Product type
 export const mapDocToProduct = (docId: string, data: any): Product => {
   const rawCat = data.category || (docId.startsWith("st") || docId.startsWith("sp") ? "groceries" : "others");
-  const resolvedCategory = (rawCat === "staples" || rawCat === "spices-oils") ? "groceries" : rawCat;
+  const rawCatLower = String(rawCat).toLowerCase().trim();
+  const isSpicesOrStaples = 
+    rawCatLower === "staples" || 
+    rawCatLower === "spices-oils" || 
+    rawCatLower === "spices" || 
+    rawCatLower === "oil-spices" || 
+    rawCatLower === "মসলা ও রান্নার তেল" ||
+    (typeof data.category === "string" && (data.category.includes("মসলা") || data.category.includes("রান্নার তেল")));
+  const resolvedCategory = isSpicesOrStaples ? "groceries" : (data.category || (docId.startsWith("st") || docId.startsWith("sp") ? "groceries" : "others"));
   const isGrocery = resolvedCategory === "groceries" || docId.startsWith("st") || docId.startsWith("sp") || (data.id && (data.id.startsWith("st") || data.id.startsWith("sp")));
   const resolvedSubcategory = isGrocery
     ? getResolvedGrocerySubcategory(data.id || docId, data.nameBn, data.nameEn, data.subcategory, resolvedCategory)
@@ -275,7 +283,7 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     unitBn: resolvedUnits.unitBn,
     unitEn: resolvedUnits.unitEn,
     category: resolvedCategory,
-    categoryId: data.categoryId || resolvedCategory,
+    categoryId: resolvedCategory,
     subcategoryId: data.subcategoryId || "",
     image: resolveAuthenticProductImage(
       data.id || docId, 

@@ -133,6 +133,9 @@ export const CATEGORY_SERIAL_MAP: Record<string, number> = {
   "groceries": 2,
   "staples": 2,
   "spices-oils": 2,
+  "spices": 2,
+  "oil-spices": 2,
+  "spices-cooking-oil": 2,
   "bakery-sweets": 3,
   "restaurant": 3,
   "bakery": 3,
@@ -171,7 +174,7 @@ export const CATEGORY_SERIAL_MAP: Record<string, number> = {
 
 /**
  * Checks whether a product matches a selected category filter.
- * - Treats "staples" and "spices-oils" as belonging to the merged "groceries" (মুদি পণ্য) category.
+ * - Treats "staples", "spices-oils", and "মসলা ও রান্নার তেল" as belonging to the merged "groceries" (মুদি পণ্য) category.
  * - Treats "snacks-biscuits" and "beverages" as belonging to the merged "কনফেকশনারি" (Confectionery) category.
  * - Treats "restaurant", "bakery", and "bakery-sweets" as matching "রেস্টুরেন্ট".
  * - Treats "pharmacy" and legacy "baby-care" as matching "ফার্মেসি".
@@ -193,9 +196,24 @@ export function isCategoryMatch(
   const pCat = productCategory.toLowerCase().trim();
   const sCat = selectedCategoryId.toLowerCase().trim();
 
-  // If filtering by the merged groceries category (or legacy staples / spices-oils)
-  if (sCat === "groceries" || sCat === "staples" || sCat === "spices-oils") {
-    return pCat === "groceries" || pCat === "staples" || pCat === "spices-oils";
+  // If filtering by the merged groceries category (or legacy staples / spices-oils / spices)
+  if (
+    sCat === "groceries" || 
+    sCat === "staples" || 
+    sCat === "spices-oils" || 
+    sCat === "spices" || 
+    sCat === "oil-spices" || 
+    sCat === "মসলা ও রান্নার তেল"
+  ) {
+    return (
+      pCat === "groceries" || 
+      pCat === "staples" || 
+      pCat === "spices-oils" || 
+      pCat === "spices" || 
+      pCat === "oil-spices" || 
+      pCat === "মসলা ও রান্নার তেল" ||
+      (productCategory ? (productCategory.includes("মসলা") || productCategory.includes("রান্নার তেল")) : false)
+    );
   }
 
   // If filtering by the merged confectionery category (combining snacks-biscuits and beverages)
@@ -272,7 +290,16 @@ export function isAllowedForCategory(
 export function normalizeCategoryId(catId: string | undefined | null): string {
   if (!catId) return "all";
   const lower = catId.toLowerCase().trim();
-  if (lower === "staples" || lower === "spices-oils") {
+  if (
+    lower === "staples" || 
+    lower === "spices-oils" || 
+    lower === "spices" || 
+    lower === "oil-spices" || 
+    lower === "spices-cooking-oil" || 
+    lower === "মসলা ও রান্নার তেল" ||
+    lower.includes("মসলা") ||
+    lower.includes("রান্নার তেল")
+  ) {
     return "groceries";
   }
   if (lower === "beverages" || lower === "confectionery" || lower === "drinks") {
@@ -431,18 +458,35 @@ export function mergeCategoryCards(categories: any[]): any[] {
       continue;
     }
 
-    // 3. Groceries -> Staples + Spices-Oils into "মুদি পণ্য" at serial #2
-    if (cat.id === "staples" || cat.id === "spices-oils") {
+    // 3. Groceries -> Staples + Spices-Oils merged into "মুদি পণ্য" at serial #2
+    const isSpicesOrStaplesCat = 
+      cat.id === "staples" || 
+      cat.id === "spices-oils" || 
+      cat.id === "spices" || 
+      cat.id === "oil-spices" || 
+      cat.id === "spices-cooking-oil" ||
+      (cat.nameBn && (cat.nameBn.includes("মসলা ও রান্নার তেল") || (cat.nameBn.includes("মসলা") && cat.nameBn.includes("তেল")))) ||
+      (cat.nameEn && cat.nameEn.toLowerCase().includes("spices & cooking"));
+
+    if (isSpicesOrStaplesCat) {
       if (!groceryAdded) {
         const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
         result.push({
           ...MERGED_GROCERY_CATEGORY,
           ...cat,
+          id: "groceries",
+          nameBn: "মুদি পণ্য",
+          nameEn: "Groceries",
+          iconName: "Wheat",
           image: catImg || MERGED_GROCERY_CATEGORY.image,
-          imageUrl: catImg || MERGED_GROCERY_CATEGORY.imageUrl
+          imageUrl: catImg || MERGED_GROCERY_CATEGORY.imageUrl,
+          displayOrder: 2,
+          order: 2,
+          isAvailable: true
         });
         groceryAdded = true;
       }
+      continue;
     } else if (cat.id === "groceries") {
       const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
       result.push({
@@ -553,6 +597,17 @@ export function mergeCategoryCards(categories: any[]): any[] {
   const seenNames = new Set<string>();
   const unique = result.filter((c) => {
     if (!c || !c.id) return false;
+    // Explicitly reject any standalone spices-oils or "মসলা ও রান্নার তেল" card
+    if (
+      c.id === "spices-oils" || 
+      c.id === "spices" || 
+      c.id === "oil-spices" || 
+      c.id === "staples" ||
+      (c.nameBn && (c.nameBn.includes("মসলা ও রান্নার তেল") || (c.nameBn.includes("মসলা") && c.nameBn.includes("তেল")))) ||
+      (c.nameEn && c.nameEn.toLowerCase().includes("spices & cooking"))
+    ) {
+      return false;
+    }
     const normName = (c.nameBn || "").trim().toLowerCase();
     if (seenIds.has(c.id)) return false;
     if (normName && seenNames.has(normName)) return false;

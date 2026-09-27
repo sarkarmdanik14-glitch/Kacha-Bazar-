@@ -16,10 +16,49 @@ export const CATEGORIES: Category[] = [
 export const PRODUCTS: Product[] = [];
 export const ALL_PRODUCTS: Product[] = [];
 export const RESTAURANT_MENU_SECTIONS: string[] = [];
-export const GROCERY_SECTIONS: string[] = [];
+export const GROCERY_SECTIONS: string[] = [
+  "চাল ও খাদ্যশস্য",
+  "ডাল ও ছোলা",
+  "তেল, চিনি, লবণ ও গুড়",
+  "আটা, ময়দা ও সুজি",
+  "মসলাপাতি — আস্ত ও গুঁড়ো",
+  "রেডি মসলা ও বেকিং আইটেম",
+  "মসলা ও রান্নার তেল"
+];
 export const isRiceOrGrainProduct = (_prod?: any): boolean => false;
 export const isDalOrPulseProduct = (_prod?: any): boolean => false;
-export const getResolvedGrocerySubcategory = (_id?: string, _nameBn?: string, _nameEn?: string, subcategory?: string, _category?: string): string => subcategory || "General";
+export const getResolvedGrocerySubcategory = (
+  _id?: string, 
+  nameBn?: string, 
+  nameEn?: string, 
+  subcategory?: string, 
+  _category?: string
+): string => {
+  if (subcategory && subcategory.trim() && subcategory !== "General" && subcategory !== "all") {
+    return subcategory.trim();
+  }
+  const bn = (nameBn || "").toLowerCase();
+  const en = (nameEn || "").toLowerCase();
+  if (bn.includes("চাল") || en.includes("rice") || bn.includes("পোলাও") || bn.includes("খাদ্যশস্য") || bn.includes("গম") || bn.includes("ভুট্টা")) {
+    return "চাল ও খাদ্যশস্য";
+  }
+  if (bn.includes("ডাল") || en.includes("dal") || en.includes("lentil") || bn.includes("ছোলা") || bn.includes("মটর")) {
+    return "ডাল ও ছোলা";
+  }
+  if (bn.includes("তেল") || en.includes("oil") || bn.includes("চিনি") || bn.includes("লবণ") || bn.includes("গুড়") || en.includes("sugar") || en.includes("salt")) {
+    return "তেল, চিনি, লবণ ও গুড়";
+  }
+  if (bn.includes("আটা") || bn.includes("ময়দা") || bn.includes("সুজি") || en.includes("flour") || en.includes("maida") || en.includes("suji")) {
+    return "আটা, ময়দা ও সুজি";
+  }
+  if (bn.includes("মসলা") || en.includes("spice") || bn.includes("মরিচ") || bn.includes("হলুদ") || bn.includes("জিরা") || bn.includes("ধনিয়া") || bn.includes("দারুচিনি") || bn.includes("এলাচ") || bn.includes("লবঙ্গ") || bn.includes("গোলমরিচ") || bn.includes("তেজপাতা")) {
+    return "মসলাপাতি — আস্ত ও গুঁড়ো";
+  }
+  if (bn.includes("মিক্স") || bn.includes("বেকিং") || en.includes("baking") || en.includes("mix") || bn.includes("কোকো") || bn.includes("ভ্যানিলা")) {
+    return "রেডি মসলা ও বেকিং আইটেম";
+  }
+  return subcategory || "মসলা ও রান্নার তেল";
+};
 export const getResolvedGroceryDisplayOrder = (_id?: string, _nameBn?: string, _nameEn?: string, _sub?: string, order?: number): number | undefined => order;
 export const GROCERY_SUBCATEGORY_MAP: Record<string, string> = {};
 export const GROCERY_ORDER_MAP: Record<string, number> = {};
