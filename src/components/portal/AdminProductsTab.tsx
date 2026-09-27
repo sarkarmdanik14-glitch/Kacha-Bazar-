@@ -2101,6 +2101,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
           "fruits": 7,
           "dairy-eggs": 8,
           "frozen": 9,
+          "cosmetics": 10,
           "personal-care": 10,
           "household": 11,
           "pharmacy": 12,

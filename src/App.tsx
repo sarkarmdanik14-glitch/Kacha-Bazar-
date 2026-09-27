@@ -13,7 +13,7 @@ import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, Subcategory, CartItem, Review, ProductOption } from "./types";
-import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
+import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
 import { resolveProductDisplayUnit } from "./lib/productWeightUtils";
 import { subscribeToAllSubcategories } from "./lib/subcategoryService";
 
@@ -563,6 +563,42 @@ export default function App() {
     syncGroceriesToFirestore();
   }, []);
 
+  // One-time automatic sync to replace all old cosmetics products with fresh cosmetics products in Firestore
+  useEffect(() => {
+    const syncCosmeticsToFirestore = async () => {
+      const syncKey = "kb_cosmetics_replaced_v2";
+      if (localStorage.getItem(syncKey)) return;
+
+      try {
+        localStorage.setItem(syncKey, "true");
+        // 1. Soft-delete / remove any previous cosmetics or personal-care products
+        for (let i = 1; i <= 60; i++) {
+          const pcRef = doc(db, "products", `pc${i}`);
+          deleteDoc(pcRef).catch(() => setDoc(pcRef, { isDeleted: true, status: "deleted", isAvailable: false }, { merge: true }).catch(() => {}));
+        }
+
+        // 2. Upsert all fresh cosmetics products into Firestore
+        for (const cp of COSMETICS_PRODUCTS_RAW) {
+          const prodRef = doc(db, "products", cp.id);
+          await setDoc(prodRef, {
+            ...cp,
+            isDeleted: false,
+            deleted: false,
+            status: "active",
+            isAvailable: true,
+            inStock: true,
+            stock: 100,
+            updatedAt: serverTimestamp()
+          }, { merge: true }).catch((err) => console.warn(`Notice upserting ${cp.id}:`, err));
+        }
+      } catch (e) {
+        console.warn("Notice syncing fresh cosmetics products to Firestore:", e);
+      }
+    };
+
+    syncCosmeticsToFirestore();
+  }, []);
+
   // Real-time synchronization of products, categories, reviews, banners, and home config from Firestore
   useEffect(() => {
     const productsQuery = query(
@@ -598,6 +634,16 @@ export default function App() {
           if (isLegacyGrocery && !/^gr([1-9]|[1-4][0-9]|5[0-1])$/.test(doc.id)) {
             return;
           }
+
+          // Completely remove ALL old/legacy products under "কসমেটিকস ও বিউটি কর্নার" except new cos items
+          const isLegacyCosmetics = 
+            (data.category === "personal-care" || data.category === "cosmetics" || data.category === "beauty" || data.category === "beauty-cosmetics") &&
+            !doc.id.startsWith("cos");
+
+          if (isLegacyCosmetics) {
+            return;
+          }
+
           items.push(mapDocToProduct(doc.id, data));
         });
 
@@ -606,6 +652,13 @@ export default function App() {
         for (const gp of GROCERY_PRODUCTS_RAW) {
           if (!existingIds.has(gp.id)) {
             items.push(gp);
+          }
+        }
+
+        // Ensure all new cosmetics products are present in items list
+        for (const cp of COSMETICS_PRODUCTS_RAW) {
+          if (!existingIds.has(cp.id)) {
+            items.push(cp);
           }
         }
 

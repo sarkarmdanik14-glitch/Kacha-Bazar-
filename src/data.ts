@@ -1,4 +1,5 @@
 import { Category, Product, PromoBanner, Recipe, Review } from "./types";
+import { COSMETICS_PRODUCTS_RAW } from "./lib/cosmeticsData";
 
 export const CATEGORIES: Category[] = [
   { id: "all", nameBn: "সকল পণ্য", nameEn: "All Products", iconName: "LayoutGrid", colorClass: "from-emerald-500 to-teal-600", borderColor: "border-emerald-200", displayOrder: 0 },
@@ -9,6 +10,7 @@ export const CATEGORIES: Category[] = [
   { id: "meat", nameBn: "মাংস ও ডিম", nameEn: "Meat & Eggs", iconName: "Beef", colorClass: "bg-rose-50 text-rose-800", borderColor: "border-rose-100", displayOrder: 6 },
   { id: "fruits", nameBn: "তাজা ফলমূল", nameEn: "Fresh Fruits", iconName: "Apple", colorClass: "bg-red-50 text-red-800", borderColor: "border-red-100", displayOrder: 7 },
   { id: "dairy-eggs", nameBn: "দুধ ও দুগ্ধজাত", nameEn: "Dairy & Eggs", iconName: "Milk", colorClass: "bg-blue-50 text-blue-800", borderColor: "border-blue-100", displayOrder: 8 },
+  { id: "cosmetics", nameBn: "কসমেটিকস ও বিউটি কর্নার", nameEn: "Cosmetics & Beauty Corner", iconName: "Sparkles", colorClass: "bg-pink-50 text-pink-700", borderColor: "border-pink-100", displayOrder: 10 },
   { id: "pharmacy", nameBn: "ফার্মেসি", nameEn: "Pharmacy", iconName: "Pill", colorClass: "bg-teal-50 text-teal-800", borderColor: "border-teal-100", displayOrder: 12 },
   { id: "offers", nameBn: "অফার ও ডিল", nameEn: "Offers & Deals", iconName: "Tag", colorClass: "bg-purple-50 text-purple-800", borderColor: "border-purple-100", displayOrder: 13 }
 ];
@@ -1087,8 +1089,10 @@ export const GROCERY_PRODUCTS_RAW: Product[] = [
   }
 ];
 
-export const PRODUCTS: Product[] = [...GROCERY_PRODUCTS_RAW];
-export const ALL_PRODUCTS: Product[] = [...GROCERY_PRODUCTS_RAW];
+export { COSMETICS_PRODUCTS_RAW } from "./lib/cosmeticsData";
+
+export const PRODUCTS: Product[] = [...GROCERY_PRODUCTS_RAW, ...COSMETICS_PRODUCTS_RAW];
+export const ALL_PRODUCTS: Product[] = [...GROCERY_PRODUCTS_RAW, ...COSMETICS_PRODUCTS_RAW];
 export const RESTAURANT_MENU_SECTIONS: string[] = [];
 export const GROCERY_SECTIONS: string[] = [
   "তেল, চিনি, লবণ ও গুড়",

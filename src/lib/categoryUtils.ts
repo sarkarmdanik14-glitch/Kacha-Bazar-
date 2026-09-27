@@ -108,6 +108,24 @@ export const MOBILE_ZONE_CATEGORY: Category = {
 };
 
 /**
+ * Cosmetics & Beauty Corner Category Definition
+ * Serial #10 in the category list.
+ */
+export const COSMETICS_CATEGORY: Category = {
+  id: "cosmetics",
+  nameBn: "কসমেটিকস ও বিউটি কর্নার",
+  nameEn: "Cosmetics & Beauty Corner",
+  iconName: "Sparkles",
+  colorClass: "bg-pink-50 text-pink-700 hover:bg-pink-100",
+  borderColor: "border-pink-100",
+  displayOrder: 10,
+  order: 10,
+  image: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=600&auto=format&fit=crop&q=80",
+  imageUrl: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=600&auto=format&fit=crop&q=80",
+  isAvailable: true
+};
+
+/**
  * Standard category order map ensuring:
  * 1: vegetables (তাজা শাকসবজি)
  * 2: groceries (মুদি পণ্য)
@@ -118,7 +136,7 @@ export const MOBILE_ZONE_CATEGORY: Category = {
  * 7: fruits (তাজা ফলমূল)
  * 8: dairy-eggs (ডেইরি ও ডিম)
  * 9: frozen (ড্রাই ফুড)
- * 10: personal-care (ব্যক্তিগত যত্ন / কসমেটিকস)
+ * 10: cosmetics / personal-care (কসমেটিকস ও বিউটি কর্নার)
  * 11: household (কাঁচা চিপস কর্নার)
  * 12: pharmacy (ফার্মেসি)
  * 13: offers (পান সুপারি / অফার)
@@ -149,7 +167,10 @@ export const CATEGORY_SERIAL_MAP: Record<string, number> = {
   "frozen": 9,
   "dry-food": 9,
   "dryfood": 9,
+  "cosmetics": 10,
   "personal-care": 10,
+  "beauty": 10,
+  "beauty-cosmetics": 10,
   "household": 11,
   "pharmacy": 12,
   "baby-care": 12,
@@ -229,6 +250,25 @@ export function isCategoryMatch(
   // If filtering by dry-food or frozen
   if (sCat === "frozen" || sCat === "dry-food" || sCat === "dryfood") {
     return pCat === "frozen" || pCat === "dry-food" || pCat === "dryfood";
+  }
+
+  // If filtering by cosmetics or personal-care
+  if (
+    sCat === "cosmetics" || 
+    sCat === "personal-care" || 
+    sCat === "beauty" || 
+    sCat === "beauty-cosmetics" || 
+    sCat === "কসমেটিকস ও বিউটি কর্নার" ||
+    sCat.includes("কসমেটিকস")
+  ) {
+    return (
+      pCat === "cosmetics" || 
+      pCat === "personal-care" || 
+      pCat === "beauty" || 
+      pCat === "beauty-cosmetics" || 
+      pCat === "কসমেটিকস ও বিউটি কর্নার" ||
+      pCat.includes("কসমেটিকস")
+    );
   }
 
   // If filtering by pharmacy or legacy baby-care
@@ -323,6 +363,9 @@ export function normalizeCategoryId(catId: string | undefined | null): string {
   if (lower === "mobile" || lower === "mobiles" || lower === "mobilezone" || lower === "mobile-zone" || lower === "home-appliances") {
     return "mobile-zone";
   }
+  if (lower === "cosmetics" || lower === "personal-care" || lower === "beauty" || lower === "beauty-cosmetics" || lower.includes("কসমেটিকস")) {
+    return "cosmetics";
+  }
   return catId;
 }
 
@@ -345,6 +388,7 @@ export function mergeCategoryCards(categories: any[]): any[] {
   let pharmacyAdded = false;
   let vehiclesAdded = false;
   let mobileZoneAdded = false;
+  let cosmeticsAdded = false;
 
   for (const cat of categories) {
     if (!cat || !cat.id) continue;
@@ -548,6 +592,27 @@ export function mergeCategoryCards(categories: any[]): any[] {
         displayOrder: 14,
         order: 14
       });
+    } else if (cat.id === "cosmetics" || cat.id === "personal-care" || cat.id === "beauty" || cat.id === "beauty-cosmetics") {
+      if (!cosmeticsAdded) {
+        const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
+        result.push({
+          ...COSMETICS_CATEGORY,
+          ...cat,
+          id: "cosmetics",
+          nameBn: "কসমেটিকস ও বিউটি কর্নার",
+          nameEn: cat.nameEn && cat.nameEn !== "Personal Care" ? cat.nameEn : "Cosmetics & Beauty Corner",
+          iconName: "Sparkles",
+          colorClass: "bg-pink-50 text-pink-700 hover:bg-pink-100",
+          borderColor: "border-pink-100",
+          image: catImg || COSMETICS_CATEGORY.image || "",
+          imageUrl: catImg || COSMETICS_CATEGORY.imageUrl || "",
+          displayOrder: 10,
+          order: 10,
+          isAvailable: true
+        });
+        cosmeticsAdded = true;
+      }
+      continue;
     } else {
       // Assign mapped default serial order if not explicitly set
       const defaultSerial = CATEGORY_SERIAL_MAP[cat.id];
@@ -575,6 +640,11 @@ export function mergeCategoryCards(categories: any[]): any[] {
   // If confectionery wasn't added yet, insert it
   if (!confectioneryAdded) {
     result.push({ ...MERGED_CONFECTIONERY_CATEGORY });
+  }
+
+  // If cosmetics wasn't added yet, insert it
+  if (!cosmeticsAdded) {
+    result.push({ ...COSMETICS_CATEGORY });
   }
 
   // If pharmacy wasn't added yet, insert it
