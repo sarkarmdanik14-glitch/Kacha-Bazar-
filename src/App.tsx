@@ -1613,7 +1613,7 @@ export default function App() {
             ) : null}
             <div className="min-w-0">
               <h1 className="text-xs sm:text-lg md:text-xl font-black text-emerald-700 tracking-tight leading-none truncate group-hover:text-emerald-800 transition">
-                {lang === "bn" ? "কাচা বাজার" : "Kacha Bazar"}
+                {lang === "bn" ? "কাঁচা বাজার (মেগা বাজার)" : "Kacha Bazar (Mega Bazar)"}
               </h1>
               <p className="text-[7px] sm:text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 truncate">
                 {lang === "bn" ? "তাজা পণ্য, আপনার দরজায়।" : "Fresh Everyday"}
