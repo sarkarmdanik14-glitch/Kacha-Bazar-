@@ -20,6 +20,7 @@ import {
 } from "../../lib/firebase";
 import { User, Mail, Lock, AlertCircle, Key, LogIn, UserPlus, Gift, Sparkles, RefreshCw, Smartphone, Store } from "lucide-react";
 import { authenticatePartner } from "../../lib/partnerManager";
+import { apiClient } from "../../lib/apiClient";
 const loginPartnerWithCredentials = authenticatePartner;
 
 interface AuthViewProps {
@@ -428,13 +429,12 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
         // First check if user is logging into Admin/Staff portal via Staff API
         if (role === "admin") {
           try {
-            const staffRes = await fetch("/api/staff/login", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ identifier: email, password: password })
+            const staffData = await apiClient.post("/api/staff/login", {
+              identifier: email,
+              password: password
             });
-            const staffData = await staffRes.json();
-            if (staffRes.ok && staffData.success && staffData.staff) {
+
+            if (staffData?.success && staffData?.staff) {
               const staffUser = staffData.staff;
               if (staffData.sessionId) {
                 try {
@@ -463,8 +463,8 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
               setLoading(false);
               return;
             }
-          } catch (staffErr) {
-            console.warn("Staff API check bypass, falling back to Firebase:", staffErr);
+          } catch (staffErr: any) {
+            console.warn("Staff API check bypass, falling back to Firebase:", staffErr?.message || staffErr);
           }
         }
 

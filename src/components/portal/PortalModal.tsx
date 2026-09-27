@@ -9,6 +9,7 @@ import RiderPanel from "./RiderPanel";
 import AdminPanel from "./AdminPanel";
 import PartnerShopPanel from "./PartnerShopPanel";
 import { getCurrentPartnerSession, logoutPartnerSession, PartnerShop } from "../../lib/partnerManager";
+import { apiClient } from "../../lib/apiClient";
 
 interface PortalModalProps {
   isOpen: boolean;
@@ -126,13 +127,12 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
 
               try {
                 const idToken = await user.getIdToken();
-                const sessionRes = await fetch("/api/staff/firebase-session", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ idToken })
+                const sessionData = await apiClient.post("/api/staff/firebase-session", { 
+                  idToken,
+                  email: user.email,
+                  uid: user.uid
                 });
-                const sessionData = await sessionRes.json();
-                if (sessionRes.ok && sessionData.sessionId) {
+                if (sessionData?.sessionId) {
                   localStorage.setItem("kb_staff_session", sessionData.sessionId);
                   sessionStorage.setItem("kb_staff_session", sessionData.sessionId);
                   if (sessionData.staff?.staffId) localStorage.setItem("kb_staff_id", sessionData.staff.staffId);
@@ -266,13 +266,12 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
             if (isAdminUser) {
               try {
                 const idToken = await user.getIdToken();
-                const sessionRes = await fetch("/api/staff/firebase-session", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ idToken })
+                const sessionData = await apiClient.post("/api/staff/firebase-session", { 
+                  idToken,
+                  email: user.email,
+                  uid: user.uid
                 });
-                const sessionData = await sessionRes.json();
-                if (sessionRes.ok && sessionData.sessionId) {
+                if (sessionData?.sessionId) {
                   localStorage.setItem("kb_staff_session", sessionData.sessionId);
                   sessionStorage.setItem("kb_staff_session", sessionData.sessionId);
                   if (sessionData.staff?.staffId) localStorage.setItem("kb_staff_id", sessionData.staff.staffId);

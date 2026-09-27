@@ -1,4 +1,5 @@
 import { storage, ref, uploadBytes, getDownloadURL } from "./firebase";
+import { apiClient } from "./apiClient";
 
 export interface UploadImageOptions {
   folder?: string;
@@ -129,21 +130,14 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
   // TIER 3: Local Server Upload API (/api/upload)
   try {
     const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        dataUrl: compressedDataUrl,
-        filename,
-        folder
-      })
+    const data = await apiClient.post("/api/upload", {
+      dataUrl: compressedDataUrl,
+      filename,
+      folder
     });
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.url) {
-        return data.url;
-      }
+    if (data?.url) {
+      return data.url;
     }
   } catch (srvErr) {
     console.warn("Server upload tier notice:", srvErr);

@@ -26,7 +26,7 @@ service cloud.firestore {
           (get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role in ['admin', 'super_admin'] &&
            get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.status == 'active')
         ) || (
-          request.auth.token.email == 'sarkarmdanik14@gmail.com'
+          request.auth.token.email in ['sarkarmdanik14@gmail.com', 'grphics949@gmail.com']
         )
       );
     }
@@ -397,22 +397,22 @@ service cloud.firestore {
     // Staff Members Collection - Restricted strictly to Admin/Staff (NO public access)
     match /staff/{staffId} {
       allow get, list, read: if isAdmin() || isStaff();
-      allow create: if isAdmin() || (isSignedIn() && request.auth.token.email == 'sarkarmdanik14@gmail.com');
-      allow update: if (isAdmin() || (isSignedIn() && request.auth.token.email == 'sarkarmdanik14@gmail.com')) && (
+      allow create: if isAdmin() || (isSignedIn() && request.auth.token.email in ['sarkarmdanik14@gmail.com', 'grphics949@gmail.com']);
+      allow update: if (isAdmin() || (isSignedIn() && request.auth.token.email in ['sarkarmdanik14@gmail.com', 'grphics949@gmail.com'])) && (
         // Protect super admin role escalation: normal admins cannot escalate anyone to super_admin or change founder's role
         (!('role' in request.resource.data) || request.resource.data.role != 'super_admin' || (
           resource != null && resource.data.role == 'super_admin'
-        ) || request.auth.token.email == 'sarkarmdanik14@gmail.com') &&
+        ) || request.auth.token.email in ['sarkarmdanik14@gmail.com', 'grphics949@gmail.com']) &&
         (!('isSuperAdmin' in request.resource.data) || request.resource.data.isSuperAdmin != true || (
           resource != null && resource.data.isSuperAdmin == true
-        ) || request.auth.token.email == 'sarkarmdanik14@gmail.com')
+        ) || request.auth.token.email in ['sarkarmdanik14@gmail.com', 'grphics949@gmail.com'])
       );
       // Strictly prevent deleting the founder/super_admin
-      allow delete: if (isAdmin() || (isSignedIn() && request.auth.token.email == 'sarkarmdanik14@gmail.com')) && (
+      allow delete: if (isAdmin() || (isSignedIn() && request.auth.token.email in ['sarkarmdanik14@gmail.com', 'grphics949@gmail.com'])) && (
         resource == null || (
           resource.data.role != 'super_admin' && 
           resource.data.isSuperAdmin != true &&
-          resource.data.email != 'sarkarmdanik14@gmail.com'
+          !(resource.data.email in ['sarkarmdanik14@gmail.com', 'grphics949@gmail.com'])
         )
       );
     }

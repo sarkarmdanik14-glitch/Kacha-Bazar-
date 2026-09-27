@@ -10,6 +10,7 @@ import { db, doc, getDoc } from "../../lib/firebase";
 import { fetchStaffMembers } from "../../lib/staffManager";
 import { StaffMember } from "../../types";
 import defaultLogoImg from "../../assets/images/logo_1783882658678.jpg";
+import { apiClient } from "../../lib/apiClient";
 
 interface OrderMemoModalProps {
   isOpen: boolean;
@@ -129,18 +130,13 @@ export default function OrderMemoModal({
         });
 
       // Optionally enrich from verification API if endpoint is available
-      fetch("/api/memo/verify-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderId,
-          total,
-          phone,
-          itemsCount: itemsList.length,
-          origin: typeof window !== "undefined" ? window.location.host : "",
-        }),
+      apiClient.post("/api/memo/verify-code", {
+        orderId,
+        total,
+        phone,
+        itemsCount: itemsList.length,
+        origin: typeof window !== "undefined" ? window.location.host : "",
       })
-        .then((res) => res.json())
         .then((data) => {
           if (data && data.success) {
             if (data.qrDataUrl) setQrDataUrl(data.qrDataUrl);

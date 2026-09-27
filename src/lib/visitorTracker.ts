@@ -8,6 +8,7 @@ import {
   increment, 
   serverTimestamp 
 } from "./firebase";
+import { apiClient } from "./apiClient";
 
 export interface VisitorAnalyticsData {
   todayViews: number;
@@ -245,17 +246,13 @@ class VisitorTracker {
 
     // 2. Synchronize to Backend Server API for persistence & redundancy
     try {
-      fetch("/api/analytics/heartbeat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          visitorId: this.visitorId,
-          sessionId: this.sessionId,
-          isNewView,
-          isNewUnique,
-          dhakaDate: today,
-        }),
-      }).catch(() => {
+      apiClient.post("/api/analytics/heartbeat", {
+        visitorId: this.visitorId,
+        sessionId: this.sessionId,
+        isNewView,
+        isNewUnique,
+        dhakaDate: today,
+      }, { skipAuth: true }).catch(() => {
         // Silently tolerate if offline
       });
     } catch (e) {
@@ -289,17 +286,15 @@ class VisitorTracker {
 
     // Update Backend Server API
     try {
-      fetch("/api/analytics/heartbeat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          visitorId: this.visitorId,
-          sessionId: this.sessionId,
-          isNewView: false,
-          isNewUnique: false,
-          dhakaDate: today,
-        }),
-      }).catch(() => {});
+      apiClient.post("/api/analytics/heartbeat", {
+        visitorId: this.visitorId,
+        sessionId: this.sessionId,
+        isNewView: false,
+        isNewUnique: false,
+        dhakaDate: today,
+      }, { skipAuth: true }).catch(() => {
+        // ignore
+      });
     } catch (e) {
       // ignore
     }
@@ -441,26 +436,23 @@ export function subscribeToVisitorAnalytics(
   // Fallback / Synchronization with Backend Server API
   const fetchServerStatsFallback = async () => {
     try {
-      const res = await fetch("/api/analytics/stats");
-      if (res.ok) {
-        const json = await res.json();
-        if (json.date === todayDate) {
-          latestViews = Math.max(latestViews, Number(json.todayViews) || 0);
-          latestUnique = Math.max(latestUnique, Number(json.todayUniqueVisitors) || 0);
-          if (typeof json.liveNow === "number" && Object.keys(currentSessions).length === 0) {
-            onUpdate({
-              todayViews: latestViews,
-              liveNow: Number(json.liveNow) || 0,
-              todayUniqueVisitors: latestUnique,
-              date: todayDate,
-              loading: false,
-              error: null,
-            });
-            return;
-          }
+      const json = await apiClient.get("/api/analytics/stats", { skipAuth: true });
+      if (json && json.date === todayDate) {
+        latestViews = Math.max(latestViews, Number(json.todayViews) || 0);
+        latestUnique = Math.max(latestUnique, Number(json.todayUniqueVisitors) || 0);
+        if (typeof json.liveNow === "number" && Object.keys(currentSessions).length === 0) {
+          onUpdate({
+            todayViews: latestViews,
+            liveNow: Number(json.liveNow) || 0,
+            todayUniqueVisitors: latestUnique,
+            date: todayDate,
+            loading: false,
+            error: null,
+          });
+          return;
         }
-        emit();
       }
+      emit();
     } catch (e) {
       // ignore
     }

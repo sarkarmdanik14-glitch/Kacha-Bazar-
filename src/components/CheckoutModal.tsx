@@ -15,6 +15,7 @@ import {
   getDocs,
   runTransaction
 } from "../lib/firebase";
+import { apiClient } from "../lib/apiClient";
 import { 
   X, CreditCard, ShoppingBag, MapPin, Phone, User, 
   CheckCircle, ArrowRight, ArrowLeft, ShieldCheck, RefreshCw, Info,
@@ -331,23 +332,15 @@ export default function CheckoutModal({
     } : null;
 
     try {
-      // Execute stock validation, stock deduction, and order creation on server endpoint (Task 5)
-      const res = await fetch("/api/orders/checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          orderPayload,
-          aggregatedCart,
-          paymentPayload
-        })
+      // Execute stock validation, stock deduction, and order creation on server endpoint
+      const resData = await apiClient.post("/api/orders/checkout", {
+        orderPayload,
+        aggregatedCart,
+        paymentPayload
       });
 
-      const resData = await res.json().catch(() => ({}));
-
-      if (!res.ok || !resData.success) {
-        const errorMsg = resData.error || "Order creation failed";
+      if (!resData?.success) {
+        const errorMsg = resData?.error || resData?.message || "অর্ডার সম্পন্ন করতে সমস্যা হয়েছে";
         throw new Error(errorMsg);
       }
 

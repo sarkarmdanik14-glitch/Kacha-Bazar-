@@ -26,6 +26,7 @@ import {
   addDoc,
   onSnapshot 
 } from "./firebase";
+import { apiClient, getApiAuthHeaders } from "./apiClient";
 
 // Module registry with descriptions
 export interface ModuleInfo {
@@ -536,34 +537,10 @@ export function formatStaffJoiningDate(dateStr?: string, lang: "bn" | "en" = "bn
  * Automatically injects active session token, staff ID, and email.
  */
 export function getStaffAuthHeaders(user?: any): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json"
+  return {
+    "Content-Type": "application/json",
+    ...getApiAuthHeaders(user)
   };
-
-  try {
-    const sessionId = user?.sessionId || 
-      (typeof window !== "undefined" ? (localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session")) : null);
-    
-    if (sessionId) {
-      headers["Authorization"] = `Bearer ${sessionId}`;
-      headers["x-session-id"] = sessionId;
-    }
-
-    if (user?.email) {
-      headers["x-user-email"] = user.email;
-    } else if (typeof window !== "undefined") {
-      const storedEmail = localStorage.getItem("kb_staff_email");
-      if (storedEmail) headers["x-user-email"] = storedEmail;
-    }
-
-    if (user?.staffId) {
-      headers["x-staff-id"] = user.staffId;
-    }
-  } catch (e) {
-    // Graceful fallback if storage is unavailable
-  }
-
-  return headers;
 }
 
 // Activity Logging helper
@@ -580,19 +557,17 @@ export async function logStaffActivity(params: {
     const staffName = staffUser?.fullName || staffUser?.displayName || staffUser?.email || "System Admin";
     const staffRole = staffUser?.role || "super_admin";
 
-    // 1. Post to Server API (which persists and ensures server audit integrity)
-    fetch("/api/staff/activity-logs", {
-      method: "POST",
-      headers: getStaffAuthHeaders(staffUser),
-      body: JSON.stringify({
-        staffId,
-        staffName,
-        staffRole,
-        action,
-        module,
-        details,
-        targetId: targetId || ""
-      })
+    // 1. Post to Server API via bulletproof apiClient
+    apiClient.post("/api/staff/activity-logs", {
+      staffId,
+      staffName,
+      staffRole,
+      action,
+      module,
+      details,
+      targetId: targetId || ""
+    }, {
+      headers: getStaffAuthHeaders(staffUser)
     }).catch((e) => console.warn("Staff activity server log notice:", e));
 
     // 2. Also write to Firestore directly for instant real-time snapshot sync
@@ -614,14 +589,14 @@ export async function logStaffActivity(params: {
 }
 
 // Heartbeat updater for Staff Online / Away status
-export async function sendStaffHeartbeat(staffId: string, status: StaffOnlineStatus = "online") {
+export async function sendStaffHeartbeat(staffId: string, status: StaffOnlineStatus = "online", user?: any) {
   if (!staffId) return;
   try {
-    await fetch("/api/staff/heartbeat", {
-      method: "POST",
-      headers: getStaffAuthHeaders({ staffId }),
-      body: JSON.stringify({ staffId, status })
-    });
+    await apiClient.post("/api/staff/heartbeat", { staffId, status }, {
+      headers: getStaffAuthHeaders(user || { staffId }),
+      skipAuth: false
+    }).catch(() => {});
+
     // Also update onlineStatus in Firestore if staffId exists
     const q = query(collection(db, "staff"), where("staffId", "==", staffId), limit(1));
     const snap = await getDocs(q);
@@ -723,14 +698,11 @@ export async function fetchSingleStaffById(lookupId: string): Promise<StaffMembe
 
   // 2. Try from server API
   try {
-    const res = await fetch(`/api/staff/get/${encodeURIComponent(clean)}`, {
+    const data = await apiClient.get(`/api/staff/get/${encodeURIComponent(clean)}`, {
       headers: getStaffAuthHeaders()
     });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success && data.staff) {
-        return data.staff;
-      }
+    if (data?.success && data?.staff) {
+      return data.staff;
     }
   } catch (e) {
     console.warn("API single staff fetch notice:", e);
@@ -800,11 +772,10 @@ export async function fetchStaffFromFirestore(): Promise<StaffMember[]> {
 
     // If Firestore collection is currently empty, seed from server store
     console.info("Firestore staff collection is empty. Initializing and syncing seed data to Firestore...");
-    const res = await fetch("/api/staff/list", {
+    const data = await apiClient.get("/api/staff/list", {
       headers: getStaffAuthHeaders()
     });
-    const data = await res.json();
-    if (data.success && Array.isArray(data.staff) && data.staff.length > 0) {
+    if (data?.success && Array.isArray(data.staff) && data.staff.length > 0) {
       for (const s of data.staff) {
         const docRef = doc(db, "staff", s.id || `staff-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`);
         const safeSeedData = sanitizeForFirestore({
@@ -822,11 +793,10 @@ export async function fetchStaffFromFirestore(): Promise<StaffMember[]> {
   } catch (err) {
     console.error("Error fetching staff from Firestore, falling back to server API:", err);
     try {
-      const res = await fetch("/api/staff/list", {
+      const data = await apiClient.get("/api/staff/list", {
         headers: getStaffAuthHeaders()
       });
-      const data = await res.json();
-      if (data.success && Array.isArray(data.staff)) {
+      if (data?.success && Array.isArray(data.staff)) {
         return data.staff;
       }
     } catch (e) {
@@ -947,36 +917,29 @@ export async function createStaffInFirestore(params: {
     : null;
 
   // 1. Sync with backend API to safely store credentials hash and retrieve computed ID
-  const res = await fetch("/api/staff/create", {
-    method: "POST",
-    headers: getStaffAuthHeaders(creatorUser),
-    body: JSON.stringify({
-      fullName: (fullName || "").trim(),
-      mobile: (mobile || "").replace(/\s+/g, ""),
-      email: (email || "").trim().toLowerCase(),
-      username: username ? username.trim().toLowerCase() : undefined,
-      staffId: staffId ? staffId.trim().toUpperCase() : undefined,
-      password,
-      role,
-      designation: (designation || "").trim() || undefined,
-      department: (department || "").trim() || undefined,
-      joiningDate: joiningDate || undefined,
-      bloodGroup: bloodGroup || undefined,
-      emergencyContact: (emergencyContact || "").trim() || undefined,
-      monthlySalary: monthlySalary !== undefined ? Number(monthlySalary) : undefined,
-      salaryStatus,
-      status,
-      photoURL: photoURL || "",
-      assignedAgentDesk: cleanDesk,
-      permissions,
-      creatorName: creatorUser?.fullName || creatorUser?.displayName || "Super Admin"
-    })
+  const apiData = await apiClient.post("/api/staff/create", {
+    fullName: (fullName || "").trim(),
+    mobile: (mobile || "").replace(/\s+/g, ""),
+    email: (email || "").trim().toLowerCase(),
+    username: username ? username.trim().toLowerCase() : undefined,
+    staffId: staffId ? staffId.trim().toUpperCase() : undefined,
+    password,
+    role,
+    designation: (designation || "").trim() || undefined,
+    department: (department || "").trim() || undefined,
+    joiningDate: joiningDate || undefined,
+    bloodGroup: bloodGroup || undefined,
+    emergencyContact: (emergencyContact || "").trim() || undefined,
+    monthlySalary: monthlySalary !== undefined ? Number(monthlySalary) : undefined,
+    salaryStatus,
+    status,
+    photoURL: photoURL || "",
+    assignedAgentDesk: cleanDesk,
+    permissions,
+    creatorName: creatorUser?.fullName || creatorUser?.displayName || "Super Admin"
+  }, {
+    headers: getStaffAuthHeaders(creatorUser)
   });
-
-  const apiData = await res.json();
-  if (!res.ok) {
-    throw new Error(apiData.error || "Failed to create staff");
-  }
 
   const createdStaff: StaffMember = apiData.staff;
   const staffDocId = createdStaff.id || `staff-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
@@ -1135,25 +1098,18 @@ export async function updateStaffInFirestore(
   // 3. Sync with server API (passes both internal ID and display staffId)
   let apiStaff: StaffMember | null = null;
   try {
-    const res = await fetch("/api/staff/update", {
-      method: "POST",
-      headers: getStaffAuthHeaders(updaterUser),
-      body: JSON.stringify({
-        id: actualDocId,
-        staffId: finalStaffId,
-        ...cleanedFields,
-        updaterName: updaterName || updaterUser?.fullName || updaterUser?.displayName || "Super Admin",
-        updaterRole: updaterRole || updaterUser?.role || "super_admin"
-      })
+    const apiData = await apiClient.post("/api/staff/update", {
+      id: actualDocId,
+      staffId: finalStaffId,
+      ...cleanedFields,
+      updaterName: updaterName || updaterUser?.fullName || updaterUser?.displayName || "Super Admin",
+      updaterRole: updaterRole || updaterUser?.role || "super_admin"
+    }, {
+      headers: getStaffAuthHeaders(updaterUser)
     });
 
-    if (res.ok) {
-      const apiData = await res.json();
-      if (apiData.success && apiData.staff) {
-        apiStaff = apiData.staff;
-      }
-    } else {
-      console.warn("Server API update returned non-OK status, proceeding to update Firestore:", res.status);
+    if (apiData?.success && apiData?.staff) {
+      apiStaff = apiData.staff;
     }
   } catch (apiErr) {
     console.warn("Server API update request error, continuing to Firestore:", apiErr);
@@ -1228,34 +1184,31 @@ export async function payStaffSalaryInFirestore(params: {
 }): Promise<StaffMember> {
   const { staffId, month, amount, paymentMethod, transactionRef, note, adminUser } = params;
 
-  // 1. Call server API
-  const res = await fetch("/api/staff/salary/pay", {
-    method: "POST",
-    headers: getStaffAuthHeaders(adminUser),
-    body: JSON.stringify({
-      staffId,
-      month,
-      amount,
-      paymentMethod,
-      transactionRef,
-      note,
-      adminName: adminUser?.fullName || adminUser?.displayName || "Super Admin"
-    })
+  // 1. Call server API via apiClient
+  const data = await apiClient.post("/api/staff/salary/pay", {
+    staffId,
+    month,
+    amount,
+    paymentMethod,
+    transactionRef,
+    note,
+    adminName: adminUser?.fullName || adminUser?.displayName || "Super Admin"
+  }, {
+    headers: getStaffAuthHeaders(adminUser)
   });
 
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || "বেতন পরিশোধ সম্পন্ন করা যায়নি");
+  if (!data?.success && !data?.staff) {
+    throw new Error(data?.error || data?.message || "বেতন পরিশোধ সম্পন্ন করা যায়নি");
   }
 
   const updatedStaff: StaffMember = data.staff;
-  const paymentRecord = data.payment;
+  const paymentRecord = data.payment || {};
 
   // 2. Sync Firestore
   const staffDocRef = doc(db, "staff", updatedStaff.id || staffId);
   const payload = sanitizeForFirestore({
     salaryStatus: "paid",
-    lastPaymentDate: paymentRecord.paymentDate,
+    lastPaymentDate: paymentRecord.paymentDate || new Date().toISOString().split("T")[0],
     salaryHistory: updatedStaff.salaryHistory || [],
     updatedAt: new Date().toISOString()
   });
@@ -1284,19 +1237,16 @@ export async function updateStaffSalaryBaseInFirestore(params: {
 }): Promise<StaffMember> {
   const { staffId, monthlySalary, adminUser } = params;
 
-  const res = await fetch("/api/staff/salary/update-base", {
-    method: "POST",
-    headers: getStaffAuthHeaders(adminUser),
-    body: JSON.stringify({
-      staffId,
-      monthlySalary,
-      adminName: adminUser?.fullName || adminUser?.displayName || "Super Admin"
-    })
+  const data = await apiClient.post("/api/staff/salary/update-base", {
+    staffId,
+    monthlySalary,
+    adminName: adminUser?.fullName || adminUser?.displayName || "Super Admin"
+  }, {
+    headers: getStaffAuthHeaders(adminUser)
   });
 
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || "বেতন আপডেট করা যায়নি");
+  if (!data?.success && !data?.staff) {
+    throw new Error(data?.error || data?.message || "বেতন আপডেট করা যায়নি");
   }
 
   const updatedStaff: StaffMember = data.staff;
@@ -1319,19 +1269,12 @@ export async function deleteStaffFromFirestore(
   deleterUser?: any
 ): Promise<void> {
   // 1. Call server API for validation and password hash removal
-  const res = await fetch("/api/staff/delete", {
-    method: "POST",
-    headers: getStaffAuthHeaders(deleterUser),
-    body: JSON.stringify({
-      id: staffIdOrDocId,
-      deleterName: deleterUser?.fullName || deleterUser?.displayName || "Super Admin"
-    })
+  await apiClient.post("/api/staff/delete", {
+    id: staffIdOrDocId,
+    deleterName: deleterUser?.fullName || deleterUser?.displayName || "Super Admin"
+  }, {
+    headers: getStaffAuthHeaders(deleterUser)
   });
-
-  const apiData = await res.json();
-  if (!res.ok) {
-    throw new Error(apiData.error || "Failed to delete staff");
-  }
 
   // 2. Immediately delete from Firebase Firestore
   const staffDocRef = doc(db, "staff", staffIdOrDocId);
@@ -1391,23 +1334,21 @@ export async function fetchStaffLogsFromFirestore(limitCount: number = 150): Pro
       return logs;
     }
 
-    // Fallback to server endpoint
-    const res = await fetch(`/api/staff/activity-logs?limit=${limitCount}`, {
+    // Fallback to server endpoint via apiClient
+    const data = await apiClient.get(`/api/staff/activity-logs?limit=${limitCount}`, {
       headers: getStaffAuthHeaders()
     });
-    const data = await res.json();
-    if (data.success && Array.isArray(data.logs)) {
+    if (data?.success && Array.isArray(data.logs)) {
       return data.logs;
     }
     return [];
   } catch (err) {
     console.warn("Firestore logs fetch notice, falling back to server API:", err);
     try {
-      const res = await fetch(`/api/staff/activity-logs?limit=${limitCount}`, {
+      const data = await apiClient.get(`/api/staff/activity-logs?limit=${limitCount}`, {
         headers: getStaffAuthHeaders()
       });
-      const data = await res.json();
-      if (data.success && Array.isArray(data.logs)) {
+      if (data?.success && Array.isArray(data.logs)) {
         return data.logs;
       }
     } catch (e) {}

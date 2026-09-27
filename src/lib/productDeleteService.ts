@@ -1,4 +1,5 @@
 import { db, doc, deleteDoc, updateDoc, setDoc, collection, getDocs, serverTimestamp } from "./firebase";
+import { apiClient } from "./apiClient";
 
 export interface OrderUsageCheckResult {
   hasOrders: boolean;
@@ -114,25 +115,16 @@ export async function executeDeleteProduct(
 
   // 2. Fallback to Server Admin API
   try {
-    const sessionToken = typeof window !== "undefined" 
-      ? (localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session")) 
-      : null;
-
-    const res = await fetch("/api/admin/delete-product", {
-      method: "POST",
+    const data = await apiClient.post("/api/admin/delete-product", {
+      productId,
+      userEmail
+    }, {
       headers: {
-        "Content-Type": "application/json",
-        ...(sessionToken ? { "Authorization": `Bearer ${sessionToken}` } : {}),
         "x-user-email": userEmail
-      },
-      body: JSON.stringify({
-        productId,
-        userEmail
-      })
+      }
     });
 
-    if (res.ok) {
-      const data = await res.json();
+    if (data?.success) {
       return {
         success: true,
         mode: "soft_delete",

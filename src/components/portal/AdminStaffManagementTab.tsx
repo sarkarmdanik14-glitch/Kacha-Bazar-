@@ -31,6 +31,7 @@ import {
   findStaffMember,
   fetchSingleStaffById
 } from "../../lib/staffManager";
+import { apiClient } from "../../lib/apiClient";
 import { 
   Users, UserPlus, Shield, ShieldCheck, History, 
   Search, Filter, Plus, Edit2, Trash2, Key, LogOut, 
@@ -511,18 +512,18 @@ export default function AdminStaffManagementTab({
 
     setPasswordResetLoading(true);
     try {
-      const res = await fetch("/api/staff/reset-password", {
-        method: "POST",
-        headers: getStaffAuthHeaders(currentUser),
-        body: JSON.stringify({
-          id: selectedStaffForPassword.id,
-          newPassword: newPassword,
-          adminName: currentUser?.fullName || currentUser?.displayName || "Super Admin"
-        })
+      const data = await apiClient.post("/api/staff/reset-password", {
+        id: selectedStaffForPassword.id,
+        staffId: selectedStaffForPassword.staffId,
+        newPassword: newPassword,
+        adminName: currentUser?.fullName || currentUser?.displayName || "Super Admin"
+      }, {
+        headers: getStaffAuthHeaders(currentUser)
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!data?.success) {
+        throw new Error(data?.message || data?.error || "পাসওয়ার্ড রিসেট করতে সমস্যা হয়েছে");
+      }
 
       // Sync password update directly in Firestore staff collection
       await updateStaffInFirestore(selectedStaffForPassword.id, {
@@ -532,13 +533,17 @@ export default function AdminStaffManagementTab({
         updaterRole: currentUser?.role || "super_admin"
       }).catch(() => {});
 
-      triggerToast("পাসওয়ার্ড সফলভাবে রিসেট ও সিঙ্ক করা হয়েছে!", "Password reset and synced successfully!");
+      triggerToast(
+        data.message || "পাসওয়ার্ড সফলভাবে রিসেট ও সিঙ্ক করা হয়েছে!",
+        "Password reset and synced successfully!"
+      );
       setSelectedStaffForPassword(null);
       setNewPassword("");
       await fetchStaff();
       await fetchLogs();
     } catch (err: any) {
-      triggerToast(err.message, err.message);
+      console.error("Password reset error in admin:", err);
+      triggerToast(err.message || "পাসওয়ার্ড রিসেট করতে সমস্যা হয়েছে", err.message || "Failed to reset password");
     } finally {
       setPasswordResetLoading(false);
     }
@@ -552,17 +557,12 @@ export default function AdminStaffManagementTab({
     ))) return;
 
     try {
-      const res = await fetch("/api/staff/logout-session", {
-        method: "POST",
-        headers: getStaffAuthHeaders(currentUser),
-        body: JSON.stringify({
-          staffId: staff.staffId,
-          adminName: currentUser?.fullName || currentUser?.displayName || "Super Admin"
-        })
+      const data = await apiClient.post("/api/staff/logout-session", {
+        staffId: staff.staffId,
+        adminName: currentUser?.fullName || currentUser?.displayName || "Super Admin"
+      }, {
+        headers: getStaffAuthHeaders(currentUser)
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
 
       // Update Firestore onlineStatus to offline immediately
       await updateStaffInFirestore(staff.id, {
@@ -572,11 +572,15 @@ export default function AdminStaffManagementTab({
         updaterRole: currentUser?.role || "super_admin"
       }).catch(() => {});
 
-      triggerToast("সেশন ফোর্স লগআউট ও সিঙ্ক করা হয়েছে!", "Staff active session terminated and synced with Firestore!");
+      triggerToast(
+        data?.message || "সেশন ফোর্স লগআউট ও সিঙ্ক করা হয়েছে!",
+        "Staff active session terminated and synced with Firestore!"
+      );
       await fetchStaff();
       await fetchLogs();
     } catch (err: any) {
-      triggerToast(err.message, err.message);
+      console.error("Logout session error in admin:", err);
+      triggerToast(err.message || "সেশন বাতিল করতে সমস্যা হয়েছে", err.message || "Failed to terminate session");
     }
   };
 

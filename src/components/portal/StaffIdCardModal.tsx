@@ -10,6 +10,7 @@ import {
   findStaffMember,
   fetchSingleStaffById 
 } from "../../lib/staffManager";
+import { apiClient } from "../../lib/apiClient";
 import { imageToDataUrl } from "../../lib/pdfUtils";
 import logoImg from "../../assets/images/logo_1783882658678.jpg";
 import { 
@@ -404,15 +405,13 @@ export default function StaffIdCardModal({
   const logCardAction = async (actionType: "print" | "reprint" | "pdf") => {
     if (!activeStaff) return;
     try {
-      await fetch("/api/staff/log-card-print", {
-        method: "POST",
-        headers: getStaffAuthHeaders(currentUser),
-        body: JSON.stringify({
-          staffId: activeStaff.staffId,
-          staffName: activeStaff.fullName,
-          actionType,
-          adminName: currentUser?.fullName || currentUser?.displayName || "Super Admin"
-        })
+      await apiClient.post("/api/staff/log-card-print", {
+        staffId: activeStaff.staffId,
+        staffName: activeStaff.fullName,
+        actionType,
+        adminName: currentUser?.fullName || currentUser?.displayName || "Super Admin"
+      }, {
+        headers: getStaffAuthHeaders(currentUser)
       });
     } catch (e) {
       console.warn("Log card action notice:", e);

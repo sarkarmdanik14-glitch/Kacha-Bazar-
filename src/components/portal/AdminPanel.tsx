@@ -163,13 +163,13 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
   useEffect(() => {
     const sId = user?.staffId || user?.uid;
     if (sId) {
-      sendStaffHeartbeat(sId, "online");
+      sendStaffHeartbeat(sId, "online", user);
       const interval = setInterval(() => {
-        sendStaffHeartbeat(sId, "online");
+        sendStaffHeartbeat(sId, "online", user);
       }, 25000);
       return () => {
         clearInterval(interval);
-        sendStaffHeartbeat(sId, "offline");
+        sendStaffHeartbeat(sId, "offline", user);
       };
     }
   }, [user]);
