@@ -72,7 +72,6 @@ export default function App() {
   const [sortBy, setSortBy] = useState<string>("default");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [activeBanner, setActiveBanner] = useState<number>(0);
-  const [showAllMobile, setShowAllMobile] = useState<boolean>(false);
   const [dbSubcategories, setDbSubcategories] = useState<Subcategory[]>([]);
   
   // Interactive E-commerce state
@@ -1841,70 +1840,45 @@ export default function App() {
               return (
                 <>
                   <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2 sm:gap-2.5 md:gap-3">
-                    {activeCats.map((cat, idx) => {
-                      const isHiddenOnMobile = idx >= 8 && !showAllMobile;
-                      return (
-                        <button
-                          key={cat.id}
-                          onClick={() => navigateToCategory(cat.id)}
-                          className={`group flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/60 hover:border-emerald-500/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer text-center ${isHiddenOnMobile ? "hidden sm:flex" : "flex"}`}
+                    {activeCats.map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => navigateToCategory(cat.id)}
+                        className="group flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/60 hover:border-emerald-500/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer text-center"
+                      >
+                        {/* Circular Category Card (100% Round) */}
+                        <div 
+                          className="w-11 h-11 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-full bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden transition-transform duration-200 group-hover:scale-105"
+                          style={{ borderRadius: "50%" }}
                         >
-                          {/* Circular Category Card (100% Round) */}
-                          <div 
-                            className="w-11 h-11 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-full bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden transition-transform duration-200 group-hover:scale-105"
-                            style={{ borderRadius: "50%" }}
-                          >
-                            {(cat as any).image || (cat as any).imageUrl ? (
-                              <img
-                                src={(cat as any).image || (cat as any).imageUrl}
-                                alt={cat.nameEn}
-                                className="w-full h-full object-cover rounded-full"
-                                style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div 
-                                className={`w-full h-full rounded-full flex items-center justify-center text-slate-600 ${cat.colorClass || "bg-emerald-50 text-emerald-600"}`}
-                                style={{ width: "100%", height: "100%", borderRadius: "50%" }}
-                              >
-                                {renderCatIcon(cat.iconName)}
-                              </div>
-                            )}
-                          </div>
+                          {(cat as any).image || (cat as any).imageUrl ? (
+                            <img
+                              src={optimizeProductImageUrl((cat as any).image || (cat as any).imageUrl, 120)}
+                              alt={cat.nameEn}
+                              className="w-full h-full object-cover rounded-full"
+                              style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          ) : (
+                            <div 
+                              className={`w-full h-full rounded-full flex items-center justify-center text-slate-600 ${cat.colorClass || "bg-emerald-50 text-emerald-600"}`}
+                              style={{ width: "100%", height: "100%", borderRadius: "50%" }}
+                            >
+                              {renderCatIcon(cat.iconName)}
+                            </div>
+                          )}
+                        </div>
 
-                          {/* Category Name - Tight, Balanced, Centered */}
-                          <div className="w-full mt-1 flex items-center justify-center">
-                            <p className="text-[10px] sm:text-[11px] md:text-xs font-semibold text-slate-700 group-hover:text-emerald-700 text-center leading-tight line-clamp-2 px-0.5 transition-colors duration-150">
-                              {lang === "bn" ? cat.nameBn : cat.nameEn}
-                            </p>
-                          </div>
-                        </button>
-                      );
-                    })}
+                        {/* Category Name - Tight, Balanced, Centered */}
+                        <div className="w-full mt-1 flex items-center justify-center">
+                          <p className="text-[10px] sm:text-[11px] md:text-xs font-semibold text-slate-700 group-hover:text-emerald-700 text-center leading-tight line-clamp-2 px-0.5 transition-colors duration-150">
+                            {lang === "bn" ? cat.nameBn : cat.nameEn}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
                   </div>
-
-                  {/* Mobile Show All/Less Button */}
-                  {activeCats.length > 8 && (
-                    <div className="flex justify-center mt-3.5 sm:hidden">
-                      {!showAllMobile ? (
-                        <button
-                          onClick={() => setShowAllMobile(true)}
-                          className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200/80 hover:border-emerald-500 rounded-full text-xs font-semibold text-slate-700 hover:text-emerald-600 shadow-xs transition cursor-pointer"
-                        >
-                          <span>{lang === "bn" ? "সব ক্যাটাগরি দেখুন" : "Show All Categories"}</span>
-                          <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setShowAllMobile(false)}
-                          className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200/80 hover:border-emerald-500 rounded-full text-xs font-semibold text-slate-700 hover:text-emerald-600 shadow-xs transition cursor-pointer"
-                        >
-                          <span>{lang === "bn" ? "কম ক্যাটাগরি দেখুন" : "Show Less"}</span>
-                          <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </>
               );
             })()
