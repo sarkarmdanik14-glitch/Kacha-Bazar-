@@ -70,10 +70,10 @@ export const resolveProductUnit = (
   if (product.id && KNOWN_SPICE_WEIGHTS[product.id]) {
     return KNOWN_SPICE_WEIGHTS[product.id];
   }
-  if (product.id === "prod_mu48bsvj" || bn.includes("সাদা ফল")) {
+  if (product.id === "prod_mu48bsvj") {
     return { unitBn: "১০০ গ্রাম", unitEn: "100 g" };
   }
-  if (product.id === "prod_mu1865t1" || bn === "গরম মসলা") {
+  if (product.id === "prod_mu1865t1") {
     return { unitBn: "৫০ গ্রাম", unitEn: "50 g" };
   }
 
@@ -380,6 +380,26 @@ export const getProductWeightOptions = (product: Product): ProductOption[] => {
     ];
   }
 
+  const isPc = unitEn.includes("pc") || unitBn.includes("পিস") || unitBn.includes("টি");
+  if (isPc) {
+    return [
+      makeOpt(1, "pc", 1),
+      makeOpt(2, "pc", 2),
+      makeOpt(5, "pc", 5),
+      makeOpt(10, "pc", 10),
+    ];
+  }
+
+  const isPack = unitEn.includes("pack") || unitBn.includes("প্যাকেট") || unitBn.includes("প্যাক");
+  if (isPack) {
+    return [
+      makeOpt(1, "pack", 1),
+      makeOpt(2, "pack", 2),
+      makeOpt(3, "pack", 3),
+      makeOpt(5, "pack", 5),
+    ];
+  }
+
   if (Array.isArray(product.weightSizeOptions) && product.weightSizeOptions.length > 1) {
     return product.weightSizeOptions.map((optStr) => {
       const match = optStr.match(/([\d.]+)\s*([a-zA-Z]+)/);
@@ -407,6 +427,7 @@ export const getOptionLabel = (opt: ProductOption, lang: "bn" | "en", fmtNum: (n
     else if (opt.unit === "ml") unitText = "মি.লি.";
     else if (opt.unit === "L") unitText = "লিটার";
     else if (opt.unit.toLowerCase() === "pc" || opt.unit.toLowerCase() === "pcs") unitText = "টি";
+    else if (opt.unit.toLowerCase() === "pack" || opt.unit.toLowerCase() === "packs") unitText = "প্যাকেট";
   }
   return `${valText} ${unitText} - ৳${fmtNum(opt.price)}`;
 };
@@ -421,6 +442,7 @@ export const getWeightOnlyLabel = (opt: ProductOption, lang: "bn" | "en", fmtNum
     else if (opt.unit === "ml") unitText = "মি.লি.";
     else if (opt.unit === "L") unitText = "লিটার";
     else if (opt.unit.toLowerCase() === "pc" || opt.unit.toLowerCase() === "pcs") unitText = "টি";
+    else if (opt.unit.toLowerCase() === "pack" || opt.unit.toLowerCase() === "packs") unitText = "প্যাকেট";
   }
   return `${valText} ${unitText}`;
 };

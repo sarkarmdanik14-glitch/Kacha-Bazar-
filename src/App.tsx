@@ -13,7 +13,7 @@ import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, Subcategory, CartItem, Review, ProductOption } from "./types";
-import { CATEGORIES, ALL_PRODUCTS, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
+import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_REPLACEMENT, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
 import { resolveProductDisplayUnit } from "./lib/productWeightUtils";
 import { subscribeToAllSubcategories } from "./lib/subcategoryService";
 
@@ -545,8 +545,31 @@ export default function App() {
           if (/^fr\d+$/.test(doc.id) || (data.category === "frozen" && !doc.id.startsWith("df"))) {
             return;
           }
+          // Completely remove all previous products under "মুদি পণ্য" (groceries)
+          const pCat = (data.category || "").toLowerCase().trim();
+          const isGroceryDoc = 
+            pCat === "groceries" || 
+            pCat === "staples" || 
+            pCat === "spices-oils" || 
+            pCat === "spices" || 
+            pCat === "oil-spices" || 
+            pCat === "মসলা ও রান্নার তেল" ||
+            (typeof data.category === "string" && (data.category.includes("মুদি") || data.category.includes("মসলা") || data.category.includes("রান্নার তেল")));
+
+          if (isGroceryDoc && !doc.id.startsWith("gro_")) {
+            return;
+          }
+
           items.push(mapDocToProduct(doc.id, data));
         });
+
+        // Ensure all 51 replacement grocery products are present
+        const existingGroIds = new Set(items.filter(p => p.id.startsWith("gro_")).map(p => p.id));
+        for (const groProd of GROCERY_PRODUCTS_REPLACEMENT) {
+          if (!existingGroIds.has(groProd.id)) {
+            items.push(groProd);
+          }
+        }
 
         setProducts(items);
         setLoadingProducts(false);

@@ -225,6 +225,19 @@ export async function seedDatabase(initialCategories: any[], initialProducts: an
       }
     }
 
+    // Ensure replacement grocery products are seeded if gro_01 does not exist
+    const groCheck = await getDoc(doc(db, "products", "gro_01"));
+    if (!groCheck.exists()) {
+      const groProds = initialProducts.filter(p => p.category === "groceries" && p.id.startsWith("gro_"));
+      for (const prod of groProds) {
+        await setDoc(doc(db, "products", prod.id.toString()), {
+          ...prod,
+          isAvailable: true,
+          status: "active"
+        }, { merge: true }).catch(() => {});
+      }
+    }
+
     // 6. Ensure Live Notice / Announcement document exists
     const noticeSnap = await getDoc(doc(db, "settings", "notice"));
     if (!noticeSnap.exists()) {
