@@ -17,6 +17,7 @@ import {
   writeBatch 
 } from "../lib/firebase";
 import { MessageSquare, X, Send, User, Sparkles, LogIn, Check, CheckCheck, Edit2, ShieldCheck } from "lucide-react";
+import { createTranslator } from "../lib/formatUtils";
 
 interface CustomerLiveChatProps {
   lang: "bn" | "en";
@@ -80,7 +81,7 @@ export default function CustomerLiveChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Determine current active chat session ID
   const effectiveChatId = currentUser ? currentUser.uid : guestId;

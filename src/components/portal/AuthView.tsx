@@ -21,6 +21,7 @@ import {
 import { User, Mail, Lock, AlertCircle, Key, LogIn, UserPlus, Gift, Sparkles, RefreshCw, Smartphone, Store } from "lucide-react";
 import { authenticatePartner } from "../../lib/partnerManager";
 import { apiClient } from "../../lib/apiClient";
+import { createTranslator } from "../../lib/formatUtils";
 const loginPartnerWithCredentials = authenticatePartner;
 
 interface AuthViewProps {
@@ -52,7 +53,7 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
   const [confirmationResult, setConfirmationResult] = useState<any | null>(null);
   const [otpNotice, setOtpNotice] = useState<string>("");
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Helper to verify if user is a real admin in Firestore
   const checkIsAdmin = async (uid: string): Promise<boolean> => {

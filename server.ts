@@ -2106,17 +2106,22 @@ app.post("/api/admin/delete-product", rateLimiter(50, 60000), requireAdminAuth, 
     const fdb = getAdminDb();
     const prodRef = fdb.collection("products").doc(cleanId);
 
-    await prodRef.set({
-      id: cleanId,
-      isDeleted: true,
-      deleted: true,
-      isAvailable: false,
-      status: "deleted",
-      availabilityStatus: "deleted",
-      deletedAt: FieldValue.serverTimestamp(),
-      deletedBy: userEmail || "admin",
-      updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
+    try {
+      await prodRef.delete();
+      console.log(`[Server] Admin SDK deleted product doc ${cleanId}`);
+    } catch (delErr) {
+      await prodRef.set({
+        id: cleanId,
+        isDeleted: true,
+        deleted: true,
+        isAvailable: false,
+        status: "deleted",
+        availabilityStatus: "deleted",
+        deletedAt: FieldValue.serverTimestamp(),
+        deletedBy: userEmail || "admin",
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
 
     return res.json({ success: true, message: "পণ্যটি ক্যাটালগ ও ডাটাবেজ থেকে সফলভাবে মুছে ফেলা হয়েছে।" });
   } catch (err: any) {
@@ -2865,6 +2870,79 @@ app.post("/api/staff/firebase-session", rateLimiter(20, 60000), async (req, res)
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message || "Failed to create verified session" });
+  }
+});
+
+// 15.1. POST /api/products/upsert - Server-side product upsert (backed by Admin Firestore SDK)
+app.post("/api/products/upsert", rateLimiter(60, 60000), requireStaffAuth, async (req, res) => {
+  try {
+    const product = req.body;
+    if (!product || !product.nameBn) {
+      return res.status(400).json({ success: false, error: "Product name (Bengali) is required" });
+    }
+
+    const adminDb = getAdminDb();
+    const prodId = product.id || `prod_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+    const rawCategory = (product.category || product.categoryId || "").toString().toLowerCase();
+    const isGrocery = 
+      rawCategory === "groceries" || 
+      rawCategory === "grocery" || 
+      rawCategory === "মুদি পণ্য" || 
+      rawCategory === "মুদি" || 
+      rawCategory === "staples" || 
+      rawCategory === "spices-oils" ||
+      rawCategory.includes("মুদি");
+
+    const resolvedCategory = isGrocery ? "মুদি পণ্য" : (product.category || "groceries");
+    const resolvedCategoryId = isGrocery ? "groceries" : (product.categoryId || product.category || "groceries");
+    const resolvedImg = (product.image || product.imageUrl || "").toString().trim() || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80";
+
+    const payload: any = {
+      ...product,
+      id: prodId,
+      nameEn: (product.nameEn || "").toString().trim(),
+      nameBn: (product.nameBn || "").toString().trim(),
+      price: Number(product.price) || 0,
+      originalPrice: Number(product.originalPrice) || Number(product.price) || 0,
+      unitEn: product.unitEn || "1 kg",
+      unitBn: product.unitBn || "১ কেজি",
+      category: resolvedCategory,
+      categoryId: resolvedCategoryId,
+      subcategory: product.subcategory || "General",
+      subcategoryId: product.subcategoryId || "",
+      stock: Number(product.stock) || 0,
+      image: resolvedImg,
+      imageUrl: resolvedImg,
+      brand: product.brand || "Kacha Bazar",
+      sku: product.sku || `KB-${(isGrocery ? "GRO" : resolvedCategoryId).substring(0, 3).toUpperCase()}-${prodId}`,
+      isAvailable: product.isAvailable !== false,
+      inStock: (Number(product.stock) || 0) > 0,
+      isDeleted: false,
+      deleted: false,
+      status: "active",
+      updatedAt: FieldValue.serverTimestamp()
+    };
+
+    if (!product.createdAt) {
+      payload.createdAt = FieldValue.serverTimestamp();
+    }
+
+    await adminDb.collection("products").doc(prodId).set(payload, { merge: true });
+    console.log(`[Products API] Successfully upserted product ${prodId} (${resolvedCategory})`);
+
+    return res.json({
+      success: true,
+      productId: prodId,
+      product: {
+        ...payload,
+        id: prodId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    });
+  } catch (err: any) {
+    console.error("[Products API] Upsert error:", err);
+    return res.status(500).json({ success: false, error: err.message || "Failed to upsert product" });
   }
 });
 

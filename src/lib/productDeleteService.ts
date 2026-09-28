@@ -92,25 +92,49 @@ export async function executeDeleteProduct(
 ): Promise<DeleteProductResult> {
   const userEmail = options.user?.email || options.user?.fullName || options.user?.displayName || options.user?.uid || "admin";
 
-  // 1. Direct client-side Firestore soft-delete using updateDoc() (Firebase v9/v10 Modular SDK)
+  // Record deleted product ID in local storage to prevent any static resurrection
+  try {
+    const raw = localStorage.getItem("kb_deleted_products");
+    const set = raw ? new Set(JSON.parse(raw)) : new Set();
+    set.add(productId);
+    localStorage.setItem("kb_deleted_products", JSON.stringify(Array.from(set)));
+  } catch (e) {}
+
+  // 1. Direct client-side Firestore delete using deleteDoc()
   try {
     const prodRef = doc(db, "products", productId);
-    await updateDoc(prodRef, {
-      isDeleted: true,
-      isAvailable: false,
-      deletedAt: serverTimestamp(),
-      deletedBy: userEmail,
-      updatedAt: serverTimestamp()
-    });
+    await deleteDoc(prodRef);
+    console.log(`[Admin] Product ${productId} successfully deleted via deleteDoc`);
 
     return {
       success: true,
-      mode: "soft_delete",
-      messageBn: "পণ্যটি সফলভাবে সফট ডিলিট (Soft Delete) করা হয়েছে!",
-      messageEn: "Product successfully soft-deleted!"
+      mode: "permanent",
+      messageBn: "পণ্যটি ডাটাবেজ থেকে সফলভাবে মুছে ফেলা হয়েছে!",
+      messageEn: "Product successfully deleted from database!"
     };
   } catch (clientErr: any) {
-    console.warn("Direct updateDoc notice, trying Server Admin API:", clientErr?.message);
+    console.warn("Direct deleteDoc notice, falling back to soft delete:", clientErr?.message);
+    try {
+      const prodRef = doc(db, "products", productId);
+      await updateDoc(prodRef, {
+        isDeleted: true,
+        deleted: true,
+        status: "deleted",
+        isAvailable: false,
+        deletedAt: serverTimestamp(),
+        deletedBy: userEmail,
+        updatedAt: serverTimestamp()
+      });
+
+      return {
+        success: true,
+        mode: "soft_delete",
+        messageBn: "পণ্যটি সফলভাবে মুছে ফেলা হয়েছে!",
+        messageEn: "Product successfully deleted!"
+      };
+    } catch (upErr: any) {
+      console.warn("Direct updateDoc notice, trying Server Admin API:", upErr?.message);
+    }
   }
 
   // 2. Fallback to Server Admin API
@@ -128,8 +152,8 @@ export async function executeDeleteProduct(
       return {
         success: true,
         mode: "soft_delete",
-        messageBn: data.message || "পণ্যটি সফলভাবে সফট ডিলিট করা হয়েছে!",
-        messageEn: "Product successfully soft-deleted!"
+        messageBn: data.message || "পণ্যটি সফলভাবে মুছে ফেলা হয়েছে!",
+        messageEn: "Product successfully deleted!"
       };
     }
   } catch (apiErr) {

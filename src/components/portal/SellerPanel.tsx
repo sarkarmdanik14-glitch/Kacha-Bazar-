@@ -22,8 +22,8 @@ import {
   ChevronRight, ArrowUpRight, FileText, PieChart
 } from "lucide-react";
 import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
-import { normalizeCategoryId } from "../../lib/categoryUtils";
 import { SAFE_PRODUCT_PLACEHOLDER } from "../../lib/masterImageRegistry";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface SellerPanelProps {
   user: any;
@@ -71,7 +71,7 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
   const [withdrawMethod, setWithdrawMethod] = useState<string>("bKash");
   const [withdrawAccount, setWithdrawAccount] = useState<string>("");
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -213,28 +213,27 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
     }
 
     try {
-      const cleanCat = normalizeCategoryId(prodCategory);
       const payload: any = {
         nameEn: prodNameEn,
         nameBn: prodNameBn,
         price: Number(prodPrice),
         stock: Number(prodStock),
-        category: cleanCat,
-        categoryId: cleanCat,
+        category: prodCategory,
         unitEn: prodUnitEn,
         unitBn: prodUnitBn,
         image: prodImage,
         descriptionEn: prodDescEn,
         descriptionBn: prodDescBn,
         sellerId: user.uid,
+        isDeleted: false,
+        deleted: false,
+        status: "active",
+        isAvailable: true,
         rating: editingProduct?.rating || 4.5,
         reviewCount: editingProduct?.reviewCount || 1,
         isBestSelling: editingProduct?.isBestSelling || false,
         isNewArrival: editingProduct?.isNewArrival || true,
-        options: editingProduct?.options || [],
-        isAvailable: true,
-        isDeleted: false,
-        status: "active"
+        options: editingProduct?.options || []
       };
 
       if (editingProduct) {

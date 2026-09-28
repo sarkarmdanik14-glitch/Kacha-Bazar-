@@ -22,6 +22,7 @@ import {
 import QRCode from "qrcode";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas-pro";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface StaffIdCardModalProps {
   staff: StaffMember | null;
@@ -83,7 +84,7 @@ export default function StaffIdCardModal({
   onStaffUpdated,
   triggerToast
 }: StaffIdCardModalProps) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Active Staff resolution (with fallback loading & persistence)
   const [activeStaff, setActiveStaff] = useState<StaffMember | null>(() => {

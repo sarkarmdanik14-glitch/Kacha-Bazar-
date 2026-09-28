@@ -16,12 +16,14 @@ import {
   bootstrapInitialSubcategoriesIfNeeded 
 } from "../../lib/subcategoryService";
 import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
-import { isCategoryMatch, normalizeCategoryId } from "../../lib/categoryUtils";
+import { isCategoryMatch, normalizeCategoryId, shouldKeepProductGroceryFiltered } from "../../lib/categoryUtils";
 import { matchesProductSearch } from "../../lib/banglishSearch";
 import { DRY_FOOD_RAW, PHARMACY_PRODUCTS_RAW, GROCERY_SUBCATEGORY_MAP, GROCERY_ORDER_MAP, GROCERY_SECTIONS, GROCERY_PRODUCTS_RAW, getResolvedGrocerySubcategory, getResolvedGroceryDisplayOrder, ALL_PRODUCTS } from "../../data";
 import { resolveProductUnit } from "../../lib/productWeightUtils";
 import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 import { SAFE_PRODUCT_PLACEHOLDER } from "../../lib/masterImageRegistry";
+import { createTranslator } from "../../lib/formatUtils";
+import { apiClient } from "../../lib/apiClient";
 
 interface AdminProductsTabProps {
   products: any[];
@@ -30,21 +32,35 @@ interface AdminProductsTabProps {
   user?: any;
   lang: "bn" | "en";
   triggerToast: (bn: string, en: string) => void;
+  onProductSaved?: (product: any) => void;
 }
 
-export default function AdminProductsTab({ products, categories, orders = [], user, lang, triggerToast }: AdminProductsTabProps) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+export default function AdminProductsTab({ products, categories, orders = [], user, lang, triggerToast, onProductSaved }: AdminProductsTabProps) {
+  const getTranslation = createTranslator(lang);
 
   // Delete Confirmation Modal state & optimistically deleted products set
   const [productPendingDelete, setProductPendingDelete] = useState<any | null>(null);
-  const [deletedProductIds, setDeletedProductIds] = useState<Set<string>>(new Set());
+  const [deletedProductIds, setDeletedProductIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem("kb_deleted_products");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
 
   const isProductDeleted = (p: any) => {
     return deletedProductIds.has(p.id) || p.isDeleted === true || p.status === "deleted" || p.status === "inactive_deleted" || p.deleted === true;
   };
 
   const handleDeleteSuccess = (deletedId: string) => {
-    setDeletedProductIds(prev => new Set(prev).add(deletedId));
+    setDeletedProductIds(prev => {
+      const next = new Set(prev).add(deletedId);
+      try {
+        localStorage.setItem("kb_deleted_products", JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
   };
 
   // Subtab navigation: "category_manager" is the default subtab for focused category & product management
@@ -238,19 +254,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
           deleteDoc(spRef).catch(() => setDoc(spRef, { isDeleted: true, status: "deleted", isAvailable: false }, { merge: true }).catch(() => {}));
         }
 
-        for (const prod of GROCERY_PRODUCTS_RAW) {
-          const prodRef = doc(db, "products", prod.id);
-          await setDoc(prodRef, {
-            ...prod,
-            isDeleted: false,
-            deleted: false,
-            status: "active",
-            isAvailable: true,
-            inStock: true,
-            stock: 100,
-            updatedAt: serverTimestamp()
-          }, { merge: true }).catch(() => {});
-        }
+        // 4. Grocery products: Existing products and custom images are permanently preserved in Firestore without destructive overwrite
 
         // 5. Sync crystal clear product units (kg, gram, piece, liter, ml) across all existing products
         for (const prod of products) {
@@ -387,7 +391,39 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       const url = await uploadImageWithFallback(file, { folder: "products" });
       if (url) {
         setProdImage(url);
-        triggerToast("ছবি সফলভাবে আপলোড হয়েছে!", "Image uploaded successfully!");
+        
+        // Immediately commit the secure_url to Firestore for the product if editing
+        const targetId = editingProduct?.id || prodId;
+        if (targetId) {
+          try {
+            await updateDoc(doc(db, "products", targetId), {
+              imageUrl: url,
+              image: url,
+              updatedAt: serverTimestamp()
+            });
+            console.log(`[Admin] Image URL persisted to Firestore for product ${targetId}:`, url);
+          } catch (writeErr: any) {
+            console.warn("Notice updateDoc failed on image change, attempting setDoc merge:", writeErr?.message);
+            await setDoc(doc(db, "products", targetId), {
+              id: targetId,
+              imageUrl: url,
+              image: url,
+              updatedAt: serverTimestamp()
+            }, { merge: true }).catch((setErr) => {
+              console.error("Firestore setDoc fallback error on image change:", setErr);
+            });
+          }
+
+          if (editingProduct) {
+            setEditingProduct({
+              ...editingProduct,
+              imageUrl: url,
+              image: url
+            });
+          }
+        }
+
+        triggerToast("ছবি সফলভাবে আপলোড ও সেভ হয়েছে!", "Image uploaded and saved successfully!");
       } else {
         throw new Error("Could not process image");
       }
@@ -768,20 +804,20 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       const selectedSub = subcategories.find(s => s.id === prodSubcategoryId);
       const resolvedSubName = selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || "General");
 
-      const cleanCategory = normalizeCategoryId(prodCategory);
-      const cleanCategoryId = cleanCategory;
+      const finalId = editingProduct ? (editingProduct.id || prodId) : (prodId || `prod_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`);
+      const isGroceryItem = isCategoryMatch(prodCategory, "groceries") || prodCategory === "groceries" || prodCategory === "মুদি পণ্য";
 
       const payload: any = {
-        id: prodId,
+        id: finalId,
         nameEn: prodNameEn.trim(),
         nameBn: prodNameBn.trim(),
         price: Number(prodPrice) || 0,
         originalPrice: Number(prodOrigPrice) || Number(prodPrice) || 0,
         unitEn: prodUnitEn.trim() || "1 kg",
         unitBn: prodUnitBn.trim() || "১ কেজি",
-        categoryId: cleanCategoryId,
-        category: cleanCategory,
+        categoryId: isGroceryItem ? "groceries" : (normalizeCategoryId(prodCategory) || prodCategory),
         subcategoryId: prodSubcategoryId || (selectedSub ? selectedSub.id : ""),
+        category: isGroceryItem ? "মুদি পণ্য" : (prodCategory === "groceries" ? "মুদি পণ্য" : prodCategory),
         subcategory: resolvedSubName,
         stock: Number(prodStock) || 0,
         image: resolvedImg,
@@ -789,26 +825,113 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         descriptionEn: prodDescEn.trim(),
         descriptionBn: prodDescBn.trim(),
         brand: prodBrand.trim() || "Kacha Bazar",
-        sku: prodSku.trim() || `KB-${cleanCategory.substring(0, 3).toUpperCase()}-${prodId}`,
+        sku: prodSku.trim() || `KB-${(isGroceryItem ? "GRO" : prodCategory).substring(0, 3).toUpperCase()}-${finalId}`,
         options: prodOptions,
         isAvailable: prodIsAvailable !== false,
+        inStock: (Number(prodStock) || 0) > 0,
         displayOrder: Number(prodDisplayOrder) || 0,
         order: Number(prodDisplayOrder) || 0,
         isDeleted: false,
+        deleted: false,
         status: "active",
-        updatedAt: serverTimestamp(),
-        ...(editingProduct ? {} : { createdAt: serverTimestamp() })
+        updatedAt: serverTimestamp()
       };
 
-      await setDoc(doc(db, "products", prodId), payload, { merge: true });
-      triggerToast(
-        editingProduct ? "পণ্য আপডেট করা হয়েছে!" : "নতুন পণ্য যুক্ত করা হয়েছে!",
-        editingProduct ? "Product details updated successfully!" : "New product added to catalog successfully!"
-      );
-      setShowProductForm(false);
-    } catch (err) {
+      if (!editingProduct) {
+        payload.createdAt = serverTimestamp();
+        let saveSuccess = false;
+
+        // Primary: Direct Firestore setDoc with explicit ID and merge
+        try {
+          await setDoc(doc(db, "products", finalId), payload, { merge: true });
+          console.log("[Admin] Successfully saved product directly to Firestore:", finalId);
+          saveSuccess = true;
+        } catch (setErr: any) {
+          console.warn("[Admin] Direct Firestore write notice, attempting server fallback:", setErr?.message || setErr);
+          // Fallback 1: Server endpoint using Admin SDK
+          try {
+            const res = await apiClient.post("/api/products/upsert", {
+              ...payload,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            });
+            if (res?.success) {
+              console.log("[Admin] Successfully saved product via server Admin API:", finalId);
+              saveSuccess = true;
+            }
+          } catch (apiErr: any) {
+            console.warn("[Admin] Server upsert error, attempting addDoc fallback:", apiErr?.message || apiErr);
+            // Fallback 2: addDoc fallback
+            try {
+              const docRef = await addDoc(collection(db, "products"), { ...payload });
+              await updateDoc(docRef, { id: docRef.id }).catch(() => {});
+              payload.id = docRef.id;
+              saveSuccess = true;
+            } catch (addErr: any) {
+              console.error("[Admin] All product save methods failed:", addErr);
+              triggerToast(`পণ্য সেভ করা যায়নি: ${setErr?.message || addErr?.message || "ত্রুটি"}`, `Failed to save product: ${setErr?.message || addErr?.message || "Error"}`);
+              throw setErr || addErr;
+            }
+          }
+        }
+
+        if (saveSuccess) {
+          // Immediately update optimistic state in Admin and App
+          onProductSaved?.({ ...payload, id: payload.id || finalId });
+          triggerToast(
+            isGroceryItem ? "নতুন মুদি পণ্য সফলভাবে যুক্ত করা হয়েছে!" : "নতুন পণ্য যুক্ত করা হয়েছে!",
+            isGroceryItem ? "New grocery product added successfully!" : "New product added to catalog successfully!"
+          );
+          setShowProductForm(false);
+        }
+      } else {
+        const updatePayload = {
+          ...payload,
+          id: finalId,
+          imageUrl: resolvedImg,
+          image: resolvedImg,
+          isDeleted: false,
+          deleted: false,
+          status: "active",
+          updatedAt: serverTimestamp()
+        };
+
+        let updateSuccess = false;
+        try {
+          await setDoc(doc(db, "products", finalId), updatePayload, { merge: true });
+          console.log("[Admin] Successfully updated product directly:", finalId);
+          updateSuccess = true;
+        } catch (setErr: any) {
+          console.warn("[Admin] Direct update notice, trying updateDoc:", setErr?.message || setErr);
+          try {
+            await updateDoc(doc(db, "products", finalId), updatePayload);
+            updateSuccess = true;
+          } catch (upErr: any) {
+            console.warn("[Admin] updateDoc notice, trying server fallback:", upErr?.message || upErr);
+            try {
+              const res = await apiClient.post("/api/products/upsert", {
+                ...updatePayload,
+                updatedAt: new Date().toISOString()
+              });
+              if (res?.success) {
+                updateSuccess = true;
+              }
+            } catch (apiErr: any) {
+              console.error("[Admin] Product update failed across all tiers:", apiErr);
+              triggerToast(`পণ্য আপডেট করা যায়নি: ${setErr?.message || "ত্রুটি"}`, "Failed to update product");
+              throw setErr;
+            }
+          }
+        }
+
+        if (updateSuccess) {
+          onProductSaved?.(updatePayload);
+          triggerToast("পণ্য সফলভাবে আপডেট করা হয়েছে!", "Product details updated successfully!");
+          setShowProductForm(false);
+        }
+      }
+    } catch (err: any) {
       console.error("Error saving product:", err);
-      triggerToast("পণ্য সেভ করা যায়নি", "Failed to save product");
     } finally {
       setSavingProduct(false);
     }
@@ -1035,7 +1158,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     const catName = targetCat ? (lang === "bn" ? targetCat.nameBn : targetCat.nameEn) : id;
     
     // Count products belonging to this category
-    const relatedProducts = products.filter(p => isCategoryMatch(p.category, id));
+    const relatedProducts = products
+      .filter(p => !isProductDeleted(p))
+      .filter(p => shouldKeepProductGroceryFiltered(p))
+      .filter(p => isCategoryMatch(p.category, id));
     const prodCount = relatedProducts.length;
 
     let confirmMsg = "";
@@ -1137,7 +1263,6 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         });
 
         const newId = "prod_bulk_" + Math.random().toString(36).substr(2, 9);
-        const cleanCat = normalizeCategoryId(row.category || selectedCatId || "vegetables");
         const payload = {
           id: newId,
           nameEn: row.nameEn || "Bulk Product",
@@ -1145,16 +1270,13 @@ export default function AdminProductsTab({ products, categories, orders = [], us
           price: Number(row.price) || 0,
           originalPrice: Number(row.price) || 0,
           stock: Number(row.stock) || 10,
-          category: cleanCat,
-          categoryId: cleanCat,
+          category: row.category || selectedCatId || "vegetables",
           unitEn: row.unitEn || "1 kg",
           unitBn: row.unitBn || "১ কেজি",
           image: row.image || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80",
           descriptionEn: row.descriptionEn || "Bulk imported item",
           descriptionBn: row.descriptionBn || "বাল্ক আমদানিকৃত পণ্য",
           isAvailable: true,
-          isDeleted: false,
-          status: "active",
           displayOrder: 0,
           rating: 4.5,
           reviewCount: 0
@@ -1178,6 +1300,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   // Products belonging to currently selected category (e.g. "vegetables")
   const categoryProducts = products
     .filter(p => !isProductDeleted(p))
+    .filter(p => shouldKeepProductGroceryFiltered(p))
     .filter(p => isCategoryMatch(p.category, selectedCatId));
 
   // Filtered products for Category Manager view
@@ -1204,6 +1327,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   // Global search products list
   const globalFilteredProducts = products
     .filter(p => !isProductDeleted(p))
+    .filter(p => shouldKeepProductGroceryFiltered(p))
     .filter(p => matchesProductSearch(p, searchTerm));
 
   return (
@@ -1275,7 +1399,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
               {categories.map((c) => {
                 const isSelected = selectedCatId === c.id;
-                const catProdCount = products.filter(p => isCategoryMatch(p.category, c.id)).length;
+                const catProdCount = products
+                  .filter(p => !isProductDeleted(p))
+                  .filter(p => shouldKeepProductGroceryFiltered(p))
+                  .filter(p => isCategoryMatch(p.category, c.id)).length;
                 return (
                   <button
                     key={c.id}
@@ -2272,7 +2399,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                     ) : (
                       filteredCats.map((c, idx) => {
                         const isAvail = c.isAvailable !== false && c.disabled !== true;
-                        const catProductsCount = products.filter(p => isCategoryMatch(p.category, c.id)).length;
+                        const catProductsCount = products
+                          .filter(p => !isProductDeleted(p))
+                          .filter(p => shouldKeepProductGroceryFiltered(p))
+                          .filter(p => isCategoryMatch(p.category, c.id)).length;
                         const displayIdx = typeof c.displayOrder === "number" ? c.displayOrder : idx + 1;
 
                         return (

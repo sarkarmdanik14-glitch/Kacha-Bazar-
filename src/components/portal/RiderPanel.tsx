@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { checkAndRewardReferral } from "../../lib/referral";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface RiderPanelProps {
   user: any;
@@ -48,7 +49,7 @@ export default function RiderPanel({ user, onLogout, lang, triggerToast }: Rider
   const [deliveryHistory, setDeliveryHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -60,22 +61,7 @@ export default function RiderPanel({ user, onLogout, lang, triggerToast }: Rider
         if (docSnap.exists()) {
           const data = docSnap.data();
           setRiderProfile(data);
-          
-          // Find if they have an active order they are currently delivering
-          if (data.currentOrderId) {
-            const unsubActiveOrd = onSnapshot(
-              doc(db, "orders", data.currentOrderId), 
-              (orderSnap) => {
-                if (orderSnap.exists()) {
-                  setActiveOrder({ id: orderSnap.id, ...orderSnap.data() });
-                } else {
-                  setActiveOrder(null);
-                }
-              },
-              (err) => console.warn("Rider active order sync notice:", err.message)
-            );
-            return () => unsubActiveOrd();
-          } else {
+          if (!data.currentOrderId) {
             setActiveOrder(null);
           }
         }
@@ -131,6 +117,29 @@ export default function RiderPanel({ user, onLogout, lang, triggerToast }: Rider
       unsubHistory();
     };
   }, [user]);
+
+  // Clean, dedicated listener for the active order with proper unmount cleanup
+  useEffect(() => {
+    const currentOrderId = riderProfile?.currentOrderId;
+    if (!currentOrderId) {
+      setActiveOrder(null);
+      return;
+    }
+
+    const unsubOrder = onSnapshot(
+      doc(db, "orders", currentOrderId),
+      (orderSnap) => {
+        if (orderSnap.exists()) {
+          setActiveOrder({ id: orderSnap.id, ...orderSnap.data() });
+        } else {
+          setActiveOrder(null);
+        }
+      },
+      (err) => console.warn("Rider active order sync notice:", err.message)
+    );
+
+    return () => unsubOrder();
+  }, [riderProfile?.currentOrderId]);
 
   const isRiderActive = riderProfile?.dutyStatus !== "offline";
 

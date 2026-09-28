@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { RTC_CONFIG, callAudioSynth, VoiceCallSession } from "../../lib/webrtcCall";
 import { atomicallyAcceptCall } from "../../lib/callCenterManager";
+import { createTranslator, formatTime } from "../../lib/formatUtils";
 
 interface AdminIncomingCallModalProps {
   lang: "bn" | "en";
@@ -51,13 +52,7 @@ export default function AdminIncomingCallModal({
   const unsubscribeCallRef = useRef<(() => void) | null>(null);
   const unsubscribeCandidatesRef = useRef<(() => void) | null>(null);
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
-
-  const formatTime = (totalSec: number) => {
-    const mins = Math.floor(totalSec / 60);
-    const secs = totalSec % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
+  const getTranslation = createTranslator(lang);
 
   // 1. Listen for any incoming call with status 'waiting' or 'ringing' or 'calling'
   useEffect(() => {
@@ -141,7 +136,9 @@ export default function AdminIncomingCallModal({
       // 1. Atomic lock verification
       const lockResult = await atomicallyAcceptCall(incomingCall.id, "agent_01", "সেন্ট্রাল এডমিন ডেস্ক");
       if (!lockResult.success) {
-        alert(lockResult.message || "কলটি গ্রহণ করা সম্ভব হয়নি।");
+        if (triggerToast) {
+          triggerToast(lockResult.message || "কলটি গ্রহণ করা সম্ভব হয়নি।", lockResult.message || "Could not accept call.");
+        }
         cleanupCall();
         return;
       }
@@ -245,7 +242,9 @@ export default function AdminIncomingCallModal({
     } catch (err: any) {
       console.error("Accept call global notice:", err);
       callAudioSynth.stopSounds();
-      alert(err.message || "Could not accept call. Please verify mic access.");
+      if (triggerToast) {
+        triggerToast("কল গ্রহণ করতে সমস্যা হয়েছে। মাইক্রোফোন পারমিশন চেক করুন।", err.message || "Could not accept call. Please verify mic access.");
+      }
       cleanupCall();
     }
   };

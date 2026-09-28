@@ -52,6 +52,7 @@ import {
   updateAgentStatus, 
   atomicallyAcceptCall 
 } from "../../lib/callCenterManager";
+import { createTranslator, formatTime, toBnNum } from "../../lib/formatUtils";
 
 interface AdminVoiceCallTabProps {
   lang: "bn" | "en";
@@ -86,19 +87,8 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
   const unsubscribeCallRef = useRef<(() => void) | null>(null);
   const unsubscribeCandidatesRef = useRef<(() => void) | null>(null);
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
-
-  const formatTime = (totalSec: number) => {
-    const mins = Math.floor(totalSec / 60);
-    const secs = totalSec % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  // Convert number to Bengali digits
-  const toBanglaDigits = (num: number) => {
-    const bnDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
-    return num.toString().split("").map((d) => bnDigits[parseInt(d, 10)] || d).join("");
-  };
+  const getTranslation = createTranslator(lang);
+  const toBanglaDigits = (num: number) => toBnNum(num);
 
   // 1. Ensure 20 agent roster is seeded & listen to agents collection
   useEffect(() => {
@@ -212,7 +202,9 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
       // 1. Atomic lock to ensure no other agent accepts this same call
       const lockResult = await atomicallyAcceptCall(call.id, selectedAgentId, agentName);
       if (!lockResult.success) {
-        alert(lockResult.message || "কলটি গ্রহণ করা সম্ভব হয়নি।");
+        if (triggerToast) {
+          triggerToast(lockResult.message || "কলটি গ্রহণ করা সম্ভব হয়নি।", lockResult.message || "Could not accept call.");
+        }
         cleanupCall();
         return;
       }
@@ -328,7 +320,9 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
     } catch (err: any) {
       console.error("Accept call error:", err);
       callAudioSynth.stopSounds();
-      alert(err.message || "কল গ্রহণ করতে সমস্যা হয়েছে। অনুগ্রহ করে মাইক্রোফোন চেক করুন।");
+      if (triggerToast) {
+        triggerToast("কল গ্রহণ করতে সমস্যা হয়েছে। অনুগ্রহ করে মাইক্রোফোন চেক করুন।", err.message || "Could not accept call. Please verify mic access.");
+      }
       
       // Free agent on error
       updateDoc(doc(db, "call_center_agents", selectedAgentId), {

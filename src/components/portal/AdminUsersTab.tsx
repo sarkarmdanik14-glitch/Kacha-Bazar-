@@ -4,6 +4,7 @@ import {
   Award, FileText, Gift, PlusCircle, ArrowRight 
 } from "lucide-react";
 import { db, doc, setDoc, updateDoc, collection, serverTimestamp } from "../../lib/firebase";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface AdminUsersTabProps {
   users: any[];
@@ -15,7 +16,7 @@ interface AdminUsersTabProps {
 }
 
 export default function AdminUsersTab({ users, transactions, referrals, lang, triggerToast, currentUser }: AdminUsersTabProps) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   const [activeUserSubTab, setActiveUserSubTab] = useState<"roster" | "referrals" | "transactions">("roster");
   const [activeFilterRole, setActiveFilterRole] = useState<"all" | "customer" | "seller" | "rider" | "admin" | "founder">("all");

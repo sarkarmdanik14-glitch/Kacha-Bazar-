@@ -10,6 +10,7 @@ import AdminPanel from "./AdminPanel";
 import PartnerShopPanel from "./PartnerShopPanel";
 import { getCurrentPartnerSession, logoutPartnerSession, PartnerShop } from "../../lib/partnerManager";
 import { apiClient } from "../../lib/apiClient";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface PortalModalProps {
   isOpen: boolean;
@@ -17,9 +18,25 @@ interface PortalModalProps {
   lang: "bn" | "en";
   initialTab?: "dashboard" | "orders" | "wallet" | "referral" | "notifications";
   forcedRole?: "customer" | "admin" | "seller" | "rider" | "partner";
+  products?: any[];
+  categories?: any[];
+  banners?: any[];
+  globalSettings?: any;
+  onProductSaved?: (product: any) => void;
 }
 
-export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedRole }: PortalModalProps) {
+export default function PortalModal({ 
+  isOpen, 
+  onClose, 
+  lang, 
+  initialTab, 
+  forcedRole,
+  products,
+  categories,
+  banners,
+  globalSettings,
+  onProductSaved
+}: PortalModalProps) {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [currentPartner, setCurrentPartner] = useState<PartnerShop | null>(null);
   const [userRole, setUserRole] = useState<string>("customer");
@@ -27,7 +44,7 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
   const [loading, setLoading] = useState<boolean>(true);
   const [toasts, setToasts] = useState<{ id: number; bn: string; en: string }[]>([]);
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Helper to check if role allows tab
   const isTabAllowed = (tab: string, role: string) => {
@@ -150,7 +167,10 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
               setCurrentUser(null);
               setUserRole("customer");
               setActivePortalTab("customer");
-              alert(getTranslation("প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।", "Access denied. You are not authorized as an admin."));
+              triggerToast(
+                "প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।",
+                "Access denied. You are not authorized as an admin."
+              );
               setLoading(false);
               return;
             }
@@ -181,7 +201,10 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
                 await signOut(auth);
                 setCurrentUser(null);
                 setUserRole("customer");
-                alert(getTranslation("আপনার বিক্রেতা আবেদনটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your seller account application was rejected by admin."));
+                triggerToast(
+                  "আপনার বিক্রেতা আবেদনটি এডমিন কর্তৃক বাতিল করা হয়েছে।",
+                  "Your seller account application was rejected by admin."
+                );
                 setLoading(false);
                 return;
               }
@@ -199,7 +222,10 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
               await signOut(auth);
               setCurrentUser(null);
               setUserRole("customer");
-              alert(getTranslation("প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি বিক্রেতা হিসেবে নিবন্ধিত নয়।", "Access denied. This account is not registered as a seller."));
+              triggerToast(
+                "প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি বিক্রেতা হিসেবে নিবন্ধিত নয়।",
+                "Access denied. This account is not registered as a seller."
+              );
               setLoading(false);
               return;
             }
@@ -230,7 +256,10 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
                 await signOut(auth);
                 setCurrentUser(null);
                 setUserRole("customer");
-                alert(getTranslation("আপনার রাইডার আবেদনটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your rider account application was rejected by admin."));
+                triggerToast(
+                  "আপনার রাইডার আবেদনটি এডমিন কর্তৃক বাতিল করা হয়েছে।",
+                  "Your rider account application was rejected by admin."
+                );
                 setLoading(false);
                 return;
               }
@@ -248,7 +277,10 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
               await signOut(auth);
               setCurrentUser(null);
               setUserRole("customer");
-              alert(getTranslation("প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি রাইডার হিসেবে নিবন্ধিত নয়।", "Access denied. This account is not registered as a rider."));
+              triggerToast(
+                "প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি রাইডার হিসেবে নিবন্ধিত নয়।",
+                "Access denied. This account is not registered as a rider."
+              );
               setLoading(false);
               return;
             }
@@ -458,7 +490,17 @@ export default function PortalModal({ isOpen, onClose, lang, initialTab, forcedR
                 ) : (
                   <div className="h-full w-full min-h-0">
                     {activePortalTab === "admin" && (
-                      <AdminPanel user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} />
+                      <AdminPanel 
+                        user={currentUser} 
+                        onLogout={handleLogout} 
+                        lang={lang} 
+                        triggerToast={triggerToast}
+                        initialProducts={products}
+                        initialCategories={categories}
+                        initialBanners={banners}
+                        initialSettings={globalSettings}
+                        onProductSaved={onProductSaved}
+                      />
                     )}
                     {activePortalTab === "partner" && (
                       <PartnerShopPanel 
@@ -508,7 +550,7 @@ function RestrictedPanelStatus({
   onLogout: () => void; 
   lang: "bn" | "en";
 }) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   const title = getTranslation(
     role === "seller" ? "বিক্রেতা প্যানেল এক্সেস সীমাবদ্ধ" : "রাইডার প্যানেল এক্সেস সীমাবদ্ধ",

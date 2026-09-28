@@ -25,7 +25,7 @@ import {
   BarChart3
 } from "lucide-react";
 import { checkAndRewardReferral } from "../../lib/referral";
-import { mergeCategoryCards } from "../../lib/categoryUtils";
+import { mergeCategoryCards, shouldKeepProductGroceryFiltered } from "../../lib/categoryUtils";
 import { ALL_PRODUCTS, CATEGORIES, GROCERY_PRODUCTS_RAW } from "../../data";
 import { resolveAuthenticProductImage } from "../../lib/masterImageRegistry";
 
@@ -48,15 +48,31 @@ import AdminBuySellTab from "./AdminBuySellTab";
 import { MessageSquare, Printer, Layout, PhoneCall, Users, Menu, Tag } from "lucide-react";
 import OrderMemoModal from "./OrderMemoModal";
 import { hasPermission, logStaffActivity, sendStaffHeartbeat, DEFAULT_ROLES } from "../../lib/staffManager";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface AdminPanelProps {
   user: any;
   onLogout: () => void;
   lang: "bn" | "en";
   triggerToast: (bn: string, en: string) => void;
+  initialProducts?: any[];
+  initialCategories?: any[];
+  initialBanners?: any[];
+  initialSettings?: any;
+  onProductSaved?: (product: any) => void;
 }
 
-export default function AdminPanel({ user, onLogout, lang, triggerToast }: AdminPanelProps) {
+export default function AdminPanel({ 
+  user, 
+  onLogout, 
+  lang, 
+  triggerToast,
+  initialProducts,
+  initialCategories,
+  initialBanners,
+  initialSettings,
+  onProductSaved
+}: AdminPanelProps) {
   // Collapsible sidebar navigation drawer toggle (hidden by default across all viewports)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
@@ -157,7 +173,7 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
   const [copMin, setCopMin] = useState<number>(0);
   const [showCouponForm, setShowCouponForm] = useState<boolean>(false);
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Real-time Staff Heartbeat
   useEffect(() => {
@@ -197,65 +213,77 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
       (err) => console.warn("Admin orders sync notice:", err.message)
     );
 
-    // Listen to active products (Soft Delete filter)
-    const prodsQuery = query(
-      collection(db, "products"),
-      where("isDeleted", "==", false)
-    );
-    const unsubProds = onSnapshot(
-      prodsQuery, 
-      (snapshot) => {
-        const prods: any[] = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.isDeleted === true || data.status === "deleted" || data.deleted === true) {
-            return;
-          }
-          // Completely remove ALL old products from former "হিমায়িত খাদ্য" category
-          if (/^fr\d+$/.test(doc.id) || (data.category === "frozen" && !doc.id.startsWith("df"))) {
-            return;
-          }
-          // Completely remove ALL old/legacy products under "মুদি পণ্য" (groceries, staples, spices-oils, spices) except new gr1..gr51
-          const isLegacyGrocery = 
-            data.category === "groceries" || 
-            data.category === "staples" || 
-            data.category === "spices-oils" || 
-            data.category === "spices" || 
-            data.category === "oil-spices" || 
-            data.category === "মসলা ও রান্নার তেল" ||
-            doc.id.startsWith("st") || 
-            doc.id.startsWith("sp") ||
-            (doc.id.startsWith("gr") && !/^gr([1-9]|[1-4][0-9]|5[0-1])$/.test(doc.id));
+    // Listen to active products (Soft Delete filter) - skip if provided via props
+    let unsubProds = () => {};
+    if (initialProducts && initialProducts.length > 0) {
+      setProducts(initialProducts);
+      setLoading(false);
+    } else {
+      const prodsQuery = query(
+        collection(db, "products"),
+        where("isDeleted", "==", false)
+      );
+      unsubProds = onSnapshot(
+        prodsQuery, 
+        (snapshot) => {
+          const savedDeleted = (() => {
+            try {
+              const raw = localStorage.getItem("kb_deleted_products");
+              return raw ? new Set<string>(JSON.parse(raw)) : new Set<string>();
+            } catch {
+              return new Set<string>();
+            }
+          })();
 
-          if (isLegacyGrocery && !/^gr([1-9]|[1-4][0-9]|5[0-1])$/.test(doc.id)) {
-            return;
-          }
-          const rawCandidate = data.image || data.imageUrl || data.image_url || data.photoUrl || data.img || (Array.isArray(data.images) && data.images[0]) || "";
-          const resolvedImg = resolveAuthenticProductImage(doc.id, rawCandidate);
-          prods.push({ 
-            id: doc.id, 
-            ...data,
-            image: resolvedImg,
-            imageUrl: resolvedImg
+          const prods: any[] = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.isDeleted === true || data.status === "deleted" || data.deleted === true || savedDeleted.has(doc.id)) {
+              return;
+            }
+            // Completely remove ALL old products from former "হিমায়িত খাদ্য" category
+            if (/^fr\d+$/.test(doc.id) || (data.category === "frozen" && !doc.id.startsWith("df"))) {
+              return;
+            }
+            // Completely remove legacy pre-merge standalone products (st1..st60, sp1..sp60)
+            if (doc.id.startsWith("st") || doc.id.startsWith("sp")) {
+              return;
+            }
+
+            const rawCandidate = data.imageUrl || data.image || data.image_url || data.photoUrl || data.img || (Array.isArray(data.images) && data.images[0]) || "";
+            const resolvedImg = resolveAuthenticProductImage(doc.id, rawCandidate);
+            const prodItem = { 
+              id: doc.id, 
+              ...data,
+              image: resolvedImg,
+              imageUrl: resolvedImg
+            };
+
+            if (!shouldKeepProductGroceryFiltered(prodItem)) {
+              return;
+            }
+
+            prods.push(prodItem);
           });
-        });
 
-        // Ensure all 51 new grocery products are present in prods list
-        const existingIds = new Set(prods.map(p => p.id));
-        for (const gp of GROCERY_PRODUCTS_RAW) {
-          if (!existingIds.has(gp.id)) {
-            prods.push(gp);
+          // Only if Firestore returned 0 products (e.g. offline), fallback to static defaults
+          if (prods.length === 0) {
+            for (const gp of GROCERY_PRODUCTS_RAW) {
+              if (!savedDeleted.has(gp.id) && shouldKeepProductGroceryFiltered(gp)) {
+                prods.push(gp);
+              }
+            }
           }
-        }
 
-        setProducts(prods);
-        setLoading(false);
-      },
-      (err) => {
-        console.warn("Admin prods sync notice:", err.message);
-        setLoading(false);
-      }
-    );
+          setProducts(prods);
+          setLoading(false);
+        },
+        (err) => {
+          console.warn("Admin prods sync notice:", err.message);
+          setLoading(false);
+        }
+      );
+    }
 
     // Listen to users
     const unsubUsers = onSnapshot(
@@ -283,64 +311,69 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
       (err) => console.warn("Admin coupons sync notice:", err.message)
     );
 
-    // Listen to categories
-    const unsubCats = onSnapshot(
-      collection(db, "categories"), 
-      (snapshot) => {
-        const cats: any[] = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          const catId = doc.id || data.id;
+    // Listen to categories - skip if provided via props
+    let unsubCats = () => {};
+    if (initialCategories && initialCategories.length > 0) {
+      setCategories(initialCategories);
+    } else {
+      unsubCats = onSnapshot(
+        collection(db, "categories"), 
+        (snapshot) => {
+          const cats: any[] = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            const catId = doc.id || data.id;
 
-          if (
-            catId === "home-appliances" ||
-            ((data.nameBn === "মোবাইল জোন" || data.nameEn === "Mobile Zone") &&
-              catId !== "mobile-zone" &&
-              catId !== "mobile" &&
-              catId !== "mobiles")
-          ) {
-            return;
-          }
+            if (
+              catId === "home-appliances" ||
+              ((data.nameBn === "মোবাইল জোন" || data.nameEn === "Mobile Zone") &&
+                catId !== "mobile-zone" &&
+                catId !== "mobile" &&
+                catId !== "mobiles")
+            ) {
+              return;
+            }
 
-          const isFrozenCat = catId === "frozen" || data.nameBn === "হিমায়িত খাদ্য";
-          const catImg = (data.image || data.imageUrl || data.banner || data.bannerUrl || "").trim();
-          cats.push({
-            id: catId,
-            ...data,
-            nameBn: isFrozenCat ? "ড্রাই ফুড" : data.nameBn,
-            nameEn: isFrozenCat ? "Dry Food" : data.nameEn,
-            iconName: isFrozenCat ? "Package" : (data.iconName || "Sparkles"),
-            image: catImg,
-            imageUrl: catImg,
-            banner: catImg,
-            bannerUrl: catImg
-          });
-        });
-
-        // Ensure default categories are present if not yet saved in Firestore
-        CATEGORIES.forEach((defaultCat) => {
-          if (!cats.some(c => c.id === defaultCat.id)) {
-            const defImg = ((defaultCat as any).image || (defaultCat as any).imageUrl || "").trim();
+            const isFrozenCat = catId === "frozen" || data.nameBn === "হিমায়িত খাদ্য";
+            const catImg = (data.image || data.imageUrl || data.banner || data.bannerUrl || "").trim();
             cats.push({
-              ...defaultCat,
-              image: defImg,
-              imageUrl: defImg,
-              banner: defImg,
-              bannerUrl: defImg
+              id: catId,
+              ...data,
+              nameBn: isFrozenCat ? "ড্রাই ফুড" : data.nameBn,
+              nameEn: isFrozenCat ? "Dry Food" : data.nameEn,
+              iconName: isFrozenCat ? "Package" : (data.iconName || "Sparkles"),
+              image: catImg,
+              imageUrl: catImg,
+              banner: catImg,
+              bannerUrl: catImg
             });
-          }
-        });
+          });
 
-        const mergedCats = mergeCategoryCards(cats);
-        mergedCats.sort((a, b) => {
-          const orderA = typeof a.displayOrder === "number" ? a.displayOrder : (typeof a.order === "number" ? a.order : 9999);
-          const orderB = typeof b.displayOrder === "number" ? b.displayOrder : (typeof b.order === "number" ? b.order : 9999);
-          return orderA - orderB;
-        });
-        setCategories(mergedCats);
-      },
-      (err) => console.warn("Admin cats sync notice:", err.message)
-    );
+          // Ensure default categories are present if not yet saved in Firestore
+          CATEGORIES.forEach((defaultCat) => {
+            if (!cats.some(c => c.id === defaultCat.id)) {
+              const defImg = ((defaultCat as any).image || (defaultCat as any).imageUrl || "").trim();
+              cats.push({
+                ...defaultCat,
+                image: defImg,
+                imageUrl: defImg,
+                banner: defImg,
+                bannerUrl: defImg
+              });
+            }
+          });
+
+          const mergedCats = mergeCategoryCards(cats);
+          mergedCats.sort((a, b) => {
+            const orderA = typeof a.displayOrder === "number" ? a.displayOrder : (typeof a.order === "number" ? a.order : 9999);
+            const orderB = typeof b.displayOrder === "number" ? b.displayOrder : (typeof b.order === "number" ? b.order : 9999);
+            return orderA - orderB;
+          });
+          setCategories(mergedCats);
+        },
+        (err) => console.warn("Admin cats sync notice:", err.message)
+      );
+    }
 
     // Listen to transactions
     const unsubTx = onSnapshot(
@@ -368,29 +401,39 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
       (err) => console.warn("Admin ref sync notice:", err.message)
     );
 
-    // Listen to banners
-    const unsubBanners = onSnapshot(
-      collection(db, "banners"), 
-      (snapshot) => {
-        const bans: any[] = [];
-        snapshot.forEach((doc) => {
-          bans.push({ id: doc.id, ...doc.data() });
-        });
-        setBanners(bans);
-      },
-      (err) => console.warn("Admin banners sync notice:", err.message)
-    );
+    // Listen to banners - skip if provided via props
+    let unsubBanners = () => {};
+    if (initialBanners && initialBanners.length > 0) {
+      setBanners(initialBanners);
+    } else {
+      unsubBanners = onSnapshot(
+        collection(db, "banners"), 
+        (snapshot) => {
+          const bans: any[] = [];
+          snapshot.forEach((doc) => {
+            bans.push({ id: doc.id, ...doc.data() });
+          });
+          setBanners(bans);
+        },
+        (err) => console.warn("Admin banners sync notice:", err.message)
+      );
+    }
 
-    // Listen to global settings
-    const unsubSettings = onSnapshot(
-      doc(db, "settings", "global"), 
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setSettings(docSnap.data());
-        }
-      },
-      (err) => console.warn("Admin settings sync notice:", err.message)
-    );
+    // Listen to global settings - skip if provided via props
+    let unsubSettings = () => {};
+    if (initialSettings) {
+      setSettings(initialSettings);
+    } else {
+      unsubSettings = onSnapshot(
+        doc(db, "settings", "global"), 
+        (docSnap) => {
+          if (docSnap.exists()) {
+            setSettings(docSnap.data());
+          }
+        },
+        (err) => console.warn("Admin settings sync notice:", err.message)
+      );
+    }
 
     return () => {
       unsubOrders();
@@ -404,6 +447,43 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
       unsubSettings();
     };
   }, []);
+
+  // Sync props updates to internal state if provided
+  useEffect(() => {
+    if (initialProducts && initialProducts.length > 0) {
+      setProducts(initialProducts);
+      setLoading(false);
+    }
+  }, [initialProducts]);
+
+  const handleProductSaved = (savedProduct: any) => {
+    setProducts((prev: any[]) => {
+      const exists = prev.some((p: any) => p.id === savedProduct.id);
+      if (exists) {
+        return prev.map((p: any) => p.id === savedProduct.id ? { ...p, ...savedProduct } : p);
+      }
+      return [savedProduct, ...prev];
+    });
+    onProductSaved?.(savedProduct);
+  };
+
+  useEffect(() => {
+    if (initialCategories && initialCategories.length > 0) {
+      setCategories(initialCategories);
+    }
+  }, [initialCategories]);
+
+  useEffect(() => {
+    if (initialBanners && initialBanners.length > 0) {
+      setBanners(initialBanners);
+    }
+  }, [initialBanners]);
+
+  useEffect(() => {
+    if (initialSettings) {
+      setSettings(initialSettings);
+    }
+  }, [initialSettings]);
 
   // Update order status
   const handleUpdateOrderStatus = async (orderId: string, status: string) => {
@@ -836,7 +916,15 @@ export default function AdminPanel({ user, onLogout, lang, triggerToast }: Admin
             {/* TAB: PRODUCTS */}
             {activeTab === "products" && (
               <div className="space-y-6 animate-fade-in">
-                <AdminProductsTab products={products} categories={categories} orders={orders} user={user} lang={lang} triggerToast={triggerToast} />
+                <AdminProductsTab 
+                  products={products} 
+                  categories={categories} 
+                  orders={orders} 
+                  user={user} 
+                  lang={lang} 
+                  triggerToast={triggerToast} 
+                  onProductSaved={handleProductSaved}
+                />
               </div>
             )}
 

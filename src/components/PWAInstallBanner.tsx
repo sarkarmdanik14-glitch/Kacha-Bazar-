@@ -192,16 +192,8 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
       return;
     }
 
-    // If desktop or mobile without prompt captured yet, guide user
-    if (platformInfo.isDesktop) {
-      alert(
-        lang === "bn" 
-          ? "ব্রাউজারের অ্যাড্রেস বারের ডান পাশে থাকা 'Install App' (⊕) আইকনে ক্লিক করে ইনস্টল করুন।" 
-          : "Click the 'Install App' (⊕) icon in your browser's address bar."
-      );
-    } else {
-      setShowIOSGuide(true);
-    }
+    // If desktop or mobile without prompt captured yet, guide user with interactive guide modal
+    setShowIOSGuide(true);
   };
 
   const handleDismissBanner = () => {

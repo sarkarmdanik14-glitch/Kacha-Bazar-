@@ -7,6 +7,7 @@ import {
   Trash2, Plus
 } from "lucide-react";
 import { db, doc, setDoc, deleteDoc, serverTimestamp } from "../../lib/firebase";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface AdminOrdersTabProps {
   orders: any[];
@@ -31,7 +32,7 @@ export default function AdminOrdersTab({
   handleAssignRider,
   handleDeleteOrder
 }: AdminOrdersTabProps) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState<string>("");

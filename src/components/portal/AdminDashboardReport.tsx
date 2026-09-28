@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { subscribeToVisitorAnalytics, VisitorAnalyticsData } from "../../lib/visitorTracker";
 import { normalizeCategoryId } from "../../lib/categoryUtils";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface AdminDashboardReportProps {
   orders: any[];
@@ -15,7 +16,7 @@ interface AdminDashboardReportProps {
 }
 
 export default function AdminDashboardReport({ orders, products, users, lang }: AdminDashboardReportProps) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Real-time Visitor Analytics State
   const [visitorData, setVisitorData] = useState<VisitorAnalyticsData>({

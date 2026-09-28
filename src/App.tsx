@@ -30,6 +30,7 @@ import { matchesProductSearch } from "./lib/banglishSearch";
 import { BannerSlider } from "./components/BannerSlider";
 import { CartItemRow } from "./components/CartItemRow";
 import { ProductCard } from "./components/ProductCard";
+import { ProductSection } from "./components/ProductSection";
 import { PWAInstallBanner } from "./components/PWAInstallBanner";
 import { DailyAlarmBanner } from "./components/common/DailyAlarmBanner";
 import { LiveNoticeBanner } from "./components/common/LiveNoticeBanner";
@@ -56,7 +57,8 @@ import {
   validateWeightLimit,
   sortByDefaultOrder
 } from "./lib/productWeightUtils";
-import { isCategoryMatch, normalizeCategoryId, mergeCategoryCards } from "./lib/categoryUtils";
+import { fmtNum as formatNumber } from "./lib/formatUtils";
+import { isCategoryMatch, normalizeCategoryId, mergeCategoryCards, shouldKeepProductGroceryFiltered } from "./lib/categoryUtils";
 import { SAFE_PRODUCT_PLACEHOLDER, optimizeProductImageUrl } from "./lib/masterImageRegistry";
 
 export default function App() {
@@ -521,46 +523,28 @@ export default function App() {
   const [homeConfig, setHomeConfig] = useState<any>(null);
 
   const availableProducts = useMemo(() => {
-    const filtered = products.filter(p => p.isAvailable !== false && !p.isDeleted && p.status !== "deleted" && !p.deleted);
+    const filtered = products
+      .filter(p => p.isAvailable !== false && !p.isDeleted && p.status !== "deleted" && !p.deleted)
+      .filter(p => shouldKeepProductGroceryFiltered(p));
     return filtered.sort((a, b) => sortByDefaultOrder(a, b));
   }, [products]);
 
-  // One-time automatic sync to replace all old grocery products with the 51 fresh grocery products in Firestore
-  useEffect(() => {
-    const syncGroceriesToFirestore = async () => {
-      const syncKey = "kb_grocery_replaced_51_v2";
-      if (localStorage.getItem(syncKey)) return;
-
-      try {
-        localStorage.setItem(syncKey, "true");
-        // 1. Soft-delete / remove any previous grocery products
-        for (let i = 1; i <= 60; i++) {
-          const stRef = doc(db, "products", `st${i}`);
-          const spRef = doc(db, "products", `sp${i}`);
-          deleteDoc(stRef).catch(() => setDoc(stRef, { isDeleted: true, status: "deleted", isAvailable: false }, { merge: true }).catch(() => {}));
-          deleteDoc(spRef).catch(() => setDoc(spRef, { isDeleted: true, status: "deleted", isAvailable: false }, { merge: true }).catch(() => {}));
-        }
-
-        // 2. Upsert all 51 fresh grocery products into Firestore
-        for (const gp of GROCERY_PRODUCTS_RAW) {
-          const prodRef = doc(db, "products", gp.id);
-          await setDoc(prodRef, {
-            ...gp,
-            isDeleted: false,
-            deleted: false,
-            status: "active",
-            isAvailable: true,
-            inStock: true,
-            stock: 100,
-            updatedAt: serverTimestamp()
-          }, { merge: true }).catch((err) => console.warn(`Notice upserting ${gp.id}:`, err));
-        }
-      } catch (e) {
-        console.warn("Notice syncing fresh grocery products to Firestore:", e);
+  // Synchronous callback for immediate optimistic product creation & update across admin & customer views
+  const handleProductSavedInApp = (savedProduct: any) => {
+    if (!savedProduct || !savedProduct.id) return;
+    const mapped = mapDocToProduct(savedProduct.id, savedProduct);
+    setProducts((prev) => {
+      const exists = prev.some((p) => p.id === mapped.id);
+      if (exists) {
+        return prev.map((p) => (p.id === mapped.id ? { ...p, ...mapped } : p));
       }
-    };
+      return [mapped, ...prev];
+    });
+  };
 
-    syncGroceriesToFirestore();
+  // Disabled destructive grocery sync to protect custom images and deletions in Firestore
+  useEffect(() => {
+    // Database groceries are permanently preserved in Firestore
   }, []);
 
   // One-time automatic sync to replace all old cosmetics products with fresh cosmetics products in Firestore
@@ -601,37 +585,32 @@ export default function App() {
 
   // Real-time synchronization of products, categories, reviews, banners, and home config from Firestore
   useEffect(() => {
-    const productsQuery = query(
-      collection(db, "products"),
-      where("isDeleted", "==", false)
-    );
+    const productsQuery = collection(db, "products");
 
     const unsubProducts = onSnapshot(
       productsQuery,
       (snap) => {
+        const savedDeleted = (() => {
+          try {
+            const raw = localStorage.getItem("kb_deleted_products");
+            return raw ? new Set<string>(JSON.parse(raw)) : new Set<string>();
+          } catch {
+            return new Set<string>();
+          }
+        })();
+
         const items: Product[] = [];
         snap.forEach((doc) => {
           const data = doc.data();
-          if (data.isDeleted === true || data.status === "deleted" || data.deleted === true) {
+          if (data.isDeleted === true || data.status === "deleted" || data.deleted === true || savedDeleted.has(doc.id)) {
             return;
           }
           // Completely remove ALL old products from the former "হিমায়িত খাদ্য" category
           if (/^fr\d+$/.test(doc.id) || (data.category === "frozen" && !doc.id.startsWith("df"))) {
             return;
           }
-          // Completely remove ALL old/legacy products under "মুদি পণ্য" (groceries, staples, spices-oils, spices) except new gr1..gr51
-          const isLegacyGrocery = 
-            data.category === "groceries" || 
-            data.category === "staples" || 
-            data.category === "spices-oils" || 
-            data.category === "spices" || 
-            data.category === "oil-spices" || 
-            data.category === "মসলা ও রান্নার তেল" ||
-            doc.id.startsWith("st") || 
-            doc.id.startsWith("sp") ||
-            (doc.id.startsWith("gr") && !/^gr([1-9]|[1-4][0-9]|5[0-1])$/.test(doc.id));
-
-          if (isLegacyGrocery && !/^gr([1-9]|[1-4][0-9]|5[0-1])$/.test(doc.id)) {
+          // Completely remove legacy standalone pre-merge products (st1..st60, sp1..sp60)
+          if (doc.id.startsWith("st") || doc.id.startsWith("sp")) {
             return;
           }
 
@@ -644,20 +623,27 @@ export default function App() {
             return;
           }
 
-          items.push(mapDocToProduct(doc.id, data));
+          const mapped = mapDocToProduct(doc.id, data);
+          if (!shouldKeepProductGroceryFiltered(mapped)) {
+            return;
+          }
+
+          items.push(mapped);
         });
 
-        // Ensure all 51 new grocery products are present in items list
-        const existingIds = new Set(items.map(p => p.id));
-        for (const gp of GROCERY_PRODUCTS_RAW) {
-          if (!existingIds.has(gp.id)) {
-            items.push(gp);
+        // Only if Firestore is completely empty or offline, fallback to static defaults
+        if (items.length === 0) {
+          for (const gp of GROCERY_PRODUCTS_RAW) {
+            if (!savedDeleted.has(gp.id) && shouldKeepProductGroceryFiltered(gp)) {
+              items.push(gp);
+            }
           }
         }
 
         // Ensure all new cosmetics products are present in items list
+        const existingIds = new Set(items.map(p => p.id));
         for (const cp of COSMETICS_PRODUCTS_RAW) {
-          if (!existingIds.has(cp.id)) {
+          if (!existingIds.has(cp.id) && !savedDeleted.has(cp.id)) {
             items.push(cp);
           }
         }
@@ -991,7 +977,7 @@ export default function App() {
   };
 
   const fmtNum = useCallback((num: number | string): string => {
-    return lang === "bn" ? toBnNum(num) : num.toString();
+    return formatNumber(num, lang);
   }, [lang]);
 
   const handleProductImgError = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event>) => {
@@ -2039,208 +2025,95 @@ export default function App() {
             </div>
 
             {/* Grid of All Flash Sale Products with BOTH buttons */}
-            {loadingProducts ? (
-              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className={`bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs ${i === 8 ? "md:hidden" : ""}`}>
-                    <div className="w-full aspect-[4/3] bg-slate-100 rounded-xl mb-2"></div>
-                    <div className="h-2.5 w-3/4 bg-slate-100 rounded mb-1"></div>
-                    <div className="h-2 w-1/2 bg-slate-100 rounded mb-2"></div>
-                    <div className="h-6 w-full bg-slate-100 rounded"></div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                {availableProducts.filter(p => p.isFlashSale).map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    lang={lang}
-                    fmtNum={fmtNum}
-                    wishlist={wishlist}
-                    toggleWishlist={toggleWishlist}
-                    cart={cart}
-                    addToCart={addToCart}
-                    updateCartQuantity={updateCartQuantity}
-                    removeFromCart={removeFromCart}
-                    handleBuyNow={handleBuyNow}
-                    openQuickView={openQuickView}
-                    handleProductImgError={handleProductImgError}
-                  />
-                ))}
-              </div>
-            )}
+            <ProductSection
+              products={availableProducts.filter(p => p.isFlashSale)}
+              loading={loadingProducts}
+              showHeader={false}
+              lang={lang}
+              fmtNum={fmtNum}
+              wishlist={wishlist}
+              toggleWishlist={toggleWishlist}
+              cart={cart}
+              addToCart={addToCart}
+              updateCartQuantity={updateCartQuantity}
+              removeFromCart={removeFromCart}
+              handleBuyNow={handleBuyNow}
+              openQuickView={openQuickView}
+              handleProductImgError={handleProductImgError}
+              className=""
+            />
           </div>
         ) : (
           <>
           {/* ================= 5. FEATURED PRODUCTS ================= */}
           {homeConfig?.featuredProducts?.popularSectionVisible !== false && (
-          <section className="max-w-7xl mx-auto px-2 sm:px-4 mt-6 sm:mt-8">
-            <div className="flex justify-between items-center mb-3 sm:mb-4">
-              <div>
-                <h3 className="text-sm sm:text-lg font-bold text-slate-800 flex items-center gap-1.5">
-                  <span className="w-2 h-4 sm:h-5 bg-emerald-600 rounded-full inline-block"></span>
-                  {lang === "bn" ? "জনপ্রিয় ও আকর্ষণীয় পণ্য" : "Featured Products"}
-                </h3>
-                <p className="text-[10px] sm:text-xs text-slate-400">
-                  {lang === "bn" ? "আমাদের সেরা এবং অত্যন্ত জনপ্রিয় পণ্যসমূহ" : "Our handpicked premium products for you"}
-                </p>
-              </div>
-              <button
-                onClick={() => setPopularLimit(prev => prev === 8 ? 50 : 8)}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-bold hover:underline cursor-pointer"
-              >
-                {popularLimit === 8 ? (lang === "bn" ? "সবগুলো দেখুন" : "See All") : (lang === "bn" ? "কম দেখুন" : "See Less")}
-              </button>
-            </div>
-            {loadingProducts ? (
-              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className={`bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs ${i === 8 ? "md:hidden" : ""}`}>
-                    <div className="w-full aspect-[4/3] bg-slate-100 rounded-xl mb-2"></div>
-                    <div className="h-2.5 w-3/4 bg-slate-100 rounded mb-1"></div>
-                    <div className="h-2 w-1/2 bg-slate-100 rounded mb-2"></div>
-                    <div className="h-6 w-full bg-slate-100 rounded"></div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                {availableProducts.filter(p => p.isPopular || (homeConfig?.featuredProducts?.popularProductIds || []).includes(p.id)).slice(0, popularLimit === 8 ? 9 : popularLimit).map((product, idx) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    lang={lang}
-                    fmtNum={fmtNum}
-                    wishlist={wishlist}
-                    toggleWishlist={toggleWishlist}
-                    cart={cart}
-                    addToCart={addToCart}
-                    updateCartQuantity={updateCartQuantity}
-                    removeFromCart={removeFromCart}
-                    handleBuyNow={handleBuyNow}
-                    openQuickView={openQuickView}
-                    handleProductImgError={handleProductImgError}
-                    className={popularLimit === 8 && idx === 8 ? "md:hidden" : ""}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
+            <ProductSection
+              title={lang === "bn" ? "জনপ্রিয় ও আকর্ষণীয় পণ্য" : "Featured Products"}
+              subtitle={lang === "bn" ? "আমাদের সেরা এবং অত্যন্ত জনপ্রিয় পণ্যসমূহ" : "Our handpicked premium products for you"}
+              accentColorClass="bg-emerald-600"
+              products={availableProducts.filter(p => p.isPopular || (homeConfig?.featuredProducts?.popularProductIds || []).includes(p.id))}
+              loading={loadingProducts}
+              limit={popularLimit}
+              onToggleLimit={() => setPopularLimit(prev => prev === 8 ? 50 : 8)}
+              lang={lang}
+              fmtNum={fmtNum}
+              wishlist={wishlist}
+              toggleWishlist={toggleWishlist}
+              cart={cart}
+              addToCart={addToCart}
+              updateCartQuantity={updateCartQuantity}
+              removeFromCart={removeFromCart}
+              handleBuyNow={handleBuyNow}
+              openQuickView={openQuickView}
+              handleProductImgError={handleProductImgError}
+            />
           )}
 
           {/* ================= 7. NEW ARRIVALS ================= */}
           {homeConfig?.featuredProducts?.newArrivalSectionVisible !== false && (
-          <section className="max-w-7xl mx-auto px-2 sm:px-4 mt-6 sm:mt-8">
-            <div className="flex justify-between items-center mb-3 sm:mb-4">
-              <div>
-                <h3 className="text-sm sm:text-lg font-bold text-slate-800 flex items-center gap-1.5">
-                  <span className="w-2 h-4 sm:h-5 bg-emerald-500 rounded-full inline-block"></span>
-                  {lang === "bn" ? "নতুন সংগৃহীত পণ্যসমূহ" : "New Arrivals"}
-                </h3>
-                <p className="text-[10px] sm:text-xs text-slate-400">
-                  {lang === "bn" ? "সরাসরি মাঠ থেকে আসা একদম সতেজ নতুন পণ্যসমূহ" : "Freshly harvested organic items added recently"}
-                </p>
-              </div>
-              <button
-                onClick={() => setNewArrivalsLimit(prev => prev === 8 ? 50 : 8)}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-bold hover:underline cursor-pointer"
-              >
-                {newArrivalsLimit === 8 ? (lang === "bn" ? "সবগুলো দেখুন" : "See All") : (lang === "bn" ? "কম দেখুন" : "See Less")}
-              </button>
-            </div>
-
-            {loadingProducts ? (
-              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className={`bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs ${i === 8 ? "md:hidden" : ""}`}>
-                    <div className="w-full aspect-[4/3] bg-slate-100 rounded-xl mb-2"></div>
-                    <div className="h-2.5 w-3/4 bg-slate-100 rounded mb-1"></div>
-                    <div className="h-2 w-1/2 bg-slate-100 rounded mb-2"></div>
-                    <div className="h-6 w-full bg-slate-100 rounded"></div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                {availableProducts.filter(p => p.isNewArrival).slice(0, newArrivalsLimit === 8 ? 9 : newArrivalsLimit).map((product, idx) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    lang={lang}
-                    fmtNum={fmtNum}
-                    wishlist={wishlist}
-                    toggleWishlist={toggleWishlist}
-                    cart={cart}
-                    addToCart={addToCart}
-                    updateCartQuantity={updateCartQuantity}
-                    removeFromCart={removeFromCart}
-                    handleBuyNow={handleBuyNow}
-                    openQuickView={openQuickView}
-                    handleProductImgError={handleProductImgError}
-                    className={newArrivalsLimit === 8 && idx === 8 ? "md:hidden" : ""}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
+            <ProductSection
+              title={lang === "bn" ? "নতুন সংগৃহীত পণ্যসমূহ" : "New Arrivals"}
+              subtitle={lang === "bn" ? "সরাসরি মাঠ থেকে আসা একদম সতেজ নতুন পণ্যসমূহ" : "Freshly harvested organic items added recently"}
+              accentColorClass="bg-emerald-500"
+              products={availableProducts.filter(p => p.isNewArrival)}
+              loading={loadingProducts}
+              limit={newArrivalsLimit}
+              onToggleLimit={() => setNewArrivalsLimit(prev => prev === 8 ? 50 : 8)}
+              lang={lang}
+              fmtNum={fmtNum}
+              wishlist={wishlist}
+              toggleWishlist={toggleWishlist}
+              cart={cart}
+              addToCart={addToCart}
+              updateCartQuantity={updateCartQuantity}
+              removeFromCart={removeFromCart}
+              handleBuyNow={handleBuyNow}
+              openQuickView={openQuickView}
+              handleProductImgError={handleProductImgError}
+            />
           )}
 
           {/* ================= 8. BEST SELLERS ================= */}
-          <section className="max-w-7xl mx-auto px-2 sm:px-4 mt-6 sm:mt-8">
-            <div className="flex justify-between items-center mb-3 sm:mb-4">
-              <div>
-                <h3 className="text-sm sm:text-lg font-bold text-slate-800 flex items-center gap-1.5">
-                  <span className="w-2 h-4 sm:h-5 bg-amber-500 rounded-full inline-block"></span>
-                  {lang === "bn" ? "সর্বোচ্চ বিক্রিত পণ্যসমূহ" : "Best Sellers"}
-                </h3>
-                <p className="text-[10px] sm:text-xs text-slate-400">
-                  {lang === "bn" ? "গ্রাহকদের সর্বোচ্চ পছন্দের তালিকায় থাকা পণ্যসমূহ" : "Our most popular and highest-selling groceries"}
-                </p>
-              </div>
-              <button
-                onClick={() => setBestSellersLimit(prev => prev === 8 ? 50 : 8)}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-bold hover:underline cursor-pointer"
-              >
-                {bestSellersLimit === 8 ? (lang === "bn" ? "সবগুলো দেখুন" : "See All") : (lang === "bn" ? "কম দেখুন" : "See Less")}
-              </button>
-            </div>
-
-            {loadingProducts ? (
-              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} className={`bg-white rounded-2xl border border-slate-100 p-2 sm:p-2.5 animate-pulse shadow-2xs ${i === 8 ? "md:hidden" : ""}`}>
-                    <div className="w-full aspect-[4/3] bg-slate-100 rounded-xl mb-2"></div>
-                    <div className="h-2.5 w-3/4 bg-slate-100 rounded mb-1"></div>
-                    <div className="h-2 w-1/2 bg-slate-100 rounded mb-2"></div>
-                    <div className="h-6 w-full bg-slate-100 rounded"></div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                {availableProducts.filter(p => p.isBestSelling).slice(0, bestSellersLimit === 8 ? 9 : bestSellersLimit).map((product, idx) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    lang={lang}
-                    fmtNum={fmtNum}
-                    wishlist={wishlist}
-                    toggleWishlist={toggleWishlist}
-                    cart={cart}
-                    addToCart={addToCart}
-                    updateCartQuantity={updateCartQuantity}
-                    removeFromCart={removeFromCart}
-                    handleBuyNow={handleBuyNow}
-                    openQuickView={openQuickView}
-                    handleProductImgError={handleProductImgError}
-                    className={bestSellersLimit === 8 && idx === 8 ? "md:hidden" : ""}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
+          <ProductSection
+            title={lang === "bn" ? "সর্বোচ্চ বিক্রিত পণ্যসমূহ" : "Best Sellers"}
+            subtitle={lang === "bn" ? "গ্রাহকদের সর্বোচ্চ পছন্দের তালিকায় থাকা পণ্যসমূহ" : "Our most popular and highest-selling groceries"}
+            accentColorClass="bg-amber-500"
+            products={availableProducts.filter(p => p.isBestSelling)}
+            loading={loadingProducts}
+            limit={bestSellersLimit}
+            onToggleLimit={() => setBestSellersLimit(prev => prev === 8 ? 50 : 8)}
+            lang={lang}
+            fmtNum={fmtNum}
+            wishlist={wishlist}
+            toggleWishlist={toggleWishlist}
+            cart={cart}
+            addToCart={addToCart}
+            updateCartQuantity={updateCartQuantity}
+            removeFromCart={removeFromCart}
+            handleBuyNow={handleBuyNow}
+            openQuickView={openQuickView}
+            handleProductImgError={handleProductImgError}
+          />
 
           {/* ================= 9. REMAINING PRODUCT SECTIONS ================= */}
           {/* ================= RECOMMENDED & SEASONAL SPECIAL ================= */}
@@ -4087,6 +3960,11 @@ export default function App() {
           lang={lang} 
           initialTab={portalInitialTab}
           forcedRole={forcedPortalRole}
+          products={products}
+          categories={categories}
+          banners={banners}
+          globalSettings={globalSettings}
+          onProductSaved={handleProductSavedInApp}
         />
       )}
 

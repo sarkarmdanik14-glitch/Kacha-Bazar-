@@ -4,6 +4,7 @@ import {
   Image as ImageIcon, Camera, Save, RefreshCcw, Plus, Trash2, Edit, X, Link as LinkIcon
 } from "lucide-react";
 import { db, doc, getDoc, setDoc, onSnapshot } from "../../lib/firebase";
+import { createTranslator } from "../../lib/formatUtils";
 
 import chairmanDefaultImg from "../../assets/images/chairman_hosne_ara_1784735275933.jpg";
 import viceChairmanDefaultImg from "../../assets/images/vice_chairman_abu_hanif_1784735297437.jpg";
@@ -30,7 +31,7 @@ interface AdminLeadershipTabProps {
 }
 
 export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadershipTabProps) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Default core members
   const defaultProfiles: Record<string, LeadershipMember> = {

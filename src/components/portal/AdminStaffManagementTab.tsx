@@ -32,6 +32,7 @@ import {
   fetchSingleStaffById
 } from "../../lib/staffManager";
 import { apiClient } from "../../lib/apiClient";
+import { createTranslator } from "../../lib/formatUtils";
 import { 
   Users, UserPlus, Shield, ShieldCheck, History, 
   Search, Filter, Plus, Edit2, Trash2, Key, LogOut, 
@@ -63,7 +64,7 @@ export default function AdminStaffManagementTab({
   lang,
   triggerToast
 }: AdminStaffManagementTabProps) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Sub-tabs
   const [subTab, setSubTab] = useState<"list" | "add" | "roles" | "logs">("list");

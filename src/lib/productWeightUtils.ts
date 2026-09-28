@@ -2,22 +2,8 @@ import { Product, ProductOption } from "../types";
 import { GROCERY_SUBCATEGORY_MAP, GROCERY_ORDER_MAP, getResolvedGrocerySubcategory, getResolvedGroceryDisplayOrder } from "../data";
 import { resolveAuthenticProductImage } from "./masterImageRegistry";
 
-// Helper to translate numbers to Bangla script
-export const toBnNum = (num: number | string | undefined | null): string => {
-  if (num === undefined || num === null || num === "") return "";
-  const digits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
-  return num.toString().replace(/\d/g, (char) => digits[parseInt(char, 10)]);
-};
-
-// Helper to translate Bangla digits to standard English numbers
-export const toEnNum = (str: string | number | undefined | null): string => {
-  if (str === undefined || str === null || str === "") return "";
-  const bnToEnMap: Record<string, string> = {
-    "০": "0", "১": "1", "২": "2", "৩": "3", "৪": "4",
-    "৫": "5", "৬": "6", "৭": "7", "৮": "8", "৯": "9"
-  };
-  return str.toString().replace(/[০-৯]/g, (char) => bnToEnMap[char] || char);
-};
+import { toBnNum, toEnNum } from "./formatUtils";
+export { toBnNum, toEnNum };
 
 // Specific known spice products weight map for guaranteed accuracy
 const KNOWN_SPICE_WEIGHTS: Record<string, { unitBn: string; unitEn: string }> = {
@@ -245,15 +231,21 @@ export const sortByDefaultOrder = (a: any, b: any): number => {
 
 // Helper to map Firestore doc data to Product type
 export const mapDocToProduct = (docId: string, data: any): Product => {
-  const rawCat = data.category || (docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") ? "groceries" : "others");
+  const rawCat = data.category || data.categoryId || (docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") ? "groceries" : "others");
   const rawCatLower = String(rawCat).toLowerCase().trim();
   const isSpicesOrStaples = 
+    rawCatLower === "groceries" ||
+    rawCatLower === "grocery" ||
+    rawCatLower === "মুদি পণ্য" ||
+    rawCatLower === "মুদি" ||
+    rawCatLower === "মুদিপণ্য" ||
     rawCatLower === "staples" || 
     rawCatLower === "spices-oils" || 
     rawCatLower === "spices" || 
     rawCatLower === "oil-spices" || 
     rawCatLower === "মসলা ও রান্নার তেল" ||
-    (typeof data.category === "string" && (data.category.includes("মসলা") || data.category.includes("রান্নার তেল")));
+    rawCatLower.includes("মুদি") ||
+    (typeof data.category === "string" && (data.category.includes("মসলা") || data.category.includes("রান্নার তেল") || data.category.includes("মুদি")));
   const resolvedCategory = isSpicesOrStaples ? "groceries" : (data.category || (docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") ? "groceries" : "others"));
   const isGrocery = resolvedCategory === "groceries" || docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") || (data.id && (data.id.startsWith("st") || data.id.startsWith("sp") || data.id.startsWith("gr")));
   const resolvedSubcategory = isGrocery
@@ -280,6 +272,9 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     subcategory: resolvedSubcategory
   });
 
+  const rawCandidateImg = data.imageUrl || data.image || data.image_url || data.photoUrl || data.img || (Array.isArray(data.images) && data.images[0]) || "";
+  const resolvedProductImg = resolveAuthenticProductImage(data.id || docId, rawCandidateImg);
+
   return {
     id: data.id || docId,
     nameBn: data.nameBn,
@@ -293,14 +288,8 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     category: resolvedCategory,
     categoryId: resolvedCategory,
     subcategoryId: data.subcategoryId || "",
-    image: resolveAuthenticProductImage(
-      data.id || docId, 
-      data.image || data.imageUrl || data.image_url || data.photoUrl || data.img || (Array.isArray(data.images) && data.images[0]) || ""
-    ),
-    imageUrl: resolveAuthenticProductImage(
-      data.id || docId, 
-      data.image || data.imageUrl || data.image_url || data.photoUrl || data.img || (Array.isArray(data.images) && data.images[0]) || ""
-    ),
+    image: resolvedProductImg,
+    imageUrl: resolvedProductImg,
     isFlashSale: !!data.isFlashSale,
     discount: Number(data.discount || 0),
     rating: Number(data.rating || 4.5),

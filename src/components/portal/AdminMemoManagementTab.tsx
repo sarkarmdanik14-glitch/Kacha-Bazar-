@@ -12,6 +12,7 @@ import { subscribeToStaffCollection } from "../../lib/staffManager";
 import { StaffMember } from "../../types";
 import OrderMemoModal from "./OrderMemoModal";
 import { downloadMemoPDF } from "../../lib/pdfUtils";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface AdminMemoManagementTabProps {
   orders?: any[];
@@ -28,7 +29,7 @@ export default function AdminMemoManagementTab({
   triggerToast,
   currentUser,
 }: AdminMemoManagementTabProps) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Check if user is Super Admin (Admin/Founder)
   const isSuperAdmin = currentUser?.role === "admin" || currentUser?.role === "founder";

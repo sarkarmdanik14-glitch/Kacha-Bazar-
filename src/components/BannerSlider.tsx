@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Gift, ArrowRight, ArrowLeft, Zap, Sparkles, Percent, Award, Share2 } from "lucide-react";
+import { toBnNum, fmtNum as formatNumber } from "../lib/formatUtils";
 
 interface BannerSliderProps {
   lang: "bn" | "en";
@@ -30,17 +31,7 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
   const [activeIndex, setActiveIndex] = useState(0);
   const [direction, setDirection] = useState<number>(1);
 
-  const toBnNum = (num: number | string): string => {
-    const digits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
-    return num.toString().split("").map(char => {
-      const p = parseInt(char, 10);
-      return isNaN(p) ? char : digits[p];
-    }).join("");
-  };
-
-  const fmtNum = (num: number | string): string => {
-    return lang === "bn" ? toBnNum(num) : num.toString();
-  };
+  const fmtNum = (num: number | string): string => formatNumber(num, lang);
 
   // Render sleek, compact banner height (reduced by ~50% for optimal balance)
   const containerHeightClass = "h-[85px] sm:h-[100px] md:h-[110px]";

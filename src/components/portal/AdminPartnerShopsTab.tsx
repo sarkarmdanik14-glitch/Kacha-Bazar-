@@ -17,6 +17,7 @@ import {
   MapPin, Calendar, CreditCard, ShieldCheck, RefreshCw, X, 
   TrendingUp, ShoppingBag, Eye, EyeOff, FileText, Check, Award
 } from "lucide-react";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface AdminPartnerShopsTabProps {
   currentUser: any;
@@ -25,7 +26,7 @@ interface AdminPartnerShopsTabProps {
 }
 
 export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }: AdminPartnerShopsTabProps) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   const [shops, setShops] = useState<PartnerShop[]>([]);
   const [loading, setLoading] = useState<boolean>(true);

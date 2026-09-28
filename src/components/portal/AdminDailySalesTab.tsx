@@ -30,6 +30,7 @@ import {
 } from "../../lib/salesAnalytics";
 import { isCategoryMatch, normalizeCategoryId } from "../../lib/categoryUtils";
 import { matchesProductSearch } from "../../lib/banglishSearch";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface AdminDailySalesTabProps {
   orders: any[];
@@ -47,7 +48,7 @@ export default function AdminDailySalesTab({
   lang,
   triggerToast
 }: AdminDailySalesTabProps) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Filter states
   const [timeFilter, setTimeFilter] = useState<TimeFilterType>("today");

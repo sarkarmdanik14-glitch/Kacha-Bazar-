@@ -28,6 +28,7 @@ import {
   Camera, Trash2, Save, Edit3, Lock, Mail, Phone, ShieldCheck
 } from "lucide-react";
 import OrderMemoModal from "./OrderMemoModal";
+import { createTranslator } from "../../lib/formatUtils";
 
 
 interface CustomerPortalProps {
@@ -240,7 +241,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     }
   };
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   useEffect(() => {
     if (!user?.uid) return;

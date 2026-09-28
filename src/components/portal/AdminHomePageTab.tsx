@@ -6,6 +6,7 @@ import {
   Truck, Droplet, User, ExternalLink, Sliders, LayoutTemplate, Info, Save
 } from "lucide-react";
 import { db, doc, setDoc, getDoc, collection, getDocs } from "../../lib/firebase";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface AdminHomePageTabProps {
   products: any[];
@@ -82,7 +83,7 @@ const DEFAULT_PROMO_BANNERS = [
 ];
 
 export default function AdminHomePageTab({ products, categories, lang, triggerToast }: AdminHomePageTabProps) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   const [activeSubTab, setActiveSubTab] = useState<
     "hero" | "promo" | "call_to_order" | "categories" | "featured" | "sections" | "app_download" | "footer"

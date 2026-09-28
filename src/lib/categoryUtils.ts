@@ -217,23 +217,32 @@ export function isCategoryMatch(
   const pCat = productCategory.toLowerCase().trim();
   const sCat = selectedCategoryId.toLowerCase().trim();
 
-  // If filtering by the merged groceries category (or legacy staples / spices-oils / spices)
-  if (
+  // If filtering by the merged groceries category (or legacy staples / spices-oils / spices / মুদি পণ্য)
+  const isGroceryFilter = 
     sCat === "groceries" || 
+    sCat === "grocery" ||
+    sCat === "মুদি পণ্য" ||
+    sCat === "মুদি" ||
+    sCat === "মুদিপণ্য" ||
     sCat === "staples" || 
     sCat === "spices-oils" || 
     sCat === "spices" || 
     sCat === "oil-spices" || 
-    sCat === "মসলা ও রান্নার তেল"
-  ) {
+    sCat === "মসলা ও রান্নার তেল";
+
+  if (isGroceryFilter) {
     return (
       pCat === "groceries" || 
+      pCat === "grocery" || 
+      pCat === "মুদি পণ্য" || 
+      pCat === "মুদি" || 
+      pCat === "মুদিপণ্য" || 
       pCat === "staples" || 
       pCat === "spices-oils" || 
       pCat === "spices" || 
       pCat === "oil-spices" || 
       pCat === "মসলা ও রান্নার তেল" ||
-      (productCategory ? (productCategory.includes("মসলা") || productCategory.includes("রান্নার তেল")) : false)
+      (productCategory ? (productCategory.includes("মসলা") || productCategory.includes("রান্নার তেল") || productCategory.includes("মুদি")) : false)
     );
   }
 
@@ -331,6 +340,11 @@ export function normalizeCategoryId(catId: string | undefined | null): string {
   if (!catId) return "all";
   const lower = catId.toLowerCase().trim();
   if (
+    lower === "groceries" ||
+    lower === "grocery" ||
+    lower === "মুদি পণ্য" ||
+    lower === "মুদি" ||
+    lower === "মুদিপণ্য" ||
     lower === "staples" || 
     lower === "spices-oils" || 
     lower === "spices" || 
@@ -338,7 +352,8 @@ export function normalizeCategoryId(catId: string | undefined | null): string {
     lower === "spices-cooking-oil" || 
     lower === "মসলা ও রান্নার তেল" ||
     lower.includes("মসলা") ||
-    lower.includes("রান্নার তেল")
+    lower.includes("রান্নার তেল") ||
+    lower.includes("মুদি")
   ) {
     return "groceries";
   }
@@ -696,5 +711,83 @@ export function mergeCategoryCards(categories: any[]): any[] {
   });
 
   return unique;
+}
+
+/**
+ * Checks if a category identifier or product belongs to the "মুদি পণ্য" (Groceries) category.
+ */
+export function isGroceryCategory(catOrProduct: any): boolean {
+  if (!catOrProduct) return false;
+  if (typeof catOrProduct === "string") {
+    return isCategoryMatch(catOrProduct, "groceries");
+  }
+  const cat = catOrProduct.category || catOrProduct.categoryId || "";
+  return isCategoryMatch(cat, "groceries");
+}
+
+/**
+ * Filter for eliminating legacy duplicate seed items in "মুদি পণ্য" (Groceries) category ONLY.
+ * - Non-grocery categories: Always returns TRUE (keeps all products completely untouched).
+ * - "মুদি পণ্য" (Groceries) category:
+ *   - Newly created products (e.g. prod_*, custom ID, or with createdAt/updatedAt): ALWAYS KEPT.
+ *   - Any product with a valid uploaded image (Cloudinary, Firebase Storage, Local upload, Base64 Data URL, Blob, etc.): ALWAYS KEPT.
+ *   - Products with any valid image URL or custom SKU: KEPT.
+ *   - Only legacy hardcoded mock items (gr1..gr60, st1..st60, sp1..sp60) using stock Unsplash images are filtered out.
+ */
+export function shouldKeepProductGroceryFiltered(product: any): boolean {
+  if (!product) return false;
+
+  const isGrocery = isGroceryCategory(product);
+  // Keep all other categories completely untouched
+  if (!isGrocery) {
+    return true;
+  }
+
+  const id = (product.id || "").toString().trim();
+
+  // If it's a newly created or updated product from Admin (prod_*, or has createdAt/updatedAt), ALWAYS keep it!
+  if (id.startsWith("prod_") || product.createdAt || product.updatedAt) {
+    return true;
+  }
+
+  // Extract all possible image URL properties that might exist on product or raw doc
+  const imgUrl = (product.imageUrl || "").toString().trim();
+  const img = (product.image || "").toString().trim();
+  const rawCandidate = (
+    product.image_url ||
+    product.photoUrl ||
+    product.img ||
+    (Array.isArray(product.images) && product.images[0]) ||
+    ""
+  ).toString().trim();
+
+  const combined = `${imgUrl} ${img} ${rawCandidate}`.toLowerCase();
+
+  // If it has any valid uploaded or CDN image (Cloudinary, Firebase Storage, Local /uploads/, Base64 Data URL, Blob), keep it!
+  const hasUploadedOrCdnImage = 
+    combined.includes("cloudinary.com") ||
+    combined.includes("data:image/") ||
+    combined.includes("firebasestorage.googleapis.com") ||
+    combined.includes("storage.googleapis.com") ||
+    combined.includes("/uploads/") ||
+    combined.includes("blob:");
+
+  if (hasUploadedOrCdnImage) {
+    return true;
+  }
+
+  // Only filter out legacy hardcoded mock seed duplicates (e.g., gr1..gr60, st1..st60, sp1..sp60) that use old stock photos
+  const isLegacySeedId = /^gr\d+$/i.test(id) || /^st\d+$/i.test(id) || /^sp\d+$/i.test(id);
+  if (isLegacySeedId && combined.includes("unsplash.com")) {
+    return false;
+  }
+
+  // Any other product with any image URL is kept safely
+  if (imgUrl || img || rawCandidate) {
+    return true;
+  }
+
+  // Default: Keep products safely rather than silently discarding them
+  return true;
 }
 

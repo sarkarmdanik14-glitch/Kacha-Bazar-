@@ -4,6 +4,7 @@ import { Trash2, AlertTriangle, X, Loader2, ShieldAlert, Archive, CheckCircle2, 
 import { checkProductOrderUsage, executeDeleteProduct, OrderUsageCheckResult } from "../../lib/productDeleteService";
 import { toBnNum } from "../../lib/productWeightUtils";
 import { SAFE_PRODUCT_PLACEHOLDER } from "../../lib/masterImageRegistry";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface DeleteProductConfirmModalProps {
   isOpen: boolean;
@@ -31,7 +32,7 @@ export default function DeleteProductConfirmModal({
   const [deleting, setDeleting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Analyze whether the product was used in orders upon modal open
   useEffect(() => {

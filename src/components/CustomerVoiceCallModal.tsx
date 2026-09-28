@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { RTC_CONFIG, callAudioSynth, banglaCallWelcome, callBgMusic, VoiceCallSession } from "../lib/webrtcCall";
 import { tryImmediateAgentRouting } from "../lib/callCenterManager";
+import { createTranslator, formatTime, toBnNum } from "../lib/formatUtils";
 
 interface CustomerVoiceCallModalProps {
   lang: "bn" | "en";
@@ -64,7 +65,7 @@ export default function CustomerVoiceCallModal({
   const unsubscribeQueueRef = useRef<(() => void) | null>(null);
   const unsubscribeCandidatesRef = useRef<(() => void) | null>(null);
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Monitor Auth state
   useEffect(() => {
@@ -74,18 +75,7 @@ export default function CustomerVoiceCallModal({
     return () => unsub();
   }, []);
 
-  // Format seconds into MM:SS
-  const formatTime = (totalSec: number) => {
-    const mins = Math.floor(totalSec / 60);
-    const secs = totalSec % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  // Convert English number to Bengali digits
-  const toBanglaDigits = (num: number) => {
-    const bnDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
-    return num.toString().split("").map((d) => bnDigits[parseInt(d, 10)] || d).join("");
-  };
+  const toBanglaDigits = (num: number) => toBnNum(num);
 
   // Cleanup WebRTC, Speech & Sounds
   const cleanupCall = () => {

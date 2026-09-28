@@ -11,6 +11,7 @@ import { fetchStaffMembers } from "../../lib/staffManager";
 import { StaffMember } from "../../types";
 import defaultLogoImg from "../../assets/images/logo_1783882658678.jpg";
 import { apiClient } from "../../lib/apiClient";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface OrderMemoModalProps {
   isOpen: boolean;
@@ -150,7 +151,7 @@ export default function OrderMemoModal({
 
   if (!isOpen || !order) return null;
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Dynamic Memo Fields with defaults
   const storeLogo = logoDataUrl || storeLogoRaw;

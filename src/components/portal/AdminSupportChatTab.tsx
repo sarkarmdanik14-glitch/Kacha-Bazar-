@@ -14,6 +14,7 @@ import {
   writeBatch
 } from "../../lib/firebase";
 import { MessageSquare, Send, User, Check, CheckCheck, Shield, Sparkles, ArrowLeft } from "lucide-react";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface AdminSupportChatTabProps {
   lang: "bn" | "en";
@@ -32,7 +33,7 @@ export default function AdminSupportChatTab({ lang, triggerToast }: AdminSupport
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // 1. Listen to all active chats in real time
   useEffect(() => {

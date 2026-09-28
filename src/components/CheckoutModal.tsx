@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { calculateDeliveryFeeFromSettings, calculateHaversineDistance, DeliveryZone } from "../lib/delivery";
 import { resolveProductDisplayUnit } from "../lib/productWeightUtils";
+import { createTranslator } from "../lib/formatUtils";
 import { SAFE_PRODUCT_PLACEHOLDER } from "../lib/masterImageRegistry";
 
 interface CheckoutModalProps {
@@ -75,7 +76,7 @@ export default function CheckoutModal({
   const [loadingLocation, setLoadingLocation] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
 
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   // Dynamic delivery calculation based on Admin Settings and Customer Distance
   const deliveryCalc = useMemo(() => {

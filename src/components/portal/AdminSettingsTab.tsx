@@ -10,6 +10,7 @@ import logoImg from "../../assets/images/logo_1783882658678.jpg";
 import { db, doc, setDoc, deleteDoc, collection, serverTimestamp, onSnapshot } from "../../lib/firebase";
 import { DeliveryZone, DEFAULT_DELIVERY_ZONES, DEFAULT_STORE_LOCATION } from "../../lib/delivery";
 import { LiveNoticeConfig, DEFAULT_LIVE_NOTICE } from "../../types";
+import { createTranslator } from "../../lib/formatUtils";
 
 interface AdminSettingsTabProps {
   settings: any;
@@ -19,7 +20,7 @@ interface AdminSettingsTabProps {
 }
 
 export default function AdminSettingsTab({ settings, banners, lang, triggerToast }: AdminSettingsTabProps) {
-  const getTranslation = (bn: string, en: string) => (lang === "bn" ? bn : en);
+  const getTranslation = createTranslator(lang);
 
   const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "notice" | "delivery" | "banners" | "pwa">("global");
   const [savingSettings, setSavingSettings] = useState<boolean>(false);
@@ -146,7 +147,7 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
       (err) => console.warn("Notice doc sync notice:", err.message)
     );
     return () => unsub();
-  }, [settings]);
+  }, []);
 
   // Save Live Notice handler
   const handleSaveNotice = async (e?: React.FormEvent) => {
