@@ -768,6 +768,9 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       const selectedSub = subcategories.find(s => s.id === prodSubcategoryId);
       const resolvedSubName = selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || "General");
 
+      const cleanCategory = normalizeCategoryId(prodCategory);
+      const cleanCategoryId = cleanCategory;
+
       const payload: any = {
         id: prodId,
         nameEn: prodNameEn.trim(),
@@ -776,9 +779,9 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         originalPrice: Number(prodOrigPrice) || Number(prodPrice) || 0,
         unitEn: prodUnitEn.trim() || "1 kg",
         unitBn: prodUnitBn.trim() || "১ কেজি",
-        categoryId: prodCategory, // Requirement 1: Stored explicitly in product document
-        subcategoryId: prodSubcategoryId || (selectedSub ? selectedSub.id : ""), // Requirement 1: Stored explicitly in product document
-        category: prodCategory,
+        categoryId: cleanCategoryId,
+        category: cleanCategory,
+        subcategoryId: prodSubcategoryId || (selectedSub ? selectedSub.id : ""),
         subcategory: resolvedSubName,
         stock: Number(prodStock) || 0,
         image: resolvedImg,
@@ -786,12 +789,13 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         descriptionEn: prodDescEn.trim(),
         descriptionBn: prodDescBn.trim(),
         brand: prodBrand.trim() || "Kacha Bazar",
-        sku: prodSku.trim() || `KB-${prodCategory.substring(0, 3).toUpperCase()}-${prodId}`,
+        sku: prodSku.trim() || `KB-${cleanCategory.substring(0, 3).toUpperCase()}-${prodId}`,
         options: prodOptions,
-        isAvailable: prodIsAvailable,
+        isAvailable: prodIsAvailable !== false,
         displayOrder: Number(prodDisplayOrder) || 0,
         order: Number(prodDisplayOrder) || 0,
         isDeleted: false,
+        status: "active",
         updatedAt: serverTimestamp(),
         ...(editingProduct ? {} : { createdAt: serverTimestamp() })
       };
@@ -1133,6 +1137,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         });
 
         const newId = "prod_bulk_" + Math.random().toString(36).substr(2, 9);
+        const cleanCat = normalizeCategoryId(row.category || selectedCatId || "vegetables");
         const payload = {
           id: newId,
           nameEn: row.nameEn || "Bulk Product",
@@ -1140,13 +1145,16 @@ export default function AdminProductsTab({ products, categories, orders = [], us
           price: Number(row.price) || 0,
           originalPrice: Number(row.price) || 0,
           stock: Number(row.stock) || 10,
-          category: row.category || selectedCatId || "vegetables",
+          category: cleanCat,
+          categoryId: cleanCat,
           unitEn: row.unitEn || "1 kg",
           unitBn: row.unitBn || "১ কেজি",
           image: row.image || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80",
           descriptionEn: row.descriptionEn || "Bulk imported item",
           descriptionBn: row.descriptionBn || "বাল্ক আমদানিকৃত পণ্য",
           isAvailable: true,
+          isDeleted: false,
+          status: "active",
           displayOrder: 0,
           rating: 4.5,
           reviewCount: 0

@@ -22,6 +22,7 @@ import {
   ChevronRight, ArrowUpRight, FileText, PieChart
 } from "lucide-react";
 import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
+import { normalizeCategoryId } from "../../lib/categoryUtils";
 import { SAFE_PRODUCT_PLACEHOLDER } from "../../lib/masterImageRegistry";
 
 interface SellerPanelProps {
@@ -212,12 +213,14 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
     }
 
     try {
+      const cleanCat = normalizeCategoryId(prodCategory);
       const payload: any = {
         nameEn: prodNameEn,
         nameBn: prodNameBn,
         price: Number(prodPrice),
         stock: Number(prodStock),
-        category: prodCategory,
+        category: cleanCat,
+        categoryId: cleanCat,
         unitEn: prodUnitEn,
         unitBn: prodUnitBn,
         image: prodImage,
@@ -228,7 +231,10 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
         reviewCount: editingProduct?.reviewCount || 1,
         isBestSelling: editingProduct?.isBestSelling || false,
         isNewArrival: editingProduct?.isNewArrival || true,
-        options: editingProduct?.options || []
+        options: editingProduct?.options || [],
+        isAvailable: true,
+        isDeleted: false,
+        status: "active"
       };
 
       if (editingProduct) {

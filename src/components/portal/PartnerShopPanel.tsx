@@ -21,6 +21,7 @@ import {
   computePartnerMetricsFromOrders
 } from "../../lib/partnerManager";
 import { matchesProductSearch } from "../../lib/banglishSearch";
+import { normalizeCategoryId } from "../../lib/categoryUtils";
 import { 
   Store, ShoppingBag, Layers, DollarSign, TrendingUp, 
   Plus, Edit, Trash2, CheckCircle2, AlertTriangle, 
@@ -210,6 +211,7 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
 
     setSubmittingProduct(true);
     try {
+      const cleanCat = normalizeCategoryId(prodCategory);
       if (editingProduct) {
         // Update product in Firestore
         await setDoc(doc(db, "products", editingProduct.id), {
@@ -218,13 +220,16 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
           nameEn: prodNameEn,
           price: Number(prodPrice),
           stock: Number(prodStock),
-          category: prodCategory,
+          category: cleanCat,
+          categoryId: cleanCat,
           unitBn: prodUnitBn,
           unitEn: prodUnitEn,
           image: prodImage || "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=400&q=80",
           descriptionBn: prodDescBn,
           descriptionEn: prodDescEn,
-          isAvailable: prodIsAvailable,
+          isAvailable: prodIsAvailable !== false,
+          isDeleted: false,
+          status: "active",
           updatedAt: serverTimestamp()
         }, { merge: true });
 
@@ -235,13 +240,16 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
           nameEn: prodNameEn,
           price: Number(prodPrice),
           stock: Number(prodStock),
-          category: prodCategory,
+          category: cleanCat,
+          categoryId: cleanCat,
           unitBn: prodUnitBn,
           unitEn: prodUnitEn,
           image: prodImage,
           descriptionBn: prodDescBn,
           descriptionEn: prodDescEn,
-          isAvailable: prodIsAvailable
+          isAvailable: prodIsAvailable !== false,
+          isDeleted: false,
+          status: "active"
         } : p));
 
         triggerToast("পণ্য সফলভাবে আপডেট করা হয়েছে!", "Product successfully updated!");
@@ -254,13 +262,16 @@ export default function PartnerShopPanel({ partner, onLogout, lang, triggerToast
           nameEn: prodNameEn,
           price: Number(prodPrice),
           stock: Number(prodStock),
-          category: prodCategory,
+          category: cleanCat,
+          categoryId: cleanCat,
           unitBn: prodUnitBn,
           unitEn: prodUnitEn,
           image: prodImage || "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=400&q=80",
           descriptionBn: prodDescBn,
           descriptionEn: prodDescEn,
-          isAvailable: prodIsAvailable,
+          isAvailable: prodIsAvailable !== false,
+          isDeleted: false,
+          status: "active",
           rating: 4.8,
           reviewCount: 5,
           partnerShopId: partnerData.id,
