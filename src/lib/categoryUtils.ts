@@ -251,9 +251,17 @@ export function isCategoryMatch(
     return pCat === "snacks-biscuits" || pCat === "confectionery" || pCat === "beverages" || pCat === "drinks";
   }
 
-  // If filtering by restaurant category (supports bakery-sweets, restaurant, bakery)
-  if (sCat === "bakery-sweets" || sCat === "restaurant" || sCat === "bakery") {
-    return pCat === "bakery-sweets" || pCat === "restaurant" || pCat === "bakery";
+  // If filtering by restaurant category (supports bakery-sweets, restaurant, bakery, রেস্টুরেন্ট, রেস্তোরাঁ)
+  if (sCat === "bakery-sweets" || sCat === "restaurant" || sCat === "bakery" || sCat === "রেস্টুরেন্ট" || sCat === "রেস্তোরাঁ" || sCat.includes("রেস্টুরেন্ট")) {
+    return (
+      pCat === "bakery-sweets" || 
+      pCat === "restaurant" || 
+      pCat === "bakery" || 
+      pCat === "রেস্টুরেন্ট" || 
+      pCat === "রেস্তোরাঁ" ||
+      pCat.includes("রেস্টুরেন্ট") ||
+      pCat.includes("restaurant")
+    );
   }
 
   // If filtering by dry-food or frozen
@@ -360,7 +368,7 @@ export function normalizeCategoryId(catId: string | undefined | null): string {
   if (lower === "beverages" || lower === "confectionery" || lower === "drinks") {
     return "snacks-biscuits";
   }
-  if (lower === "restaurant" || lower === "bakery") {
+  if (lower === "restaurant" || lower === "bakery" || lower === "রেস্টুরেন্ট" || lower === "রেস্তোরাঁ" || lower.includes("রেস্টুরেন্ট")) {
     return "bakery-sweets";
   }
   if (lower === "dry-food" || lower === "dryfood") {

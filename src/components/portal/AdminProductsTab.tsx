@@ -20,6 +20,7 @@ import { isCategoryMatch, normalizeCategoryId, shouldKeepProductGroceryFiltered 
 import { matchesProductSearch } from "../../lib/banglishSearch";
 import { DRY_FOOD_RAW, PHARMACY_PRODUCTS_RAW, GROCERY_SUBCATEGORY_MAP, GROCERY_ORDER_MAP, GROCERY_SECTIONS, GROCERY_PRODUCTS_RAW, getResolvedGrocerySubcategory, getResolvedGroceryDisplayOrder, ALL_PRODUCTS } from "../../data";
 import { resolveProductUnit } from "../../lib/productWeightUtils";
+import { RESTAURANT_SUBCATEGORIES, getResolvedRestaurantSubcategory } from "../../lib/restaurantSubcategories";
 import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 import { SAFE_PRODUCT_PLACEHOLDER } from "../../lib/masterImageRegistry";
 import { createTranslator } from "../../lib/formatUtils";
@@ -731,19 +732,42 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     setProdOrigPrice(p.originalPrice || p.price || 0);
     setProdUnitEn(p.unitEn || "");
     setProdUnitBn(p.unitBn || "");
-    const effectiveCat = p.categoryId || (isCategoryMatch(p.category, "groceries")
-      ? "groceries"
-      : (isCategoryMatch(p.category, "snacks-biscuits") ? "snacks-biscuits" : (p.category || selectedCatId || "vegetables")));
+    const isRest = isCategoryMatch(p.category, "restaurant") || isCategoryMatch(p.categoryId, "restaurant") ||
+      p.category === "bakery-sweets" || p.category === "restaurant" || p.category === "রেস্টুরেন্ট" ||
+      p.categoryId === "bakery-sweets" || p.categoryId === "restaurant" || p.categoryId === "রেস্টুরেন্ট";
+
+    const effectiveCat = isRest
+      ? "bakery-sweets"
+      : (p.categoryId || (isCategoryMatch(p.category, "groceries")
+        ? "groceries"
+        : (isCategoryMatch(p.category, "snacks-biscuits") ? "snacks-biscuits" : (p.category || selectedCatId || "vegetables"))));
     setProdCategory(effectiveCat);
     
     // Resolve subcategoryId if explicitly saved or match by subcategory name
-    let matchedSubId = p.subcategoryId || "";
-    if (!matchedSubId && p.subcategory) {
-      const match = subcategories.find(s => s.categoryId === effectiveCat && (s.nameBn === p.subcategory || s.nameEn === p.subcategory));
-      if (match) matchedSubId = match.id;
+    let matchedSubId = p.subcategoryId || (p as any).subCategoryId || "";
+    const rawSubName = (p.subcategory || (p as any).subCategory || "").trim();
+    if (!matchedSubId && rawSubName) {
+      const match = subcategories.find(s => 
+        (s.categoryId === effectiveCat || (isRest && (s.categoryId === "bakery-sweets" || s.categoryId === "restaurant"))) &&
+        (s.nameBn === rawSubName || s.nameEn === rawSubName || s.id === rawSubName)
+      );
+      if (match) {
+        matchedSubId = match.id;
+      } else if (isRest) {
+        const stdMatch = RESTAURANT_SUBCATEGORIES.find(
+          s => s.nameBn.toLowerCase() === rawSubName.toLowerCase() ||
+               s.nameEn.toLowerCase() === rawSubName.toLowerCase() ||
+               s.id.toLowerCase() === rawSubName.toLowerCase()
+        );
+        if (stdMatch) matchedSubId = stdMatch.id;
+      }
+    } else if (!matchedSubId && isRest) {
+      const resolved = getResolvedRestaurantSubcategory(p);
+      const stdMatch = RESTAURANT_SUBCATEGORIES.find(s => s.nameBn === resolved);
+      if (stdMatch) matchedSubId = stdMatch.id;
     }
     setProdSubcategoryId(matchedSubId);
-    setProdSubcategory(p.subcategory || "");
+    setProdSubcategory(rawSubName || (isRest ? getResolvedRestaurantSubcategory(p) : ""));
     setProdStock(p.stock || 0);
     setProdImage(p.image || p.imageUrl || "");
     setProdDescEn(p.descriptionEn || "");
@@ -771,8 +795,12 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     setProdOrigPrice(0);
     setProdUnitEn("1 kg");
     setProdUnitBn("১ কেজি");
-    setProdCategory(targetCat);
-    const matchingSubs = subcategories.filter(s => s.categoryId === targetCat);
+    const isRest = isCategoryMatch(targetCat, "restaurant") || targetCat === "bakery-sweets" || targetCat === "restaurant" || targetCat === "রেস্টুরেন্ট";
+    const effectiveCat = isRest ? "bakery-sweets" : targetCat;
+    setProdCategory(effectiveCat);
+    const matchingSubs = isRest
+      ? RESTAURANT_SUBCATEGORIES.map(s => ({ id: s.id, categoryId: "bakery-sweets", nameBn: s.nameBn, nameEn: s.nameEn, order: s.order }))
+      : subcategories.filter(s => s.categoryId === effectiveCat);
     setProdSubcategoryId(matchingSubs.length > 0 ? matchingSubs[0].id : "");
     setProdSubcategory(matchingSubs.length > 0 ? matchingSubs[0].nameBn : "");
     setProdStock(50);
@@ -801,8 +829,11 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     setSavingProduct(true);
     try {
       const resolvedImg = prodImage.trim() || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80";
-      const selectedSub = subcategories.find(s => s.id === prodSubcategoryId);
-      const resolvedSubName = selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || "General");
+      const isRestItem = isCategoryMatch(prodCategory, "restaurant") || prodCategory === "bakery-sweets" || prodCategory === "restaurant" || prodCategory === "রেস্টুরেন্ট";
+      const selectedSub = subcategories.find(s => s.id === prodSubcategoryId) ||
+                          (isRestItem ? RESTAURANT_SUBCATEGORIES.find(s => s.id === prodSubcategoryId) : null);
+      const resolvedSubName = selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || (isRestItem ? "বিরিয়ানি, পোলাও ও রাইস" : "General"));
+      const resolvedSubId = prodSubcategoryId || (selectedSub ? selectedSub.id : "");
 
       const finalId = editingProduct ? (editingProduct.id || prodId) : (prodId || `prod_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`);
       const isGroceryItem = isCategoryMatch(prodCategory, "groceries") || prodCategory === "groceries" || prodCategory === "মুদি পণ্য";
@@ -815,17 +846,19 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         originalPrice: Number(prodOrigPrice) || Number(prodPrice) || 0,
         unitEn: prodUnitEn.trim() || "1 kg",
         unitBn: prodUnitBn.trim() || "১ কেজি",
-        categoryId: isGroceryItem ? "groceries" : (normalizeCategoryId(prodCategory) || prodCategory),
-        subcategoryId: prodSubcategoryId || (selectedSub ? selectedSub.id : ""),
-        category: isGroceryItem ? "মুদি পণ্য" : (prodCategory === "groceries" ? "মুদি পণ্য" : prodCategory),
+        categoryId: isGroceryItem ? "groceries" : (isRestItem ? "bakery-sweets" : (normalizeCategoryId(prodCategory) || prodCategory)),
+        subcategoryId: resolvedSubId,
+        subCategoryId: resolvedSubId,
+        category: isGroceryItem ? "মুদি পণ্য" : (isRestItem ? "রেস্টুরেন্ট" : (prodCategory === "groceries" ? "মুদি পণ্য" : prodCategory)),
         subcategory: resolvedSubName,
+        subCategory: resolvedSubName,
         stock: Number(prodStock) || 0,
         image: resolvedImg,
         imageUrl: resolvedImg,
         descriptionEn: prodDescEn.trim(),
         descriptionBn: prodDescBn.trim(),
-        brand: prodBrand.trim() || "Kacha Bazar",
-        sku: prodSku.trim() || `KB-${(isGroceryItem ? "GRO" : prodCategory).substring(0, 3).toUpperCase()}-${finalId}`,
+        brand: prodBrand.trim() || (isRestItem ? "Kacha Bazar Restaurant" : "Kacha Bazar"),
+        sku: prodSku.trim() || `KB-${(isGroceryItem ? "GRO" : (isRestItem ? "REST" : prodCategory)).substring(0, 3).toUpperCase()}-${finalId}`,
         options: prodOptions,
         isAvailable: prodIsAvailable !== false,
         inStock: (Number(prodStock) || 0) > 0,
@@ -888,6 +921,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         const updatePayload = {
           ...payload,
           id: finalId,
+          subcategoryId: resolvedSubId,
+          subCategoryId: resolvedSubId,
+          subcategory: resolvedSubName,
+          subCategory: resolvedSubName,
           imageUrl: resolvedImg,
           image: resolvedImg,
           isDeleted: false,
@@ -2004,13 +2041,17 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                   required
                   onChange={(e) => {
                     const newCat = e.target.value;
-                    setProdCategory(newCat);
-                    const matchingSubs = subcategories
-                      .filter(s => s.categoryId === newCat && !s.isDeleted)
-                      .sort((a, b) => (a.order || 0) - (b.order || 0));
+                    const isNewRest = isCategoryMatch(newCat, "restaurant") || newCat === "bakery-sweets" || newCat === "restaurant" || newCat === "রেস্টুরেন্ট";
+                    const effectiveNewCat = isNewRest ? "bakery-sweets" : newCat;
+                    setProdCategory(effectiveNewCat);
+                    const matchingSubs = isNewRest
+                      ? RESTAURANT_SUBCATEGORIES.map(s => ({ id: s.id, categoryId: "bakery-sweets", nameBn: s.nameBn, nameEn: s.nameEn, order: s.order }))
+                      : subcategories
+                          .filter(s => s.categoryId === effectiveNewCat && !s.isDeleted)
+                          .sort((a, b) => (a.order || 0) - (b.order || 0));
                     if (matchingSubs.length > 0) {
                       setProdSubcategoryId(matchingSubs[0].id);
-                      setProdSubcategory(matchingSubs[0].nameBn || matchingSubs[0].nameEn);
+                      setProdSubcategory(matchingSubs[0].nameBn || (matchingSubs[0] as any).nameEn);
                     } else {
                       setProdSubcategoryId("");
                       setProdSubcategory("");
@@ -2029,35 +2070,43 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                 <label className="font-bold text-slate-700 block mb-1">
                   {getTranslation("সাবক্যাটাগরি (Subcategory)", "Subcategory")}
                 </label>
-                <select 
-                  value={prodSubcategoryId} 
-                  onChange={(e) => {
-                    const subId = e.target.value;
-                    setProdSubcategoryId(subId);
-                    const foundSub = subcategories.find(s => s.id === subId);
-                    if (foundSub) {
-                      setProdSubcategory(foundSub.nameBn || foundSub.nameEn);
-                    } else {
-                      setProdSubcategory("");
-                    }
-                  }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                >
-                  <option value="">
-                    {subcategories.filter(s => s.categoryId === prodCategory && !s.isDeleted).length === 0
-                      ? getTranslation("-- কোনো সাবক্যাটাগরি নেই --", "-- No Subcategories Available --")
-                      : getTranslation("-- সাবক্যাটাগরি নির্বাচন করুন --", "-- Select Subcategory --")
-                    }
-                  </option>
-                  {subcategories
-                    .filter(s => s.categoryId === prodCategory && !s.isDeleted)
-                    .sort((a, b) => (a.order || 0) - (b.order || 0))
-                    .map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.order ? `[#${s.order}] ` : ""}{getTranslation(s.nameBn, s.nameEn)}
+                {(() => {
+                  const isCurrentRest = isCategoryMatch(prodCategory, "restaurant") || prodCategory === "bakery-sweets" || prodCategory === "restaurant" || prodCategory === "রেস্টুরেন্ট";
+                  const availableSubs = isCurrentRest
+                    ? RESTAURANT_SUBCATEGORIES.map(s => ({ id: s.id, categoryId: "bakery-sweets", nameBn: s.nameBn, nameEn: s.nameEn, order: s.order }))
+                    : subcategories
+                        .filter(s => s.categoryId === prodCategory && !s.isDeleted)
+                        .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+                  return (
+                    <select 
+                      value={prodSubcategoryId} 
+                      onChange={(e) => {
+                        const subId = e.target.value;
+                        setProdSubcategoryId(subId);
+                        const foundSub = availableSubs.find(s => s.id === subId) || subcategories.find(s => s.id === subId);
+                        if (foundSub) {
+                          setProdSubcategory(foundSub.nameBn || (foundSub as any).nameEn);
+                        } else {
+                          setProdSubcategory("");
+                        }
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    >
+                      <option value="">
+                        {availableSubs.length === 0
+                          ? getTranslation("-- কোনো সাবক্যাটাগরি নেই --", "-- No Subcategories Available --")
+                          : getTranslation("-- সাবক্যাটাগরি নির্বাচন করুন --", "-- Select Subcategory --")
+                        }
                       </option>
-                    ))}
-                </select>
+                      {availableSubs.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.order ? `[#${s.order}] ` : ""}{getTranslation(s.nameBn, (s as any).nameEn)}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
               </div>
 
               <div>

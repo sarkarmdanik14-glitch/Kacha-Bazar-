@@ -248,9 +248,10 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     (typeof data.category === "string" && (data.category.includes("মসলা") || data.category.includes("রান্নার তেল") || data.category.includes("মুদি")));
   const resolvedCategory = isSpicesOrStaples ? "groceries" : (data.category || (docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") ? "groceries" : "others"));
   const isGrocery = resolvedCategory === "groceries" || docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") || (data.id && (data.id.startsWith("st") || data.id.startsWith("sp") || data.id.startsWith("gr")));
+  const rawSubVal = data.subcategory || data.subCategory;
   const resolvedSubcategory = isGrocery
-    ? getResolvedGrocerySubcategory(data.id || docId, data.nameBn, data.nameEn, data.subcategory, resolvedCategory)
-    : (data.subcategory || "General");
+    ? getResolvedGrocerySubcategory(data.id || docId, data.nameBn, data.nameEn, rawSubVal, resolvedCategory)
+    : (rawSubVal || "General");
 
   const parseNumOrder = (val: any): number | undefined => {
     if (typeof val === "number" && !isNaN(val)) return val;
@@ -287,7 +288,8 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     unitEn: resolvedUnits.unitEn,
     category: resolvedCategory,
     categoryId: resolvedCategory,
-    subcategoryId: data.subcategoryId || "",
+    subcategoryId: data.subcategoryId || data.subCategoryId || "",
+    subCategoryId: data.subCategoryId || data.subcategoryId || "",
     image: resolvedProductImg,
     imageUrl: resolvedProductImg,
     isFlashSale: !!data.isFlashSale,
@@ -309,6 +311,7 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     sellerId: data.sellerId || "admin",
     sku: data.sku || `KB-${resolvedCategory.substring(0, 3).toUpperCase()}-${data.id || docId}`,
     subcategory: resolvedSubcategory,
+    subCategory: resolvedSubcategory,
     options: data.options || [],
     isDeleted: !!data.isDeleted || data.status === "deleted" || !!data.deleted,
     deleted: !!data.isDeleted || data.status === "deleted" || !!data.deleted,

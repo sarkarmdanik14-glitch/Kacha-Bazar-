@@ -54,6 +54,7 @@ export interface Product {
   // New production-ready catalog fields
   sku?: string;
   subcategory?: string;
+  subCategory?: string;
   tags?: string[];
   ingredientsBn?: string;
   ingredientsEn?: string;
@@ -66,6 +67,7 @@ export interface Product {
   deletedBy?: string;
   categoryId?: string;
   subcategoryId?: string;
+  subCategoryId?: string;
   options?: ProductOption[];
   isAvailable?: boolean;
   inStock?: boolean;

@@ -1,0 +1,2581 @@
+{
+  "totalActive": 155,
+  "byResolvedSubcategory": {
+    "বিরিয়ানি, পোলাও ও রাইস": [
+      {
+        "id": "rest13",
+        "nameBn": "ডাউল",
+        "nameEn": "Daal",
+        "price": 10,
+        "storedSubcategory": "Egg & Vegetables",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest2",
+        "nameBn": "খিচুরী",
+        "nameEn": "Khichuri",
+        "price": 30,
+        "storedSubcategory": "Rice & Khichuri",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest20",
+        "nameBn": "ডিম ভাজা",
+        "nameEn": "Fried Egg",
+        "price": 20,
+        "storedSubcategory": "Egg & Vegetables",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest24",
+        "nameBn": "কালো জাম",
+        "nameEn": "Kalo Jam",
+        "price": 350,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest25",
+        "nameBn": "ঘোল",
+        "nameEn": "Ghol",
+        "price": 220,
+        "storedSubcategory": "Beverages & Desserts",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest26",
+        "nameBn": "বাদশা ভোগ",
+        "nameEn": "Badsha Bhog",
+        "price": 400,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest3",
+        "nameBn": "বিরানী",
+        "nameEn": "Biryani",
+        "price": 0,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest34",
+        "nameBn": "তাান্দুরি",
+        "nameEn": "Tandoori",
+        "price": 20,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest5",
+        "nameBn": "তেহেরী",
+        "nameEn": "Tehari",
+        "price": 0,
+        "storedSubcategory": "Rice & Khichuri",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhajzq_1_shahi_morog_polao_wi",
+        "nameBn": "শাহী মোরগ পোলাও (ডিমসহ)",
+        "nameEn": "Shahi Morog Polao (with Egg)",
+        "price": 160,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak2f_2_basmati_mutton_kacch",
+        "nameBn": "বাসমতি খাসির কাচ্চি (ডিমসহ)",
+        "nameEn": "Basmati Mutton Kacchi (with Egg)",
+        "price": 220,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak3p_3_chicken_biryani_half",
+        "nameBn": "মুরগির বিরিয়ানী (হাফ)",
+        "nameEn": "Chicken Biryani (Half)",
+        "price": 100,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak4z_4_chicken_biryani_full",
+        "nameBn": "মুরগির বিরিয়ানী (ফুল)",
+        "nameEn": "Chicken Biryani (Full)",
+        "price": 200,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak6k_5_basmati_chicken_dum_",
+        "nameBn": "চিকেন দম বিরিয়ানী (বাসমতি)",
+        "nameEn": "Basmati Chicken Dum Biryani",
+        "price": 180,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak7x_6_mutton_tehari_full",
+        "nameBn": "খাসির তেহেরী (ফুল)",
+        "nameEn": "Mutton Tehari (Full)",
+        "price": 240,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak8m_7_mutton_tehari_half",
+        "nameBn": "খাসির তেহেরী (হাফ)",
+        "nameEn": "Mutton Tehari (Half)",
+        "price": 130,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak9k_8_egg_polao_half",
+        "nameBn": "ডিম পোলাও (হাফ)",
+        "nameEn": "Egg Polao (Half)",
+        "price": 60,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhaka6_9_egg_polao_full",
+        "nameBn": "ডিম পোলাও (ফুল)",
+        "nameEn": "Egg Polao (Full)",
+        "price": 120,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhakaz_10_bhuna_khichuri_with_",
+        "nameBn": "ভুনা খিচুড়ি (ডিম হাফ)",
+        "nameEn": "Bhuna Khichuri (with Half Egg)",
+        "price": 60,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m107",
+        "nameBn": "ফ্রেশ লেমন মিন্ট",
+        "nameEn": "Fresh Lemon Mint",
+        "price": 100,
+        "storedSubcategory": "REFRESHING DRINKS",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m22",
+        "nameBn": "কিং স্পেশাল ফ্রাইড রাইস",
+        "nameEn": "King Special Fried Rice",
+        "price": 160,
+        "storedSubcategory": "চাল ও খাদ্যশস্য (Rice & Grains)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m23",
+        "nameBn": "চিকেন ফ্রাইড রাইস",
+        "nameEn": "Chicken Fried Rice",
+        "price": 130,
+        "storedSubcategory": "চাল ও খাদ্যশস্য (Rice & Grains)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m24",
+        "nameBn": "এগ ফ্রাইড রাইস",
+        "nameEn": "Egg Fried Rice",
+        "price": 100,
+        "storedSubcategory": "চাল ও খাদ্যশস্য (Rice & Grains)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m25",
+        "nameBn": "মেক্সিকান ফ্রাইড রাইস",
+        "nameEn": "Mexican Fried Rice",
+        "price": 150,
+        "storedSubcategory": "চাল ও খাদ্যশস্য (Rice & Grains)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m3",
+        "nameBn": "পটেটো ওয়েজেস",
+        "nameEn": "Patato Wedges",
+        "price": 120,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m76",
+        "nameBn": "মাটন কাচ্চি",
+        "nameEn": "Mutton Kacchi",
+        "price": 180,
+        "storedSubcategory": "BIRYANI (HALF / FULL)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m77",
+        "nameBn": "মাটন বিরিয়ানি",
+        "nameEn": "Mutton Biryani",
+        "price": 150,
+        "storedSubcategory": "BIRYANI (HALF / FULL)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m78",
+        "nameBn": "মোরগ পোলাও",
+        "nameEn": "Morog Polao",
+        "price": 200,
+        "storedSubcategory": "BIRYANI (HALF / FULL)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      }
+    ],
+    "বার্গার ও স্যান্ডউইচ": [
+      {
+        "id": "rest_m54",
+        "nameBn": "রেগুলার চিকেন বার্গার",
+        "nameEn": "Regular Chicken Burger",
+        "price": 130,
+        "storedSubcategory": "BURGER",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m55",
+        "nameBn": "ক্রিসপি চিকেন চিজ বার্গার",
+        "nameEn": "Crispy Chicken Cheese Burger",
+        "price": 220,
+        "storedSubcategory": "BURGER",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m56",
+        "nameBn": "নাগা চিকেন চিজ বার্গার",
+        "nameEn": "Naga Chicken Cheese Burger",
+        "price": 200,
+        "storedSubcategory": "BURGER",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m57",
+        "nameBn": "বারবিকিউ চিকেন চিজ বার্গার",
+        "nameEn": "BBQ Chicken Cheese Burger",
+        "price": 200,
+        "storedSubcategory": "BURGER",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m58",
+        "nameBn": "ডাবল লেয়ার চিজ বার্গার",
+        "nameEn": "Double Layer Cheese Burger",
+        "price": 270,
+        "storedSubcategory": "BURGER",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m59",
+        "nameBn": "কিং স্পেশাল স্যান্ডউইচ",
+        "nameEn": "King Special Sandwich",
+        "price": 230,
+        "storedSubcategory": "SANDWICH",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m60",
+        "nameBn": "ক্লাব স্যান্ডউইচ",
+        "nameEn": "Club Sandwich",
+        "price": 180,
+        "storedSubcategory": "SANDWICH",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m61",
+        "nameBn": "গ্রিল চিজি সাব-স্যান্ডউইচ",
+        "nameEn": "Grill Cheesy Sub-Sandwich",
+        "price": 180,
+        "storedSubcategory": "SANDWICH",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m62",
+        "nameBn": "চিকেন স্যান্ডউইচ",
+        "nameEn": "Chicken Sandwich",
+        "price": 160,
+        "storedSubcategory": "SANDWICH",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m63",
+        "nameBn": "গ্রিল চিকেন চিজ স্যান্ডউইচ",
+        "nameEn": "Grill Chicken Cheese Sandwich",
+        "price": 200,
+        "storedSubcategory": "SANDWICH",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m65",
+        "nameBn": "বারবিকিউ চিকেন শাওয়ার্মা",
+        "nameEn": "BBQ Chicken Shawarma",
+        "price": 150,
+        "storedSubcategory": "SHAWARMA",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m66",
+        "nameBn": "নাগা চিকেন শাওয়ার্মা",
+        "nameEn": "Naga Chicken Shawarma",
+        "price": 150,
+        "storedSubcategory": "SHAWARMA",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m87",
+        "nameBn": "চিকেন শাওয়ার্মা",
+        "nameEn": "Chicken Shawarma",
+        "price": 130,
+        "storedSubcategory": "KABAB",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      }
+    ],
+    "পিজ্জা ও পাস্তা": [
+      {
+        "id": "rest_m44",
+        "nameBn": "কিং স্পেশাল পিৎজা",
+        "nameEn": "King Special Pizza",
+        "price": 400,
+        "storedSubcategory": "PIZZA (8\" / 10\" / 12\")",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m45",
+        "nameBn": "মিট লাভার পিৎজা",
+        "nameEn": "Meat Lover Pizza",
+        "price": 360,
+        "storedSubcategory": "PIZZA (8\" / 10\" / 12\")",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m46",
+        "nameBn": "বারবিকিউ স্মোকি পিৎজা",
+        "nameEn": "BBQ Smoky Pizza",
+        "price": 370,
+        "storedSubcategory": "PIZZA (8\" / 10\" / 12\")",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m47",
+        "nameBn": "চিকেন সসেজ পিৎজা",
+        "nameEn": "Chicken Sausage Pizza",
+        "price": 340,
+        "storedSubcategory": "PIZZA (8\" / 10\" / 12\")",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m48",
+        "nameBn": "মেক্সিকান হট অ্যান্ড স্পাইসি পিৎজা",
+        "nameEn": "Mexican Hot & Spicy Pizza",
+        "price": 340,
+        "storedSubcategory": "PIZZA (8\" / 10\" / 12\")",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m49",
+        "nameBn": "কিং স্পেশাল পাস্তা",
+        "nameEn": "King Special Pasta",
+        "price": 200,
+        "storedSubcategory": "PASTA (1:1 / 1:2)",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m50",
+        "nameBn": "ওভেন বেকড পাস্তা",
+        "nameEn": "Oven Baked Pasta",
+        "price": 170,
+        "storedSubcategory": "PASTA (1:1 / 1:2)",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m51",
+        "nameBn": "ক্রিমি পাস্তা",
+        "nameEn": "Creamy Pasta",
+        "price": 180,
+        "storedSubcategory": "PASTA (1:1 / 1:2)",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m52",
+        "nameBn": "নাগা পাস্তা",
+        "nameEn": "Naga Pasta",
+        "price": 180,
+        "storedSubcategory": "PASTA (1:1 / 1:2)",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m53",
+        "nameBn": "চিকেন পাস্তা",
+        "nameEn": "Chicken Pasta",
+        "price": 150,
+        "storedSubcategory": "PASTA (1:1 / 1:2)",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      }
+    ],
+    "অ্যাপেটাইজার ও ফাস্ট ফুড": [
+      {
+        "id": "rest_m1",
+        "nameBn": "ফ্রেঞ্চ ফ্রাই",
+        "nameEn": "French Fry",
+        "price": 100,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m10",
+        "nameBn": "ভেজিটেবল কাটলেট (১ পিস)",
+        "nameEn": "Vegetable Cutlet (1ps)",
+        "price": 200,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m11",
+        "nameBn": "ফিশ ফিঙ্গার (৮ পিস)",
+        "nameEn": "Fish Finger (8ps)",
+        "price": 250,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m2",
+        "nameBn": "চিজি ফ্রেঞ্চ ফ্রাই",
+        "nameEn": "Cheesy French Fry",
+        "price": 150,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m4",
+        "nameBn": "রেগুলার নাচোস",
+        "nameEn": "Regular Nachos",
+        "price": 200,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m5",
+        "nameBn": "চিজি নাচোস",
+        "nameEn": "Cheesy Nachos",
+        "price": 220,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m6",
+        "nameBn": "ওয়ানথন (৪ পিস / ৮ পিস)",
+        "nameEn": "Wonton (4ps / 8ps)",
+        "price": 120,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m67",
+        "nameBn": "কিং স্পেশাল মিট বক্স",
+        "nameEn": "King Special Meat Box",
+        "price": 200,
+        "storedSubcategory": "MEAT BOX",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m68",
+        "nameBn": "মিট লাভার মিট বক্স",
+        "nameEn": "Meat Lover Meat Box",
+        "price": 180,
+        "storedSubcategory": "MEAT BOX",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m69",
+        "nameBn": "নাগা চিকেন মিট বক্স",
+        "nameEn": "Naga Chicken Meat Box",
+        "price": 190,
+        "storedSubcategory": "MEAT BOX",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m7",
+        "nameBn": "স্পেশাল ওয়ানথন (৪ পিস / ৮ পিস)",
+        "nameEn": "Special Wonton (4ps / 8ps)",
+        "price": 150,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m70",
+        "nameBn": "বারবিকিউ চিকেন মিট বক্স",
+        "nameEn": "BBQ Chicken Meat Box",
+        "price": 180,
+        "storedSubcategory": "MEAT BOX",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m9",
+        "nameBn": "চিকেন কাটলেট (৮ পিস)",
+        "nameEn": "Chicken Cutlet (8ps)",
+        "price": 250,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      }
+    ],
+    "চিকেন, উইংস ও কাবাব": [
+      {
+        "id": "rest32",
+        "nameBn": "গ্রীল",
+        "nameEn": "Grill",
+        "price": 100,
+        "storedSubcategory": "Grill & Kebab",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest4",
+        "nameBn": "গ্রীল ফুল সাইজ",
+        "nameEn": "Full Size Chicken Grill",
+        "price": 400,
+        "storedSubcategory": "Grill & Kebab",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m12",
+        "nameBn": "নাগা চিকেন উইংস (৬ পিস)",
+        "nameEn": "Naga Chicken Wings (6ps)",
+        "price": 250,
+        "storedSubcategory": "WINGS & LOLIPOPS",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m13",
+        "nameBn": "ক্রিসপি চিকেন উইংস (৪ পিস)",
+        "nameEn": "Crispy Chicken Wings (4ps)",
+        "price": 250,
+        "storedSubcategory": "WINGS & LOLIPOPS",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m14",
+        "nameBn": "ক্রিসপি বাফেলো চিকেন উইংস (৬ পিস)",
+        "nameEn": "Crispy Buffalo Chicken Wings (6ps)",
+        "price": 300,
+        "storedSubcategory": "WINGS & LOLIPOPS",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m15",
+        "nameBn": "ক্রিসপি চিকেন ললিপপ (৫ পিস)",
+        "nameEn": "Crispy Chicken Lolipops (5ps)",
+        "price": 300,
+        "storedSubcategory": "WINGS & LOLIPOPS",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m16",
+        "nameBn": "নাগা চিকেন ললিপপ (৬ পিস)",
+        "nameEn": "Naga Chicken Lolipops (6ps)",
+        "price": 250,
+        "storedSubcategory": "WINGS & LOLIPOPS",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m32",
+        "nameBn": "চিকেন চিলি অনিয়ন",
+        "nameEn": "Chicken Chili Onion",
+        "price": 280,
+        "storedSubcategory": "মসলাপাতি — আস্ত ও গুঁড়ো (Spices & Herbs)",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m37",
+        "nameBn": "মাটন সিজলিং",
+        "nameEn": "Matton Sizzling",
+        "price": 580,
+        "storedSubcategory": "SIZZLING (1:3)",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m38",
+        "nameBn": "প্রন সিজলিং",
+        "nameEn": "Prawn Sizzling",
+        "price": 480,
+        "storedSubcategory": "SIZZLING (1:3)",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m41",
+        "nameBn": "থাই ফ্রাইড চিকেন (৬ পিস)",
+        "nameEn": "Thai Fried Chicken (6ps)",
+        "price": 360,
+        "storedSubcategory": "FRIED CHICKEN",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m43",
+        "nameBn": "ক্রিসপি চিকেন (৬ পিস)",
+        "nameEn": "Crispy Chicken (6ps)",
+        "price": 580,
+        "storedSubcategory": "FRIED CHICKEN",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m85",
+        "nameBn": "গ্রিল চিকেন",
+        "nameEn": "Grill Chicken",
+        "price": 120,
+        "storedSubcategory": "KABAB",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      }
+    ],
+    "কারির পদ ও মাছ-মাংস": [
+      {
+        "id": "rest10",
+        "nameBn": "শুটকি মাছ",
+        "nameEn": "Shutki Fish Bhuna",
+        "price": 120,
+        "storedSubcategory": "Meat & Fish",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest11",
+        "nameBn": "রুই মাছ (বড়)",
+        "nameEn": "Rui Fish Curry (Large)",
+        "price": 80,
+        "storedSubcategory": "Meat & Fish",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest6",
+        "nameBn": "খাসির মাংস",
+        "nameEn": "Mutton Meat Curry",
+        "price": 140,
+        "storedSubcategory": "Meat & Fish",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest7",
+        "nameBn": "মুরগীর মাংস",
+        "nameEn": "Chicken Meat Curry",
+        "price": 120,
+        "storedSubcategory": "Meat & Fish",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest8",
+        "nameBn": "ডিম (রান্না)",
+        "nameEn": "Cooked Egg Curry",
+        "price": 35,
+        "storedSubcategory": "Egg & Vegetables",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest9",
+        "nameBn": "ছোট মাছ",
+        "nameEn": "Small Fish Curry",
+        "price": 100,
+        "storedSubcategory": "Meat & Fish",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest_m26",
+        "nameBn": "প্রন মসলা",
+        "nameEn": "Prawn Masala",
+        "price": 300,
+        "storedSubcategory": "মসলাপাতি — আস্ত ও গুঁড়ো (Spices & Herbs)",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest_m27",
+        "nameBn": "প্রন চিলি অনিয়ন",
+        "nameEn": "Prawn Chili Onion",
+        "price": 290,
+        "storedSubcategory": "মসলাপাতি — আস্ত ও গুঁড়ো (Spices & Herbs)",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest_m28",
+        "nameBn": "প্রন গার্লিক",
+        "nameEn": "Prawn Garlic",
+        "price": 280,
+        "storedSubcategory": "PRAWN MASALA (1:2 / 1:3)",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest_m29",
+        "nameBn": "প্রন সুইট অ্যান্ড সাওয়ার",
+        "nameEn": "Prawn Sweets & Sour",
+        "price": 300,
+        "storedSubcategory": "PRAWN MASALA (1:2 / 1:3)",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest_m30",
+        "nameBn": "সুইট অ্যান্ড সাওয়ার কারি",
+        "nameEn": "Sweets & Sour Curry",
+        "price": 250,
+        "storedSubcategory": "CHINESE DISHES (1:2 / 1:3)",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest_m31",
+        "nameBn": "চিকেন মসলা কারি",
+        "nameEn": "Chicken Masala Curry",
+        "price": 250,
+        "storedSubcategory": "মসলাপাতি — আস্ত ও গুঁড়ো (Spices & Herbs)",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest_m92",
+        "nameBn": "শাহী হালিম",
+        "nameEn": "Shahi Halim",
+        "price": 100,
+        "storedSubcategory": "NAAN",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      }
+    ],
+    "স্যুপ, সালাদ ও ভেজিটেবল": [
+      {
+        "id": "rest12",
+        "nameBn": "সবজি",
+        "nameEn": "Mixed Vegetable Curry",
+        "price": 20,
+        "storedSubcategory": "Egg & Vegetables",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m17",
+        "nameBn": "কিংস স্পেশাল থাই স্যুপ",
+        "nameEn": "Kings Special Thai Soup",
+        "price": 200,
+        "storedSubcategory": "SOUP (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m18",
+        "nameBn": "থাই স্যুপ",
+        "nameEn": "Thai Soup",
+        "price": 180,
+        "storedSubcategory": "SOUP (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m19",
+        "nameBn": "চিকেন কর্ন স্যুপ",
+        "nameEn": "Chicken Corn Soup",
+        "price": 140,
+        "storedSubcategory": "SOUP (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m20",
+        "nameBn": "চিকেন হট অ্যান্ড সাওয়ার স্যুপ",
+        "nameEn": "Chicken Hot & Sour Soup",
+        "price": 140,
+        "storedSubcategory": "SOUP (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m21",
+        "nameBn": "ক্রিম অফ মাশরুম স্যুপ",
+        "nameEn": "Cream of Mushroom Soup",
+        "price": 150,
+        "storedSubcategory": "SOUP (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m33",
+        "nameBn": "মিক্সড ভেজিটেবল",
+        "nameEn": "Mixed Vegetable",
+        "price": 200,
+        "storedSubcategory": "CHINESE VEGETABLE (1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m34",
+        "nameBn": "চিকেন মিক্স ভেজিটেবল",
+        "nameEn": "Chicken Mix Vegetable",
+        "price": 250,
+        "storedSubcategory": "CHINESE VEGETABLE (1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m35",
+        "nameBn": "সতে ভেজিটেবল",
+        "nameEn": "Saute Vegetable",
+        "price": 250,
+        "storedSubcategory": "CHINESE VEGETABLE (1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m39",
+        "nameBn": "চিকেন কাজুবাদাম সালাদ",
+        "nameEn": "Chicken Cashew Nut Salad",
+        "price": 420,
+        "storedSubcategory": "SALAD (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m40",
+        "nameBn": "রায়তা সালাদ",
+        "nameEn": "Rayda Salad",
+        "price": 250,
+        "storedSubcategory": "SALAD (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      }
+    ],
+    "চাউমিন ও নুডলস": [],
+    "নান, পরোটা ও নাস্তা": [
+      {
+        "id": "rest14",
+        "nameBn": "পরোটা",
+        "nameEn": "Paratha",
+        "price": 10,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest15",
+        "nameBn": "রুটি",
+        "nameEn": "Roti",
+        "price": 10,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest16",
+        "nameBn": "তন্দুর রুটি",
+        "nameEn": "Tandoor Roti",
+        "price": 20,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest17",
+        "nameBn": "সিঙ্গারা",
+        "nameEn": "Singara",
+        "price": 10,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest18",
+        "nameBn": "ডিমের চপ",
+        "nameEn": "Egg Chop",
+        "price": 10,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest19",
+        "nameBn": "মোগলাই",
+        "nameEn": "Mughlai",
+        "price": 60,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest33",
+        "nameBn": "নান",
+        "nameEn": "Naan",
+        "price": 30,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest35",
+        "nameBn": "হাফ মোগলাই",
+        "nameEn": "Half Mughlai",
+        "price": 30,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest_m88",
+        "nameBn": "প্লেন নান",
+        "nameEn": "Plain Naan",
+        "price": 40,
+        "storedSubcategory": "NAAN",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest_m89",
+        "nameBn": "বাটার নান",
+        "nameEn": "Butter Naan",
+        "price": 60,
+        "storedSubcategory": "NAAN",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest_m90",
+        "nameBn": "গার্লিক নান",
+        "nameEn": "Garlic Naan",
+        "price": 80,
+        "storedSubcategory": "NAAN",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest_m91",
+        "nameBn": "কাশ্মিরী নান",
+        "nameEn": "Kashmiri Naan",
+        "price": 120,
+        "storedSubcategory": "NAAN",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      }
+    ],
+    "সেট মেনু": [
+      {
+        "id": "rest_m36",
+        "nameBn": "চিকেন সিজলিং",
+        "nameEn": "Chicken Sizzling",
+        "price": 380,
+        "storedSubcategory": "SIZZLING (1:3)",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m42",
+        "nameBn": "থাই ফ্রাইড চিকেন ফ্যামিলি প্ল্যাটার (১২ পিস)",
+        "nameEn": "Thai Fried Chicken Family Platter (12ps)",
+        "price": 680,
+        "storedSubcategory": "FRIED CHICKEN",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m79",
+        "nameBn": "SET MENU-1 (500/-)",
+        "nameEn": "SET MENU-1",
+        "price": 500,
+        "storedSubcategory": "SET MENU",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m8",
+        "nameBn": "ফ্রাইড চিকেন উইথ ফ্রেঞ্চ ফ্রাই",
+        "nameEn": "Fried Chicken With French Fry",
+        "price": 150,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m80",
+        "nameBn": "SET MENU-2 (320/-)",
+        "nameEn": "SET MENU-2",
+        "price": 320,
+        "storedSubcategory": "SET MENU",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m81",
+        "nameBn": "SET MENU-3 (280/-)",
+        "nameEn": "SET MENU-3",
+        "price": 280,
+        "storedSubcategory": "SET MENU",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m82",
+        "nameBn": "SET MENU-4 (190/-)",
+        "nameEn": "SET MENU-4",
+        "price": 190,
+        "storedSubcategory": "SET MENU",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m83",
+        "nameBn": "SET MENU-5 (300/-)",
+        "nameEn": "SET MENU-5",
+        "price": 300,
+        "storedSubcategory": "SET MENU",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m84",
+        "nameBn": "SET MENU-6 (150/-)",
+        "nameEn": "SET MENU-6",
+        "price": 150,
+        "storedSubcategory": "SET MENU",
+        "resolvedSubcategory": "সেট মেনু"
+      }
+    ],
+    "মিষ্টি ও দধি": [
+      {
+        "id": "rest21",
+        "nameBn": "সাদা মিষ্টি",
+        "nameEn": "Shada Mishti",
+        "price": 250,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      },
+      {
+        "id": "rest22",
+        "nameBn": "চমচম (ক্ষির মাখানো)",
+        "nameEn": "Chomchom (Kheer Coated)",
+        "price": 350,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      },
+      {
+        "id": "rest23",
+        "nameBn": "দুধিয়া সন্দেশ",
+        "nameEn": "Dudhiya Sandesh",
+        "price": 650,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      },
+      {
+        "id": "rest27",
+        "nameBn": "মালাই",
+        "nameEn": "Malai",
+        "price": 600,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      },
+      {
+        "id": "rest28",
+        "nameBn": "দই বড় সাইজ",
+        "nameEn": "Doi (Large Size)",
+        "price": 400,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      },
+      {
+        "id": "rest29",
+        "nameBn": "দই সাড়া",
+        "nameEn": "Doi Shara",
+        "price": 220,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      },
+      {
+        "id": "rest30",
+        "nameBn": "স্পেশাল দই বড় সাইজ",
+        "nameEn": "Special Doi (Large Size)",
+        "price": 0,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      }
+    ],
+    "পানীয়, জুস ও কফি": [
+      {
+        "id": "rest1",
+        "nameBn": "ভাত",
+        "nameEn": "Steamed Rice",
+        "price": 20,
+        "storedSubcategory": "বিরিয়ানি, পোলাও ও রাইস",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest31",
+        "nameBn": "চাপ কোয়ার্টার",
+        "nameEn": "Chaap Quarter",
+        "price": 220,
+        "storedSubcategory": "Grill & Kebab",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_item_mumhakbl_11_borhani_1_liter",
+        "nameBn": "বোরহানী (১ লিটার)",
+        "nameEn": "Borhani (1 Liter)",
+        "price": 160,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_item_mumhakc4_12_borhani_500ml",
+        "nameBn": "বোরহানী (হাফ লিটার)",
+        "nameEn": "Borhani (500ml)",
+        "price": 80,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_item_mumhakcv_13_borhani_per_glass",
+        "nameBn": "বোরহানী (গ্লাস)",
+        "nameEn": "Borhani (Per Glass)",
+        "price": 40,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m100",
+        "nameBn": "মিক্সড ফ্রুট জুস",
+        "nameEn": "Mixed Fruit Juice",
+        "price": 150,
+        "storedSubcategory": "JUICE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m101",
+        "nameBn": "ভ্যানিলা মিল্কশেক",
+        "nameEn": "Vanilla Milkshake",
+        "price": 120,
+        "storedSubcategory": "MILK SHAKE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m102",
+        "nameBn": "চকলেট মিল্কশেক",
+        "nameEn": "Chocolate Milkshake",
+        "price": 150,
+        "storedSubcategory": "MILK SHAKE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m103",
+        "nameBn": "স্ট্রবেরি মিল্কশেক",
+        "nameEn": "Strawberry Milkshake",
+        "price": 150,
+        "storedSubcategory": "MILK SHAKE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m104",
+        "nameBn": "ম্যাঙ্গো মিল্কশেক",
+        "nameEn": "Mango Milkshake",
+        "price": 150,
+        "storedSubcategory": "MILK SHAKE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m105",
+        "nameBn": "এনার্জি মিল্কশেক",
+        "nameEn": "Energy Milkshake",
+        "price": 120,
+        "storedSubcategory": "MILK SHAKE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m106",
+        "nameBn": "ফ্রেশ লেমন জুস",
+        "nameEn": "Fresh Lemon Juice",
+        "price": 80,
+        "storedSubcategory": "REFRESHING DRINKS",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m64",
+        "nameBn": "ক্লাসিক চিকেন শাওয়ার্মা",
+        "nameEn": "Classic Chicken Shawarma",
+        "price": 130,
+        "storedSubcategory": "SHAWARMA",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m71",
+        "nameBn": "কিং স্পেশাল চাউমিন",
+        "nameEn": "King Special Chowmein",
+        "price": 200,
+        "storedSubcategory": "CHOWMEIN (1:1 / 1:2 / 1:3)",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m72",
+        "nameBn": "চিকেন চাউমিন",
+        "nameEn": "Chicken Chowmein",
+        "price": 150,
+        "storedSubcategory": "CHOWMEIN (1:1 / 1:2 / 1:3)",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m73",
+        "nameBn": "এগ চাউমিন",
+        "nameEn": "Egg Chowmein",
+        "price": 120,
+        "storedSubcategory": "CHOWMEIN (1:1 / 1:2 / 1:3)",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m74",
+        "nameBn": "চিকেন স্পাইসি চাউমিন",
+        "nameEn": "Chicken Spicy Chowmein",
+        "price": 180,
+        "storedSubcategory": "CHOWMEIN (1:1 / 1:2 / 1:3)",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m75",
+        "nameBn": "মিক্সড চাউমিন",
+        "nameEn": "Mixed Chowmein",
+        "price": 200,
+        "storedSubcategory": "CHOWMEIN (1:1 / 1:2 / 1:3)",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m86",
+        "nameBn": "মসলা চিকেন চাপ",
+        "nameEn": "Masala Chicken Chap",
+        "price": 150,
+        "storedSubcategory": "মসলাপাতি — আস্ত ও গুঁড়ো (Spices & Herbs)",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m93",
+        "nameBn": "রেগুলার হট কফি",
+        "nameEn": "Regular Hot Coffee",
+        "price": 80,
+        "storedSubcategory": "COFFEE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m94",
+        "nameBn": "ব্ল্যাক কফি",
+        "nameEn": "Black Coffee",
+        "price": 50,
+        "storedSubcategory": "COFFEE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m95",
+        "nameBn": "কোল্ড কফি",
+        "nameEn": "Cold Coffee",
+        "price": 120,
+        "storedSubcategory": "COFFEE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m96",
+        "nameBn": "চকলেট কোল্ড কফি",
+        "nameEn": "Chocolate Cold Coffee",
+        "price": 150,
+        "storedSubcategory": "COFFEE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m97",
+        "nameBn": "স্পেশাল লাচ্ছি",
+        "nameEn": "Special Lacchi",
+        "price": 120,
+        "storedSubcategory": "JUICE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m98",
+        "nameBn": "সিজনাল ফ্রুট জুস (আম, পেঁপে, তরমুজ, আনারস, ড্রাগন, স্ট্রবেরি)",
+        "nameEn": "Seasonal Fruit Juice (Mango, Papaya, Watermelon, Pineapple Dragon, Strawberry)",
+        "price": 100,
+        "storedSubcategory": "JUICE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m99",
+        "nameBn": "অরেঞ্জ জুস",
+        "nameEn": "Orange Juice",
+        "price": 160,
+        "storedSubcategory": "JUICE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      }
+    ]
+  },
+  "byStoredSubcategory": {
+    "বিরিয়ানি, পোলাও ও রাইস": [
+      {
+        "id": "rest1",
+        "nameBn": "ভাত",
+        "nameEn": "Steamed Rice",
+        "price": 20,
+        "storedSubcategory": "বিরিয়ানি, পোলাও ও রাইস",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      }
+    ],
+    "Meat & Fish": [
+      {
+        "id": "rest10",
+        "nameBn": "শুটকি মাছ",
+        "nameEn": "Shutki Fish Bhuna",
+        "price": 120,
+        "storedSubcategory": "Meat & Fish",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest11",
+        "nameBn": "রুই মাছ (বড়)",
+        "nameEn": "Rui Fish Curry (Large)",
+        "price": 80,
+        "storedSubcategory": "Meat & Fish",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest6",
+        "nameBn": "খাসির মাংস",
+        "nameEn": "Mutton Meat Curry",
+        "price": 140,
+        "storedSubcategory": "Meat & Fish",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest7",
+        "nameBn": "মুরগীর মাংস",
+        "nameEn": "Chicken Meat Curry",
+        "price": 120,
+        "storedSubcategory": "Meat & Fish",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest9",
+        "nameBn": "ছোট মাছ",
+        "nameEn": "Small Fish Curry",
+        "price": 100,
+        "storedSubcategory": "Meat & Fish",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      }
+    ],
+    "Egg & Vegetables": [
+      {
+        "id": "rest12",
+        "nameBn": "সবজি",
+        "nameEn": "Mixed Vegetable Curry",
+        "price": 20,
+        "storedSubcategory": "Egg & Vegetables",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest13",
+        "nameBn": "ডাউল",
+        "nameEn": "Daal",
+        "price": 10,
+        "storedSubcategory": "Egg & Vegetables",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest20",
+        "nameBn": "ডিম ভাজা",
+        "nameEn": "Fried Egg",
+        "price": 20,
+        "storedSubcategory": "Egg & Vegetables",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest8",
+        "nameBn": "ডিম (রান্না)",
+        "nameEn": "Cooked Egg Curry",
+        "price": 35,
+        "storedSubcategory": "Egg & Vegetables",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      }
+    ],
+    "Roti & Snacks": [
+      {
+        "id": "rest14",
+        "nameBn": "পরোটা",
+        "nameEn": "Paratha",
+        "price": 10,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest15",
+        "nameBn": "রুটি",
+        "nameEn": "Roti",
+        "price": 10,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest16",
+        "nameBn": "তন্দুর রুটি",
+        "nameEn": "Tandoor Roti",
+        "price": 20,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest17",
+        "nameBn": "সিঙ্গারা",
+        "nameEn": "Singara",
+        "price": 10,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest18",
+        "nameBn": "ডিমের চপ",
+        "nameEn": "Egg Chop",
+        "price": 10,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest19",
+        "nameBn": "মোগলাই",
+        "nameEn": "Mughlai",
+        "price": 60,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest33",
+        "nameBn": "নান",
+        "nameEn": "Naan",
+        "price": 30,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest34",
+        "nameBn": "তাান্দুরি",
+        "nameEn": "Tandoori",
+        "price": 20,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest35",
+        "nameBn": "হাফ মোগলাই",
+        "nameEn": "Half Mughlai",
+        "price": 30,
+        "storedSubcategory": "Roti & Snacks",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      }
+    ],
+    "Rice & Khichuri": [
+      {
+        "id": "rest2",
+        "nameBn": "খিচুরী",
+        "nameEn": "Khichuri",
+        "price": 30,
+        "storedSubcategory": "Rice & Khichuri",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest5",
+        "nameBn": "তেহেরী",
+        "nameEn": "Tehari",
+        "price": 0,
+        "storedSubcategory": "Rice & Khichuri",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      }
+    ],
+    "মিষ্টি ও ডেজার্ট": [
+      {
+        "id": "rest21",
+        "nameBn": "সাদা মিষ্টি",
+        "nameEn": "Shada Mishti",
+        "price": 250,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      },
+      {
+        "id": "rest22",
+        "nameBn": "চমচম (ক্ষির মাখানো)",
+        "nameEn": "Chomchom (Kheer Coated)",
+        "price": 350,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      },
+      {
+        "id": "rest23",
+        "nameBn": "দুধিয়া সন্দেশ",
+        "nameEn": "Dudhiya Sandesh",
+        "price": 650,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      },
+      {
+        "id": "rest24",
+        "nameBn": "কালো জাম",
+        "nameEn": "Kalo Jam",
+        "price": 350,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest26",
+        "nameBn": "বাদশা ভোগ",
+        "nameEn": "Badsha Bhog",
+        "price": 400,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest27",
+        "nameBn": "মালাই",
+        "nameEn": "Malai",
+        "price": 600,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      },
+      {
+        "id": "rest28",
+        "nameBn": "দই বড় সাইজ",
+        "nameEn": "Doi (Large Size)",
+        "price": 400,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      },
+      {
+        "id": "rest29",
+        "nameBn": "দই সাড়া",
+        "nameEn": "Doi Shara",
+        "price": 220,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      },
+      {
+        "id": "rest30",
+        "nameBn": "স্পেশাল দই বড় সাইজ",
+        "nameEn": "Special Doi (Large Size)",
+        "price": 0,
+        "storedSubcategory": "মিষ্টি ও ডেজার্ট",
+        "resolvedSubcategory": "মিষ্টি ও দধি"
+      }
+    ],
+    "Beverages & Desserts": [
+      {
+        "id": "rest25",
+        "nameBn": "ঘোল",
+        "nameEn": "Ghol",
+        "price": 220,
+        "storedSubcategory": "Beverages & Desserts",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      }
+    ],
+    "বিরিয়ানি ও সেট মেনু": [
+      {
+        "id": "rest3",
+        "nameBn": "বিরানী",
+        "nameEn": "Biryani",
+        "price": 0,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhajzq_1_shahi_morog_polao_wi",
+        "nameBn": "শাহী মোরগ পোলাও (ডিমসহ)",
+        "nameEn": "Shahi Morog Polao (with Egg)",
+        "price": 160,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak2f_2_basmati_mutton_kacch",
+        "nameBn": "বাসমতি খাসির কাচ্চি (ডিমসহ)",
+        "nameEn": "Basmati Mutton Kacchi (with Egg)",
+        "price": 220,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak3p_3_chicken_biryani_half",
+        "nameBn": "মুরগির বিরিয়ানী (হাফ)",
+        "nameEn": "Chicken Biryani (Half)",
+        "price": 100,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak4z_4_chicken_biryani_full",
+        "nameBn": "মুরগির বিরিয়ানী (ফুল)",
+        "nameEn": "Chicken Biryani (Full)",
+        "price": 200,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak6k_5_basmati_chicken_dum_",
+        "nameBn": "চিকেন দম বিরিয়ানী (বাসমতি)",
+        "nameEn": "Basmati Chicken Dum Biryani",
+        "price": 180,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak7x_6_mutton_tehari_full",
+        "nameBn": "খাসির তেহেরী (ফুল)",
+        "nameEn": "Mutton Tehari (Full)",
+        "price": 240,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak8m_7_mutton_tehari_half",
+        "nameBn": "খাসির তেহেরী (হাফ)",
+        "nameEn": "Mutton Tehari (Half)",
+        "price": 130,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhak9k_8_egg_polao_half",
+        "nameBn": "ডিম পোলাও (হাফ)",
+        "nameEn": "Egg Polao (Half)",
+        "price": 60,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhaka6_9_egg_polao_full",
+        "nameBn": "ডিম পোলাও (ফুল)",
+        "nameEn": "Egg Polao (Full)",
+        "price": 120,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhakaz_10_bhuna_khichuri_with_",
+        "nameBn": "ভুনা খিচুড়ি (ডিম হাফ)",
+        "nameEn": "Bhuna Khichuri (with Half Egg)",
+        "price": 60,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_item_mumhakbl_11_borhani_1_liter",
+        "nameBn": "বোরহানী (১ লিটার)",
+        "nameEn": "Borhani (1 Liter)",
+        "price": 160,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_item_mumhakc4_12_borhani_500ml",
+        "nameBn": "বোরহানী (হাফ লিটার)",
+        "nameEn": "Borhani (500ml)",
+        "price": 80,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_item_mumhakcv_13_borhani_per_glass",
+        "nameBn": "বোরহানী (গ্লাস)",
+        "nameEn": "Borhani (Per Glass)",
+        "price": 40,
+        "storedSubcategory": "বিরিয়ানি ও সেট মেনু",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      }
+    ],
+    "Grill & Kebab": [
+      {
+        "id": "rest31",
+        "nameBn": "চাপ কোয়ার্টার",
+        "nameEn": "Chaap Quarter",
+        "price": 220,
+        "storedSubcategory": "Grill & Kebab",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest32",
+        "nameBn": "গ্রীল",
+        "nameEn": "Grill",
+        "price": 100,
+        "storedSubcategory": "Grill & Kebab",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest4",
+        "nameBn": "গ্রীল ফুল সাইজ",
+        "nameEn": "Full Size Chicken Grill",
+        "price": 400,
+        "storedSubcategory": "Grill & Kebab",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      }
+    ],
+    "APPETIZERS": [
+      {
+        "id": "rest_m1",
+        "nameBn": "ফ্রেঞ্চ ফ্রাই",
+        "nameEn": "French Fry",
+        "price": 100,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m10",
+        "nameBn": "ভেজিটেবল কাটলেট (১ পিস)",
+        "nameEn": "Vegetable Cutlet (1ps)",
+        "price": 200,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m11",
+        "nameBn": "ফিশ ফিঙ্গার (৮ পিস)",
+        "nameEn": "Fish Finger (8ps)",
+        "price": 250,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m2",
+        "nameBn": "চিজি ফ্রেঞ্চ ফ্রাই",
+        "nameEn": "Cheesy French Fry",
+        "price": 150,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m3",
+        "nameBn": "পটেটো ওয়েজেস",
+        "nameEn": "Patato Wedges",
+        "price": 120,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m4",
+        "nameBn": "রেগুলার নাচোস",
+        "nameEn": "Regular Nachos",
+        "price": 200,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m5",
+        "nameBn": "চিজি নাচোস",
+        "nameEn": "Cheesy Nachos",
+        "price": 220,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m6",
+        "nameBn": "ওয়ানথন (৪ পিস / ৮ পিস)",
+        "nameEn": "Wonton (4ps / 8ps)",
+        "price": 120,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m7",
+        "nameBn": "স্পেশাল ওয়ানথন (৪ পিস / ৮ পিস)",
+        "nameEn": "Special Wonton (4ps / 8ps)",
+        "price": 150,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m8",
+        "nameBn": "ফ্রাইড চিকেন উইথ ফ্রেঞ্চ ফ্রাই",
+        "nameEn": "Fried Chicken With French Fry",
+        "price": 150,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m9",
+        "nameBn": "চিকেন কাটলেট (৮ পিস)",
+        "nameEn": "Chicken Cutlet (8ps)",
+        "price": 250,
+        "storedSubcategory": "APPETIZERS",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      }
+    ],
+    "JUICE": [
+      {
+        "id": "rest_m100",
+        "nameBn": "মিক্সড ফ্রুট জুস",
+        "nameEn": "Mixed Fruit Juice",
+        "price": 150,
+        "storedSubcategory": "JUICE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m97",
+        "nameBn": "স্পেশাল লাচ্ছি",
+        "nameEn": "Special Lacchi",
+        "price": 120,
+        "storedSubcategory": "JUICE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m98",
+        "nameBn": "সিজনাল ফ্রুট জুস (আম, পেঁপে, তরমুজ, আনারস, ড্রাগন, স্ট্রবেরি)",
+        "nameEn": "Seasonal Fruit Juice (Mango, Papaya, Watermelon, Pineapple Dragon, Strawberry)",
+        "price": 100,
+        "storedSubcategory": "JUICE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m99",
+        "nameBn": "অরেঞ্জ জুস",
+        "nameEn": "Orange Juice",
+        "price": 160,
+        "storedSubcategory": "JUICE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      }
+    ],
+    "MILK SHAKE": [
+      {
+        "id": "rest_m101",
+        "nameBn": "ভ্যানিলা মিল্কশেক",
+        "nameEn": "Vanilla Milkshake",
+        "price": 120,
+        "storedSubcategory": "MILK SHAKE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m102",
+        "nameBn": "চকলেট মিল্কশেক",
+        "nameEn": "Chocolate Milkshake",
+        "price": 150,
+        "storedSubcategory": "MILK SHAKE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m103",
+        "nameBn": "স্ট্রবেরি মিল্কশেক",
+        "nameEn": "Strawberry Milkshake",
+        "price": 150,
+        "storedSubcategory": "MILK SHAKE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m104",
+        "nameBn": "ম্যাঙ্গো মিল্কশেক",
+        "nameEn": "Mango Milkshake",
+        "price": 150,
+        "storedSubcategory": "MILK SHAKE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m105",
+        "nameBn": "এনার্জি মিল্কশেক",
+        "nameEn": "Energy Milkshake",
+        "price": 120,
+        "storedSubcategory": "MILK SHAKE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      }
+    ],
+    "REFRESHING DRINKS": [
+      {
+        "id": "rest_m106",
+        "nameBn": "ফ্রেশ লেমন জুস",
+        "nameEn": "Fresh Lemon Juice",
+        "price": 80,
+        "storedSubcategory": "REFRESHING DRINKS",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m107",
+        "nameBn": "ফ্রেশ লেমন মিন্ট",
+        "nameEn": "Fresh Lemon Mint",
+        "price": 100,
+        "storedSubcategory": "REFRESHING DRINKS",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      }
+    ],
+    "WINGS & LOLIPOPS": [
+      {
+        "id": "rest_m12",
+        "nameBn": "নাগা চিকেন উইংস (৬ পিস)",
+        "nameEn": "Naga Chicken Wings (6ps)",
+        "price": 250,
+        "storedSubcategory": "WINGS & LOLIPOPS",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m13",
+        "nameBn": "ক্রিসপি চিকেন উইংস (৪ পিস)",
+        "nameEn": "Crispy Chicken Wings (4ps)",
+        "price": 250,
+        "storedSubcategory": "WINGS & LOLIPOPS",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m14",
+        "nameBn": "ক্রিসপি বাফেলো চিকেন উইংস (৬ পিস)",
+        "nameEn": "Crispy Buffalo Chicken Wings (6ps)",
+        "price": 300,
+        "storedSubcategory": "WINGS & LOLIPOPS",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m15",
+        "nameBn": "ক্রিসপি চিকেন ললিপপ (৫ পিস)",
+        "nameEn": "Crispy Chicken Lolipops (5ps)",
+        "price": 300,
+        "storedSubcategory": "WINGS & LOLIPOPS",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m16",
+        "nameBn": "নাগা চিকেন ললিপপ (৬ পিস)",
+        "nameEn": "Naga Chicken Lolipops (6ps)",
+        "price": 250,
+        "storedSubcategory": "WINGS & LOLIPOPS",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      }
+    ],
+    "SOUP (1:2 / 1:3)": [
+      {
+        "id": "rest_m17",
+        "nameBn": "কিংস স্পেশাল থাই স্যুপ",
+        "nameEn": "Kings Special Thai Soup",
+        "price": 200,
+        "storedSubcategory": "SOUP (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m18",
+        "nameBn": "থাই স্যুপ",
+        "nameEn": "Thai Soup",
+        "price": 180,
+        "storedSubcategory": "SOUP (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m19",
+        "nameBn": "চিকেন কর্ন স্যুপ",
+        "nameEn": "Chicken Corn Soup",
+        "price": 140,
+        "storedSubcategory": "SOUP (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m20",
+        "nameBn": "চিকেন হট অ্যান্ড সাওয়ার স্যুপ",
+        "nameEn": "Chicken Hot & Sour Soup",
+        "price": 140,
+        "storedSubcategory": "SOUP (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m21",
+        "nameBn": "ক্রিম অফ মাশরুম স্যুপ",
+        "nameEn": "Cream of Mushroom Soup",
+        "price": 150,
+        "storedSubcategory": "SOUP (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      }
+    ],
+    "চাল ও খাদ্যশস্য (Rice & Grains)": [
+      {
+        "id": "rest_m22",
+        "nameBn": "কিং স্পেশাল ফ্রাইড রাইস",
+        "nameEn": "King Special Fried Rice",
+        "price": 160,
+        "storedSubcategory": "চাল ও খাদ্যশস্য (Rice & Grains)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m23",
+        "nameBn": "চিকেন ফ্রাইড রাইস",
+        "nameEn": "Chicken Fried Rice",
+        "price": 130,
+        "storedSubcategory": "চাল ও খাদ্যশস্য (Rice & Grains)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m24",
+        "nameBn": "এগ ফ্রাইড রাইস",
+        "nameEn": "Egg Fried Rice",
+        "price": 100,
+        "storedSubcategory": "চাল ও খাদ্যশস্য (Rice & Grains)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m25",
+        "nameBn": "মেক্সিকান ফ্রাইড রাইস",
+        "nameEn": "Mexican Fried Rice",
+        "price": 150,
+        "storedSubcategory": "চাল ও খাদ্যশস্য (Rice & Grains)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      }
+    ],
+    "মসলাপাতি — আস্ত ও গুঁড়ো (Spices & Herbs)": [
+      {
+        "id": "rest_m26",
+        "nameBn": "প্রন মসলা",
+        "nameEn": "Prawn Masala",
+        "price": 300,
+        "storedSubcategory": "মসলাপাতি — আস্ত ও গুঁড়ো (Spices & Herbs)",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest_m27",
+        "nameBn": "প্রন চিলি অনিয়ন",
+        "nameEn": "Prawn Chili Onion",
+        "price": 290,
+        "storedSubcategory": "মসলাপাতি — আস্ত ও গুঁড়ো (Spices & Herbs)",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest_m31",
+        "nameBn": "চিকেন মসলা কারি",
+        "nameEn": "Chicken Masala Curry",
+        "price": 250,
+        "storedSubcategory": "মসলাপাতি — আস্ত ও গুঁড়ো (Spices & Herbs)",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest_m32",
+        "nameBn": "চিকেন চিলি অনিয়ন",
+        "nameEn": "Chicken Chili Onion",
+        "price": 280,
+        "storedSubcategory": "মসলাপাতি — আস্ত ও গুঁড়ো (Spices & Herbs)",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m86",
+        "nameBn": "মসলা চিকেন চাপ",
+        "nameEn": "Masala Chicken Chap",
+        "price": 150,
+        "storedSubcategory": "মসলাপাতি — আস্ত ও গুঁড়ো (Spices & Herbs)",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      }
+    ],
+    "PRAWN MASALA (1:2 / 1:3)": [
+      {
+        "id": "rest_m28",
+        "nameBn": "প্রন গার্লিক",
+        "nameEn": "Prawn Garlic",
+        "price": 280,
+        "storedSubcategory": "PRAWN MASALA (1:2 / 1:3)",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      },
+      {
+        "id": "rest_m29",
+        "nameBn": "প্রন সুইট অ্যান্ড সাওয়ার",
+        "nameEn": "Prawn Sweets & Sour",
+        "price": 300,
+        "storedSubcategory": "PRAWN MASALA (1:2 / 1:3)",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      }
+    ],
+    "CHINESE DISHES (1:2 / 1:3)": [
+      {
+        "id": "rest_m30",
+        "nameBn": "সুইট অ্যান্ড সাওয়ার কারি",
+        "nameEn": "Sweets & Sour Curry",
+        "price": 250,
+        "storedSubcategory": "CHINESE DISHES (1:2 / 1:3)",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      }
+    ],
+    "CHINESE VEGETABLE (1:3)": [
+      {
+        "id": "rest_m33",
+        "nameBn": "মিক্সড ভেজিটেবল",
+        "nameEn": "Mixed Vegetable",
+        "price": 200,
+        "storedSubcategory": "CHINESE VEGETABLE (1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m34",
+        "nameBn": "চিকেন মিক্স ভেজিটেবল",
+        "nameEn": "Chicken Mix Vegetable",
+        "price": 250,
+        "storedSubcategory": "CHINESE VEGETABLE (1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m35",
+        "nameBn": "সতে ভেজিটেবল",
+        "nameEn": "Saute Vegetable",
+        "price": 250,
+        "storedSubcategory": "CHINESE VEGETABLE (1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      }
+    ],
+    "SIZZLING (1:3)": [
+      {
+        "id": "rest_m36",
+        "nameBn": "চিকেন সিজলিং",
+        "nameEn": "Chicken Sizzling",
+        "price": 380,
+        "storedSubcategory": "SIZZLING (1:3)",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m37",
+        "nameBn": "মাটন সিজলিং",
+        "nameEn": "Matton Sizzling",
+        "price": 580,
+        "storedSubcategory": "SIZZLING (1:3)",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m38",
+        "nameBn": "প্রন সিজলিং",
+        "nameEn": "Prawn Sizzling",
+        "price": 480,
+        "storedSubcategory": "SIZZLING (1:3)",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      }
+    ],
+    "SALAD (1:2 / 1:3)": [
+      {
+        "id": "rest_m39",
+        "nameBn": "চিকেন কাজুবাদাম সালাদ",
+        "nameEn": "Chicken Cashew Nut Salad",
+        "price": 420,
+        "storedSubcategory": "SALAD (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      },
+      {
+        "id": "rest_m40",
+        "nameBn": "রায়তা সালাদ",
+        "nameEn": "Rayda Salad",
+        "price": 250,
+        "storedSubcategory": "SALAD (1:2 / 1:3)",
+        "resolvedSubcategory": "স্যুপ, সালাদ ও ভেজিটেবল"
+      }
+    ],
+    "FRIED CHICKEN": [
+      {
+        "id": "rest_m41",
+        "nameBn": "থাই ফ্রাইড চিকেন (৬ পিস)",
+        "nameEn": "Thai Fried Chicken (6ps)",
+        "price": 360,
+        "storedSubcategory": "FRIED CHICKEN",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m42",
+        "nameBn": "থাই ফ্রাইড চিকেন ফ্যামিলি প্ল্যাটার (১২ পিস)",
+        "nameEn": "Thai Fried Chicken Family Platter (12ps)",
+        "price": 680,
+        "storedSubcategory": "FRIED CHICKEN",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m43",
+        "nameBn": "ক্রিসপি চিকেন (৬ পিস)",
+        "nameEn": "Crispy Chicken (6ps)",
+        "price": 580,
+        "storedSubcategory": "FRIED CHICKEN",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      }
+    ],
+    "PIZZA (8\" / 10\" / 12\")": [
+      {
+        "id": "rest_m44",
+        "nameBn": "কিং স্পেশাল পিৎজা",
+        "nameEn": "King Special Pizza",
+        "price": 400,
+        "storedSubcategory": "PIZZA (8\" / 10\" / 12\")",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m45",
+        "nameBn": "মিট লাভার পিৎজা",
+        "nameEn": "Meat Lover Pizza",
+        "price": 360,
+        "storedSubcategory": "PIZZA (8\" / 10\" / 12\")",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m46",
+        "nameBn": "বারবিকিউ স্মোকি পিৎজা",
+        "nameEn": "BBQ Smoky Pizza",
+        "price": 370,
+        "storedSubcategory": "PIZZA (8\" / 10\" / 12\")",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m47",
+        "nameBn": "চিকেন সসেজ পিৎজা",
+        "nameEn": "Chicken Sausage Pizza",
+        "price": 340,
+        "storedSubcategory": "PIZZA (8\" / 10\" / 12\")",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m48",
+        "nameBn": "মেক্সিকান হট অ্যান্ড স্পাইসি পিৎজা",
+        "nameEn": "Mexican Hot & Spicy Pizza",
+        "price": 340,
+        "storedSubcategory": "PIZZA (8\" / 10\" / 12\")",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      }
+    ],
+    "PASTA (1:1 / 1:2)": [
+      {
+        "id": "rest_m49",
+        "nameBn": "কিং স্পেশাল পাস্তা",
+        "nameEn": "King Special Pasta",
+        "price": 200,
+        "storedSubcategory": "PASTA (1:1 / 1:2)",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m50",
+        "nameBn": "ওভেন বেকড পাস্তা",
+        "nameEn": "Oven Baked Pasta",
+        "price": 170,
+        "storedSubcategory": "PASTA (1:1 / 1:2)",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m51",
+        "nameBn": "ক্রিমি পাস্তা",
+        "nameEn": "Creamy Pasta",
+        "price": 180,
+        "storedSubcategory": "PASTA (1:1 / 1:2)",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m52",
+        "nameBn": "নাগা পাস্তা",
+        "nameEn": "Naga Pasta",
+        "price": 180,
+        "storedSubcategory": "PASTA (1:1 / 1:2)",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      },
+      {
+        "id": "rest_m53",
+        "nameBn": "চিকেন পাস্তা",
+        "nameEn": "Chicken Pasta",
+        "price": 150,
+        "storedSubcategory": "PASTA (1:1 / 1:2)",
+        "resolvedSubcategory": "পিজ্জা ও পাস্তা"
+      }
+    ],
+    "BURGER": [
+      {
+        "id": "rest_m54",
+        "nameBn": "রেগুলার চিকেন বার্গার",
+        "nameEn": "Regular Chicken Burger",
+        "price": 130,
+        "storedSubcategory": "BURGER",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m55",
+        "nameBn": "ক্রিসপি চিকেন চিজ বার্গার",
+        "nameEn": "Crispy Chicken Cheese Burger",
+        "price": 220,
+        "storedSubcategory": "BURGER",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m56",
+        "nameBn": "নাগা চিকেন চিজ বার্গার",
+        "nameEn": "Naga Chicken Cheese Burger",
+        "price": 200,
+        "storedSubcategory": "BURGER",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m57",
+        "nameBn": "বারবিকিউ চিকেন চিজ বার্গার",
+        "nameEn": "BBQ Chicken Cheese Burger",
+        "price": 200,
+        "storedSubcategory": "BURGER",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m58",
+        "nameBn": "ডাবল লেয়ার চিজ বার্গার",
+        "nameEn": "Double Layer Cheese Burger",
+        "price": 270,
+        "storedSubcategory": "BURGER",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      }
+    ],
+    "SANDWICH": [
+      {
+        "id": "rest_m59",
+        "nameBn": "কিং স্পেশাল স্যান্ডউইচ",
+        "nameEn": "King Special Sandwich",
+        "price": 230,
+        "storedSubcategory": "SANDWICH",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m60",
+        "nameBn": "ক্লাব স্যান্ডউইচ",
+        "nameEn": "Club Sandwich",
+        "price": 180,
+        "storedSubcategory": "SANDWICH",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m61",
+        "nameBn": "গ্রিল চিজি সাব-স্যান্ডউইচ",
+        "nameEn": "Grill Cheesy Sub-Sandwich",
+        "price": 180,
+        "storedSubcategory": "SANDWICH",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m62",
+        "nameBn": "চিকেন স্যান্ডউইচ",
+        "nameEn": "Chicken Sandwich",
+        "price": 160,
+        "storedSubcategory": "SANDWICH",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m63",
+        "nameBn": "গ্রিল চিকেন চিজ স্যান্ডউইচ",
+        "nameEn": "Grill Chicken Cheese Sandwich",
+        "price": 200,
+        "storedSubcategory": "SANDWICH",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      }
+    ],
+    "SHAWARMA": [
+      {
+        "id": "rest_m64",
+        "nameBn": "ক্লাসিক চিকেন শাওয়ার্মা",
+        "nameEn": "Classic Chicken Shawarma",
+        "price": 130,
+        "storedSubcategory": "SHAWARMA",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m65",
+        "nameBn": "বারবিকিউ চিকেন শাওয়ার্মা",
+        "nameEn": "BBQ Chicken Shawarma",
+        "price": 150,
+        "storedSubcategory": "SHAWARMA",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      },
+      {
+        "id": "rest_m66",
+        "nameBn": "নাগা চিকেন শাওয়ার্মা",
+        "nameEn": "Naga Chicken Shawarma",
+        "price": 150,
+        "storedSubcategory": "SHAWARMA",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      }
+    ],
+    "MEAT BOX": [
+      {
+        "id": "rest_m67",
+        "nameBn": "কিং স্পেশাল মিট বক্স",
+        "nameEn": "King Special Meat Box",
+        "price": 200,
+        "storedSubcategory": "MEAT BOX",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m68",
+        "nameBn": "মিট লাভার মিট বক্স",
+        "nameEn": "Meat Lover Meat Box",
+        "price": 180,
+        "storedSubcategory": "MEAT BOX",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m69",
+        "nameBn": "নাগা চিকেন মিট বক্স",
+        "nameEn": "Naga Chicken Meat Box",
+        "price": 190,
+        "storedSubcategory": "MEAT BOX",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      },
+      {
+        "id": "rest_m70",
+        "nameBn": "বারবিকিউ চিকেন মিট বক্স",
+        "nameEn": "BBQ Chicken Meat Box",
+        "price": 180,
+        "storedSubcategory": "MEAT BOX",
+        "resolvedSubcategory": "অ্যাপেটাইজার ও ফাস্ট ফুড"
+      }
+    ],
+    "CHOWMEIN (1:1 / 1:2 / 1:3)": [
+      {
+        "id": "rest_m71",
+        "nameBn": "কিং স্পেশাল চাউমিন",
+        "nameEn": "King Special Chowmein",
+        "price": 200,
+        "storedSubcategory": "CHOWMEIN (1:1 / 1:2 / 1:3)",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m72",
+        "nameBn": "চিকেন চাউমিন",
+        "nameEn": "Chicken Chowmein",
+        "price": 150,
+        "storedSubcategory": "CHOWMEIN (1:1 / 1:2 / 1:3)",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m73",
+        "nameBn": "এগ চাউমিন",
+        "nameEn": "Egg Chowmein",
+        "price": 120,
+        "storedSubcategory": "CHOWMEIN (1:1 / 1:2 / 1:3)",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m74",
+        "nameBn": "চিকেন স্পাইসি চাউমিন",
+        "nameEn": "Chicken Spicy Chowmein",
+        "price": 180,
+        "storedSubcategory": "CHOWMEIN (1:1 / 1:2 / 1:3)",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m75",
+        "nameBn": "মিক্সড চাউমিন",
+        "nameEn": "Mixed Chowmein",
+        "price": 200,
+        "storedSubcategory": "CHOWMEIN (1:1 / 1:2 / 1:3)",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      }
+    ],
+    "BIRYANI (HALF / FULL)": [
+      {
+        "id": "rest_m76",
+        "nameBn": "মাটন কাচ্চি",
+        "nameEn": "Mutton Kacchi",
+        "price": 180,
+        "storedSubcategory": "BIRYANI (HALF / FULL)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m77",
+        "nameBn": "মাটন বিরিয়ানি",
+        "nameEn": "Mutton Biryani",
+        "price": 150,
+        "storedSubcategory": "BIRYANI (HALF / FULL)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      },
+      {
+        "id": "rest_m78",
+        "nameBn": "মোরগ পোলাও",
+        "nameEn": "Morog Polao",
+        "price": 200,
+        "storedSubcategory": "BIRYANI (HALF / FULL)",
+        "resolvedSubcategory": "বিরিয়ানি, পোলাও ও রাইস"
+      }
+    ],
+    "SET MENU": [
+      {
+        "id": "rest_m79",
+        "nameBn": "SET MENU-1 (500/-)",
+        "nameEn": "SET MENU-1",
+        "price": 500,
+        "storedSubcategory": "SET MENU",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m80",
+        "nameBn": "SET MENU-2 (320/-)",
+        "nameEn": "SET MENU-2",
+        "price": 320,
+        "storedSubcategory": "SET MENU",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m81",
+        "nameBn": "SET MENU-3 (280/-)",
+        "nameEn": "SET MENU-3",
+        "price": 280,
+        "storedSubcategory": "SET MENU",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m82",
+        "nameBn": "SET MENU-4 (190/-)",
+        "nameEn": "SET MENU-4",
+        "price": 190,
+        "storedSubcategory": "SET MENU",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m83",
+        "nameBn": "SET MENU-5 (300/-)",
+        "nameEn": "SET MENU-5",
+        "price": 300,
+        "storedSubcategory": "SET MENU",
+        "resolvedSubcategory": "সেট মেনু"
+      },
+      {
+        "id": "rest_m84",
+        "nameBn": "SET MENU-6 (150/-)",
+        "nameEn": "SET MENU-6",
+        "price": 150,
+        "storedSubcategory": "SET MENU",
+        "resolvedSubcategory": "সেট মেনু"
+      }
+    ],
+    "KABAB": [
+      {
+        "id": "rest_m85",
+        "nameBn": "গ্রিল চিকেন",
+        "nameEn": "Grill Chicken",
+        "price": 120,
+        "storedSubcategory": "KABAB",
+        "resolvedSubcategory": "চিকেন, উইংস ও কাবাব"
+      },
+      {
+        "id": "rest_m87",
+        "nameBn": "চিকেন শাওয়ার্মা",
+        "nameEn": "Chicken Shawarma",
+        "price": 130,
+        "storedSubcategory": "KABAB",
+        "resolvedSubcategory": "বার্গার ও স্যান্ডউইচ"
+      }
+    ],
+    "NAAN": [
+      {
+        "id": "rest_m88",
+        "nameBn": "প্লেন নান",
+        "nameEn": "Plain Naan",
+        "price": 40,
+        "storedSubcategory": "NAAN",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest_m89",
+        "nameBn": "বাটার নান",
+        "nameEn": "Butter Naan",
+        "price": 60,
+        "storedSubcategory": "NAAN",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest_m90",
+        "nameBn": "গার্লিক নান",
+        "nameEn": "Garlic Naan",
+        "price": 80,
+        "storedSubcategory": "NAAN",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest_m91",
+        "nameBn": "কাশ্মিরী নান",
+        "nameEn": "Kashmiri Naan",
+        "price": 120,
+        "storedSubcategory": "NAAN",
+        "resolvedSubcategory": "নান, পরোটা ও নাস্তা"
+      },
+      {
+        "id": "rest_m92",
+        "nameBn": "শাহী হালিম",
+        "nameEn": "Shahi Halim",
+        "price": 100,
+        "storedSubcategory": "NAAN",
+        "resolvedSubcategory": "কারির পদ ও মাছ-মাংস"
+      }
+    ],
+    "COFFEE": [
+      {
+        "id": "rest_m93",
+        "nameBn": "রেগুলার হট কফি",
+        "nameEn": "Regular Hot Coffee",
+        "price": 80,
+        "storedSubcategory": "COFFEE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m94",
+        "nameBn": "ব্ল্যাক কফি",
+        "nameEn": "Black Coffee",
+        "price": 50,
+        "storedSubcategory": "COFFEE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m95",
+        "nameBn": "কোল্ড কফি",
+        "nameEn": "Cold Coffee",
+        "price": 120,
+        "storedSubcategory": "COFFEE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      },
+      {
+        "id": "rest_m96",
+        "nameBn": "চকলেট কোল্ড কফি",
+        "nameEn": "Chocolate Cold Coffee",
+        "price": 150,
+        "storedSubcategory": "COFFEE",
+        "resolvedSubcategory": "পানীয়, জুস ও কফি"
+      }
+    ]
+  },
+  "unassignedStored": []
+}

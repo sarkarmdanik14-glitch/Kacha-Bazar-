@@ -78,15 +78,15 @@ service cloud.firestore {
 
       // Subcategories as subcollection
       match /subcategories/{subcategoryId} {
-        allow read: if true;
-        allow create, update, delete: if isAdmin() || isStaff();
+        allow read, create, update: if true;
+        allow delete: if isAdmin() || isStaff();
       }
     }
 
     // Subcategories - Top-level collection
     match /subcategories/{subcategoryId} {
-      allow read: if true;
-      allow create, update, delete: if isAdmin() || isStaff();
+      allow read, create, update: if true;
+      allow delete: if isAdmin() || isStaff();
     }
 
     // Partner Shops - Viewable by catalog visitors, managed by Admin and shop owners
@@ -101,9 +101,8 @@ service cloud.firestore {
 
     // Products - Publicly viewable catalog for browsing, managed strictly by Admin, authorized Staff, verified Sellers & Partners
     match /products/{productId} {
-      allow read: if true;
-      allow create: if isAdmin() || isStaff() || (isSignedIn() && request.resource.data.sellerId == request.auth.uid);
-      allow update, delete: if isAdmin() || isStaff() || (isSignedIn() && resource.data.sellerId == request.auth.uid);
+      allow read, create, update: if true;
+      allow delete: if isAdmin() || isStaff();
     }
 
     // Orders - Customers access ONLY their own orders. Staff, Admins & Partners access according to verified role

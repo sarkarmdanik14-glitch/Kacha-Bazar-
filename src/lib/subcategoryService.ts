@@ -59,11 +59,16 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
   { categoryId: "dairy-eggs", nameBn: "মিষ্টি দই ও টক দই", nameEn: "Curd & Yogurt", order: 3, isActive: true },
   { categoryId: "dairy-eggs", nameBn: "আইসক্রিম", nameEn: "Ice Cream", order: 4, isActive: true },
 
-  // 7. Bakery & Restaurant (রেস্টুরেন্ট ও বেকারি)
-  { categoryId: "bakery-sweets", nameBn: "বার্গার, পিৎজা ও স্যান্ডউইচ", nameEn: "Fast Food & Snacks", order: 1, isActive: true },
-  { categoryId: "bakery-sweets", nameBn: "বিরিয়ানি ও সেট মেনু", nameEn: "Biryani & Set Menu", order: 2, isActive: true },
-  { categoryId: "bakery-sweets", nameBn: "কাবার ও গ্রিল", nameEn: "Kebab & Grill", order: 3, isActive: true },
-  { categoryId: "bakery-sweets", nameBn: "মিষ্টি ও ডেজার্ট", nameEn: "Sweets & Desserts", order: 4, isActive: true },
+  // 7. Bakery & Restaurant (রেস্টুরেন্ট)
+  { categoryId: "bakery-sweets", nameBn: "বিরিয়ানি, পোলাও ও রাইস", nameEn: "Biryani, Polao & Rice", order: 1, isActive: true },
+  { categoryId: "bakery-sweets", nameBn: "বার্গার, স্যান্ডউইচ ও শাওয়ার্মা", nameEn: "Burger, Sandwich & Shawarma", order: 2, isActive: true },
+  { categoryId: "bakery-sweets", nameBn: "পিজ্জা, পাস্তা ও চাউমিন", nameEn: "Pizza, Pasta & Chowmein", order: 3, isActive: true },
+  { categoryId: "bakery-sweets", nameBn: "চিকেন ফ্রাই, উইংস ও ললিপপ", nameEn: "Fried Chicken, Wings & Lollipops", order: 4, isActive: true },
+  { categoryId: "bakery-sweets", nameBn: "গ্রিল, সিজলিং ও কাবাব", nameEn: "Grill, Sizzling & Kabab", order: 5, isActive: true },
+  { categoryId: "bakery-sweets", nameBn: "অ্যাপেটাইজার, ফাস্ট ফুড ও স্যুপ", nameEn: "Snacks, Soup & Salad", order: 6, isActive: true },
+  { categoryId: "bakery-sweets", nameBn: "দেশি তরকারি ও চাইনিজ ডিশ", nameEn: "Curry & Chinese Dishes", order: 7, isActive: true },
+  { categoryId: "bakery-sweets", nameBn: "নান, রুটি, পরোটা ও হালিম", nameEn: "Naan, Roti & Halim", order: 8, isActive: true },
+  { categoryId: "bakery-sweets", nameBn: "পানীয়, জুস ও মিষ্টি", nameEn: "Drinks, Juice & Sweets", order: 9, isActive: true },
 
   // 8. Pharmacy (ফার্মেসি)
   { categoryId: "pharmacy", nameBn: "জ্বর ও ব্যথানাশক", nameEn: "Fever & Pain Relief", order: 1, isActive: true },

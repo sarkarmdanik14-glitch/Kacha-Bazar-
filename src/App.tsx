@@ -13,9 +13,15 @@ import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, Subcategory, CartItem, Review, ProductOption } from "./types";
-import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
+import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
 import { resolveProductDisplayUnit } from "./lib/productWeightUtils";
 import { subscribeToAllSubcategories } from "./lib/subcategoryService";
+import { 
+  RESTAURANT_SUBCATEGORIES, 
+  RESTAURANT_SUBCATEGORY_NAMES_BN, 
+  getResolvedRestaurantSubcategory, 
+  matchesRestaurantSubcategory 
+} from "./lib/restaurantSubcategories";
 
 import PortalModal from "./components/portal/PortalModal";
 import CheckoutModal from "./components/CheckoutModal";
@@ -645,6 +651,27 @@ export default function App() {
         for (const cp of COSMETICS_PRODUCTS_RAW) {
           if (!existingIds.has(cp.id) && !savedDeleted.has(cp.id)) {
             items.push(cp);
+            existingIds.add(cp.id);
+          }
+        }
+
+        // Ensure all restaurant products are present with strict duplicate prevention
+        const existingRestNames = new Set(
+          items
+            .filter(p => isCategoryMatch(p.category || (p as any).categoryId, "bakery-sweets"))
+            .flatMap(p => [(p.nameBn || "").trim().toLowerCase(), (p.nameEn || "").trim().toLowerCase()])
+            .filter(Boolean)
+        );
+
+        for (const rp of RESTAURANT_PRODUCTS_RAW) {
+          const normBn = rp.nameBn.trim().toLowerCase();
+          const normEn = rp.nameEn.trim().toLowerCase();
+          const isDupe = existingIds.has(rp.id) || existingRestNames.has(normBn) || existingRestNames.has(normEn);
+          if (!isDupe && !savedDeleted.has(rp.id)) {
+            items.push(rp);
+            existingIds.add(rp.id);
+            existingRestNames.add(normBn);
+            existingRestNames.add(normEn);
           }
         }
 
@@ -2243,25 +2270,29 @@ export default function App() {
               const targetSub = (selectedSubcategory || "all").toLowerCase().trim();
               let matchesSubcategory = targetSub === "all";
               if (!matchesSubcategory) {
-                const prodSub = (product.subcategory || "").toLowerCase().trim();
-                const prodSubId = (product.subcategoryId || "").toLowerCase().trim();
-                const effectiveSub = (isGroceryCat 
-                  ? getResolvedGrocerySubcategory(product.id, product.nameBn, product.nameEn, product.subcategory, product.category)
-                  : (product.subcategory || "")).toLowerCase().trim();
+                if (isRestaurantCat) {
+                  matchesSubcategory = matchesRestaurantSubcategory(product, targetSub);
+                } else {
+                  const prodSub = (product.subcategory || "").toLowerCase().trim();
+                  const prodSubId = (product.subcategoryId || "").toLowerCase().trim();
+                  const effectiveSub = (isGroceryCat 
+                    ? getResolvedGrocerySubcategory(product.id, product.nameBn, product.nameEn, product.subcategory, product.category)
+                    : (product.subcategory || "")).toLowerCase().trim();
 
-                const matchedSubObj = matchingDbSubs.find(
-                  s => s.nameBn.toLowerCase().trim() === targetSub || (s.nameEn && s.nameEn.toLowerCase().trim() === targetSub) || s.id.toLowerCase().trim() === targetSub
-                );
+                  const matchedSubObj = matchingDbSubs.find(
+                    s => s.nameBn.toLowerCase().trim() === targetSub || (s.nameEn && s.nameEn.toLowerCase().trim() === targetSub) || s.id.toLowerCase().trim() === targetSub
+                  );
 
-                matchesSubcategory = 
-                  effectiveSub === targetSub || 
-                  prodSub === targetSub || 
-                  prodSubId === targetSub || 
-                  Boolean(matchedSubObj && (
-                    product.subcategoryId === matchedSubObj.id || 
-                    (prodSub && prodSub === matchedSubObj.nameBn.toLowerCase().trim()) ||
-                    (prodSub && matchedSubObj.nameEn && prodSub === matchedSubObj.nameEn.toLowerCase().trim())
-                  ));
+                  matchesSubcategory = 
+                    effectiveSub === targetSub || 
+                    prodSub === targetSub || 
+                    prodSubId === targetSub || 
+                    Boolean(matchedSubObj && (
+                      product.subcategoryId === matchedSubObj.id || 
+                      (prodSub && prodSub === matchedSubObj.nameBn.toLowerCase().trim()) ||
+                      (prodSub && matchedSubObj.nameEn && prodSub === matchedSubObj.nameEn.toLowerCase().trim())
+                    ));
+                }
               }
 
               const matchesSearch = matchesProductSearch(product, searchQuery);
@@ -2272,16 +2303,11 @@ export default function App() {
             const allCatProducts = availableProducts.filter(p => isCategoryMatch(p.category || (p as any).categoryId, selectedCategory));
 
             let subcategories: string[] = [];
-            if (matchingDbSubs.length > 0) {
+            if (isRestaurantCat) {
+              subcategories = ["all", ...RESTAURANT_SUBCATEGORY_NAMES_BN];
+            } else if (matchingDbSubs.length > 0) {
               const dynamicSubs = matchingDbSubs.map(s => s.nameBn);
               subcategories = ["all", ...dynamicSubs];
-            } else if (isRestaurantCat) {
-              const existingSubs = Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean))) as string[];
-              const orderedSubs = [
-                ...RESTAURANT_MENU_SECTIONS.filter(s => existingSubs.includes(s)),
-                ...existingSubs.filter(s => !RESTAURANT_MENU_SECTIONS.includes(s))
-              ];
-              subcategories = ["all", ...orderedSubs];
             } else if (isGroceryCat) {
               const existingSubs = Array.from(new Set(allCatProducts.map(p => getResolvedGrocerySubcategory(p.id, p.nameBn, p.nameEn, p.subcategory, p.category)).filter(Boolean))) as string[];
               const orderedSubs = [
@@ -2368,7 +2394,7 @@ export default function App() {
             };
 
             // Pre-calculate sections for sectioned categories when default sorting & "all" subcategory is selected
-            const sectionGroups: { name: string; products: Product[]; brandInfo?: any }[] = [];
+            const sectionGroups: { name: string; products: Product[]; brandInfo?: any; iconEmoji?: string }[] = [];
             let unsectionedProducts: Product[] = [];
 
             if (isSectionedCategory && sortBy === "default" && selectedSubcategory === "all") {
@@ -2384,6 +2410,11 @@ export default function App() {
                 const prods = sortedProducts.filter((p) => {
                   if (matchedIds.has(p.id)) return false;
 
+                  if (isRestaurantCat) {
+                    const effSub = getResolvedRestaurantSubcategory(p);
+                    if (effSub && effSub.toLowerCase().trim() === secKey) return true;
+                    return false;
+                  }
                   if (isGroceryCat) {
                     const effSub = getResolvedGrocerySubcategory(p.id, p.nameBn, p.nameEn, p.subcategory, p.category);
                     if (effSub && effSub.toLowerCase().trim() === secKey) return true;
@@ -2400,9 +2431,14 @@ export default function App() {
 
                 if (prods.length > 0) {
                   prods.forEach(p => matchedIds.add(p.id));
+                  const restSubDef = isRestaurantCat 
+                    ? RESTAURANT_SUBCATEGORIES.find(s => s.nameBn.toLowerCase().trim() === secKey || s.id.toLowerCase().trim() === secKey)
+                    : null;
+
                   sectionGroups.push({
-                    name: secName,
+                    name: isRestaurantCat && restSubDef ? (lang === "bn" ? restSubDef.nameBn : restSubDef.nameEn) : secName,
                     products: prods,
+                    iconEmoji: restSubDef?.iconEmoji,
                     brandInfo: isMobileZoneCat ? getMobileBrandHeader(secName) : null
                   });
                 }
@@ -2515,10 +2551,27 @@ export default function App() {
                     {subcategories.map((sub: string) => {
                       let label = sub === "all" 
                         ? (lang === "bn" 
-                            ? (isVehicleCat ? "সব যানবাহন" : isMobileZoneCat ? "সব ব্র্যান্ড" : "সব পণ্য") 
-                            : (isVehicleCat ? "All Vehicles" : isMobileZoneCat ? "All Brands" : "All Products")) 
+                            ? (isVehicleCat ? "সব যানবাহন" : isMobileZoneCat ? "সব ব্র্যান্ড" : isRestaurantCat ? "সব মেনু" : "সব পণ্য") 
+                            : (isVehicleCat ? "All Vehicles" : isMobileZoneCat ? "All Brands" : isRestaurantCat ? "All Menu" : "All Products")) 
                         : sub;
-                      if (isVehicleCat) {
+                      let iconEmoji = "";
+                      let count = 0;
+
+                      if (isRestaurantCat) {
+                        if (sub === "all") {
+                          label = lang === "bn" ? "সব মেনু" : "All Menu";
+                          count = allCatProducts.length;
+                        } else {
+                          const restSubDef = RESTAURANT_SUBCATEGORIES.find(
+                            s => s.nameBn.toLowerCase().trim() === sub.toLowerCase().trim() || s.id.toLowerCase().trim() === sub.toLowerCase().trim()
+                          );
+                          if (restSubDef) {
+                            label = lang === "bn" ? restSubDef.nameBn : restSubDef.nameEn;
+                            iconEmoji = restSubDef.iconEmoji;
+                          }
+                          count = allCatProducts.filter(p => matchesRestaurantSubcategory(p, sub)).length;
+                        }
+                      } else if (isVehicleCat) {
                         const VEHICLE_SUBCAT_LABELS: Record<string, { bn: string; en: string }> = {
                           ambulance: { bn: "🚑 অ্যাম্বুলেন্স", en: "🚑 Ambulance" },
                           microbus: { bn: "🚐 মাইক্রোবাস", en: "🚐 Microbus" },
@@ -2548,17 +2601,27 @@ export default function App() {
                           onClick={() => {
                             setSelectedSubcategory(sub);
                             triggerToast(
-                              `সাবক্যাটাগরি: ${label}`,
-                              `Subcategory: ${label}`
+                              `${isRestaurantCat ? "মেনু ফিল্টার" : "সাবক্যাটাগরি"}: ${label}`,
+                              `${isRestaurantCat ? "Menu Filter" : "Subcategory"}: ${label}`
                             );
                           }}
-                          className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer snap-start border ${
+                          className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer snap-start border flex items-center gap-1.5 shrink-0 ${
                             selectedSubcategory.toLowerCase() === sub.toLowerCase()
                               ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-emerald-300"
                           }`}
                         >
-                          {label}
+                          {iconEmoji && <span className="text-sm shrink-0">{iconEmoji}</span>}
+                          <span>{label}</span>
+                          {isRestaurantCat && (
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                              selectedSubcategory.toLowerCase() === sub.toLowerCase()
+                                ? "bg-white/20 text-white"
+                                : "bg-slate-100 text-slate-500"
+                            }`}>
+                              {count}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -2651,8 +2714,9 @@ export default function App() {
                                   <span className="w-2 sm:w-2.5 h-4 sm:h-5 bg-emerald-600 rounded-xs"></span>
                                 )}
                                 <div>
-                                  <h3 className="text-xs sm:text-sm md:text-base font-black text-slate-800 tracking-wide">
-                                    {section.brandInfo ? section.brandInfo.title : section.name}
+                                  <h3 className="text-xs sm:text-sm md:text-base font-black text-slate-800 tracking-wide flex items-center gap-1.5">
+                                    {section.iconEmoji && <span className="text-base sm:text-lg">{section.iconEmoji}</span>}
+                                    <span>{section.brandInfo ? section.brandInfo.title : section.name}</span>
                                   </h3>
                                   {section.brandInfo && (
                                     <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium">
