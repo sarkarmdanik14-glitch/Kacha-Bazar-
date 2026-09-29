@@ -2893,8 +2893,21 @@ app.post("/api/products/upsert", rateLimiter(60, 60000), requireStaffAuth, async
       rawCategory === "spices-oils" ||
       rawCategory.includes("মুদি");
 
-    const resolvedCategory = isGrocery ? "মুদি পণ্য" : (product.category || "groceries");
-    const resolvedCategoryId = isGrocery ? "groceries" : (product.categoryId || product.category || "groceries");
+    const isDryFood = 
+      rawCategory === "frozen" || 
+      rawCategory === "dry-food" || 
+      rawCategory === "dryfood" || 
+      rawCategory === "dry food" || 
+      rawCategory === "ড্রাই ফুড" || 
+      rawCategory === "ড্রাইফুড" ||
+      rawCategory.includes("ড্রাই ফুড");
+
+    const resolvedCategory = isGrocery 
+      ? "মুদি পণ্য" 
+      : (isDryFood ? "ড্রাই ফুড" : (product.category || "groceries"));
+    const resolvedCategoryId = isGrocery 
+      ? "groceries" 
+      : (isDryFood ? "frozen" : (product.categoryId || product.category || "groceries"));
     const resolvedImg = (product.image || product.imageUrl || "").toString().trim() || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80";
 
     const payload: any = {
@@ -2908,15 +2921,20 @@ app.post("/api/products/upsert", rateLimiter(60, 60000), requireStaffAuth, async
       unitBn: product.unitBn || "১ কেজি",
       category: resolvedCategory,
       categoryId: resolvedCategoryId,
-      subcategory: product.subcategory || product.subCategory || "General",
-      subCategory: product.subCategory || product.subcategory || "General",
+      categoryBn: resolvedCategory,
+      categoryEn: isDryFood ? "Dry Food" : (isGrocery ? "Groceries" : (product.categoryEn || product.nameEn)),
+      subcategory: product.subcategory || product.subCategory || (isDryFood ? "ড্রাই ফুড" : "General"),
+      subCategory: product.subCategory || product.subcategory || (isDryFood ? "ড্রাই ফুড" : "General"),
       subcategoryId: product.subcategoryId || product.subCategoryId || "",
       subCategoryId: product.subCategoryId || product.subcategoryId || "",
       stock: Number(product.stock) || 0,
       image: resolvedImg,
       imageUrl: resolvedImg,
+      description: product.description || product.descriptionBn || product.descriptionEn || "",
+      descriptionBn: product.descriptionBn || product.description || "",
+      descriptionEn: product.descriptionEn || product.description || "",
       brand: product.brand || "Kacha Bazar",
-      sku: product.sku || `KB-${(isGrocery ? "GRO" : resolvedCategoryId).substring(0, 3).toUpperCase()}-${prodId}`,
+      sku: product.sku || `KB-${(isGrocery ? "GRO" : (isDryFood ? "DRY" : resolvedCategoryId)).substring(0, 3).toUpperCase()}-${prodId}`,
       isAvailable: product.isAvailable !== false,
       inStock: (Number(product.stock) || 0) > 0,
       isDeleted: false,

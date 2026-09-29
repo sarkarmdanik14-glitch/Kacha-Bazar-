@@ -287,7 +287,7 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     unitBn: resolvedUnits.unitBn,
     unitEn: resolvedUnits.unitEn,
     category: resolvedCategory,
-    categoryId: resolvedCategory,
+    categoryId: data.categoryId || (resolvedCategory === "ড্রাই ফুড" ? "frozen" : resolvedCategory),
     subcategoryId: data.subcategoryId || data.subCategoryId || "",
     subCategoryId: data.subCategoryId || data.subcategoryId || "",
     image: resolvedProductImg,
@@ -298,8 +298,9 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     stock: typeof data.stock === "number" && !isNaN(data.stock)
       ? data.stock
       : (data.stock !== undefined && data.stock !== null && data.stock !== "" ? Number(data.stock) : 50),
-    descriptionBn: data.descriptionBn || "",
-    descriptionEn: data.descriptionEn || "",
+    description: data.description || data.descriptionBn || data.descriptionEn || "",
+    descriptionBn: data.descriptionBn || data.description || "",
+    descriptionEn: data.descriptionEn || data.description || "",
     isBestSelling: !!data.isBestSelling,
     isNewArrival: !!data.isNewArrival,
     isPopular: !!data.isPopular,

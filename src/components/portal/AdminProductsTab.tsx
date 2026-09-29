@@ -740,7 +740,9 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       ? "bakery-sweets"
       : (p.categoryId || (isCategoryMatch(p.category, "groceries")
         ? "groceries"
-        : (isCategoryMatch(p.category, "snacks-biscuits") ? "snacks-biscuits" : (p.category || selectedCatId || "vegetables"))));
+        : (isCategoryMatch(p.category, "snacks-biscuits") 
+          ? "snacks-biscuits" 
+          : (isCategoryMatch(p.category, "frozen") ? "frozen" : (p.category || selectedCatId || "vegetables")))));
     setProdCategory(effectiveCat);
     
     // Resolve subcategoryId if explicitly saved or match by subcategory name
@@ -796,13 +798,14 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     setProdUnitEn("1 kg");
     setProdUnitBn("১ কেজি");
     const isRest = isCategoryMatch(targetCat, "restaurant") || targetCat === "bakery-sweets" || targetCat === "restaurant" || targetCat === "রেস্টুরেন্ট";
-    const effectiveCat = isRest ? "bakery-sweets" : targetCat;
+    const isDryFood = isCategoryMatch(targetCat, "frozen") || targetCat === "frozen" || targetCat === "dry-food" || targetCat === "dryfood" || targetCat === "ড্রাই ফুড";
+    const effectiveCat = isRest ? "bakery-sweets" : (isDryFood ? "frozen" : targetCat);
     setProdCategory(effectiveCat);
     const matchingSubs = isRest
       ? RESTAURANT_SUBCATEGORIES.map(s => ({ id: s.id, categoryId: "bakery-sweets", nameBn: s.nameBn, nameEn: s.nameEn, order: s.order }))
-      : subcategories.filter(s => s.categoryId === effectiveCat);
+      : subcategories.filter(s => (s.categoryId === effectiveCat || (isDryFood && (s.categoryId === "frozen" || s.categoryId === "dry-food"))) && !s.isDeleted);
     setProdSubcategoryId(matchingSubs.length > 0 ? matchingSubs[0].id : "");
-    setProdSubcategory(matchingSubs.length > 0 ? matchingSubs[0].nameBn : "");
+    setProdSubcategory(matchingSubs.length > 0 ? matchingSubs[0].nameBn : (isDryFood ? "ড্রাই ফুড" : ""));
     setProdStock(50);
     setProdImage("");
     setProdDescEn("");
@@ -830,13 +833,27 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     try {
       const resolvedImg = prodImage.trim() || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80";
       const isRestItem = isCategoryMatch(prodCategory, "restaurant") || prodCategory === "bakery-sweets" || prodCategory === "restaurant" || prodCategory === "রেস্টুরেন্ট";
+      const isGroceryItem = isCategoryMatch(prodCategory, "groceries") || prodCategory === "groceries" || prodCategory === "মুদি পণ্য";
+      const isDryFoodItem = isCategoryMatch(prodCategory, "frozen") || prodCategory === "frozen" || prodCategory === "dry-food" || prodCategory === "dryfood" || prodCategory === "ড্রাই ফুড";
+
       const selectedSub = subcategories.find(s => s.id === prodSubcategoryId) ||
                           (isRestItem ? RESTAURANT_SUBCATEGORIES.find(s => s.id === prodSubcategoryId) : null);
-      const resolvedSubName = selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || (isRestItem ? "বিরিয়ানি, পোলাও ও রাইস" : "General"));
+      const resolvedSubName = selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || (isRestItem ? "বিরিয়ানি, পোলাও ও রাইস" : (isDryFoodItem ? "ড্রাই ফুড" : "General")));
       const resolvedSubId = prodSubcategoryId || (selectedSub ? selectedSub.id : "");
 
       const finalId = editingProduct ? (editingProduct.id || prodId) : (prodId || `prod_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`);
-      const isGroceryItem = isCategoryMatch(prodCategory, "groceries") || prodCategory === "groceries" || prodCategory === "মুদি পণ্য";
+
+      const resolvedCategoryId = isGroceryItem 
+        ? "groceries" 
+        : (isRestItem 
+            ? "bakery-sweets" 
+            : (isDryFoodItem ? "frozen" : (normalizeCategoryId(prodCategory) || prodCategory)));
+
+      const resolvedCategoryName = isGroceryItem 
+        ? "মুদি পণ্য" 
+        : (isRestItem 
+            ? "রেস্টুরেন্ট" 
+            : (isDryFoodItem ? "ড্রাই ফুড" : (prodCategory === "groceries" ? "মুদি পণ্য" : prodCategory)));
 
       const payload: any = {
         id: finalId,
@@ -846,19 +863,22 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         originalPrice: Number(prodOrigPrice) || Number(prodPrice) || 0,
         unitEn: prodUnitEn.trim() || "1 kg",
         unitBn: prodUnitBn.trim() || "১ কেজি",
-        categoryId: isGroceryItem ? "groceries" : (isRestItem ? "bakery-sweets" : (normalizeCategoryId(prodCategory) || prodCategory)),
+        categoryId: resolvedCategoryId,
         subcategoryId: resolvedSubId,
         subCategoryId: resolvedSubId,
-        category: isGroceryItem ? "মুদি পণ্য" : (isRestItem ? "রেস্টুরেন্ট" : (prodCategory === "groceries" ? "মুদি পণ্য" : prodCategory)),
+        category: resolvedCategoryName,
+        categoryBn: resolvedCategoryName,
+        categoryEn: isDryFoodItem ? "Dry Food" : (isRestItem ? "Restaurant" : (isGroceryItem ? "Groceries" : prodNameEn)),
         subcategory: resolvedSubName,
         subCategory: resolvedSubName,
         stock: Number(prodStock) || 0,
         image: resolvedImg,
         imageUrl: resolvedImg,
+        description: prodDescBn.trim() || prodDescEn.trim() || "",
         descriptionEn: prodDescEn.trim(),
         descriptionBn: prodDescBn.trim(),
         brand: prodBrand.trim() || (isRestItem ? "Kacha Bazar Restaurant" : "Kacha Bazar"),
-        sku: prodSku.trim() || `KB-${(isGroceryItem ? "GRO" : (isRestItem ? "REST" : prodCategory)).substring(0, 3).toUpperCase()}-${finalId}`,
+        sku: prodSku.trim() || `KB-${(isGroceryItem ? "GRO" : (isRestItem ? "REST" : (isDryFoodItem ? "DRY" : prodCategory))).substring(0, 3).toUpperCase()}-${finalId}`,
         options: prodOptions,
         isAvailable: prodIsAvailable !== false,
         inStock: (Number(prodStock) || 0) > 0,
@@ -912,8 +932,8 @@ export default function AdminProductsTab({ products, categories, orders = [], us
           // Immediately update optimistic state in Admin and App
           onProductSaved?.({ ...payload, id: payload.id || finalId });
           triggerToast(
-            isGroceryItem ? "নতুন মুদি পণ্য সফলভাবে যুক্ত করা হয়েছে!" : "নতুন পণ্য যুক্ত করা হয়েছে!",
-            isGroceryItem ? "New grocery product added successfully!" : "New product added to catalog successfully!"
+            isGroceryItem ? "নতুন মুদি পণ্য সফলভাবে যুক্ত করা হয়েছে!" : (isDryFoodItem ? "নতুন ড্রাই ফুড পণ্য সফলভাবে যুক্ত করা হয়েছে!" : "নতুন পণ্য যুক্ত করা হয়েছে!"),
+            isGroceryItem ? "New grocery product added successfully!" : (isDryFoodItem ? "New dry food product added successfully!" : "New product added to catalog successfully!")
           );
           setShowProductForm(false);
         }
@@ -921,12 +941,19 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         const updatePayload = {
           ...payload,
           id: finalId,
+          categoryId: resolvedCategoryId,
+          category: resolvedCategoryName,
+          categoryBn: resolvedCategoryName,
+          categoryEn: isDryFoodItem ? "Dry Food" : (isRestItem ? "Restaurant" : (isGroceryItem ? "Groceries" : prodNameEn)),
           subcategoryId: resolvedSubId,
           subCategoryId: resolvedSubId,
           subcategory: resolvedSubName,
           subCategory: resolvedSubName,
           imageUrl: resolvedImg,
           image: resolvedImg,
+          description: prodDescBn.trim() || prodDescEn.trim() || "",
+          descriptionEn: prodDescEn.trim(),
+          descriptionBn: prodDescBn.trim(),
           isDeleted: false,
           deleted: false,
           status: "active",
@@ -1198,7 +1225,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
     const relatedProducts = products
       .filter(p => !isProductDeleted(p))
       .filter(p => shouldKeepProductGroceryFiltered(p))
-      .filter(p => isCategoryMatch(p.category, id));
+      .filter(p => isCategoryMatch(p.category || p.categoryId, id));
     const prodCount = relatedProducts.length;
 
     let confirmMsg = "";
@@ -1338,7 +1365,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   const categoryProducts = products
     .filter(p => !isProductDeleted(p))
     .filter(p => shouldKeepProductGroceryFiltered(p))
-    .filter(p => isCategoryMatch(p.category, selectedCatId));
+    .filter(p => isCategoryMatch(p.category || p.categoryId, selectedCatId));
 
   // Filtered products for Category Manager view
   const filteredCategoryProducts = categoryProducts
@@ -1439,7 +1466,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                 const catProdCount = products
                   .filter(p => !isProductDeleted(p))
                   .filter(p => shouldKeepProductGroceryFiltered(p))
-                  .filter(p => isCategoryMatch(p.category, c.id)).length;
+                  .filter(p => isCategoryMatch(p.category || p.categoryId, c.id)).length;
                 return (
                   <button
                     key={c.id}
@@ -1903,9 +1930,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                   ) : (
                     globalFilteredProducts.map((p) => {
                       const isAvailable = p.isAvailable !== false;
-                      const catInfo = categories.find(c => c.id === p.category) || 
-                        (isCategoryMatch(p.category, "groceries") ? categories.find(c => c.id === "groceries") : undefined) ||
-                        (isCategoryMatch(p.category, "snacks-biscuits") ? categories.find(c => c.id === "snacks-biscuits") : undefined);
+                      const catInfo = categories.find(c => c.id === p.category || c.id === p.categoryId) || 
+                        (isCategoryMatch(p.category || p.categoryId, "groceries") ? categories.find(c => c.id === "groceries") : undefined) ||
+                        (isCategoryMatch(p.category || p.categoryId, "frozen") ? categories.find(c => c.id === "frozen") : undefined) ||
+                        (isCategoryMatch(p.category || p.categoryId, "snacks-biscuits") ? categories.find(c => c.id === "snacks-biscuits") : undefined);
                       return (
                         <tr key={p.id} className="hover:bg-slate-50 transition">
                           <td className="p-3">
@@ -2042,19 +2070,20 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                   onChange={(e) => {
                     const newCat = e.target.value;
                     const isNewRest = isCategoryMatch(newCat, "restaurant") || newCat === "bakery-sweets" || newCat === "restaurant" || newCat === "রেস্টুরেন্ট";
-                    const effectiveNewCat = isNewRest ? "bakery-sweets" : newCat;
+                    const isNewDryFood = isCategoryMatch(newCat, "frozen") || newCat === "frozen" || newCat === "dry-food" || newCat === "dryfood" || newCat === "ড্রাই ফুড";
+                    const effectiveNewCat = isNewRest ? "bakery-sweets" : (isNewDryFood ? "frozen" : newCat);
                     setProdCategory(effectiveNewCat);
                     const matchingSubs = isNewRest
                       ? RESTAURANT_SUBCATEGORIES.map(s => ({ id: s.id, categoryId: "bakery-sweets", nameBn: s.nameBn, nameEn: s.nameEn, order: s.order }))
                       : subcategories
-                          .filter(s => s.categoryId === effectiveNewCat && !s.isDeleted)
+                          .filter(s => (s.categoryId === effectiveNewCat || (isNewDryFood && (s.categoryId === "frozen" || s.categoryId === "dry-food"))) && !s.isDeleted)
                           .sort((a, b) => (a.order || 0) - (b.order || 0));
                     if (matchingSubs.length > 0) {
                       setProdSubcategoryId(matchingSubs[0].id);
                       setProdSubcategory(matchingSubs[0].nameBn || (matchingSubs[0] as any).nameEn);
                     } else {
                       setProdSubcategoryId("");
-                      setProdSubcategory("");
+                      setProdSubcategory(isNewDryFood ? "ড্রাই ফুড" : "");
                     }
                   }}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
@@ -2072,10 +2101,11 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                 </label>
                 {(() => {
                   const isCurrentRest = isCategoryMatch(prodCategory, "restaurant") || prodCategory === "bakery-sweets" || prodCategory === "restaurant" || prodCategory === "রেস্টুরেন্ট";
+                  const isCurrentDryFood = isCategoryMatch(prodCategory, "frozen") || prodCategory === "frozen" || prodCategory === "dry-food" || prodCategory === "ড্রাই ফুড";
                   const availableSubs = isCurrentRest
                     ? RESTAURANT_SUBCATEGORIES.map(s => ({ id: s.id, categoryId: "bakery-sweets", nameBn: s.nameBn, nameEn: s.nameEn, order: s.order }))
                     : subcategories
-                        .filter(s => s.categoryId === prodCategory && !s.isDeleted)
+                        .filter(s => (s.categoryId === prodCategory || (isCurrentDryFood && (s.categoryId === "frozen" || s.categoryId === "dry-food"))) && !s.isDeleted)
                         .sort((a, b) => (a.order || 0) - (b.order || 0));
 
                   return (
@@ -2451,7 +2481,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                         const catProductsCount = products
                           .filter(p => !isProductDeleted(p))
                           .filter(p => shouldKeepProductGroceryFiltered(p))
-                          .filter(p => isCategoryMatch(p.category, c.id)).length;
+                          .filter(p => isCategoryMatch(p.category || p.categoryId, c.id)).length;
                         const displayIdx = typeof c.displayOrder === "number" ? c.displayOrder : idx + 1;
 
                         return (

@@ -7,9 +7,11 @@ export const CATEGORIES: Category[] = [
   { id: "groceries", nameBn: "মুদি পণ্য", nameEn: "Groceries", iconName: "ShoppingBag", colorClass: "bg-amber-50 text-amber-800", borderColor: "border-amber-100", displayOrder: 2 },
   { id: "bakery-sweets", nameBn: "রেস্টুরেন্ট", nameEn: "Restaurant", iconName: "Utensils", colorClass: "bg-orange-50 text-orange-800", borderColor: "border-orange-100", displayOrder: 3 },
   { id: "fish", nameBn: "তাজা মাছ", nameEn: "Fresh Fish", iconName: "Fish", colorClass: "bg-cyan-50 text-cyan-800", borderColor: "border-cyan-100", displayOrder: 4 },
+  { id: "snacks-biscuits", nameBn: "কনফেকশনারি", nameEn: "Confectionery", iconName: "Cookie", colorClass: "bg-yellow-50 text-yellow-800", borderColor: "border-yellow-100", displayOrder: 5 },
   { id: "meat", nameBn: "মাংস ও ডিম", nameEn: "Meat & Eggs", iconName: "Beef", colorClass: "bg-rose-50 text-rose-800", borderColor: "border-rose-100", displayOrder: 6 },
   { id: "fruits", nameBn: "তাজা ফলমূল", nameEn: "Fresh Fruits", iconName: "Apple", colorClass: "bg-red-50 text-red-800", borderColor: "border-red-100", displayOrder: 7 },
   { id: "dairy-eggs", nameBn: "দুধ ও দুগ্ধজাত", nameEn: "Dairy & Eggs", iconName: "Milk", colorClass: "bg-blue-50 text-blue-800", borderColor: "border-blue-100", displayOrder: 8 },
+  { id: "frozen", nameBn: "ড্রাই ফুড", nameEn: "Dry Food", iconName: "Package", colorClass: "bg-amber-50 text-amber-700", borderColor: "border-amber-100", displayOrder: 9 },
   { id: "cosmetics", nameBn: "কসমেটিকস ও বিউটি কর্নার", nameEn: "Cosmetics & Beauty Corner", iconName: "Sparkles", colorClass: "bg-pink-50 text-pink-700", borderColor: "border-pink-100", displayOrder: 10 },
   { id: "pharmacy", nameBn: "ফার্মেসি", nameEn: "Pharmacy", iconName: "Pill", colorClass: "bg-teal-50 text-teal-800", borderColor: "border-teal-100", displayOrder: 12 },
   { id: "offers", nameBn: "অফার ও ডিল", nameEn: "Offers & Deals", iconName: "Tag", colorClass: "bg-purple-50 text-purple-800", borderColor: "border-purple-100", displayOrder: 13 }

@@ -167,6 +167,11 @@ export const CATEGORY_SERIAL_MAP: Record<string, number> = {
   "frozen": 9,
   "dry-food": 9,
   "dryfood": 9,
+  "dry-foods": 9,
+  "dry food": 9,
+  "dry_food": 9,
+  "ড্রাই ফুড": 9,
+  "ড্রাইফুড": 9,
   "cosmetics": 10,
   "personal-care": 10,
   "beauty": 10,
@@ -265,8 +270,30 @@ export function isCategoryMatch(
   }
 
   // If filtering by dry-food or frozen
-  if (sCat === "frozen" || sCat === "dry-food" || sCat === "dryfood") {
-    return pCat === "frozen" || pCat === "dry-food" || pCat === "dryfood";
+  const isDryFoodFilter = 
+    sCat === "frozen" || 
+    sCat === "dry-food" || 
+    sCat === "dryfood" || 
+    sCat === "dry-foods" || 
+    sCat === "dry food" || 
+    sCat === "dry_food" || 
+    sCat === "ড্রাই ফুড" || 
+    sCat === "ড্রাইফুড" ||
+    sCat.includes("ড্রাই ফুড");
+
+  if (isDryFoodFilter) {
+    return (
+      pCat === "frozen" || 
+      pCat === "dry-food" || 
+      pCat === "dryfood" || 
+      pCat === "dry-foods" || 
+      pCat === "dry food" || 
+      pCat === "dry_food" || 
+      pCat === "ড্রাই ফুড" || 
+      pCat === "ড্রাইফুড" ||
+      pCat.includes("ড্রাই ফুড") ||
+      pCat.includes("dry food")
+    );
   }
 
   // If filtering by cosmetics or personal-care
@@ -371,7 +398,16 @@ export function normalizeCategoryId(catId: string | undefined | null): string {
   if (lower === "restaurant" || lower === "bakery" || lower === "রেস্টুরেন্ট" || lower === "রেস্তোরাঁ" || lower.includes("রেস্টুরেন্ট")) {
     return "bakery-sweets";
   }
-  if (lower === "dry-food" || lower === "dryfood") {
+  if (
+    lower === "dry-food" || 
+    lower === "dryfood" || 
+    lower === "dry-foods" || 
+    lower === "dry food" || 
+    lower === "dry_food" || 
+    lower === "ড্রাই ফুড" || 
+    lower === "ড্রাইফুড" ||
+    lower.includes("ড্রাই ফুড")
+  ) {
     return "frozen";
   }
   if (lower === "baby-care" || lower === "medicine") {
@@ -567,7 +603,17 @@ export function mergeCategoryCards(categories: any[]): any[] {
         order: 2
       });
       groceryAdded = true;
-    } else if (cat.id === "frozen" || cat.id === "dry-food" || cat.id === "dryfood") {
+    } else if (
+      cat.id === "frozen" || 
+      cat.id === "dry-food" || 
+      cat.id === "dryfood" || 
+      cat.id === "dry-foods" || 
+      cat.id === "dry food" || 
+      cat.id === "ড্রাই ফুড" || 
+      cat.id === "ড্রাইফুড" ||
+      cat.nameBn === "ড্রাই ফুড" ||
+      cat.nameBn === "হিমায়িত খাদ্য"
+    ) {
       const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
       result.push({
         ...cat,

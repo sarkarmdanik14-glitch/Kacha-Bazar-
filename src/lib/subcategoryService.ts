@@ -86,7 +86,16 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
   { categoryId: "offers", nameBn: "দেশি পান পাতা", nameEn: "Betel Leaves", order: 1, isActive: true },
   { categoryId: "offers", nameBn: "কাটা ও গোটা সুপারি", nameEn: "Betel Nut", order: 2, isActive: true },
   { categoryId: "offers", nameBn: "চুন ও খয়ের", nameEn: "Lime & Catechu", order: 3, isActive: true },
-  { categoryId: "offers", nameBn: "জর্দা ও মসলা", nameEn: "Zarda & Spices", order: 4, isActive: true }
+  { categoryId: "offers", nameBn: "জর্দা ও মসলা", nameEn: "Zarda & Spices", order: 4, isActive: true },
+
+  // 11. Dry Food (ড্রাই ফুড)
+  { categoryId: "frozen", nameBn: "খাদ্যশস্য ও ডাল", nameEn: "Grains & Pulses", order: 1, isActive: true },
+  { categoryId: "frozen", nameBn: "ড্রাই ফ্রুটস ও বাদাম", nameEn: "Dry Fruits & Nuts", order: 2, isActive: true },
+  { categoryId: "frozen", nameBn: "বিস্কুট ও কুকিজ", nameEn: "Biscuits & Cookies", order: 3, isActive: true },
+  { categoryId: "frozen", nameBn: "নুডলস, পাস্তা ও সুপ", nameEn: "Noodles, Pasta & Soup", order: 4, isActive: true },
+  { categoryId: "frozen", nameBn: "চানাচুর, চিপস ও স্ন্যাক্স", nameEn: "Chanachur, Chips & Snacks", order: 5, isActive: true },
+  { categoryId: "frozen", nameBn: "চা ও কফি", nameEn: "Tea & Coffee", order: 6, isActive: true },
+  { categoryId: "frozen", nameBn: "অন্যান্য ড্রাই ফুড", nameEn: "Other Dry Food", order: 7, isActive: true }
 ];
 
 /**
@@ -95,10 +104,18 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
  */
 export async function getSubcategoriesForCategory(categoryId: string): Promise<Subcategory[]> {
   if (!categoryId) return [];
+  const normalizedCatId = (
+    categoryId === "dry-food" || 
+    categoryId === "dryfood" || 
+    categoryId === "dry-foods" || 
+    categoryId === "dry food" || 
+    categoryId === "ড্রাই ফুড" || 
+    categoryId === "ড্রাইফুড"
+  ) ? "frozen" : categoryId;
   try {
     const q = query(
       collection(db, "subcategories"),
-      where("categoryId", "==", categoryId),
+      where("categoryId", "==", normalizedCatId),
       where("isDeleted", "==", false),
       orderBy("order", "asc")
     );

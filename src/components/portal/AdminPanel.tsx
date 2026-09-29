@@ -241,8 +241,11 @@ export default function AdminPanel({
             if (data.isDeleted === true || data.status === "deleted" || data.deleted === true || savedDeleted.has(doc.id)) {
               return;
             }
-            // Completely remove ALL old products from former "হিমায়িত খাদ্য" category
-            if (/^fr\d+$/.test(doc.id) || (data.category === "frozen" && !doc.id.startsWith("df"))) {
+            // Only filter out legacy hardcoded mock items from former "হিমায়িত খাদ্য" category (fr1..fr30)
+            // NEVER filter out newly created products (prod_*), items with createdAt/updatedAt, or dry food items (df*)
+            const isLegacyFrozenSeed = /^fr\d+$/i.test(doc.id) || 
+              (data.categoryBn === "হিমায়িত খাদ্য" && !doc.id.startsWith("prod_") && !doc.id.startsWith("df") && !data.createdAt && !data.updatedAt);
+            if (isLegacyFrozenSeed) {
               return;
             }
             // Completely remove legacy pre-merge standalone products (st1..st60, sp1..sp60)
