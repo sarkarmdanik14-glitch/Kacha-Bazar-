@@ -227,8 +227,9 @@ export default function RiderPanel({ user, onLogout, lang, triggerToast }: Rider
       });
 
       // Trigger referral reward check if applicable
-      if (activeOrder.customerId) {
-        await checkAndRewardReferral(activeOrder.customerId);
+      const targetCustId = activeOrder.customerId || activeOrder.userId;
+      if (targetCustId) {
+        await checkAndRewardReferral(targetCustId);
       }
 
       // 2. Update Rider's balance (they get the delivery fee!) and clean current order

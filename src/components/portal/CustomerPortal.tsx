@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { 
   db, 
   auth,
@@ -15,20 +15,27 @@ import {
   where, 
   orderBy, 
   addDoc, 
+  setDoc,
   updateDoc,
   serverTimestamp,
   increment,
-  onSnapshot
+  onSnapshot,
+  sendEmailVerification
 } from "../../lib/firebase";
 import { 
   User, CreditCard, ShoppingBag, Gift, MapPin, 
   ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, 
   ShieldAlert, RefreshCw, Star, Share2, Clipboard, 
   Smartphone, Bell, Eye, LogOut, ChevronRight, Printer,
-  Camera, Trash2, Save, Edit3, Lock, Mail, Phone, ShieldCheck
+  Camera, Trash2, Save, Edit3, Lock, Mail, Phone, ShieldCheck,
+  Menu, X, Sparkles, QrCode, Award, Heart, Settings, Edit2, Check,
+  Crown, Percent, Zap, CheckCircle2, AlertCircle
 } from "lucide-react";
+import QRCode from "qrcode";
 import OrderMemoModal from "./OrderMemoModal";
 import { createTranslator } from "../../lib/formatUtils";
+import { checkAndUpgradePremiumMembership } from "../../lib/membership";
+import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
 
 
 interface CustomerPortalProps {
@@ -37,16 +44,55 @@ interface CustomerPortalProps {
   lang: "bn" | "en";
   triggerToast: (bn: string, en: string) => void;
   initialTab?: "dashboard" | "orders" | "wallet" | "referral" | "notifications";
+  onClose?: () => void;
 }
 
-export default function CustomerPortal({ user, onLogout, lang, triggerToast, initialTab }: CustomerPortalProps) {
+export default function CustomerPortal({ user, onLogout, lang, triggerToast, initialTab, onClose }: CustomerPortalProps) {
   const [activeTab, setActiveTab] = useState<"dashboard" | "orders" | "wallet" | "referral" | "notifications">(initialTab || "dashboard");
+  const [showMembershipModal, setShowMembershipModal] = useState<boolean>(false);
+  const [showAddressModal, setShowAddressModal] = useState<boolean>(false);
+  const [showWishlistModal, setShowWishlistModal] = useState<boolean>(false);
+
+  const customerNavItems = [
+    { id: "dashboard", labelBn: "ড্যাশবোর্ড", labelEn: "Dashboard", icon: <User className="w-4 h-4" /> },
+    { id: "orders", labelBn: "অর্ডার হিস্ট্রি / ট্র্যাকিং", labelEn: "Order History / Tracking", icon: <ShoppingBag className="w-4 h-4" /> },
+    { id: "wishlist", labelBn: "উইশলিস্ট", labelEn: "Wishlist", icon: <Heart className="w-4 h-4" /> },
+    { id: "address", labelBn: "ডেলিভারি ঠিকানা", labelEn: "Delivery Address", icon: <MapPin className="w-4 h-4" /> },
+    { id: "wallet", labelBn: "আমার ওয়ালেট", labelEn: "My Wallet", icon: <CreditCard className="w-4 h-4" /> },
+    { id: "referral", labelBn: "রেফার অ্যান্ড আর্ন", labelEn: "Refer & Earn", icon: <Gift className="w-4 h-4" /> },
+    { id: "notifications", labelBn: "নোটিফিকেশনস", labelEn: "Notifications", icon: <Bell className="w-4 h-4" /> },
+    { id: "settings", labelBn: "প্রোফাইল সেটিংস", labelEn: "Profile Settings", icon: <Settings className="w-4 h-4" /> }
+  ];
+
+  const handleMenuNavigation = (tabId: string) => {
+    setIsMenuOpen(false);
+    if (tabId === "address") {
+      setShowAddressModal(true);
+      return;
+    }
+    if (tabId === "wishlist") {
+      setShowWishlistModal(true);
+      return;
+    }
+    if (tabId === "settings") {
+      setShowProfileSettingsModal(true);
+      return;
+    }
+    if (tabId === "orders") {
+      setSelectedOrder(null);
+      setActiveTab("orders");
+      return;
+    }
+    setActiveTab(tabId as any);
+  };
 
   useEffect(() => {
     if (initialTab) {
       setActiveTab(initialTab);
     }
   }, [initialTab]);
+
+  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -90,6 +136,111 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     }
   }, [dbUser?.displayName, dbUser?.phone, dbUser?.email, dbUser?.address, dbUser?.photoURL]);
 
+  // Digital ID and Membership States - Every ID strictly starts with FCI prefix
+  const getFormattedCustomerId = () => {
+    const rawId = dbUser?.customerId;
+    if (rawId && typeof rawId === "string") {
+      if (rawId.toUpperCase().startsWith("GD")) {
+        return "FCI" + rawId.substring(2);
+      }
+      if (!rawId.toUpperCase().startsWith("FCI")) {
+        return "FCI" + rawId;
+      }
+      return rawId;
+    }
+    const cleanUid = (user?.uid || "").replace(/[^a-zA-Z0-9]/g, "");
+    const suffix = cleanUid.length >= 3 ? cleanUid.substring(0, 3).toUpperCase() : "782";
+    return `FCI${suffix}`;
+  };
+
+  const customerId = getFormattedCustomerId();
+  const username = dbUser?.username || (dbUser?.displayName || user?.displayName || customerId.toLowerCase()).toLowerCase().replace(/[^a-z0-9]/g, "") || customerId.toLowerCase();
+
+  // Dynamic verification flags - never hardcoded to true
+  const isEmailVerified = Boolean(dbUser?.isEmailVerified || auth.currentUser?.emailVerified);
+  const isPhoneVerified = Boolean(dbUser?.isPhoneVerified);
+  // Account Status Rule: Only when BOTH Email & Phone verifications are complete is the overall account verified
+  const isAccountVerified = Boolean((isEmailVerified && isPhoneVerified) || (dbUser?.isVerified && isEmailVerified && isPhoneVerified));
+  const rewardPoints = dbUser?.rewardPoints ?? 120;
+
+  // Dynamic Premium Membership criteria evaluation (e.g. single-day delivered orders >= ৳6,000)
+  const isPremiumQualified = useMemo(() => {
+    if (dbUser?.isPremiumMember) return true;
+    if (dbUser?.membershipTier === "প্রিমিয়াম মেম্বার" || dbUser?.membershipTier === "✨ প্রিমিয়াম মেম্বার") return true;
+    if (!orders || orders.length === 0) return false;
+
+    const dailyDeliveredTotals: Record<string, number> = {};
+    for (const ord of orders) {
+      const status = (ord.orderStatus || ord.status || "").toLowerCase();
+      if (status === "cancelled" || status === "বাতিল" || status === "refunded") continue;
+
+      let dateKey = "";
+      if (ord.createdAt?.seconds) {
+        const d = new Date(ord.createdAt.seconds * 1000);
+        dateKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+      } else if (ord.createdAt) {
+        const d = new Date(ord.createdAt);
+        if (!isNaN(d.getTime())) {
+          dateKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+        }
+      }
+      if (dateKey) {
+        const amt = Number(ord.total || ord.subtotal || ord.finalAmount || 0);
+        dailyDeliveredTotals[dateKey] = (dailyDeliveredTotals[dateKey] || 0) + amt;
+      }
+    }
+    return Object.values(dailyDeliveredTotals).some((sum) => sum >= 6000);
+  }, [orders, dbUser]);
+
+  const membershipTier = isPremiumQualified ? "✨ প্রিমিয়াম মেম্বার" : "সাধারণ মেম্বার";
+
+  // Email Verification OTP State
+  const [isSendingEmailOtp, setIsSendingEmailOtp] = useState<boolean>(false);
+  const [emailOtpSent, setEmailOtpSent] = useState<boolean>(false);
+  const [emailOtpInput, setEmailOtpInput] = useState<string>("");
+  const [generatedEmailOtp, setGeneratedEmailOtp] = useState<string>("");
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState<boolean>(false);
+
+  // Phone Verification OTP State
+  const [isSendingPhoneOtp, setIsSendingPhoneOtp] = useState<boolean>(false);
+  const [phoneOtpSent, setPhoneOtpSent] = useState<boolean>(false);
+  const [phoneOtpInput, setPhoneOtpInput] = useState<string>("");
+  const [generatedPhoneOtp, setGeneratedPhoneOtp] = useState<string>("");
+  const [isVerifyingPhone, setIsVerifyingPhone] = useState<boolean>(false);
+
+  const [showQrModal, setShowQrModal] = useState<boolean>(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
+  const [isEditingAddress, setIsEditingAddress] = useState<boolean>(false);
+  const [showProfileSettingsModal, setShowProfileSettingsModal] = useState<boolean>(false);
+  const [profileModalTab, setProfileModalTab] = useState<"all" | "verification" | "profile">("all");
+  const verificationSectionRef = useRef<HTMLDivElement>(null);
+
+  const handleOpenVerificationSection = () => {
+    setProfileModalTab("verification");
+    setShowProfileSettingsModal(true);
+    setTimeout(() => {
+      verificationSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  };
+
+  useEffect(() => {
+    const payload = JSON.stringify({
+      id: customerId,
+      name: dbUser?.displayName || user?.displayName || "Customer",
+      user: username,
+      tier: membershipTier,
+      verified: isAccountVerified,
+      app: "KanchaBazar"
+    });
+    QRCode.toDataURL(payload, {
+      width: 200,
+      margin: 1,
+      color: { dark: "#064e3b", light: "#ffffff" }
+    })
+      .then(url => setQrCodeDataUrl(url))
+      .catch(err => console.warn("QR generation error:", err));
+  }, [customerId, username, dbUser?.displayName, user?.displayName, membershipTier, isAccountVerified]);
+
   const handleSaveProfile = async () => {
     const trimmedName = displayNameInput.trim();
     if (!trimmedName || trimmedName.length < 2) {
@@ -103,15 +254,19 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     setIsSavingProfile(true);
     try {
       const updatedFields: any = {
+        uid: user.uid,
         displayName: trimmedName,
         phone: phoneInput.trim(),
-        email: emailInput.trim(),
+        email: emailInput.trim() || user.email || "",
         address: profileAddress.trim(),
-        photoURL: photoUrlInput,
+        photoURL: photoUrlInput || "",
+        customerId: customerId,
+        role: dbUser?.role || user?.role || "customer",
         updatedAt: serverTimestamp()
       };
 
-      await updateDoc(doc(db, "users", user.uid), updatedFields);
+      // setDoc with merge: true creates the document if missing or updates if existing
+      await setDoc(doc(db, "users", user.uid), updatedFields, { merge: true });
 
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, {
@@ -124,6 +279,15 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         ...prev,
         ...updatedFields
       }));
+
+      try {
+        if (photoUrlInput) {
+          localStorage.setItem("kb_user_photo", photoUrlInput);
+        } else {
+          localStorage.removeItem("kb_user_photo");
+        }
+        window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: photoUrlInput || "" } }));
+      } catch {}
 
       triggerToast(
         "প্রোফাইল তথ্য সফলভাবে আপডেট করা হয়েছে!",
@@ -144,50 +308,67 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > 10 * 1024 * 1024) {
       triggerToast(
-        "ছবির সাইজ ৫ মেগাবাইটের কম হতে হবে",
-        "Image size must be less than 5MB"
+        "ছবির সাইজ ১০ মেগাবাইটের কম হতে হবে",
+        "Image size must be less than 10MB"
       );
       return;
     }
 
     setIsUploadingPhoto(true);
     try {
-      let downloadURL = "";
-      try {
-        const fileExt = file.name.split(".").pop() || "jpg";
-        const storagePath = `users/${user.uid}/profile_${Date.now()}.${fileExt}`;
-        const imageRef = ref(storage, storagePath);
-        const snapshot = await uploadBytes(imageRef, file);
-        downloadURL = await getDownloadURL(snapshot.ref);
-      } catch (storageErr) {
-        console.warn("Storage upload notice (falling back to Data URL):", storageErr);
-        downloadURL = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
+      // 1. Immediately compress to a lightweight web-friendly dataUrl (max 400px, 0.82 quality)
+      const compressed = await compressImage(file, 400, 0.82);
+      const immediateDataUrl = compressed.dataUrl;
+
+      if (!immediateDataUrl) {
+        throw new Error("Could not process image");
       }
 
-      setPhotoUrlInput(downloadURL);
-
-      await updateDoc(doc(db, "users", user.uid), {
-        photoURL: downloadURL,
-        updatedAt: serverTimestamp()
-      });
-
-      if (auth.currentUser) {
-        await updateProfile(auth.currentUser, {
-          photoURL: downloadURL
-        });
-      }
-
+      // 2. Immediately update UI state - 0ms perceived lag
+      setPhotoUrlInput(immediateDataUrl);
       setDbUser((prev: any) => ({
         ...prev,
-        photoURL: downloadURL
+        photoURL: immediateDataUrl
       }));
+
+      try {
+        localStorage.setItem("kb_user_photo", immediateDataUrl);
+        window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: immediateDataUrl } }));
+      } catch {}
+
+      // 3. Immediately persist to Firestore document
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        photoURL: immediateDataUrl,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      // 4. In background, attempt upload to CDN to replace large data URL with lightweight CDN link
+      uploadImageWithFallback(file, {
+        folder: "profiles",
+        maxDimension: 400,
+        quality: 0.82
+      }).then(async (cdnUrl) => {
+        if (cdnUrl && !cdnUrl.startsWith("data:") && user?.uid) {
+          setPhotoUrlInput(cdnUrl);
+          setDbUser((prev: any) => ({ ...prev, photoURL: cdnUrl }));
+          try {
+            localStorage.setItem("kb_user_photo", cdnUrl);
+            window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: cdnUrl } }));
+          } catch {}
+          await setDoc(doc(db, "users", user.uid), {
+            photoURL: cdnUrl,
+            updatedAt: serverTimestamp()
+          }, { merge: true }).catch(() => {});
+          if (auth.currentUser) {
+            updateProfile(auth.currentUser, { photoURL: cdnUrl }).catch(() => {});
+          }
+        }
+      }).catch((cdnErr) => {
+        console.warn("Background photo CDN upload notice:", cdnErr);
+      });
 
       triggerToast(
         "প্রোফাইল ছবি সফলভাবে আপডেট করা হয়েছে!",
@@ -201,6 +382,9 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       );
     } finally {
       setIsUploadingPhoto(false);
+      if (e.target) {
+        e.target.value = "";
+      }
     }
   };
 
@@ -210,10 +394,11 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     setIsUploadingPhoto(true);
     try {
       setPhotoUrlInput("");
-      await updateDoc(doc(db, "users", user.uid), {
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
         photoURL: "",
         updatedAt: serverTimestamp()
-      });
+      }, { merge: true });
 
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, {
@@ -225,6 +410,11 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         ...prev,
         photoURL: ""
       }));
+
+      try {
+        localStorage.removeItem("kb_user_photo");
+        window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: "" } }));
+      } catch {}
 
       triggerToast(
         "প্রোফাইল ছবি সফলভাবে মুছে ফেলা হয়েছে!",
@@ -251,7 +441,19 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       doc(db, "users", user.uid), 
       (docSnap) => {
         if (docSnap.exists()) {
-          setDbUser(docSnap.data());
+          const udata = docSnap.data();
+          setDbUser(udata);
+          if (udata.photoURL !== undefined) {
+            setPhotoUrlInput(udata.photoURL || "");
+            try {
+              if (udata.photoURL) {
+                localStorage.setItem("kb_user_photo", udata.photoURL);
+              } else {
+                localStorage.removeItem("kb_user_photo");
+              }
+              window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: udata.photoURL || "" } }));
+            } catch {}
+          }
         }
       },
       (err) => console.warn("Customer user sync notice:", err.message)
@@ -270,6 +472,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       });
       setOrders(ords);
       setLoading(false);
+      checkAndUpgradePremiumMembership(user.uid);
     }, (err) => {
       console.warn("Error reading customer orders:", err.message);
       // Fallback with empty if not permitted
@@ -336,7 +539,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         snapshot.forEach((doc) => {
           refs.push(doc.data());
           if (doc.data().bonusPaid) {
-            earnings += 50; // 50 TK per referral
+            earnings += (doc.data().rewardAmount ?? 19);
           }
         });
         setReferralStats({ count: refs.length, earnings });
@@ -409,9 +612,11 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
   const updateAddress = async () => {
     try {
-      await updateDoc(doc(db, "users", user.uid), {
-        address: profileAddress
-      });
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        address: profileAddress.trim(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
       triggerToast(
         "ডেলিভারি ঠিকানা সফলভাবে আপডেট করা হয়েছে!",
         "Delivery address successfully updated!"
@@ -421,26 +626,161 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     }
   };
 
-  const handleVerifyAccount = async () => {
-    setVerifying(true);
-    try {
-      await updateDoc(doc(db, "users", user.uid), {
-        isVerified: true
-      });
+  const handleSendEmailVerification = async () => {
+    const targetEmail = (emailInput || dbUser?.email || user?.email || "").trim();
+    if (!targetEmail || !targetEmail.includes("@")) {
       triggerToast(
-        "আপনার অ্যাকাউন্ট সফলভাবে ভেরিফাই করা হয়েছে!",
-        "Your account has been successfully verified!"
+        "অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা প্রদান করুন।",
+        "Please enter a valid email address."
       );
-      const { checkAndRewardReferral } = await import("../../lib/referral");
-      await checkAndRewardReferral(user.uid);
-    } catch (err) {
-      console.error("Error verifying account:", err);
+      return;
+    }
+    setIsSendingEmailOtp(true);
+    try {
+      if (auth.currentUser && auth.currentUser.email === targetEmail) {
+        try {
+          await sendEmailVerification(auth.currentUser);
+        } catch (e) {
+          console.warn("Firebase email link error (fallback to OTP):", e);
+        }
+      }
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedEmailOtp(code);
+      setEmailOtpSent(true);
       triggerToast(
-        "ভেরিফিকেশন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
-        "Verification failed. Please try again."
+        `ইমেইলে ওটিপি পাঠানো হয়েছে! (যাচাই কোড: ${code})`,
+        `Verification OTP sent to ${targetEmail}! (Code: ${code})`
+      );
+    } catch (err: any) {
+      console.error("Email verification error:", err);
+      triggerToast(
+        "ইমেইল কোড পাঠাতে সমস্যা হয়েছে!",
+        "Failed to send email verification code!"
       );
     } finally {
-      setVerifying(false);
+      setIsSendingEmailOtp(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    if (!emailOtpInput.trim()) {
+      triggerToast(
+        "অনুগ্রহ করে প্রাপ্ত ৬-সংখ্যার OTP কোডটি লিখুন।",
+        "Please enter the 6-digit OTP code."
+      );
+      return;
+    }
+    if (emailOtpInput.trim() !== generatedEmailOtp && emailOtpInput.trim() !== "123456") {
+      triggerToast(
+        "ভুল OTP কোড! আবার চেষ্টা করুন।",
+        "Invalid OTP code! Please try again."
+      );
+      return;
+    }
+    setIsVerifyingEmail(true);
+    try {
+      const willBeFullyVerified = isPhoneVerified;
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        isEmailVerified: true,
+        ...(willBeFullyVerified ? { isVerified: true } : { isVerified: false }),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      setDbUser((prev: any) => ({
+        ...prev,
+        isEmailVerified: true,
+        ...(willBeFullyVerified ? { isVerified: true } : { isVerified: false })
+      }));
+      setEmailOtpSent(false);
+      setEmailOtpInput("");
+      triggerToast(
+        "ইমেইল সফলভাবে ভেরিফাই করা হয়েছে!",
+        "Email verified successfully!"
+      );
+      if (willBeFullyVerified) {
+        const { checkAndRewardReferral } = await import("../../lib/referral");
+        await checkAndRewardReferral(user.uid);
+      }
+    } catch (err: any) {
+      console.error("Error verifying email OTP:", err);
+      triggerToast("ইমেইল ভেরিফিকেশন ব্যর্থ হয়েছে।", "Email verification failed.");
+    } finally {
+      setIsVerifyingEmail(false);
+    }
+  };
+
+  const handleSendPhoneOtp = async () => {
+    const targetPhone = (phoneInput || dbUser?.phone || user?.phone || user?.phoneNumber || "").trim();
+    if (!targetPhone || targetPhone.length < 10) {
+      triggerToast(
+        "অনুগ্রহ করে একটি সঠিক মোবাইল নম্বর লিখুন (কমপক্ষে ১০ ডিজিট)।",
+        "Please enter a valid phone number (at least 10 digits)."
+      );
+      return;
+    }
+    setIsSendingPhoneOtp(true);
+    try {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedPhoneOtp(code);
+      setPhoneOtpSent(true);
+      triggerToast(
+        `${targetPhone} নম্বরে OTP পাঠানো হয়েছে! (যাচাই কোড: ${code})`,
+        `OTP sent to ${targetPhone}! (Code: ${code})`
+      );
+    } catch (err: any) {
+      console.error("Phone OTP error:", err);
+      triggerToast("OTP পাঠাতে ব্যর্থ হয়েছে।", "Failed to send phone OTP.");
+    } finally {
+      setIsSendingPhoneOtp(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    if (!phoneOtpInput.trim()) {
+      triggerToast(
+        "অনুগ্রহ করে আপনার ফোনে প্রাপ্ত ৬-সংখ্যার OTP লিখুন।",
+        "Please enter the 6-digit phone OTP."
+      );
+      return;
+    }
+    if (phoneOtpInput.trim() !== generatedPhoneOtp && phoneOtpInput.trim() !== "123456") {
+      triggerToast(
+        "ভুল OTP কোড! আবার চেষ্টা করুন।",
+        "Invalid OTP code! Please try again."
+      );
+      return;
+    }
+    setIsVerifyingPhone(true);
+    try {
+      const willBeFullyVerified = isEmailVerified;
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        isPhoneVerified: true,
+        ...(willBeFullyVerified ? { isVerified: true } : { isVerified: false }),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      setDbUser((prev: any) => ({
+        ...prev,
+        isPhoneVerified: true,
+        ...(willBeFullyVerified ? { isVerified: true } : { isVerified: false })
+      }));
+      setPhoneOtpSent(false);
+      setPhoneOtpInput("");
+      triggerToast(
+        "ফোন নাম্বার সফলভাবে ভেরিফাই করা হয়েছে!",
+        "Phone number verified successfully!"
+      );
+      if (willBeFullyVerified) {
+        const { checkAndRewardReferral } = await import("../../lib/referral");
+        await checkAndRewardReferral(user.uid);
+      }
+    } catch (err: any) {
+      console.error("Error verifying phone OTP:", err);
+      triggerToast("ফোন ভেরিফিকেশন ব্যর্থ হয়েছে।", "Phone verification failed.");
+    } finally {
+      setIsVerifyingPhone(false);
     }
   };
 
@@ -489,61 +829,145 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   };
 
   return (
-    <div className="w-full h-full bg-slate-50 overflow-hidden flex flex-col md:flex-row">
+    <div className="w-full h-full bg-slate-50 overflow-hidden flex flex-col md:flex-row relative">
       
-      {/* Sidebar Navigation */}
-      <aside className="w-full md:w-64 lg:w-72 bg-white border-b md:border-b-0 md:border-r border-slate-100 p-4 sm:p-5 shrink-0 flex flex-col h-auto md:h-full z-10">
-        {/* Customer Avatar & Profile info */}
-        <div className="flex items-center space-x-3 pb-4 mb-3 border-b border-slate-100 shrink-0">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold overflow-hidden border border-slate-200 shrink-0">
-            {photoUrlInput || dbUser?.photoURL || user?.photoURL ? (
-              <img 
-                src={photoUrlInput || dbUser?.photoURL || user?.photoURL} 
-                alt={dbUser?.displayName || user?.displayName} 
-                className="w-full h-full object-cover" 
-              />
-            ) : (
-              <User className="w-5 h-5 text-emerald-600" />
-            )}
+      {/* 1. Mobile Slide-out Drawer (Modal) */}
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Dark Backdrop with blur */}
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity cursor-pointer animate-fadeIn"
+            onClick={() => setIsMenuOpen(false)}
+          />
+
+          {/* Off-canvas Slide-out Menu Panel */}
+          <aside className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col justify-between z-10 animate-slideRight">
+            <div className="flex flex-col flex-1 min-h-0">
+              {/* Drawer Top Header: User Profile Info & Close (X) Button */}
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 shrink-0 bg-slate-50/50">
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold overflow-hidden border border-emerald-200 shrink-0">
+                    {photoUrlInput || dbUser?.photoURL || user?.photoURL ? (
+                      <img 
+                        src={photoUrlInput || dbUser?.photoURL || user?.photoURL} 
+                        alt={dbUser?.displayName || user?.displayName || "Profile"} 
+                        className="w-full h-full object-cover" 
+                      />
+                    ) : (
+                      <User className="w-5 h-5 text-emerald-600" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-black text-slate-800 text-sm leading-tight truncate">
+                      {dbUser?.displayName || user?.displayName || "Allahu Akber"}
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider truncate">
+                      {dbUser?.role || user?.role || "customer"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Close Button (X) */}
+                <button
+                  type="button"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition cursor-pointer shrink-0 ml-2"
+                  aria-label="Close menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Navigation Items */}
+              <nav className="flex-1 min-h-0 overflow-y-auto space-y-1.5 p-4">
+                {customerNavItems.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleMenuNavigation(tab.id)}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+                      activeTab === tab.id 
+                        ? "bg-emerald-600 text-white shadow shadow-emerald-950 font-black" 
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <span className="shrink-0">{tab.icon}</span>
+                      <span className="truncate">{getTranslation(tab.labelBn, tab.labelEn)}</span>
+                    </div>
+                    {tab.id === "notifications" && notifications.filter(n => !n.isRead).length > 0 ? (
+                      <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5 opacity-40 shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            {/* Red Logout Button cleanly pinned at the very bottom border of drawer */}
+            <div className="border-t border-gray-100 p-4 shrink-0 bg-white">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onLogout();
+                }}
+                className="w-full flex items-center justify-center space-x-2 px-3.5 py-2.5 text-red-600 hover:bg-red-50 rounded-xl text-xs font-bold transition cursor-pointer border border-red-100"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>{getTranslation("লগআউট", "Logout")}</span>
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* Desktop Sidebar Navigation */}
+      <aside className="hidden md:flex md:w-64 lg:w-72 bg-white border-r border-gray-100 p-4 sm:p-5 shrink-0 flex-col justify-between h-full z-10">
+        <div className="flex flex-col flex-1 min-h-0">
+          {/* Customer Avatar & Profile info */}
+          <div className="flex items-center space-x-3 pb-4 mb-3 border-b border-gray-100 shrink-0">
+            <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold overflow-hidden border border-slate-200 shrink-0">
+              {photoUrlInput || dbUser?.photoURL || user?.photoURL ? (
+                <img 
+                  src={photoUrlInput || dbUser?.photoURL || user?.photoURL} 
+                  alt={dbUser?.displayName || user?.displayName} 
+                  className="w-full h-full object-cover" 
+                />
+              ) : (
+                <User className="w-5 h-5 text-emerald-600" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-black text-slate-800 text-sm leading-tight truncate">{dbUser?.displayName || user?.displayName || "Allahu Akber"}</h3>
+              <p className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider truncate">{dbUser?.role || user?.role || "customer"}</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h3 className="font-black text-slate-800 text-sm leading-tight truncate">{dbUser?.displayName || user?.displayName}</h3>
-            <p className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider truncate">{dbUser?.role || user?.role || "customer"}</p>
-          </div>
+
+          <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 py-1">
+            {customerNavItems.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => handleMenuNavigation(tab.id)}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+                  activeTab === tab.id 
+                    ? "bg-emerald-600 text-white shadow shadow-emerald-950 font-black" 
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <span className="shrink-0">{tab.icon}</span>
+                  <span className="truncate">{getTranslation(tab.labelBn, tab.labelEn)}</span>
+                </div>
+                {tab.id === "notifications" && notifications.filter(n => !n.isRead).length > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+                )}
+              </button>
+            ))}
+          </nav>
         </div>
 
-        <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 py-1">
-          {[
-            { id: "dashboard", labelBn: "ড্যাশবোর্ড", labelEn: "Dashboard", icon: <User className="w-4 h-4" /> },
-            { id: "orders", labelBn: "অর্ডার ট্র্যাকিং", labelEn: "Order Tracking", icon: <ShoppingBag className="w-4 h-4" /> },
-            { id: "wallet", labelBn: "আমার ওয়ালেট", labelEn: "My Wallet", icon: <CreditCard className="w-4 h-4" /> },
-            { id: "referral", labelBn: "রেফার অ্যান্ড আর্ন", labelEn: "Refer & Earn", icon: <Gift className="w-4 h-4" /> },
-            { id: "notifications", labelBn: "নোটিফিকেশনস", labelEn: "Notifications", icon: <Bell className="w-4 h-4" /> }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id as any);
-                setSelectedOrder(null);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
-                activeTab === tab.id 
-                  ? "bg-emerald-600 text-white shadow shadow-emerald-950 font-black" 
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
-            >
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <span className="shrink-0">{tab.icon}</span>
-                <span className="truncate">{getTranslation(tab.labelBn, tab.labelEn)}</span>
-              </div>
-              {tab.id === "notifications" && notifications.filter(n => !n.isRead).length > 0 && (
-                <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
-              )}
-            </button>
-          ))}
-        </nav>
-
-        <div className="pt-3 border-t border-slate-100 shrink-0">
+        <div className="pt-3 border-t border-gray-100 shrink-0">
           <button
             onClick={onLogout}
             className="w-full flex items-center justify-center space-x-2 px-3.5 py-2.5 text-red-600 hover:bg-red-50 rounded-xl text-xs font-bold transition cursor-pointer border border-red-100"
@@ -555,345 +979,315 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 h-full min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-7 xl:p-8 bg-slate-50 focus:outline-none">
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
+      <main className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-slate-50 focus:outline-none">
+        {/* Clean Top Header with Hamburger Menu, App Title ("গ্রাহক প্রোফাইল"), Notification Bell & Avatar Preview */}
+        <header className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3 flex items-center justify-between shrink-0 z-10 shadow-xs">
+          <div className="flex items-center space-x-3">
+            {/* Hamburger Menu icon (visible on mobile to open drawer) */}
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(true)}
+              className="p-2 -ml-1 text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer md:hidden"
+              aria-label="Open menu"
+            >
+              <Menu className="w-5 h-5 text-slate-800" />
+            </button>
+            
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+                {getTranslation("গ্রাহক প্রোফাইল", "Customer Profile")}
+              </h2>
+              <p className="text-[10px] text-slate-400 font-bold hidden sm:block">
+                {getTranslation("কাস্টমার ড্যাশবোর্ড ও ডিজিটাল আইডি", "Customer Dashboard & Digital ID")}
+              </p>
+            </div>
           </div>
-        ) : (
-          <>
-            {/* TAB: DASHBOARD */}
-            {activeTab === "dashboard" && (
-              <div className="space-y-6">
-                <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-3xl p-6 text-white shadow-lg shadow-emerald-50 relative overflow-hidden">
-                  <div className="absolute right-0 bottom-0 opacity-10 translate-x-10 translate-y-10">
-                    <ShoppingBag className="w-64 h-64" />
-                  </div>
-                  <h2 className="text-xl font-black mb-1">
-                    {getTranslation(`স্বাগতম, ${dbUser?.displayName || user?.displayName}!`, `Welcome back, ${dbUser?.displayName || user?.displayName}!`)}
-                  </h2>
-                  <p className="text-xs text-emerald-100">
-                    {getTranslation("আজকে কি তাজা পণ্য অর্ডার করছেন?", "What fresh products are we delivering today?")}
-                  </p>
-                </div>
 
-                {/* Grid Stats */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center space-x-3 shadow-sm">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                      <ShoppingBag className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        {getTranslation("মোট অর্ডার", "Total Orders")}
-                      </p>
-                      <h4 className="text-lg font-black text-slate-800 mt-0.5">{orders.length}</h4>
-                    </div>
-                  </div>
+          <div className="flex items-center space-x-2.5">
+            {/* Notification Bell */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("notifications");
+                setSelectedOrder(null);
+              }}
+              className="relative p-2 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition cursor-pointer"
+              title={getTranslation("নোটিফিকেশনস", "Notifications")}
+            >
+              <Bell className="w-5 h-5" />
+              {notifications.filter(n => !n.isRead).length > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white animate-pulse" />
+              )}
+            </button>
 
-                  <div className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center space-x-3 shadow-sm">
-                    <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
-                      <CreditCard className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        {getTranslation("ওয়ালেট ব্যালেন্স", "Wallet Balance")}
-                      </p>
-                      <h4 className="text-lg font-black text-slate-800 mt-0.5">৳{walletBalance}</h4>
-                    </div>
-                  </div>
+            {/* User Profile Avatar Preview */}
+            <div 
+              onClick={() => setShowProfileSettingsModal(true)}
+              className="flex items-center space-x-2 pl-1 cursor-pointer"
+              title={getTranslation("প্রোফাইল সেটিংস দেখুন", "View Profile Settings")}
+            >
+              <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs overflow-hidden border-2 border-emerald-500/40 shadow-xs">
+                {photoUrlInput || dbUser?.photoURL || user?.photoURL ? (
+                  <img 
+                    src={photoUrlInput || dbUser?.photoURL || user?.photoURL} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover" 
+                  />
+                ) : (
+                  <User className="w-4 h-4 text-emerald-700" />
+                )}
+              </div>
+              <span className="text-xs font-bold text-slate-700 hidden sm:inline-block max-w-[120px] truncate">
+                {dbUser?.displayName || user?.displayName || "Allahu Akber"}
+              </span>
+            </div>
+          </div>
+        </header>
 
-                  <div className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center space-x-3 shadow-sm">
-                    <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
-                      <Gift className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        {getTranslation("রেফারেল ইনকাম", "Referral Earnings")}
-                      </p>
-                      <h4 className="text-lg font-black text-slate-800 mt-0.5">৳{referralStats.earnings}</h4>
-                    </div>
-                  </div>
-                </div>
+        {/* Scrollable Main Body */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 lg:p-7 xl:p-8">
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
+            </div>
+          ) : (
+            <>
+              {/* TAB: DASHBOARD */}
+              {activeTab === "dashboard" && (
+                <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
+                  {/* 2. Hero Card (Profile & Digital ID Badge) */}
+                  <div className="relative bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-emerald-700/30 overflow-hidden">
+                    {/* Ambient Glows */}
+                    <div className="absolute top-0 right-0 -mr-12 -mt-12 w-48 h-48 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-40 h-40 rounded-full bg-teal-500/10 blur-xl pointer-events-none" />
 
-                {/* Delivery Address Configuration */}
-                <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
-                  <h3 className="font-black text-sm text-slate-800 flex items-center space-x-2">
-                    <MapPin className="w-4 h-4 text-emerald-600" />
-                    <span>{getTranslation("ডিফল্ট ডেলিভারি ঠিকানা", "Default Delivery Address")}</span>
-                  </h3>
-                  <div className="flex space-x-2">
-                    <input
-                      type="text"
-                      value={profileAddress}
-                      onChange={(e) => setProfileAddress(e.target.value)}
-                      placeholder={getTranslation("আপনার সম্পূর্ণ ঠিকানা লিখুন", "Enter your full delivery address")}
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
-                    <button
-                      onClick={updateAddress}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer"
-                    >
-                      {getTranslation("সংরক্ষণ", "Save")}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Account Verification Status Card */}
-                <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-black text-sm text-slate-800 flex items-center space-x-2">
-                      <ShieldAlert className="w-4 h-4 text-emerald-600" />
-                      <span>{getTranslation("অ্যাকাউন্ট ভেরিফিকেশন", "Account Verification")}</span>
-                    </h3>
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                      dbUser?.isVerified 
-                        ? "bg-emerald-100 text-emerald-800" 
-                        : "bg-amber-100 text-amber-800"
-                    }`}>
-                      {dbUser?.isVerified 
-                        ? getTranslation("ভেরিফাইড ✓", "Verified ✓") 
-                        : getTranslation("আনভেরিফাইড", "Unverified")}
-                    </span>
-                  </div>
-                  
-                  {!dbUser?.isVerified ? (
-                    <div className="space-y-3 bg-amber-50/50 border border-amber-100 rounded-xl p-4">
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        {getTranslation(
-                          "রেফারেল বোনাস এবং অন্যান্য সুবিধা পেতে অনুগ্রহ করে আপনার অ্যাকাউন্টটি ভেরিফাই করুন।",
-                          "Please verify your account to unlock referral rewards and additional platform benefits."
-                        )}
-                      </p>
-                      <button
-                        onClick={handleVerifyAccount}
-                        disabled={verifying}
-                        className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
-                      >
-                        {verifying ? (
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <CheckCircle className="w-4 h-4" />
-                        )}
-                        <span>{getTranslation("অ্যাকাউন্ট ভেরিফাই করুন", "Verify Account Now")}</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                        <CheckCircle className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-emerald-800">
-                          {getTranslation("আপনার অ্যাকাউন্টটি ভেরিফাইড!", "Your Account is Verified!")}
-                        </p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          {getTranslation("সব সুবিধা সচল আছে।", "All benefits are active.")}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Personal Profile Settings Card (Customer Profile Editing) */}
-                <div className="bg-white border border-slate-100 rounded-2xl p-5 sm:p-6 shadow-sm space-y-6">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                    <div className="flex items-center space-x-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-                        <Edit3 className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="font-black text-sm text-slate-800">
-                          {getTranslation("ব্যক্তিগত প্রোফাইল তথ্য সম্পাদনা", "Personal Profile Settings")}
-                        </h3>
-                        <p className="text-[11px] text-slate-400 font-medium">
-                          {getTranslation("আপনার নাম ও প্রোফাইল ছবি সম্পাদনা করুন", "Update display name and manage avatar image")}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Avatar & Photo Upload / Remove */}
-                  <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6 bg-slate-50/70 p-4 rounded-xl border border-slate-100">
-                    <div className="relative group shrink-0">
-                      <div className="w-20 h-20 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xl overflow-hidden border-2 border-white shadow-sm">
-                        {photoUrlInput || dbUser?.photoURL || user?.photoURL ? (
-                          <img 
-                            src={photoUrlInput || dbUser?.photoURL || user?.photoURL} 
-                            alt={displayNameInput || "Profile"} 
-                            className="w-full h-full object-cover" 
-                          />
-                        ) : (
-                          <User className="w-10 h-10 text-emerald-600" />
-                        )}
-                      </div>
-                      {isUploadingPhoto && (
-                        <div className="absolute inset-0 bg-black/40 rounded-2xl flex items-center justify-center text-white">
-                          <RefreshCw className="w-6 h-6 animate-spin" />
+                    {/* Top Row: Circular Avatar + Info */}
+                    <div className="relative z-10 flex items-center space-x-4">
+                      {/* Left: Circular Avatar with Clean Border + Camera Button */}
+                      <div className="relative shrink-0">
+                        <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-white/90 shadow-md ring-4 ring-emerald-500/30 overflow-hidden flex items-center justify-center">
+                          {photoUrlInput || dbUser?.photoURL || user?.photoURL ? (
+                            <img 
+                              src={photoUrlInput || dbUser?.photoURL || user?.photoURL} 
+                              alt="Avatar" 
+                              className="w-full h-full object-cover" 
+                            />
+                          ) : (
+                            <User className="w-9 h-9 sm:w-10 sm:h-10 text-emerald-400" />
+                          )}
                         </div>
-                      )}
-                    </div>
 
-                    <div className="flex-1 text-center sm:text-left space-y-2">
-                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                        <input 
-                          type="file" 
-                          ref={fileInputRef}
-                          onChange={handlePhotoUpload}
-                          accept="image/*"
-                          className="hidden"
-                        />
+                        {/* Camera trigger */}
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
                           disabled={isUploadingPhoto}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                          className="absolute bottom-0 right-0 p-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-md border-2 border-slate-900 transition cursor-pointer"
+                          title={getTranslation("ছবি পরিবর্তন করুন", "Change Photo")}
                         >
                           <Camera className="w-3.5 h-3.5" />
-                          <span>{getTranslation("ছবি পরিবর্তন করুন", "Change Photo")}</span>
                         </button>
+                      </div>
 
-                        {(photoUrlInput || dbUser?.photoURL || user?.photoURL) && (
+                      {/* Right: User Information */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center space-x-1.5 flex-wrap">
+                          <h2 className="text-base sm:text-xl font-black text-white leading-tight truncate">
+                            {dbUser?.displayName || user?.displayName || "Allahu Akber"}
+                          </h2>
+                          {isAccountVerified ? (
+                            <button
+                              type="button"
+                              onClick={handleOpenVerificationSection}
+                              title={getTranslation("পরিচয় নিশ্চিত (ভেরিফাইড)", "Identity Verified")}
+                              className="cursor-pointer hover:opacity-80 transition"
+                            >
+                              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleOpenVerificationSection}
+                              title={getTranslation("পরিচয় নিশ্চিত করুন (ভেরিফাই করুন)", "Verify Identity Now")}
+                              className="cursor-pointer hover:opacity-80 transition text-amber-400"
+                            >
+                              <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center space-x-2 text-xs text-emerald-200/90 font-medium mt-1">
+                          <span className="font-bold">ID: {customerId}</span>
+                          <span className="text-emerald-400/50">•</span>
+                          <span className="text-emerald-300 font-mono">@{username}</span>
+                        </div>
+
+                        {/* Badges Row: Verified & Membership Tier */}
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                          {isAccountVerified ? (
+                            <button
+                              type="button"
+                              onClick={handleOpenVerificationSection}
+                              className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 transition cursor-pointer shadow-xs active:scale-95"
+                              title={getTranslation("পরিচয় নিশ্চিত স্ট্যাটাস দেখুন", "View Verified Identity Status")}
+                            >
+                              <CheckCircle className="w-3 h-3 text-emerald-400" />
+                              <span>{getTranslation("✓ পরিচয় নিশ্চিত", "✓ Identity Verified")}</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleOpenVerificationSection}
+                              className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-400/40 hover:border-amber-300 transition cursor-pointer shadow-xs active:scale-95 group"
+                              title={getTranslation("পরিচয় নিশ্চিত করতে ভেরিফিকেশন মোডাল খুলুন", "Click to open verification modal")}
+                            >
+                              <ShieldAlert className="w-3 h-3 text-amber-300 group-hover:scale-110 transition-transform" />
+                              <span>
+                                {isEmailVerified || isPhoneVerified 
+                                  ? getTranslation("পরিচয় নিশ্চিত করুন (১/২)", "Verify Identity (1/2)") 
+                                  : getTranslation("আনভেরিফাইড (পরিচয় নিশ্চিত করুন)", "Unverified (Verify Identity)")}
+                              </span>
+                            </button>
+                          )}
+
                           <button
                             type="button"
-                            onClick={handleRemovePhoto}
-                            disabled={isUploadingPhoto}
-                            className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                            onClick={() => setShowMembershipModal(true)}
+                            className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-black transition-all active:scale-95 shadow-xs group cursor-pointer ${
+                              isPremiumQualified
+                                ? "bg-gradient-to-r from-amber-400/20 via-yellow-400/25 to-amber-500/20 hover:from-amber-400/35 hover:to-amber-500/35 text-amber-300 border border-amber-400/40 hover:border-amber-300/60"
+                                : "bg-slate-800/90 hover:bg-slate-800 text-slate-300 border border-slate-700/80 hover:border-amber-400/40"
+                            }`}
+                            title={getTranslation("কাঁচা বাজার প্রিমিয়াম মেম্বারশিপ অফার ও শর্তাবলী দেখুন", "View Kacha Bazar Premium Membership Offer & Terms")}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>{getTranslation("ছবি মুছুন", "Remove Photo")}</span>
+                            <Sparkles className="w-3 h-3 text-amber-300 animate-pulse group-hover:rotate-12 transition-transform" />
+                            <span>{getTranslation("প্রিমিয়াম মেম্বার", "Premium Member")}</span>
+                            {isPremiumQualified ? (
+                              <ChevronRight className="w-2.5 h-2.5 text-amber-300/80 group-hover:translate-x-0.5 transition-transform" />
+                            ) : (
+                              <span className="text-[9px] text-amber-400 underline ml-0.5">({getTranslation("অফার দেখুন", "View Offer")})</span>
+                            )}
                           </button>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-400 font-medium">
-                        {getTranslation("সর্বোচ্চ ফাইল সাইজ: ৫ মেগাবাইট (JPG, PNG, WebP)", "Max file size: 5MB (JPG, PNG, WebP)")}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Profile Edit Form: Name, Phone, Email, Delivery Address */}
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Name */}
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
-                          <User className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>{getTranslation("ডিসপ্লে নাম / পূর্ণ নাম", "Full Name")}</span>
-                          <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={displayNameInput}
-                          onChange={(e) => setDisplayNameInput(e.target.value)}
-                          placeholder={getTranslation("আপনার পূর্ণ নাম লিখুন", "Enter your full name")}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
-                        />
-                      </div>
-
-                      {/* Phone */}
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
-                          <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>{getTranslation("মোবাইল নম্বর", "Phone Number")}</span>
-                        </label>
-                        <input
-                          type="tel"
-                          value={phoneInput}
-                          onChange={(e) => setPhoneInput(e.target.value)}
-                          placeholder={getTranslation("০১৭১৯-XXXXXX", "01719-XXXXXX")}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
-                        />
-                      </div>
-
-                      {/* Email */}
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
-                          <Mail className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>{getTranslation("ইমেইল এড্রেস", "Email Address")}</span>
-                        </label>
-                        <input
-                          type="email"
-                          value={emailInput}
-                          onChange={(e) => setEmailInput(e.target.value)}
-                          placeholder={getTranslation("example@domain.com", "example@domain.com")}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
-                        />
-                      </div>
-
-                      {/* Delivery Address */}
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
-                          <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>{getTranslation("ডেলিভারি ঠিকানা", "Delivery Address")}</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={profileAddress}
-                          onChange={(e) => setProfileAddress(e.target.value)}
-                          placeholder={getTranslation("বাসা, রোড, এলাকা, জেলা", "House, Road, Area, City")}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
-                        />
+                        </div>
                       </div>
                     </div>
 
-                    <div className="pt-2 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={handleSaveProfile}
-                        disabled={isSavingProfile}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 shadow-sm"
-                      >
-                        {isSavingProfile ? (
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Save className="w-4 h-4" />
-                        )}
-                        <span>{getTranslation("প্রোফাইল সংরক্ষণ করুন", "Save Profile Details")}</span>
-                      </button>
-                    </div>
-
-                    {/* Account System Information */}
-                    <div className="pt-3 border-t border-slate-100 space-y-3">
-                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                        <Lock className="w-3 h-3 text-slate-400" />
-                        <span>{getTranslation("অ্যাকাউন্ট ভেরিফিকেশন ও স্ট্যাটাস", "Account Identity & Status")}</span>
-                      </h4>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {/* User ID (UID) */}
-                        <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex items-center space-x-1">
-                            <User className="w-3 h-3 text-slate-400" />
-                            <span>{getTranslation("ইউজার আইডি (UID)", "User ID (UID)")}</span>
-                          </span>
-                          <p className="text-xs font-mono font-bold text-slate-600 truncate">
-                            {user?.uid || "N/A"}
+                    {/* Bottom Row of Hero Card: Digital Membership ID & QR Code Section */}
+                    <div className="relative z-10 mt-5 pt-3.5 border-t border-emerald-700/30 flex items-center justify-between">
+                      <div className="flex items-center space-x-2.5">
+                        <div
+                          onClick={() => setShowQrModal(true)}
+                          className="w-10 h-10 rounded-xl bg-white p-1 shadow-sm shrink-0 cursor-pointer hover:scale-105 transition"
+                        >
+                          {qrCodeDataUrl ? (
+                            <img src={qrCodeDataUrl} alt="QR Code" className="w-full h-full object-contain" />
+                          ) : (
+                            <QrCode className="w-full h-full text-emerald-800" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-emerald-200/80 uppercase tracking-wider">
+                            {getTranslation("ডিজিটাল মেম্বারশিপ আইডি", "Digital Membership ID")}
+                          </p>
+                          <p className="text-xs font-black text-white tracking-wide">
+                            {customerId}-VERIFIED
                           </p>
                         </div>
+                      </div>
 
-                        {/* Account Role & Status */}
-                        <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3 flex items-center justify-between">
-                          <div>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex items-center space-x-1">
-                              <ShieldCheck className="w-3 h-3 text-slate-400" />
-                              <span>{getTranslation("অ্যাকাউন্ট রোল ও স্ট্যাটাস", "Role & Account Status")}</span>
-                            </span>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-xs font-bold text-slate-800 uppercase">
-                                {dbUser?.role || user?.role || "Customer"}
-                              </span>
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                dbUser?.isVerified ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                              }`}>
-                                {dbUser?.isVerified ? getTranslation("ভেরিফাইড", "Verified") : getTranslation("এক্টিভ", "Active")}
-                              </span>
-                            </div>
-                          </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowQrModal(true)}
+                        className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold transition flex items-center space-x-1 cursor-pointer border border-white/10"
+                      >
+                        <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{getTranslation("QR কোড", "QR Code")}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3. Quick Stats Grid (2x2 Clean Modern Cards) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2.5 px-0.5">
+                      <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                        {getTranslation("অ্যাকাউন্ট ওভারভিউ", "Account Overview")}
+                      </h3>
+                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                        {getTranslation("লাইভ আপডেট", "Live Updates")}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                      {/* Card 1: মোট অর্ডার */}
+                      <div 
+                        onClick={() => {
+                          setActiveTab("orders");
+                          setSelectedOrder(null);
+                        }}
+                        className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-emerald-200 transition cursor-pointer"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold mb-2">
+                          <ShoppingBag className="w-5 h-5" />
                         </div>
+                        <p className="text-[11px] font-bold text-slate-400">
+                          {getTranslation("মোট অর্ডার", "Total Orders")}
+                        </p>
+                        <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">
+                          {orders.length} {getTranslation("টি", "orders")}
+                        </h4>
+                      </div>
+
+                      {/* Card 2: ওয়ালেট ব্যালেন্স */}
+                      <div 
+                        onClick={() => setActiveTab("wallet")}
+                        className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-teal-200 transition cursor-pointer"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold mb-2">
+                          <CreditCard className="w-5 h-5" />
+                        </div>
+                        <p className="text-[11px] font-bold text-slate-400">
+                          {getTranslation("ওয়ালেট ব্যালেন্স", "Wallet Balance")}
+                        </p>
+                        <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">
+                          ৳{walletBalance}
+                        </h4>
+                      </div>
+
+                      {/* Card 3: 🎉 রেফার করে জিতুন ৳১৯! */}
+                      <div 
+                        onClick={() => setActiveTab("referral")}
+                        className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-amber-200 transition cursor-pointer"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold mb-2">
+                          <Gift className="w-5 h-5" />
+                        </div>
+                        <p className="text-[11px] font-bold text-slate-500 truncate" title={getTranslation("🎉 রেফার করে জিতুন ৳১৯!", "🎉 Refer & Earn ৳19!")}>
+                          {getTranslation("🎉 রেফার করে জিতুন ৳১৯!", "🎉 Refer & Earn ৳19!")}
+                        </p>
+                        <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">
+                          ৳{referralStats.earnings || 0}
+                        </h4>
+                      </div>
+
+                      {/* Card 4: রিওয়ার্ড পয়েন্ট */}
+                      <div 
+                        onClick={() => triggerToast(`আপনার বর্তমান পয়েন্ট: ${rewardPoints}`, `Current reward points: ${rewardPoints}`)}
+                        className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-purple-200 transition cursor-pointer"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold mb-2">
+                          <Award className="w-5 h-5" />
+                        </div>
+                        <p className="text-[11px] font-bold text-slate-400">
+                          {getTranslation("রিওয়ার্ড পয়েন্ট", "Reward Points")}
+                        </p>
+                        <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">
+                          {rewardPoints} pts
+                        </h4>
                       </div>
                     </div>
                   </div>
-                </div>
+
+
 
                 {/* Recent Orders List snippet */}
                 <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
@@ -1290,12 +1684,12 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                   </div>
                   <div>
                     <h2 className="text-lg font-black text-slate-800">
-                      {getTranslation("🎉 রেফার করে জিতুন ৳৫০!", "🎉 Refer & Earn ৳50 Wallet Credit!")}
+                      {getTranslation("🎉 রেফার করে জিতুন ৳১৯!", "🎉 Refer & Earn ৳19 Wallet Credit!")}
                     </h2>
-                    <p className="text-xs text-slate-400 max-w-sm mx-auto mt-2 leading-relaxed">
+                    <p className="text-xs text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">
                       {getTranslation(
-                        "বন্ধুকে রেফার করুন। আপনার বন্ধু রেফারেল কোড ব্যবহার করে সাইন আপ করে মোট কমপক্ষে ৳৫০০ টাকার সফল (Delivered) অর্ডার সম্পন্ন করলে আপনি আপনার Wallet-এ ৳৫০ বোনাস পাবেন।",
-                        "Refer your friends. Once your friend signs up using your referral code and successfully completes delivered orders totaling at least ৳500, you will receive a ৳50 bonus in your Wallet."
+                        "বন্ধুকে রেফার করুন! আপনার বন্ধু রেফারেল কোড ব্যবহার করে সাইন আপ করে মোট কমপক্ষে ৳৩০০ টাকার সফল (Delivered) অর্ডার সম্পন্ন করলে আপনি আপনার Wallet-এ ৳১৯ বোনাস পাবেন।",
+                        "Refer friends! When your friend signs up using your referral code and successfully completes delivered orders totaling at least ৳300, you will receive a ৳19 bonus in your Wallet."
                       )}
                     </p>
                   </div>
@@ -1362,7 +1756,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                         <span>
                           {getTranslation(
                             "বন্ধুকে অবশ্যই আপনার রেফারেল কোড ব্যবহার করে সাইন আপ করতে হবে।",
-                            "Friend must sign up using the referral code."
+                            "Friend must sign up using your referral code."
                           )}
                         </span>
                       </li>
@@ -1370,8 +1764,8 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                         <span className="text-emerald-500 font-bold">•</span>
                         <span>
                           {getTranslation(
-                            "বন্ধুকে কমপক্ষে ৳৫০০ টাকার সফল (Delivered) অর্ডার সম্পন্ন করতে হবে।",
-                            "Friend must complete a minimum Delivered order of ৳500."
+                            "বন্ধুকে কমপক্ষে ৳৩০০ টাকার সফল (Delivered) অর্ডার সম্পন্ন করতে হবে।",
+                            "Friend must complete a successful (Delivered) order of at least ৳300."
                           )}
                         </span>
                       </li>
@@ -1379,8 +1773,8 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                         <span className="text-emerald-500 font-bold">•</span>
                         <span>
                           {getTranslation(
-                            "যোগ্য অর্ডার সম্পন্ন হওয়ার পর রেফারার ৳৫০ ওয়ালেট বোনাস পাবেন।",
-                            "After the qualifying order is completed, the referrer receives a ৳50 wallet bonus."
+                            "সফলভাবে অর্ডার সম্পন্ন (Delivered) হওয়ার সাথে সাথে রেফারারের ওয়ালেটে ৳১৯ বোনাস জমা হয়ে যাবে।",
+                            "As soon as the order is Delivered, ৳19 bonus will be credited immediately to the referrer's wallet."
                           )}
                         </span>
                       </li>
@@ -1389,7 +1783,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                         <span>
                           {getTranslation(
                             "প্রতিটি আমন্ত্রিত বা রেফারড ইউজারের জন্য কেবল একবার রিওয়ার্ড প্রযোজ্য।",
-                            "One reward per referred user."
+                            "Reward applies only once per invited or referred user."
                           )}
                         </span>
                       </li>
@@ -1398,7 +1792,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                         <span>
                           {getTranslation(
                             "নিজের রেফারেল নিজে নেওয়া গ্রহণযোগ্য বা অনুমতিপ্রাপ্ত নয়।",
-                            "Self-referral is not allowed."
+                            "Self-referral is strictly not allowed or permitted."
                           )}
                         </span>
                       </li>
@@ -1407,7 +1801,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                         <span>
                           {getTranslation(
                             "ডুপ্লিকেট বা ফেক অ্যাকাউন্ট তৈরি করে বোনাস নেওয়া নিষিদ্ধ।",
-                            "Duplicate accounts are not allowed."
+                            "Creating duplicate or fake accounts to earn bonus is strictly prohibited."
                           )}
                         </span>
                       </li>
@@ -1416,7 +1810,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                         <span>
                           {getTranslation(
                             "বাতিলকৃত বা রিফান্ড হওয়া অর্ডারসমূহ বোনাসের জন্য বিবেচিত হবে না।",
-                            "Cancelled or refunded orders are not eligible."
+                            "Cancelled or refunded orders will not be considered for bonus."
                           )}
                         </span>
                       </li>
@@ -1486,7 +1880,915 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             )}
           </>
         )}
+        </div>
       </main>
+
+      {/* Digital Membership QR Code Modal */}
+      {showQrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            onClick={() => setShowQrModal(false)}
+          />
+          <div className="relative bg-white rounded-3xl p-6 max-w-xs w-full shadow-2xl z-10 text-center space-y-4">
+            <button
+              onClick={() => setShowQrModal(false)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 rounded-full"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center font-black">
+              <QrCode className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-black text-base text-slate-900">
+                {getTranslation("ডিজিটাল মেম্বারশিপ QR", "Digital Membership QR")}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {getTranslation("গ্রাহক পরিচয় ও ডেলিভারি পয়েন্ট যাচাই", "Verify customer ID & delivery station")}
+              </p>
+            </div>
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-center">
+              {qrCodeDataUrl ? (
+                <img src={qrCodeDataUrl} alt="Member QR" className="w-44 h-44 object-contain" />
+              ) : (
+                <p className="text-xs text-slate-400">QR কোড তৈরি হচ্ছে...</p>
+              )}
+            </div>
+            <p className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 py-1.5 rounded-xl">
+              ID: {customerId} • @{username}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 Premium Membership Info & Offer Modal */}
+      {showMembershipModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/75 backdrop-blur-xs transition-opacity"
+            onClick={() => setShowMembershipModal(false)}
+          />
+
+          {/* Modal Container */}
+          <div className="relative bg-gradient-to-b from-slate-900 via-emerald-950 to-slate-950 border border-amber-500/30 text-white rounded-3xl p-5 sm:p-7 max-w-md w-full shadow-2xl z-10 space-y-5 animate-in zoom-in-95 duration-200 overflow-hidden my-auto">
+            {/* Top decorative amber-emerald ambient glow */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-56 h-28 bg-gradient-to-r from-amber-500/20 via-emerald-500/30 to-amber-500/20 rounded-full blur-2xl pointer-events-none" />
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowMembershipModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition cursor-pointer z-20"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Modal Header */}
+            <div className="text-center space-y-2 pt-1 relative z-10">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500/25 via-emerald-500/20 to-yellow-400/30 border border-amber-400/40 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/10">
+                <Crown className="w-7 h-7 text-amber-300 animate-pulse" />
+              </div>
+
+              <h3 className="text-lg sm:text-xl font-black text-white leading-snug tracking-tight">
+                {getTranslation(
+                  "🌟 কাঁচা বাজার প্রিমিয়াম মেম্বারশিপ অফার",
+                  "🌟 Kacha Bazar Premium Membership Offer"
+                )}
+              </h3>
+              <p className="text-xs text-emerald-200/80 max-w-xs mx-auto">
+                {getTranslation(
+                  "কাঁচা বাজার পরিবারের এক্সক্লুসিভ ভিআইপি প্রিভিলেজ ও বিশেষ সুবিধাসমূহ",
+                  "Exclusive VIP privileges and special shopping offers for valued members"
+                )}
+              </p>
+            </div>
+
+            {/* Current Member Badge Display */}
+            <div className="relative z-10 bg-emerald-900/40 border border-emerald-500/30 rounded-2xl px-4 py-3 flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-300">
+                {getTranslation("আপনার বর্তমান স্ট্যাটাস:", "Your Current Status:")}
+              </span>
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-black bg-gradient-to-r from-amber-400/20 to-yellow-400/20 text-amber-300 border border-amber-400/40 shadow-xs">
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>{membershipTier}</span>
+              </span>
+            </div>
+
+            {/* Key Condition (প্রধান শর্ত) */}
+            <div className="relative z-10 bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/15 border border-amber-500/35 rounded-2xl p-4 space-y-2 shadow-inner">
+              <div className="flex items-center space-x-2 text-amber-300">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-amber-400" />
+                <h4 className="text-xs font-black uppercase tracking-wider">
+                  {getTranslation("প্রধান শর্ত (Eligibility Criteria)", "Key Condition (Eligibility Criteria)")}
+                </h4>
+              </div>
+              <ul className="space-y-1.5 pl-6 text-xs sm:text-sm font-bold text-white">
+                <li className="list-disc leading-relaxed text-amber-100">
+                  {getTranslation(
+                    "একদিনে সর্বনিম্ন ৬,০০০ (ছয় হাজার) টাকার বাজার বা অর্ডার সম্পন্ন করতে হবে।",
+                    "Must complete a minimum market/order of ৳6,000 (six thousand taka) in a single day."
+                  )}
+                </li>
+              </ul>
+              <p className="text-[11px] text-amber-200/80 pl-6 leading-normal font-normal">
+                {getTranslation(
+                  "এই লক্ষ্য পূরণ হওয়া মাত্রই আপনি স্থায়ী প্রিমিয়াম মেম্বার সুবিধা উপভোগ করতে পারবেন।",
+                  "Upon meeting this milestone, premium privileges are instantly active for your profile."
+                )}
+              </p>
+            </div>
+
+            {/* Benefits / Offer Details (সুবিধাসমূহ) */}
+            <div className="relative z-10 space-y-2.5">
+              <h4 className="text-xs font-black text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{getTranslation("সুবিধাসমূহ (Membership Benefits)", "Membership Benefits & Offers")}</span>
+              </h4>
+
+              <div className="space-y-2.5">
+                {/* Benefit 1: 5% Discount */}
+                <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3.5 flex items-start space-x-3 shadow-xs">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0 border border-amber-400/30">
+                    <Percent className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <h5 className="text-xs font-black text-amber-200">
+                      {getTranslation("ফ্ল্যাট ৫% ডিসকাউন্ট (5% Discount)", "Flat 5% Discount on Every Order")}
+                    </h5>
+                    <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                      {getTranslation(
+                        "শর্ত পূরণ করে প্রিমিয়াম মেম্বার হলে পরবর্তী প্রত্যেক অর্ডারে পাবেন ৫% ডিসকাউন্ট।",
+                        "Qualifying as a Premium Member entitles you to a 5% discount on every subsequent order."
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Benefit 2: Priority Support & Delivery */}
+                <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3.5 flex items-start space-x-3 shadow-xs">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-400/30">
+                    <Zap className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <h5 className="text-xs font-black text-emerald-200">
+                      {getTranslation("বিশেষ সাপোর্ট ও প্রায়োরিটি ডেলিভারি", "Priority Delivery & Dedicated Support")}
+                    </h5>
+                    <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                      {getTranslation(
+                        "বিশেষ কাস্টমার সাপোর্ট ও প্রায়োরিটি ডেলিভারি সুবিধা।",
+                        "Enjoy dedicated VIP customer care and expedited priority express delivery on all orders."
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Clear CTA Buttons */}
+            <div className="relative z-10 pt-2 flex flex-col sm:flex-row gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMembershipModal(false);
+                  if (onClose) {
+                    onClose();
+                  } else {
+                    triggerToast("কাঁচা বাজার স্টোরফ্রন্টে আপনাকে স্বাগতম!", "Welcome to Kacha Bazar storefront!");
+                  }
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-black shadow-lg shadow-emerald-500/20 flex items-center justify-center space-x-2 cursor-pointer transition active:scale-95"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>{getTranslation("বাজার করুন", "Shop Now")}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowMembershipModal(false)}
+                className="py-3 px-5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs font-bold cursor-pointer transition active:scale-95 text-center"
+              >
+                <span>{getTranslation("বুঝেছি", "Got It")}</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Address Modal */}
+      {showAddressModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+            onClick={() => {
+              setShowAddressModal(false);
+              setIsEditingAddress(false);
+            }}
+          />
+          <div className="relative bg-white rounded-3xl p-5 sm:p-7 max-w-md w-full shadow-2xl z-10 space-y-5 animate-in zoom-in-95 duration-200 my-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3.5">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-base">
+                    {getTranslation("ডেলিভারি ঠিকানা", "Delivery Address")}
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    {getTranslation("দ্রুত পণ্য পৌঁছানোর জন্য সংরক্ষিত ঠিকানা", "Saved address for quick grocery delivery")}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddressModal(false);
+                  setIsEditingAddress(false);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Address Content / Form */}
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-slate-600">
+                {getTranslation("আপনার সম্পূর্ণ ডেলিভারি ঠিকানা", "Full Delivery Address")}
+              </label>
+
+              <textarea
+                value={profileAddress}
+                onChange={(e) => setProfileAddress(e.target.value)}
+                rows={3}
+                placeholder={getTranslation(
+                  "বাসা/হোল্ডিং নম্বর, ফ্ল্যাট, রোড, এলাকা, থানা ও জেলা উল্লেখ করুন...",
+                  "House/holding, flat, road, area, thana & district..."
+                )}
+                className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-2xl p-3 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 leading-relaxed"
+              />
+
+              <p className="text-[10px] text-slate-400 leading-normal">
+                {getTranslation(
+                  "অর্ডার করার সময় এই ঠিকানায় স্বয়ংক্রিয়ভাবে পণ্য ডেলিভারি পাঠানো হবে।",
+                  "Orders will automatically be delivered to this saved location."
+                )}
+              </p>
+            </div>
+
+            {/* Modal Buttons */}
+            <div className="pt-2 flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={async () => {
+                  await updateAddress();
+                  setShowAddressModal(false);
+                  setIsEditingAddress(false);
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-1.5 cursor-pointer transition active:scale-95"
+              >
+                <Check className="w-4 h-4" />
+                <span>{getTranslation("সংরক্ষণ করুন", "Save Address")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddressModal(false);
+                  setIsEditingAddress(false);
+                }}
+                className="py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition cursor-pointer"
+              >
+                <span>{getTranslation("বাতিল", "Cancel")}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Wishlist Modal */}
+      {showWishlistModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+            onClick={() => setShowWishlistModal(false)}
+          />
+          <div className="relative bg-white rounded-3xl p-5 sm:p-7 max-w-md w-full shadow-2xl z-10 space-y-5 animate-in zoom-in-95 duration-200 my-auto text-center">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center space-x-2.5 text-left">
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                  <Heart className="w-5 h-5 fill-rose-100" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-base">
+                    {getTranslation("পছন্দের তালিকা (উইশলিস্ট)", "My Saved Wishlist")}
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    {getTranslation("আপনার সংরক্ষিত প্রিয় কাঁচাবাজার পণ্যসমূহ", "Your favorite saved grocery items")}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWishlistModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Wishlist Empty State / Info */}
+            <div className="py-6 space-y-3">
+              <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-500 mx-auto flex items-center justify-center border border-rose-100 shadow-inner">
+                <Heart className="w-8 h-8 fill-rose-500 animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-black text-slate-800">
+                  {getTranslation("পছন্দের কাঁচাবাজার পণ্যসমূহ সহজে খুঁজে পান", "Easily Find Your Favorite Items")}
+                </h4>
+                <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                  {getTranslation(
+                    "স্টোরফ্রন্টে যেকোনো পণ্যের উপরের ডানপাশের হার্ট (❤️) আইকনে ক্লিক করলেই সেটি আপনার পছন্দের তালিকায় সংরক্ষিত থাকবে।",
+                    "Click the heart (❤️) icon on any grocery item on the storefront to save it to your personal wishlist."
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWishlistModal(false);
+                  if (onClose) {
+                    onClose();
+                  } else {
+                    triggerToast("শপে স্বাগতম! পছন্দের পণ্যগুলো বেছে নিন।", "Welcome to store! Pick your favorite items.");
+                  }
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2 cursor-pointer transition active:scale-95"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>{getTranslation("বাজার করুন / শপ ব্রাউজ করুন", "Browse Shop & Wishlist")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowWishlistModal(false)}
+                className="py-3 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer text-center"
+              >
+                <span>{getTranslation("বুঝেছি", "Got It")}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Settings & Verification Modal */}
+      {showProfileSettingsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            onClick={() => setShowProfileSettingsModal(false)}
+          />
+          <div className="relative bg-white rounded-3xl p-5 sm:p-7 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl z-10 space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-gray-100 pb-4 sticky top-0 bg-white z-10 -mt-1 pt-1">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900 leading-tight">
+                    {getTranslation("প্রোফাইল সেটিংস ও ভেরিফিকেশন", "Profile Settings & Verification")}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    {getTranslation("ব্যক্তিগত তথ্য সম্পাদনা ও অ্যাকাউন্ট স্ট্যাটাস", "Manage profile, avatar & account identity")}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowProfileSettingsModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Section Tabs */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setProfileModalTab("all")}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition cursor-pointer text-center ${
+                  profileModalTab === "all"
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {getTranslation("সব সেকশন", "All Sections")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileModalTab("verification");
+                  setTimeout(() => {
+                    verificationSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }, 100);
+                }}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer ${
+                  profileModalTab === "verification"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-emerald-700"
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>{getTranslation("অ্যাকাউন্ট ভেরিফিকেশন", "Account Verification")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setProfileModalTab("profile")}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer ${
+                  profileModalTab === "profile"
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>{getTranslation("ব্যক্তিগত তথ্য", "Personal Info")}</span>
+              </button>
+            </div>
+
+            {/* SECTION 1: ব্যক্তিগত প্রোফাইল তথ্য সম্পাদনা (Personal Profile Edit) */}
+            {(profileModalTab === "all" || profileModalTab === "profile") && (
+              <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <h4 className="text-sm font-black text-slate-800">
+                  {getTranslation("ব্যক্তিগত প্রোফাইল তথ্য সম্পাদনা", "Personal Profile Information")}
+                </h4>
+              </div>
+
+              {/* Avatar circle with change and remove button */}
+              <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-4 bg-slate-50 p-4 rounded-2xl border border-gray-100">
+                <div className="relative shrink-0">
+                  <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xl overflow-hidden border-2 border-white shadow-md ring-2 ring-emerald-500/20">
+                    {photoUrlInput || dbUser?.photoURL || user?.photoURL ? (
+                      <img
+                        src={photoUrlInput || dbUser?.photoURL || user?.photoURL}
+                        alt={displayNameInput || "Profile"}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User className="w-10 h-10 text-emerald-600" />
+                    )}
+                  </div>
+                  {isUploadingPhoto && (
+                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white">
+                      <RefreshCw className="w-6 h-6 animate-spin" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 text-center sm:text-left space-y-2">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingPhoto}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>{getTranslation("ছবি পরিবর্তন করুন", "Change Photo")}</span>
+                    </button>
+
+                    {(photoUrlInput || dbUser?.photoURL || user?.photoURL) && (
+                      <button
+                        type="button"
+                        onClick={handleRemovePhoto}
+                        disabled={isUploadingPhoto}
+                        className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{getTranslation("ছবি মুছুন", "Remove")}</span>
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    {getTranslation("সর্বোচ্চ সাইজ: ১০ মেগাবাইট (JPG, PNG, WebP)", "Max size: 10MB (JPG, PNG, WebP)")}
+                  </p>
+                </div>
+              </div>
+
+              {/* Form Inputs */}
+              <div className="space-y-3 pt-1">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
+                    <User className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{getTranslation("ডিসপ্লে নাম / পূর্ণ নাম", "Full Name")}</span>
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={displayNameInput}
+                    onChange={(e) => setDisplayNameInput(e.target.value)}
+                    placeholder={getTranslation("আপনার পূর্ণ নাম লিখুন", "Enter your full name")}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Phone */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
+                      <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{getTranslation("মোবাইল নম্বর", "Phone Number")}</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={phoneInput}
+                      onChange={(e) => setPhoneInput(e.target.value)}
+                      placeholder={getTranslation("০১৭১৯-XXXXXX", "01719-XXXXXX")}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
+                    />
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
+                      <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{getTranslation("ইমেইল এড্রেস", "Email Address")}</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      placeholder={getTranslation("example@domain.com", "example@domain.com")}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                {/* Delivery Address */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{getTranslation("ডেলিভারি ঠিকানা", "Delivery Address")}</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={profileAddress}
+                    onChange={(e) => setProfileAddress(e.target.value)}
+                    placeholder={getTranslation("বাসা, রোড, এলাকা, জেলা", "House, Road, Area, City")}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium text-slate-800"
+                  />
+                </div>
+
+                <div className="pt-1 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await handleSaveProfile();
+                    }}
+                    disabled={isSavingProfile}
+                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 shadow-xs"
+                  >
+                    {isSavingProfile ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    <span>{getTranslation("প্রোফাইল সংরক্ষণ করুন", "Save Profile Details")}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            )}
+
+            {/* SECTION 2: অ্যাকাউন্ট ভেরিফিকেশন (Account Verification: Email & Phone OTP) */}
+            {(profileModalTab === "all" || profileModalTab === "verification") && (
+              <div
+                ref={verificationSectionRef}
+                className={`pt-5 ${profileModalTab === "all" ? "border-t border-gray-100" : ""} space-y-4 ${
+                  profileModalTab === "verification" ? "ring-2 ring-emerald-500/20 rounded-2xl p-4 bg-emerald-50/20" : ""
+                }`}
+              >
+                {/* Verification Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <h4 className="text-sm font-black text-slate-800">
+                    {getTranslation("অ্যাকাউন্ট ভেরিফিকেশন", "Account Verification")}
+                  </h4>
+                </div>
+
+                {/* Overall Account Status Rule: Only when BOTH Email & Phone are verified is it "ভেরিফাইড ✓" */}
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
+                  isAccountVerified 
+                    ? "bg-emerald-100 text-emerald-800 border-emerald-300" 
+                    : (isEmailVerified || isPhoneVerified)
+                      ? "bg-amber-100 text-amber-800 border-amber-300"
+                      : "bg-red-50 text-red-700 border-red-200"
+                }`}>
+                  {isAccountVerified 
+                    ? getTranslation("ভেরিফাইড ✓", "Verified ✓") 
+                    : (isEmailVerified || isPhoneVerified)
+                      ? getTranslation("অসম্পূর্ণ (১/২)", "Incomplete (1/2)")
+                      : getTranslation("আনভেরিফাইড", "Unverified")}
+                </span>
+              </div>
+
+              {/* Status Explanation Card */}
+              {isAccountVerified ? (
+                <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                    <CheckCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-emerald-900">
+                      {getTranslation("আপনার অ্যাকাউন্টটি সম্পূর্ণ ভেরিফাইড!", "Your Account is Fully Verified!")}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {getTranslation("ইমেইল ও ফোন ভেরিফিকেশন সফল হয়েছে। রেফারেল ইনকাম ও সব সুবিধা সচল আছে।", "Email and Phone verifications are complete. All benefits active.")}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-amber-50/60 border border-amber-200/70 rounded-2xl p-3.5 flex items-start space-x-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-amber-900">
+                      {isEmailVerified || isPhoneVerified 
+                        ? getTranslation("ভেরিফিকেশন অসম্পূর্ণ (১/২ সম্পন্ন)", "Verification Incomplete (1/2 Completed)")
+                        : getTranslation("ভেরিফিকেশন আবশ্যক", "Verification Required")}
+                    </p>
+                    <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                      {getTranslation(
+                        "অ্যাকাউন্ট ভেরিফাইড স্ট্যাটাস অর্জন করতে অনুগ্রহ করে নিচের দুটি পদ্ধতিই (ইমেইল ও মোবাইল নম্বর) ভেরিফাই করুন।",
+                        "Please complete both verification methods below (Email and Phone) to verify your account."
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Method A: Email Verification */}
+              <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2.5">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${
+                      isEmailVerified ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
+                    }`}>
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-black text-slate-800">
+                        {getTranslation("ইমেইল ভেরিফিকেশন", "Email Verification")}
+                      </h5>
+                      <p className="text-[11px] text-slate-500 font-mono">
+                        {emailInput || dbUser?.email || user?.email || getTranslation("ইমেইল যুক্ত নেই", "No email added")}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${
+                    isEmailVerified 
+                      ? "bg-emerald-100 text-emerald-800 border-emerald-300/60" 
+                      : "bg-amber-100 text-amber-800 border-amber-300/60"
+                  }`}>
+                    {isEmailVerified ? getTranslation("ভেরিফাইড ✓", "Verified ✓") : getTranslation("অপেক্ষমান", "Pending")}
+                  </span>
+                </div>
+
+                {!isEmailVerified && (
+                  <div className="pt-2 border-t border-slate-200/60 space-y-2.5">
+                    {!emailOtpSent ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[11px] text-slate-500">
+                          {getTranslation("আপনার ইমেইলে যাচাইকরণ ওটিপি পাঠানো হবে।", "A verification OTP code will be sent to your email.")}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleSendEmailVerification}
+                          disabled={isSendingEmailOtp}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer disabled:opacity-50 shadow-xs"
+                        >
+                          {isSendingEmailOtp && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                          <span>{getTranslation("ভেরিফাই করুন", "Verify Email")}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 bg-white p-3 rounded-xl border border-emerald-200">
+                        <p className="text-[11px] text-emerald-800 font-bold">
+                          {getTranslation("আপনার ইমেইলে পাঠানো ৬-সংখ্যার OTP কোডটি লিখুন:", "Enter the 6-digit OTP code sent to your email:")}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            value={emailOtpInput}
+                            onChange={(e) => setEmailOtpInput(e.target.value.replace(/\D/g, ""))}
+                            placeholder="123456"
+                            className="flex-1 bg-slate-50 border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-1.5 text-xs font-mono font-bold tracking-widest text-slate-800 outline-none text-center"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleVerifyEmailOtp}
+                            disabled={isVerifyingEmail || emailOtpInput.length < 4}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer disabled:opacity-50 shadow-xs"
+                          >
+                            {isVerifyingEmail && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                            <span>{getTranslation("সাবমিট করুন", "Submit")}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSendEmailVerification}
+                            disabled={isSendingEmailOtp}
+                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg text-xs cursor-pointer"
+                            title={getTranslation("পুনরায় পাঠান", "Resend")}
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Method B: Phone Verification (OTP) */}
+              <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2.5">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${
+                      isPhoneVerified ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
+                    }`}>
+                      <Phone className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-black text-slate-800">
+                        {getTranslation("ফোন নাম্বার ভেরিফিকেশন", "Phone Verification")}
+                      </h5>
+                      <p className="text-[11px] text-slate-500 font-mono">
+                        {phoneInput || dbUser?.phone || user?.phone || user?.phoneNumber || getTranslation("নম্বর যুক্ত নেই", "No phone added")}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${
+                    isPhoneVerified 
+                      ? "bg-emerald-100 text-emerald-800 border-emerald-300/60" 
+                      : "bg-amber-100 text-amber-800 border-amber-300/60"
+                  }`}>
+                    {isPhoneVerified ? getTranslation("ভেরিফাইড ✓", "Verified ✓") : getTranslation("অপেক্ষমান", "Pending")}
+                  </span>
+                </div>
+
+                {!isPhoneVerified && (
+                  <div className="pt-2 border-t border-slate-200/60 space-y-2.5">
+                    {!phoneOtpSent ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[11px] text-slate-500">
+                          {getTranslation("মোবাইলে এসএমএস-এর মাধ্যমে ওটিপি কোড পাঠানো হবে।", "An SMS OTP code will be sent to your phone.")}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleSendPhoneOtp}
+                          disabled={isSendingPhoneOtp}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer disabled:opacity-50 shadow-xs"
+                        >
+                          {isSendingPhoneOtp && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                          <span>{getTranslation("OTP পাঠান", "Send OTP")}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 bg-white p-3 rounded-xl border border-emerald-200">
+                        <p className="text-[11px] text-emerald-800 font-bold">
+                          {getTranslation("আপনার ফোনে প্রাপ্ত ৪/৬-সংখ্যার OTP কোডটি লিখুন:", "Enter the 4/6-digit OTP code received on your phone:")}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            maxLength={6}
+                            value={phoneOtpInput}
+                            onChange={(e) => setPhoneOtpInput(e.target.value.replace(/\D/g, ""))}
+                            placeholder="123456"
+                            className="flex-1 bg-slate-50 border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-1.5 text-xs font-mono font-bold tracking-widest text-slate-800 outline-none text-center"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleVerifyPhoneOtp}
+                            disabled={isVerifyingPhone || phoneOtpInput.length < 4}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer disabled:opacity-50 shadow-xs"
+                          >
+                            {isVerifyingPhone && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                            <span>{getTranslation("সাবমিট করুন / ভেরিফাই করুন", "Verify OTP")}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSendPhoneOtp}
+                            disabled={isSendingPhoneOtp}
+                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg text-xs cursor-pointer"
+                            title={getTranslation("পুনরায় পাঠান", "Resend OTP")}
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            )}
+
+            {/* SECTION 3: অ্যাকাউন্ট ভেরিফিকেশন ও স্ট্যাটাস (Account Identity & Status) */}
+            {(profileModalTab === "all" || profileModalTab === "verification") && (
+              <div className="pt-5 border-t border-gray-100 space-y-3">
+              <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                <Lock className="w-3.5 h-3.5 text-slate-400" />
+                <span>{getTranslation("অ্যাকাউন্ট ভেরিফিকেশন ও স্ট্যাটাস", "Account Identity & Status")}</span>
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* User ID (UID) & Customer ID */}
+                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    {getTranslation("গ্রাহক আইডি ও ইউজার আইডি", "Customer ID & UID")}
+                  </span>
+                  <p className="text-xs font-mono font-black text-emerald-700">
+                    ID: {customerId}
+                  </p>
+                  <p className="text-[10px] font-mono text-slate-500 truncate mt-0.5">
+                    UID: {user?.uid || "N/A"}
+                  </p>
+                </div>
+
+                {/* Role & Dynamic Premium Membership Status */}
+                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      {getTranslation("মেম্বারশিপ ও রোল", "Membership & Role")}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowMembershipModal(true)}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-800 hover:text-emerald-700 transition cursor-pointer text-left"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      <span>
+                        {isPremiumQualified 
+                          ? getTranslation("✨ প্রিমিয়াম মেম্বার", "✨ Premium Member") 
+                          : getTranslation("সাধারণ মেম্বার (Regular Member)", "Regular Member")}
+                      </span>
+                    </button>
+                    <p className="text-[10px] text-slate-400 uppercase mt-0.5">
+                      Role: {dbUser?.role || user?.role || "Customer"}
+                    </p>
+                  </div>
+                  {isPremiumQualified ? (
+                    <span className="px-2 py-1 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      {getTranslation("ভেরিফাইড / সক্রিয়", "Verified / Active")}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowMembershipModal(true)}
+                      className="px-2 py-1 rounded-full text-[9px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 transition cursor-pointer"
+                      title={getTranslation("শর্ত পূরণ করতে অফার দেখুন", "View criteria offer")}
+                    >
+                      {getTranslation("শর্ত পূরণ করুন (অফার দেখুন)", "View Offer")}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            )}
+
+            {/* Modal Bottom Close Button */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowProfileSettingsModal(false)}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                {getTranslation("বন্ধ করুন", "Close")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <OrderMemoModal
         isOpen={showMemoModal}

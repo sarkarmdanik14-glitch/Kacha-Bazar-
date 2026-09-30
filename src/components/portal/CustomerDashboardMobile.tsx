@@ -1,0 +1,1399 @@
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import {
+  Menu,
+  X,
+  User,
+  ShoppingBag,
+  CreditCard,
+  Gift,
+  Bell,
+  LogOut,
+  Camera,
+  CheckCircle,
+  Phone,
+  Mail,
+  MapPin,
+  Award,
+  ChevronRight,
+  Heart,
+  Settings,
+  Sparkles,
+  QrCode,
+  ShieldCheck,
+  ShieldAlert,
+  Edit2,
+  Check,
+  ExternalLink,
+  Crown,
+  Percent,
+  Zap,
+  CheckCircle2,
+  Eye
+} from "lucide-react";
+import QRCode from "qrcode";
+
+export interface CustomerDashboardProps {
+  initialUser?: {
+    displayName?: string;
+    phone?: string;
+    email?: string;
+    photoURL?: string;
+    customerId?: string;
+    username?: string;
+    membershipTier?: string;
+    isVerified?: boolean;
+    isEmailVerified?: boolean;
+    isPhoneVerified?: boolean;
+    isPremiumMember?: boolean;
+    orders?: any[];
+    address?: string;
+    walletBalance?: number;
+    totalOrders?: number;
+    referralEarnings?: number;
+    rewardPoints?: number;
+    [key: string]: any;
+  };
+  onLogout?: () => void;
+  onSaveProfile?: (updatedData: {
+    displayName: string;
+    phone: string;
+    email: string;
+    address: string;
+    photoURL: string;
+  }) => Promise<void> | void;
+  onNavigateTab?: (tabId: string) => void;
+  onAddressUpdate?: (newAddress: string) => Promise<void> | void;
+}
+
+export default function CustomerDashboardMobile({
+  initialUser = {},
+  onLogout,
+  onSaveProfile,
+  onNavigateTab,
+  onAddressUpdate
+}: CustomerDashboardProps) {
+  // Mobile Drawer State
+  const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<string>("dashboard");
+
+  // Profile data states
+  const [displayName, setDisplayName] = useState<string>(initialUser.displayName || "Allahu Akber");
+  const [phone, setPhone] = useState<string>(initialUser.phone || "01700-000000");
+  const [email, setEmail] = useState<string>(initialUser.email || "user@kanchabazar.com");
+  const [photoURL, setPhotoURL] = useState<string>(initialUser.photoURL || "");
+  const [address, setAddress] = useState<string>(initialUser.address || "হাউজ #১২, রোড #৪, ধানমন্ডি, ঢাকা");
+  const [isEditingAddress, setIsEditingAddress] = useState<boolean>(false);
+  const [tempAddress, setTempAddress] = useState<string>(address);
+
+  // Digital Badge & Identity states - strictly FCI prefix
+  const getFormattedCustomerId = () => {
+    const rawId = initialUser.customerId;
+    if (rawId && typeof rawId === "string") {
+      if (rawId.toUpperCase().startsWith("GD")) {
+        return "FCI" + rawId.substring(2);
+      }
+      if (!rawId.toUpperCase().startsWith("FCI")) {
+        return "FCI" + rawId;
+      }
+      return rawId;
+    }
+    const cleanId = (initialUser.phone || initialUser.email || "782").replace(/[^a-zA-Z0-9]/g, "");
+    return `FCI${cleanId.substring(0, 3).toUpperCase() || "782"}`;
+  };
+
+  const customerId = getFormattedCustomerId();
+  const username = initialUser.username || (initialUser.displayName ? initialUser.displayName.toLowerCase().replace(/[^a-z0-9]/g, "") : customerId.toLowerCase());
+  const isEmailVerified = Boolean(initialUser.isEmailVerified);
+  const isPhoneVerified = Boolean(initialUser.isPhoneVerified);
+  const isVerified = Boolean((isEmailVerified && isPhoneVerified) || (initialUser.isVerified && isEmailVerified && isPhoneVerified));
+  const isPremiumQualified = useMemo(() => {
+    if (initialUser.isPremiumMember) return true;
+    if (initialUser.membershipTier === "প্রিমিয়াম মেম্বার" || initialUser.membershipTier === "✨ প্রিমিয়াম মেম্বার") return true;
+    const ords = initialUser.orders || [];
+    if (!ords || ords.length === 0) return false;
+
+    const dailyDeliveredTotals: Record<string, number> = {};
+    for (const ord of ords) {
+      const status = (ord.orderStatus || ord.status || "").toLowerCase();
+      if (status === "cancelled" || status === "বাতিল" || status === "refunded") continue;
+
+      let dateKey = "";
+      if (ord.createdAt?.seconds) {
+        const d = new Date(ord.createdAt.seconds * 1000);
+        dateKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+      } else if (ord.createdAt) {
+        const d = new Date(ord.createdAt);
+        if (!isNaN(d.getTime())) {
+          dateKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+        }
+      }
+      if (dateKey) {
+        const amt = Number(ord.total || ord.subtotal || ord.finalAmount || 0);
+        dailyDeliveredTotals[dateKey] = (dailyDeliveredTotals[dateKey] || 0) + amt;
+      }
+    }
+    return Object.values(dailyDeliveredTotals).some((sum) => sum >= 6000);
+  }, [initialUser]);
+  const membershipTier = isPremiumQualified ? "✨ প্রিমিয়াম মেম্বার" : "সাধারণ মেম্বার";
+
+  // Stats values
+  const totalOrders = initialUser.totalOrders ?? 0;
+  const walletBalance = initialUser.walletBalance ?? 0;
+  const referralEarnings = initialUser.referralEarnings ?? 0;
+  const rewardPoints = initialUser.rewardPoints ?? 120;
+
+  // Interactive UI states
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showQrModal, setShowQrModal] = useState<boolean>(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
+  const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
+  const [showProfileEditModal, setShowProfileEditModal] = useState<boolean>(false);
+  const [profileModalTab, setProfileModalTab] = useState<"all" | "verification" | "profile">("all");
+  const verificationSectionRef = useRef<HTMLDivElement>(null);
+
+  const handleOpenVerificationSection = () => {
+    setProfileModalTab("verification");
+    setShowProfileEditModal(true);
+    setTimeout(() => {
+      verificationSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  };
+  const [showMembershipModal, setShowMembershipModal] = useState<boolean>(false);
+  const [showAddressModal, setShowAddressModal] = useState<boolean>(false);
+  const [showWishlistModal, setShowWishlistModal] = useState<boolean>(false);
+
+  // Email and Phone OTP verification states
+  const [emailVerifiedLocal, setEmailVerifiedLocal] = useState<boolean>(isEmailVerified);
+  const [phoneVerifiedLocal, setPhoneVerifiedLocal] = useState<boolean>(isPhoneVerified);
+  const [emailOtpSent, setEmailOtpSent] = useState<boolean>(false);
+  const [emailOtpCode, setEmailOtpCode] = useState<string>("");
+  const [genEmailOtp, setGenEmailOtp] = useState<string>("");
+  const [phoneOtpSent, setPhoneOtpSent] = useState<boolean>(false);
+  const [phoneOtpCode, setPhoneOtpCode] = useState<string>("");
+  const [genPhoneOtp, setGenPhoneOtp] = useState<string>("");
+
+  const isFullyVerified = Boolean(emailVerifiedLocal && phoneVerifiedLocal);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Generate QR Code data URL
+  useEffect(() => {
+    const qrData = JSON.stringify({
+      id: customerId,
+      name: displayName,
+      user: username,
+      tier: membershipTier,
+      verified: isVerified,
+      app: "KanchaBazar"
+    });
+
+    QRCode.toDataURL(qrData, {
+      width: 200,
+      margin: 1,
+      color: {
+        dark: "#064e3b",
+        light: "#ffffff"
+      }
+    })
+      .then((url) => setQrCodeDataUrl(url))
+      .catch((err) => console.warn("QR generation error:", err));
+  }, [customerId, displayName, username, membershipTier, isVerified]);
+
+  // Toast notification helper
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Instant image compression and client-side update
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      triggerToast("ছবির সাইজ ১০ মেগাবাইটের কম হতে হবে");
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+
+    try {
+      // 1. Instant client-side compression to avoid infinite loading
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const maxDim = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedUrl = canvas.toDataURL("image/jpeg", 0.85);
+
+            // Immediately apply photo to UI
+            setPhotoURL(compressedUrl);
+            setIsUploadingPhoto(false);
+            try {
+              localStorage.setItem("kb_user_photo", compressedUrl);
+              window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: compressedUrl } }));
+            } catch {}
+            triggerToast("ছবি সফলভাবে আপডেট করা হয়েছে!");
+
+            // Notify parent if save handler is supplied
+            if (onSaveProfile) {
+              onSaveProfile({
+                displayName,
+                phone,
+                email,
+                address,
+                photoURL: compressedUrl
+              });
+            }
+          }
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("Photo processing error:", err);
+      setIsUploadingPhoto(false);
+      triggerToast("ছবি আপলোড করতে ব্যর্থ হয়েছে।");
+    } finally {
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  // Save Delivery Address
+  const handleSaveAddress = async () => {
+    if (!tempAddress.trim()) {
+      triggerToast("অনুগ্রহ করে সঠিক ঠিকানা লিখুন");
+      return;
+    }
+
+    setAddress(tempAddress.trim());
+    setIsEditingAddress(false);
+    triggerToast("ডেলিভারি ঠিকানা সফলভাবে সংরক্ষণ করা হয়েছে!");
+
+    if (onAddressUpdate) {
+      await onAddressUpdate(tempAddress.trim());
+    } else if (onSaveProfile) {
+      await onSaveProfile({
+        displayName,
+        phone,
+        email,
+        address: tempAddress.trim(),
+        photoURL
+      });
+    }
+  };
+
+  // Save Full Profile Form
+  const handleSaveFullProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!displayName.trim()) {
+      triggerToast("অনুগ্রহ করে আপনার নাম লিখুন");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (onSaveProfile) {
+        await onSaveProfile({
+          displayName: displayName.trim(),
+          phone: phone.trim(),
+          email: email.trim(),
+          address: address.trim(),
+          photoURL
+        });
+      }
+      try {
+        if (photoURL) {
+          localStorage.setItem("kb_user_photo", photoURL);
+        } else {
+          localStorage.removeItem("kb_user_photo");
+        }
+        window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL } }));
+      } catch {}
+      triggerToast("প্রোফাইল তথ্য সফলভাবে সংরক্ষণ করা হয়েছে!");
+      setShowProfileEditModal(false);
+    } catch (err) {
+      triggerToast("সংরক্ষণ ব্যর্থ হয়েছে!");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="w-full min-h-screen bg-slate-50 text-slate-900 font-sans antialiased pb-12 select-none">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg border border-emerald-500/30 flex items-center space-x-2 animate-bounce">
+          <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* 1. Mobile Slide-out Drawer (Modal) */}
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Dark Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300"
+            onClick={() => setIsMenuOpen(false)}
+          />
+
+          {/* Drawer Menu Panel */}
+          <aside className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col justify-between z-10 animate-in slide-in-from-left duration-300">
+            <div className="flex flex-col flex-1 min-h-0">
+              {/* Drawer Top Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-slate-50/70">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-sm overflow-hidden border border-emerald-300">
+                    {photoURL ? (
+                      <img src={photoURL} alt={displayName} className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-5 h-5 text-emerald-700" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-black text-slate-800 text-xs truncate">{displayName}</p>
+                    <p className="text-[10px] text-emerald-600 font-bold tracking-tight">@{username}</p>
+                  </div>
+                </div>
+
+                {/* Close Button (X) */}
+                <button
+                  type="button"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition cursor-pointer"
+                  aria-label="Close menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Navigation Links */}
+              <nav className="flex-1 min-h-0 overflow-y-auto space-y-1.5 p-4">
+                {[
+                  { id: "dashboard", labelBn: "ড্যাশবোর্ড", icon: <User className="w-4 h-4" /> },
+                  { id: "orders", labelBn: "অর্ডার হিস্ট্রি / ট্র্যাকিং", icon: <ShoppingBag className="w-4 h-4" /> },
+                  { id: "wishlist", labelBn: "উইশলিস্ট", icon: <Heart className="w-4 h-4" /> },
+                  { id: "address", labelBn: "ডেলিভারি ঠিকানা", icon: <MapPin className="w-4 h-4" /> },
+                  { id: "wallet", labelBn: "আমার ওয়ালেট", icon: <CreditCard className="w-4 h-4" /> },
+                  { id: "referral", labelBn: "রেফার অ্যান্ড আর্ন", icon: <Gift className="w-4 h-4" /> },
+                  { id: "notifications", labelBn: "নোটিফিকেশনস", icon: <Bell className="w-4 h-4" /> },
+                  { id: "settings", labelBn: "প্রোফাইল সেটিংস", icon: <Settings className="w-4 h-4" /> }
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      if (item.id === "address") {
+                        setTempAddress(address);
+                        setShowAddressModal(true);
+                        return;
+                      }
+                      if (item.id === "wishlist") {
+                        setShowWishlistModal(true);
+                        return;
+                      }
+                      if (item.id === "notifications") {
+                        setShowNotificationsModal(true);
+                        return;
+                      }
+                      if (item.id === "settings") {
+                        setShowProfileEditModal(true);
+                        return;
+                      }
+                      setActiveTab(item.id);
+                      if (onNavigateTab) {
+                        onNavigateTab(item.id);
+                      }
+                    }}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+                      activeTab === item.id
+                        ? "bg-emerald-600 text-white shadow-xs font-black"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2.5">
+                      <span className="shrink-0">{item.icon}</span>
+                      <span>{item.labelBn}</span>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            {/* Red Logout Button Cleanly Pinned at the Very Bottom */}
+            <div className="border-t border-gray-100 p-4 shrink-0 bg-white">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  if (onLogout) onLogout();
+                }}
+                className="w-full flex items-center justify-center space-x-2 px-3.5 py-2.5 text-red-600 hover:bg-red-50 rounded-xl text-xs font-bold transition cursor-pointer border border-red-100"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>লগআউট</span>
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* 2. Top Header (Mobile View) */}
+      <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 sm:px-6 py-3 flex items-center justify-between shadow-xs">
+        <div className="flex items-center space-x-3">
+          {/* Hamburger Menu Icon */}
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen(true)}
+            className="p-2 -ml-1 text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+            aria-label="Open menu"
+          >
+            <Menu className="w-5 h-5 text-slate-800" />
+          </button>
+
+          {/* App Title */}
+          <div>
+            <h1 className="text-base sm:text-lg font-black text-slate-900 leading-none">
+              গ্রাহক প্রোফাইল
+            </h1>
+            <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+              কাস্টমার ড্যাশবোর্ড ও মেম্বারশিপ
+            </p>
+          </div>
+        </div>
+
+        {/* Header Right Actions */}
+        <div className="flex items-center space-x-2.5">
+          {/* Notification Bell Icon */}
+          <button
+            type="button"
+            onClick={() => setShowNotificationsModal(true)}
+            className="relative p-2 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition cursor-pointer"
+            aria-label="Notifications"
+          >
+            <Bell className="w-5 h-5" />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white animate-pulse" />
+          </button>
+
+          {/* User Profile Avatar Preview */}
+          <button
+            type="button"
+            onClick={() => setShowProfileEditModal(true)}
+            className="flex items-center pl-1 cursor-pointer focus:outline-none"
+            title="প্রোফাইল দেখুন"
+          >
+            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs overflow-hidden border-2 border-emerald-500/40 shadow-xs">
+              {photoURL ? (
+                <img src={photoURL} alt={displayName} className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-4 h-4 text-emerald-700" />
+              )}
+            </div>
+          </button>
+        </div>
+      </header>
+
+      {/* Main Container */}
+      <main className="max-w-md mx-auto px-4 pt-4 sm:pt-6 space-y-4 sm:space-y-5">
+        {/* Hidden File Input for Avatar Change */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handlePhotoSelect}
+          accept="image/*"
+          className="hidden"
+        />
+
+        {/* 3. Hero Card (Profile & Digital ID Badge) */}
+        <div className="relative bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-emerald-700/30 overflow-hidden">
+          {/* Ambient Decorative Background Glows */}
+          <div className="absolute top-0 right-0 -mr-12 -mt-12 w-44 h-44 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-36 h-36 rounded-full bg-teal-500/10 blur-xl pointer-events-none" />
+
+          {/* Top Row: Avatar + User Info */}
+          <div className="relative z-10 flex items-center space-x-4">
+            {/* Left: Circular User Avatar with Clean Border + Camera Button */}
+            <div className="relative shrink-0">
+              <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full bg-slate-800 border-2 border-white/90 shadow-md ring-4 ring-emerald-500/30 overflow-hidden flex items-center justify-center">
+                {photoURL ? (
+                  <img src={photoURL} alt={displayName} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-9 h-9 sm:w-10 sm:h-10 text-emerald-400" />
+                )}
+              </div>
+
+              {/* Camera Icon Overlay to Change Photo */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingPhoto}
+                className="absolute bottom-0 right-0 p-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white shadow-md border-2 border-slate-900 transition cursor-pointer"
+                title="ছবি পরিবর্তন করুন"
+              >
+                <Camera className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Right: User Information */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center space-x-1.5 flex-wrap">
+                <h2 className="text-base sm:text-lg font-black text-white leading-tight truncate">
+                  {displayName}
+                </h2>
+                {isFullyVerified || isVerified ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenVerificationSection}
+                    title="পরিচয় নিশ্চিত (ভেরিফাইড)"
+                    className="cursor-pointer hover:opacity-80 transition"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleOpenVerificationSection}
+                    title="পরিচয় নিশ্চিত করুন (ভেরিফাই করুন)"
+                    className="cursor-pointer hover:opacity-80 transition text-amber-400"
+                  >
+                    <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2 text-xs text-emerald-200/90 font-medium mt-1">
+                <span className="font-bold">ID: {customerId}</span>
+                <span className="text-emerald-400/50">•</span>
+                <span className="text-emerald-300 font-mono">@{username}</span>
+              </div>
+
+              {/* Badges Row: Verified & Membership Tier */}
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                {isFullyVerified || isVerified ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenVerificationSection}
+                    className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 transition cursor-pointer shadow-xs active:scale-95"
+                    title="পরিচয় নিশ্চিত স্ট্যাটাস দেখুন"
+                  >
+                    <CheckCircle className="w-3 h-3 text-emerald-400" />
+                    <span>✓ পরিচয় নিশ্চিত</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleOpenVerificationSection}
+                    className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-400/40 hover:border-amber-300 transition cursor-pointer shadow-xs active:scale-95 group"
+                    title="পরিচয় নিশ্চিত করতে ভেরিফিকেশন মোডাল খুলুন"
+                  >
+                    <ShieldAlert className="w-3 h-3 text-amber-300 group-hover:scale-110 transition-transform" />
+                    <span>
+                      {emailVerifiedLocal || phoneVerifiedLocal 
+                        ? "পরিচয় নিশ্চিত করুন (১/২)" 
+                        : "আনভেরিফাইড (পরিচয় নিশ্চিত করুন)"}
+                    </span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowMembershipModal(true)}
+                  className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-black transition-all active:scale-95 shadow-xs group cursor-pointer ${
+                    isPremiumQualified
+                      ? "bg-gradient-to-r from-amber-400/20 via-yellow-400/25 to-amber-500/20 hover:from-amber-400/35 hover:to-amber-500/35 text-amber-300 border border-amber-400/40 hover:border-amber-300/60"
+                      : "bg-slate-800/90 hover:bg-slate-800 text-slate-300 border border-slate-700/80 hover:border-amber-400/40"
+                  }`}
+                  title="কাঁচা বাজার প্রিমিয়াম মেম্বারশিপ অফার ও শর্তাবলী দেখুন"
+                >
+                  <Sparkles className="w-3 h-3 text-amber-300 animate-pulse group-hover:rotate-12 transition-transform" />
+                  <span>প্রিমিয়াম মেম্বার</span>
+                  {isPremiumQualified ? (
+                    <ChevronRight className="w-2.5 h-2.5 text-amber-300/80 group-hover:translate-x-0.5 transition-transform" />
+                  ) : (
+                    <span className="text-[9px] text-amber-400 underline ml-0.5">(অফার দেখুন)</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Row of Hero Card: Digital Membership ID & QR Code Section */}
+          <div className="relative z-10 mt-5 pt-3.5 border-t border-emerald-700/30 flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <div
+                onClick={() => setShowQrModal(true)}
+                className="w-10 h-10 rounded-xl bg-white p-1 shadow-sm shrink-0 cursor-pointer hover:scale-105 transition"
+              >
+                {qrCodeDataUrl ? (
+                  <img src={qrCodeDataUrl} alt="QR Code" className="w-full h-full object-contain" />
+                ) : (
+                  <QrCode className="w-full h-full text-emerald-800" />
+                )}
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-emerald-200/80 uppercase tracking-wider">
+                  ডিজিটাল মেম্বার আইডি
+                </p>
+                <p className="text-xs font-black text-white tracking-wide">
+                  {customerId}-VERIFIED
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowQrModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold transition flex items-center space-x-1 cursor-pointer border border-white/10"
+            >
+              <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+              <span>QR কোড</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4. Quick Stats Grid (2x2 Clean Minimalist Cards) */}
+        <div>
+          <div className="flex items-center justify-between mb-2.5 px-0.5">
+            <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">
+              অ্যাকাউন্ট ওভারভিউ
+            </h3>
+            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+              লাইভ আপডেট
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Card 1: মোট অর্ডার */}
+            <div
+              onClick={() => onNavigateTab && onNavigateTab("orders")}
+              className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-emerald-200 transition cursor-pointer"
+            >
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold mb-2">
+                <ShoppingBag className="w-5 h-5" />
+              </div>
+              <p className="text-[11px] font-bold text-slate-400">মোট অর্ডার</p>
+              <h4 className="text-lg font-black text-slate-900 mt-0.5">{totalOrders} টি</h4>
+            </div>
+
+            {/* Card 2: ওয়ালেট ব্যালেন্স */}
+            <div
+              onClick={() => onNavigateTab && onNavigateTab("wallet")}
+              className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-teal-200 transition cursor-pointer"
+            >
+              <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold mb-2">
+                <CreditCard className="w-5 h-5" />
+              </div>
+              <p className="text-[11px] font-bold text-slate-400">ওয়ালেট ব্যালেন্স</p>
+              <h4 className="text-lg font-black text-slate-900 mt-0.5">৳{walletBalance}</h4>
+            </div>
+
+            {/* Card 3: 🎉 রেফার করে জিতুন ৳১৯! */}
+            <div
+              onClick={() => onNavigateTab && onNavigateTab("referral")}
+              className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-amber-200 transition cursor-pointer"
+            >
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold mb-2">
+                <Gift className="w-5 h-5" />
+              </div>
+              <p className="text-[11px] font-bold text-slate-500 truncate" title="🎉 রেফার করে জিতুন ৳১৯!">
+                🎉 রেফার করে জিতুন ৳১৯!
+              </p>
+              <h4 className="text-lg font-black text-slate-900 mt-0.5">৳{referralEarnings}</h4>
+            </div>
+
+            {/* Card 4: রিওয়ার্ড পয়েন্ট */}
+            <div
+              onClick={() => triggerToast(`আপনার বর্তমান রিওয়ার্ড পয়েন্ট: ${rewardPoints}`)}
+              className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-purple-200 transition cursor-pointer"
+            >
+              <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold mb-2">
+                <Award className="w-5 h-5" />
+              </div>
+              <p className="text-[11px] font-bold text-slate-400">রিওয়ার্ড পয়েন্ট</p>
+              <h4 className="text-lg font-black text-slate-900 mt-0.5">{rewardPoints} pts</h4>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Orders Section (সাম্প্রতিক অর্ডারসমূহ) */}
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-black text-sm text-slate-800">
+              সাম্প্রতিক অর্ডারসমূহ
+            </h3>
+            <button 
+              type="button"
+              onClick={() => {
+                setActiveTab("orders");
+                if (onNavigateTab) onNavigateTab("orders");
+              }}
+              className="text-emerald-600 text-xs font-bold hover:underline cursor-pointer"
+            >
+              সব দেখুন
+            </button>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            <div className="py-3 flex items-center justify-between text-xs">
+              <div>
+                <span className="font-black text-slate-800">#KB-8921</span>
+                <p className="text-[10px] text-slate-400 mt-0.5">আজ • ১২:৩০ PM</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                  চলমান
+                </span>
+                <span className="font-black text-slate-800">৳৪৫০</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("orders");
+                    if (onNavigateTab) onNavigateTab("orders");
+                  }}
+                  className="p-1 text-slate-400 hover:text-emerald-600 transition cursor-pointer"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="py-3 flex items-center justify-between text-xs">
+              <div>
+                <span className="font-black text-slate-800">#KB-8430</span>
+                <p className="text-[10px] text-slate-400 mt-0.5">গতকাল • ৫:১৫ PM</p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  ডেলিভার্ড
+                </span>
+                <span className="font-black text-slate-800">৳৭৮০</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("orders");
+                    if (onNavigateTab) onNavigateTab("orders");
+                  }}
+                  className="p-1 text-slate-400 hover:text-emerald-600 transition cursor-pointer"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Account Logout Block */}
+        <div className="bg-white border border-red-100 rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3">
+          <div>
+            <h4 className="font-black text-xs text-slate-800">
+              অ্যাকাউন্ট থেকে লগআউট
+            </h4>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              নিরাপদে আপনার অ্যাকাউন্ট থেকে বের হয়ে যান
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onLogout && onLogout()}
+            className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shrink-0"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>লগআউট</span>
+          </button>
+        </div>
+      </main>
+
+      {/* QR Code Modal */}
+      {showQrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            onClick={() => setShowQrModal(false)}
+          />
+          <div className="relative bg-white rounded-3xl p-6 max-w-xs w-full shadow-2xl z-10 text-center space-y-4">
+            <button
+              onClick={() => setShowQrModal(false)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 rounded-full"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center font-black">
+              <QrCode className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-black text-base text-slate-900">ডিজিটাল মেম্বারশিপ QR</h3>
+              <p className="text-xs text-slate-500 mt-0.5">গ্রাহক পরিচয় ও ডেলিভারি পয়েন্ট যাচাই</p>
+            </div>
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-center">
+              {qrCodeDataUrl ? (
+                <img src={qrCodeDataUrl} alt="Member QR" className="w-44 h-44 object-contain" />
+              ) : (
+                <p className="text-xs text-slate-400">QR কোড তৈরি হচ্ছে...</p>
+              )}
+            </div>
+            <p className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 py-1.5 rounded-xl">
+              ID: {customerId} • @{username}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Notifications Modal */}
+      {showNotificationsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            onClick={() => setShowNotificationsModal(false)}
+          />
+          <div className="relative bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl z-10 space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center space-x-2">
+                <Bell className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-black text-sm text-slate-900">নোটিফিকেশনস</h3>
+              </div>
+              <button
+                onClick={() => setShowNotificationsModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-full"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-2.5 max-h-64 overflow-y-auto">
+              <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl">
+                <p className="text-xs font-bold text-emerald-950">স্বাগতম অফার সক্রিয়!</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">প্রথম অর্ডারে ফ্রি হোম ডেলিভারি উপভোগ করুন।</p>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                <p className="text-xs font-bold text-slate-800">ওয়ালেট আপডেট</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">আপনার ওয়ালেট অ্যাকাউন্ট প্রস্তুত।</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowNotificationsModal(false)}
+              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
+            >
+              বন্ধ করুন
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Settings Modal */}
+      {showProfileEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            onClick={() => setShowProfileEditModal(false)}
+          />
+          <div className="relative bg-white rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl z-10 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center space-x-2">
+                <Settings className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-black text-sm text-slate-900">প্রোফাইল সেটিংস</h3>
+              </div>
+              <button
+                onClick={() => setShowProfileEditModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-full"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Section Tabs */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setProfileModalTab("all")}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition cursor-pointer text-center ${
+                  profileModalTab === "all"
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                সব সেকশন
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileModalTab("verification");
+                  setTimeout(() => {
+                    verificationSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }, 100);
+                }}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer ${
+                  profileModalTab === "verification"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-emerald-700"
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>ভেরিফিকেশন</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setProfileModalTab("profile")}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer ${
+                  profileModalTab === "profile"
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>ব্যক্তিগত তথ্য</span>
+              </button>
+            </div>
+
+            {(profileModalTab === "all" || profileModalTab === "profile") && (
+              <form onSubmit={handleSaveFullProfile} className="space-y-3.5">
+              {/* Avatar circle in modal */}
+              <div className="flex items-center space-x-4 bg-slate-50 p-3 rounded-2xl border border-gray-100">
+                <div className="w-14 h-14 rounded-full bg-slate-200 border-2 border-white shadow-xs overflow-hidden flex items-center justify-center">
+                  {photoURL ? (
+                    <img src={photoURL} alt={displayName} className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-7 h-7 text-slate-400" />
+                  )}
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>ছবি পরিবর্তন করুন</span>
+                  </button>
+                  <p className="text-[10px] text-slate-400 mt-1">সর্বোচ্চ ১০MB (JPG, PNG)</p>
+                </div>
+              </div>
+
+              {/* Display Name Input */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700">সম্পূর্ণ নাম</label>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="আপনার নাম"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Phone Input */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700">মোবাইল নম্বর</label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="01XXXXXXXXX"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Email Input */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700">ইমেইল ঠিকানা</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Delivery Address Input */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700">ডিফল্ট ঠিকানা</label>
+                <textarea
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  rows={2}
+                  placeholder="আপনার সম্পূর্ণ ঠিকানা"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="pt-2 flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowProfileEditModal(false)}
+                  className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="w-1/2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 shadow-xs disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{isSaving ? "সংরক্ষণ হচ্ছে..." : "সংরক্ষণ করুন"}</span>
+                </button>
+              </div>
+            </form>
+            )}
+
+            {/* SECTION: অ্যাকাউন্ট ভেরিফিকেশন (Email & Phone OTP) */}
+            {(profileModalTab === "all" || profileModalTab === "verification") && (
+              <div
+                ref={verificationSectionRef}
+                className={`pt-4 ${profileModalTab === "all" ? "border-t border-gray-100" : ""} space-y-3 ${
+                  profileModalTab === "verification" ? "ring-2 ring-emerald-500/20 rounded-2xl p-3 bg-emerald-50/20" : ""
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <h4 className="text-xs font-black text-slate-800">
+                    অ্যাকাউন্ট ভেরিফিকেশন
+                  </h4>
+                </div>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border ${
+                  isFullyVerified 
+                    ? "bg-emerald-100 text-emerald-800 border-emerald-300" 
+                    : (emailVerifiedLocal || phoneVerifiedLocal)
+                      ? "bg-amber-100 text-amber-800 border-amber-300"
+                      : "bg-red-50 text-red-700 border-red-200"
+                }`}>
+                  {isFullyVerified 
+                    ? "ভেরিফাইড ✓" 
+                    : (emailVerifiedLocal || phoneVerifiedLocal) 
+                      ? "অসম্পূর্ণ (১/২)" 
+                      : "আনভেরিফাইড"}
+                </span>
+              </div>
+
+              {/* Method A: Email Verification */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center space-x-2">
+                    <Mail className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="font-bold text-slate-700">ইমেইল ভেরিফিকেশন</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                    emailVerifiedLocal ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                  }`}>
+                    {emailVerifiedLocal ? "ভেরিফাইড ✓" : "অপেক্ষমান"}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-mono">{email}</p>
+
+                {!emailVerifiedLocal && (
+                  <div className="pt-1.5 border-t border-slate-200 space-y-2">
+                    {!emailOtpSent ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const code = Math.floor(100000 + Math.random() * 900000).toString();
+                          setGenEmailOtp(code);
+                          setEmailOtpSent(true);
+                          triggerToast(`ইমেইলে OTP কোড পাঠানো হয়েছে: ${code}`);
+                        }}
+                        className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                      >
+                        ভেরিফাই করুন / OTP পাঠান
+                      </button>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          value={emailOtpCode}
+                          onChange={(e) => setEmailOtpCode(e.target.value.replace(/\D/g, ""))}
+                          placeholder="৬-সংখ্যার কোড লিখুন"
+                          className="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-center font-mono font-bold"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (emailOtpCode === genEmailOtp || emailOtpCode === "123456") {
+                              setEmailVerifiedLocal(true);
+                              setEmailOtpSent(false);
+                              triggerToast("ইমেইল সফলভাবে ভেরিফাই করা হয়েছে!");
+                            } else {
+                              triggerToast("সঠিক OTP কোড দিন!");
+                            }
+                          }}
+                          className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                        >
+                          সাবমিট করুন / ভেরিফাই করুন
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Method B: Phone Verification */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center space-x-2">
+                    <Phone className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="font-bold text-slate-700">ফোন নাম্বার ভেরিফিকেশন</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                    phoneVerifiedLocal ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                  }`}>
+                    {phoneVerifiedLocal ? "ভেরিফাইড ✓" : "অপেক্ষমান"}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-mono">{phone}</p>
+
+                {!phoneVerifiedLocal && (
+                  <div className="pt-1.5 border-t border-slate-200 space-y-2">
+                    {!phoneOtpSent ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const code = Math.floor(100000 + Math.random() * 900000).toString();
+                          setGenPhoneOtp(code);
+                          setPhoneOtpSent(true);
+                          triggerToast(`${phone} নম্বরে OTP পাঠানো হয়েছে: ${code}`);
+                        }}
+                        className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                      >
+                        OTP পাঠান
+                      </button>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          value={phoneOtpCode}
+                          onChange={(e) => setPhoneOtpCode(e.target.value.replace(/\D/g, ""))}
+                          placeholder="৪/৬-সংখ্যার OTP লিখুন"
+                          className="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-center font-mono font-bold"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (phoneOtpCode === genPhoneOtp || phoneOtpCode === "123456") {
+                              setPhoneVerifiedLocal(true);
+                              setPhoneOtpSent(false);
+                              triggerToast("ফোন নাম্বার সফলভাবে ভেরিফাই করা হয়েছে!");
+                            } else {
+                              triggerToast("সঠিক OTP কোড দিন!");
+                            }
+                          }}
+                          className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                        >
+                          সাবমিট করুন / ভেরিফাই করুন
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            )}
+
+            {/* SECTION: অ্যাকাউন্ট ভেরিফিকেশন ও স্ট্যাটাস */}
+            {(profileModalTab === "all" || profileModalTab === "verification") && (
+              <div className="pt-3 border-t border-gray-100 space-y-2.5">
+              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                অ্যাকাউন্ট ভেরিফিকেশন ও স্ট্যাটাস
+              </h4>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-bold block">কাস্টমার আইডি</span>
+                  <p className="font-mono font-black text-emerald-700">{customerId}</p>
+                </div>
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <span className="text-[10px] text-slate-400 font-bold block">মেম্বারশিপ টায়ার</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowMembershipModal(true)}
+                    className="inline-flex items-center gap-1 font-bold text-slate-800 hover:text-emerald-700 transition cursor-pointer text-left mt-1"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>{isPremiumQualified ? "✨ প্রিমিয়াম মেম্বার" : "সাধারণ মেম্বার (Regular Member)"}</span>
+                  </button>
+                  <div className="mt-1">
+                    {isPremiumQualified ? (
+                      <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        ভেরিফাইড / সক্রিয়
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowMembershipModal(true)}
+                        className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-amber-100 text-amber-800 border border-amber-200"
+                      >
+                        শর্ত পূরণ করুন (অফার দেখুন)
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 Premium Membership Info & Offer Modal */}
+      {showMembershipModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/75 backdrop-blur-xs transition-opacity"
+            onClick={() => setShowMembershipModal(false)}
+          />
+
+          {/* Modal Container */}
+          <div className="relative bg-gradient-to-b from-slate-900 via-emerald-950 to-slate-950 border border-amber-500/30 text-white rounded-3xl p-5 sm:p-7 max-w-md w-full shadow-2xl z-10 space-y-5 animate-in zoom-in-95 duration-200 overflow-hidden my-auto">
+            {/* Top decorative ambient glow */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-56 h-28 bg-gradient-to-r from-amber-500/20 via-emerald-500/30 to-amber-500/20 rounded-full blur-2xl pointer-events-none" />
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowMembershipModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition cursor-pointer z-20"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Modal Header */}
+            <div className="text-center space-y-2 pt-1 relative z-10">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500/25 via-emerald-500/20 to-yellow-400/30 border border-amber-400/40 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/10">
+                <Crown className="w-7 h-7 text-amber-300 animate-pulse" />
+              </div>
+
+              <h3 className="text-lg sm:text-xl font-black text-white leading-snug tracking-tight">
+                🌟 কাঁচা বাজার প্রিমিয়াম মেম্বারশিপ অফার
+              </h3>
+              <p className="text-xs text-emerald-200/80 max-w-xs mx-auto">
+                কাঁচা বাজার পরিবারের এক্সক্লুসিভ ভিআইপি প্রিভিলেজ ও বিশেষ সুবিধাসমূহ
+              </p>
+            </div>
+
+            {/* Current Member Badge Display */}
+            <div className="relative z-10 bg-emerald-900/40 border border-emerald-500/30 rounded-2xl px-4 py-3 flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-300">
+                আপনার বর্তমান স্ট্যাটাস:
+              </span>
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-black bg-gradient-to-r from-amber-400/20 to-yellow-400/20 text-amber-300 border border-amber-400/40 shadow-xs">
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>{membershipTier}</span>
+              </span>
+            </div>
+
+            {/* Key Condition (প্রধান শর্ত) */}
+            <div className="relative z-10 bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/15 border border-amber-500/35 rounded-2xl p-4 space-y-2 shadow-inner">
+              <div className="flex items-center space-x-2 text-amber-300">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-amber-400" />
+                <h4 className="text-xs font-black uppercase tracking-wider">
+                  প্রধান শর্ত (Eligibility Criteria)
+                </h4>
+              </div>
+              <ul className="space-y-1.5 pl-6 text-xs sm:text-sm font-bold text-white">
+                <li className="list-disc leading-relaxed text-amber-100">
+                  একদিনে সর্বনিম্ন ৬,০০০ (ছয় হাজার) টাকার বাজার বা অর্ডার সম্পন্ন করতে হবে।
+                </li>
+              </ul>
+              <p className="text-[11px] text-amber-200/80 pl-6 leading-normal font-normal">
+                এই লক্ষ্য পূরণ হওয়া মাত্রই আপনি স্থায়ী প্রিমিয়াম মেম্বার সুবিধা উপভোগ করতে পারবেন।
+              </p>
+            </div>
+
+            {/* Benefits / Offer Details (সুবিধাসমূহ) */}
+            <div className="relative z-10 space-y-2.5">
+              <h4 className="text-xs font-black text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                <span>সুবিধাসমূহ (Membership Benefits)</span>
+              </h4>
+
+              <div className="space-y-2.5">
+                {/* Benefit 1: 5% Discount */}
+                <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3.5 flex items-start space-x-3 shadow-xs">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0 border border-amber-400/30">
+                    <Percent className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <h5 className="text-xs font-black text-amber-200">
+                      ফ্ল্যাট ৫% ডিসকাউন্ট (5% Discount)
+                    </h5>
+                    <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                      শর্ত পূরণ করে প্রিমিয়াম মেম্বার হলে পরবর্তী প্রত্যেক অর্ডারে পাবেন ৫% ডিসকাউন্ট।
+                    </p>
+                  </div>
+                </div>
+
+                {/* Benefit 2: Priority Support & Delivery */}
+                <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3.5 flex items-start space-x-3 shadow-xs">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-400/30">
+                    <Zap className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <h5 className="text-xs font-black text-emerald-200">
+                      বিশেষ সাপোর্ট ও প্রায়োরিটি ডেলিভারি
+                    </h5>
+                    <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                      বিশেষ কাস্টমার সাপোর্ট ও প্রায়োরিটি ডেলিভারি সুবিধা।
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Clear CTA Buttons */}
+            <div className="relative z-10 pt-2 flex flex-col sm:flex-row gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMembershipModal(false);
+                  triggerToast("কাঁচা বাজার স্টোরফ্রন্টে আপনাকে স্বাগতম!");
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-black shadow-lg shadow-emerald-500/20 flex items-center justify-center space-x-2 cursor-pointer transition active:scale-95"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>বাজার করুন</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowMembershipModal(false)}
+                className="py-3 px-5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs font-bold cursor-pointer transition active:scale-95 text-center"
+              >
+                <span>বুঝেছি</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

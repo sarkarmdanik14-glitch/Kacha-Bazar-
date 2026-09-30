@@ -364,7 +364,7 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
         try {
           await setDoc(doc(db, "wallet", uid), {
             userId: uid,
-            balance: 50,
+            balance: 0,
             updatedAt: serverTimestamp()
           });
         } catch (wErr) {
@@ -576,21 +576,11 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
           });
         }
 
-        // Initialize wallet
+        // Initialize wallet with 0 balance
         await setDoc(doc(db, "wallet", user.uid), {
           userId: user.uid,
-          balance: 50,
+          balance: 0,
           updatedAt: serverTimestamp()
-        });
-
-        // Add welcome transaction
-        await setDoc(doc(db, "transactions", "welcome_" + user.uid), {
-          id: "welcome_" + user.uid,
-          userId: user.uid,
-          type: "deposit",
-          amount: 50,
-          description: getTranslation("নতুন অ্যাকাউন্ট খোলার জন্য বোনাস!", "Welcome registration wallet bonus!"),
-          createdAt: serverTimestamp()
         });
 
         await linkReferral(user.uid, referralInput);

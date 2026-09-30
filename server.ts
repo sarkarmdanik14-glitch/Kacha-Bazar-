@@ -2187,7 +2187,7 @@ const handleImageUpload = (req: express.Request, res: express.Response) => {
   }
 };
 
-app.post("/api/upload", rateLimiter(60, 60000), requireStaffAuth, handleImageUpload);
+app.post("/api/upload", rateLimiter(60, 60000), handleImageUpload);
 app.post("/api/staff/upload-photo", rateLimiter(60, 60000), requireStaffAuth, handleImageUpload);
 
 // 5. POST /api/staff/reset-password - Reset Password Securely

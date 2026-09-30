@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { auth, db, doc, getDoc, signOut, onAuthStateChanged, collection, query, where, getDocs } from "../../lib/firebase";
+import { auth, db, doc, getDoc, setDoc, serverTimestamp, signOut, onAuthStateChanged, collection, query, where, getDocs } from "../../lib/firebase";
 import { X, RefreshCw, Key, Shield, LogOut } from "lucide-react";
 
 import AuthView from "./AuthView";
@@ -330,11 +330,19 @@ export default function PortalModal({
               } else {
                 userData = {
                   uid: user.uid,
-                  email: user.email,
+                  email: user.email || "",
                   displayName: user.displayName || user.email?.split("@")[0] || "Customer",
                   role: "customer",
-                  profileStatus: "approved"
+                  profileStatus: "approved",
+                  createdAt: serverTimestamp(),
+                  referralCode: "REF" + user.uid.substring(0, 5).toUpperCase(),
+                  customerId: "FCI" + (user.uid.replace(/[^a-zA-Z0-9]/g, "").substring(0, 3).toUpperCase() || "782")
                 };
+                try {
+                  await setDoc(doc(db, "users", user.uid), userData, { merge: true });
+                } catch (persistErr) {
+                  console.warn("Notice persisting customer document:", persistErr);
+                }
               }
               const role = userData.role === "admin" ? "customer" : (userData.role || "customer");
               setCurrentUser({ ...userData, role, profileStatus: "approved" });
@@ -525,7 +533,7 @@ export default function PortalModal({
                       )
                     )}
                     {activePortalTab === "customer" && (
-                      <CustomerPortal user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} initialTab={initialTab} />
+                      <CustomerPortal user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} initialTab={initialTab} onClose={onClose} />
                     )}
                   </div>
                 )}

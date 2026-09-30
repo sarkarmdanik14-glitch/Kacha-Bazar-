@@ -86,19 +86,28 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
     console.warn("Client compression notice:", compErr);
   }
 
-  // TIER 1: Cloudinary
+  // TIER 1: Cloudinary (Fast Global CDN)
   try {
     const formData = new FormData();
-    formData.append("file", compressedBlob);
+    if (compressedDataUrl) {
+      formData.append("file", compressedDataUrl);
+    } else {
+      formData.append("file", compressedBlob, file.name || "image.jpg");
+    }
     formData.append("upload_preset", uploadPreset);
     if (folder) {
       formData.append("folder", folder);
     }
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+
     const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
       method: "POST",
-      body: formData
+      body: formData,
+      signal: controller.signal
     });
+    clearTimeout(timer);
 
     if (res.ok) {
       const data = await res.json();
@@ -107,24 +116,33 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
       }
     }
   } catch (cldErr) {
-    console.warn("Cloudinary upload tier notice:", cldErr);
+    // Graceful fallback to next tier
   }
 
-  // TIER 2: Firebase Storage
+  // TIER 2: Firebase Storage (Protected with strict 2.5s timeout)
   try {
     if (storage) {
       const filename = `${folder}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
       const storageRef = ref(storage, filename);
-      const snap = await uploadBytes(storageRef, compressedBlob, {
-        contentType: file.type || "image/jpeg"
-      });
-      const downloadUrl = await getDownloadURL(snap.ref);
+      
+      const uploadPromise = (async () => {
+        const snap = await uploadBytes(storageRef, compressedBlob, {
+          contentType: file.type || "image/jpeg"
+        });
+        return await getDownloadURL(snap.ref);
+      })();
+
+      const timeoutPromise = new Promise<string>((_, reject) => 
+        setTimeout(() => reject(new Error("Firebase Storage upload timed out")), 2500)
+      );
+
+      const downloadUrl = await Promise.race([uploadPromise, timeoutPromise]);
       if (downloadUrl) {
         return downloadUrl;
       }
     }
   } catch (fsErr) {
-    console.warn("Firebase Storage tier notice:", fsErr);
+    // Graceful fallback to local tier
   }
 
   // TIER 3: Local Server Upload API (/api/upload)
@@ -134,13 +152,13 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
       dataUrl: compressedDataUrl,
       filename,
       folder
-    });
+    }, { skipAuth: true, timeoutMs: 3500 });
 
     if (data?.url) {
       return data.url;
     }
   } catch (srvErr) {
-    console.warn("Server upload tier notice:", srvErr);
+    // Graceful fallback to base64
   }
 
   // TIER 4: High-efficiency Base64 Data URL Fallback

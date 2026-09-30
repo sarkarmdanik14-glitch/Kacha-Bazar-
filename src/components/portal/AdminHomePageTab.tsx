@@ -98,11 +98,11 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
     promoBanners: DEFAULT_PROMO_BANNERS,
     referralBanner: {
       enabled: true,
-      titleBn: "🎉 বন্ধুদের আমন্ত্রণ জানান, ৳৫০ বোনাস জিতুন!",
-      titleEn: "🎉 Refer Friends, Earn ৳50 Wallet Credit!",
-      descBn: "বন্ধুরা প্রথম অর্ডারে পাবেন ফ্রি ডেলিভারি এবং আপনার ওয়ালেটে যোগ হবে ৳৫০ ক্যাশব্যাক।",
-      descEn: "Friends get Free Delivery on first order. You earn BDT 50 wallet cashback.",
-      bonusAmount: 50,
+      titleBn: "🎉 বন্ধুকে রেফার করুন! ৳১৯ বোনাস পান",
+      titleEn: "🎉 Refer Friends, Earn ৳19 Wallet Bonus!",
+      descBn: "বন্ধুকে রেফার করুন! আপনার বন্ধু রেফারেল কোড ব্যবহার করে সাইন আপ করে মোট কমপক্ষে ৳৩০০ টাকার সফল (Delivered) অর্ডার সম্পন্ন করলে আপনি আপনার Wallet-এ ৳১৯ বোনাস পাবেন।",
+      descEn: "Refer friends! Once your friend signs up and completes delivered orders of at least ৳300, you get ৳19 wallet bonus.",
+      bonusAmount: 19,
       buttonTextBn: "রেফার করুন",
       buttonTextEn: "Refer Now"
     },
@@ -789,7 +789,7 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Cashback Bonus Amount (BDT ৳)</label>
-                <input type="number" value={homeConfig.referralBanner?.bonusAmount || 50} onChange={(e) => setHomeConfig((prev: any) => ({ ...prev, referralBanner: { ...prev.referralBanner, bonusAmount: Number(e.target.value) } }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold focus:bg-white outline-none" />
+                <input type="number" value={homeConfig.referralBanner?.bonusAmount || 19} onChange={(e) => setHomeConfig((prev: any) => ({ ...prev, referralBanner: { ...prev.referralBanner, bonusAmount: Number(e.target.value) } }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold focus:bg-white outline-none" />
               </div>
             </div>
           </div>

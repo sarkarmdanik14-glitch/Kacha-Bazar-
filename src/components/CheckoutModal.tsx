@@ -25,6 +25,7 @@ import { calculateDeliveryFeeFromSettings, calculateHaversineDistance, DeliveryZ
 import { resolveProductDisplayUnit } from "../lib/productWeightUtils";
 import { createTranslator } from "../lib/formatUtils";
 import { SAFE_PRODUCT_PLACEHOLDER } from "../lib/masterImageRegistry";
+import { checkAndUpgradePremiumMembership } from "../lib/membership";
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -349,6 +350,9 @@ export default function CheckoutModal({
         "অর্ডার সফলভাবে সম্পন্ন হয়েছে!",
         "Order placed successfully!"
       );
+      if (user?.uid) {
+        checkAndUpgradePremiumMembership(user.uid);
+      }
       onSuccess(orderId, orderPayload);
     } catch (err: any) {
       if (err?.message && (err.message.startsWith("INSUFFICIENT_STOCK:") || err.message.startsWith("PRODUCT_NOT_FOUND:"))) {

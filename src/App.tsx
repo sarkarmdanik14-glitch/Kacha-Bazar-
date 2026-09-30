@@ -32,6 +32,7 @@ import { calculateDeliveryFeeFromSettings } from "./lib/delivery";
 import { visitorTracker } from "./lib/visitorTracker";
 import { initVoiceWelcome } from "./lib/voiceWelcome";
 import { matchesProductSearch } from "./lib/banglishSearch";
+import { isUserPremiumMember, calculatePremiumDiscount } from "./lib/membership";
 
 import { BannerSlider } from "./components/BannerSlider";
 import { CartItemRow } from "./components/CartItemRow";
@@ -206,6 +207,42 @@ export default function App() {
   const [loggedInUser, setLoggedInUser] = useState<any | null>(null);
   const [userRole, setUserRole] = useState<string>("customer");
   const [userReferralCode, setUserReferralCode] = useState<string>("");
+  const [userProfilePhoto, setUserProfilePhoto] = useState<string>(() => {
+    try {
+      return localStorage.getItem("kb_user_photo") || "";
+    } catch {
+      return "";
+    }
+  });
+  const [photoLoadError, setPhotoLoadError] = useState<boolean>(false);
+
+  useEffect(() => {
+    setPhotoLoadError(false);
+  }, [userProfilePhoto]);
+
+  // Global Profile Photo Sync (window custom event + localStorage storage event)
+  useEffect(() => {
+    const handleProfileUpdate = (e: any) => {
+      const newPhoto = e?.detail?.photoURL ?? "";
+      setUserProfilePhoto(newPhoto);
+      setPhotoLoadError(false);
+    };
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "kb_user_photo") {
+        setUserProfilePhoto(e.newValue || "");
+        setPhotoLoadError(false);
+      }
+    };
+
+    window.addEventListener("kb_profile_updated", handleProfileUpdate);
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("kb_profile_updated", handleProfileUpdate);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
 
   // Initialize Real-Time Anonymous App Visitor Tracking
   useEffect(() => {
@@ -354,10 +391,16 @@ export default function App() {
   }, [cart, appliedCoupon, subtotal, globalSettings]);
 
   const discountAmt = useMemo(() => {
-    if (!appliedCoupon) return 0;
-    if (appliedCoupon.code === "FREESHIP") return 0;
-    return Math.round((subtotal * appliedCoupon.discount) / 100);
-  }, [appliedCoupon, subtotal]);
+    let couponDiscount = 0;
+    if (appliedCoupon && appliedCoupon.code !== "FREESHIP") {
+      couponDiscount = Math.round((subtotal * appliedCoupon.discount) / 100);
+    }
+    let premiumDiscount = 0;
+    if (isUserPremiumMember(loggedInUser)) {
+      premiumDiscount = calculatePremiumDiscount(subtotal, true);
+    }
+    return Math.max(couponDiscount, premiumDiscount);
+  }, [appliedCoupon, subtotal, loggedInUser]);
 
   const grandTotal = useMemo(() => {
     return subtotal + deliveryFee - discountAmt;
@@ -388,9 +431,54 @@ export default function App() {
 
   // Listen to Auth State and Fetch Referral Code & Merge Cart
   useEffect(() => {
+    let unsubUserDoc: (() => void) | null = null;
+
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setLoggedInUser(user);
+
+        // Immediate initial check from Auth User photo
+        if (user.photoURL) {
+          setUserProfilePhoto(user.photoURL);
+          setPhotoLoadError(false);
+          try {
+            localStorage.setItem("kb_user_photo", user.photoURL);
+          } catch {}
+        }
+
+        // Attach real-time snapshot listener on the user's Firestore document
+        try {
+          if (unsubUserDoc) {
+            unsubUserDoc();
+          }
+          unsubUserDoc = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
+            if (docSnap.exists()) {
+              const uData = docSnap.data();
+              const photo = uData.photoURL || user.photoURL || "";
+              setUserProfilePhoto(photo);
+              setPhotoLoadError(false);
+              try {
+                if (photo) {
+                  localStorage.setItem("kb_user_photo", photo);
+                } else {
+                  localStorage.removeItem("kb_user_photo");
+                }
+              } catch {}
+              if (uData.role) {
+                setUserRole(uData.role);
+              }
+              if (uData.referralCode) {
+                setUserReferralCode(uData.referralCode);
+              }
+            }
+          }, (err) => {
+            if (!err?.message?.includes("offline")) {
+              console.warn("Notice in user profile snapshot:", err?.message || err);
+            }
+          });
+        } catch (snapErr) {
+          console.warn("Could not attach user snapshot:", snapErr);
+        }
         
         // Fetch role
         try {
@@ -404,6 +492,18 @@ export default function App() {
               setUserRole(data.role || "customer");
             } else {
               setUserRole("customer");
+              try {
+                await setDoc(doc(db, "users", user.uid), {
+                  uid: user.uid,
+                  email: user.email || "",
+                  displayName: user.displayName || user.email?.split("@")[0] || "Customer",
+                  role: "customer",
+                  createdAt: serverTimestamp(),
+                  referralCode: "REF" + user.uid.substring(0, 5).toUpperCase()
+                }, { merge: true });
+              } catch (e) {
+                // Ignore silent bootstrap error
+              }
             }
           }
         } catch (err: any) {
@@ -476,9 +576,24 @@ export default function App() {
         setLoggedInUser(null);
         setUserRole("customer");
         setUserReferralCode("");
+        setUserProfilePhoto("");
+        setPhotoLoadError(false);
+        try {
+          localStorage.removeItem("kb_user_photo");
+        } catch {}
+        if (unsubUserDoc) {
+          unsubUserDoc();
+          unsubUserDoc = null;
+        }
       }
     });
-    return () => unsub();
+
+    return () => {
+      unsub();
+      if (unsubUserDoc) {
+        unsubUserDoc();
+      }
+    };
   }, []);
 
   // Sync cart to Firestore when modified while logged in
@@ -1790,10 +1905,21 @@ export default function App() {
                 setForcedPortalRole("customer");
                 setShowPortalModal(true);
               }}
-              className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 transition shrink-0"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 transition shrink-0 overflow-hidden relative shadow-2xs group"
               id="header-user-btn"
+              title={loggedInUser?.displayName || (lang === "bn" ? "গ্রাহক প্রোফাইল" : "Customer Profile")}
+              aria-label={lang === "bn" ? "গ্রাহক প্রোফাইল" : "Customer Profile"}
             >
-              <User className="w-5 h-5 text-slate-500" />
+              {loggedInUser && userProfilePhoto && !photoLoadError ? (
+                <img 
+                  src={userProfilePhoto} 
+                  alt={loggedInUser?.displayName || "Profile"} 
+                  className="w-full h-full object-cover rounded-full group-hover:scale-105 transition-transform"
+                  onError={() => setPhotoLoadError(true)}
+                />
+              ) : (
+                <User className="w-5 h-5 text-slate-500 group-hover:text-emerald-600 transition-colors" />
+              )}
             </button>
 
           </div>

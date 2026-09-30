@@ -10,7 +10,8 @@ import {
   User as FirebaseUser,
   RecaptchaVerifier,
   signInWithPhoneNumber,
-  updateProfile
+  updateProfile,
+  sendEmailVerification
 } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
@@ -80,6 +81,7 @@ export {
   uploadBytes,
   getDownloadURL,
   updateProfile,
+  sendEmailVerification,
   googleProvider,
   signInWithPopup,
   signInWithEmailAndPassword,

@@ -40,10 +40,10 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
   const referralSlide = {
     id: "app-referral-banner",
     type: "referral",
-    titleBn: referralBanner?.titleBn || "🎉 বন্ধুদের আমন্ত্রণ জানান, ৳৫০ বোনাস জিতুন!",
-    titleEn: referralBanner?.titleEn || "🎉 Refer Friends, Earn ৳50 Wallet Credit!",
-    subtitleBn: referralBanner?.descBn || "বন্ধুরা প্রথম অর্ডারে পাবেন ফ্রি ডেলিভারি এবং আপনার ওয়ালেটে যোগ হবে ৳৫০ ক্যাশব্যাক।",
-    subtitleEn: referralBanner?.descEn || "Friends get Free Delivery on first order. You earn BDT 50 wallet cashback.",
+    titleBn: referralBanner?.titleBn || "🎉 বন্ধুকে রেফার করুন! ৳১৯ বোনাস পান",
+    titleEn: referralBanner?.titleEn || "🎉 Refer Friends, Earn ৳19 Wallet Bonus!",
+    subtitleBn: referralBanner?.descBn || "বন্ধুকে রেফার করুন! আপনার বন্ধু রেফারেল কোড ব্যবহার করে সাইন আপ করে মোট কমপক্ষে ৳৩০০ টাকার সফল (Delivered) অর্ডার সম্পন্ন করলে আপনি আপনার Wallet-এ ৳১৯ বোনাস পাবেন।",
+    subtitleEn: referralBanner?.descEn || "Refer friends! When your friend signs up and completes ৳300+ delivered orders, you get ৳19 bonus in your Wallet.",
     buttonTextBn: referralBanner?.buttonTextBn || "রেফার করুন",
     buttonTextEn: referralBanner?.buttonTextEn || "Refer Now",
     isActive: referralBanner?.enabled !== false
@@ -263,14 +263,14 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
                       
                       <h3 className="text-xs sm:text-sm md:text-base font-extrabold text-white leading-snug line-clamp-1">
                         {lang === "bn" 
-                          ? (slide.titleBn || "🎉 বন্ধুদের আমন্ত্রণ জানান, ৳৫০ বোনাস জিতুন!") 
-                          : (slide.titleEn || "🎉 Refer Friends, Earn ৳50 Wallet Credit!")}
+                          ? (slide.titleBn || "🎉 বন্ধুকে রেফার করুন! ৳১৯ বোনাস পান") 
+                          : (slide.titleEn || "🎉 Refer Friends, Earn ৳19 Wallet Bonus!")}
                       </h3>
                       
                       <p className="text-[9px] sm:text-[11px] text-emerald-100/90 font-medium truncate">
                         {lang === "bn"
-                          ? (slide.subtitleBn || "বন্ধুরা প্রথম অর্ডারে পাবেন ফ্রি ডেলিভারি এবং আপনার ওয়ালেটে যোগ হবে ৳৫০ ক্যাশব্যাক।")
-                          : (slide.subtitleEn || "Friends get Free Delivery on first order. You earn BDT 50 wallet cashback.")}
+                          ? (slide.subtitleBn || "বন্ধুকে রেফার করুন! আপনার বন্ধু রেফারেল কোড ব্যবহার করে সাইন আপ করে মোট কমপক্ষে ৳৩০০ টাকার সফল (Delivered) অর্ডার সম্পন্ন করলে আপনি আপনার Wallet-এ ৳১৯ বোনাস পাবেন।")
+                          : (slide.subtitleEn || "Refer friends! When your friend signs up and completes ৳300+ delivered orders, you get ৳19 bonus in your Wallet.")}
                       </p>
                     </div>
 

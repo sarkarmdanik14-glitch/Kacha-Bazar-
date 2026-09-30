@@ -501,7 +501,7 @@ export default function AdminPanel({
         const orderSnap = await getDoc(doc(db, "orders", orderId));
         if (orderSnap.exists()) {
           const orderData = orderSnap.data();
-          const customerId = orderData.customerId;
+          const customerId = orderData.customerId || orderData.userId;
           if (customerId) {
             await checkAndRewardReferral(customerId);
           }

@@ -15,8 +15,8 @@ import {
 
 /**
  * Checks all conditions of the Kacha Bazar Refer & Earn reward policy:
- * - The referred user's account must be verified (isVerified == true).
- * - Total value of successfully completed orders (delivered) must be >= ৳500.
+ * - The invited friend must complete a successful (Delivered) order of at least ৳300.
+ * - Referral bonus: ৳19 instantly credited to referrer's wallet.
  * - Self-referral is not allowed.
  * - Duplicate accounts (by email or phone) are not allowed.
  * - Only triggers once per referred user.
@@ -34,9 +34,9 @@ export async function checkAndRewardReferral(referredUserId: string) {
     }
     const referredUser = userSnap.data();
 
-    // 2. Check if the referred user's account is verified
-    if (!referredUser.isVerified) {
-      console.log(`Referred user ${referredUserId} is not verified yet. Reward skipped.`);
+    // 2. Check if the referred user's account is valid & active (not banned or blocked)
+    if (referredUser.status === "banned" || referredUser.status === "blocked") {
+      console.log(`Referred user ${referredUserId} is blocked or banned. Reward skipped.`);
       return;
     }
 
@@ -98,7 +98,7 @@ export async function checkAndRewardReferral(referredUserId: string) {
       return;
     }
 
-    // 6. Calculate total value of successfully completed orders (orderStatus == "delivered")
+    // 6. Calculate total value and check for successful completed orders (orderStatus == "delivered")
     const ordersQuery = query(
       collection(db, "orders"),
       where("customerId", "==", referredUserId),
@@ -106,44 +106,66 @@ export async function checkAndRewardReferral(referredUserId: string) {
     );
     const ordersSnap = await getDocs(ordersQuery);
     let totalDeliveredAmount = 0;
+    let hasDeliveredOrderAtLeast300 = false;
     ordersSnap.forEach((doc) => {
       const data = doc.data();
-      totalDeliveredAmount += Number(data.total || data.totalAmount || data.grandTotal || 0);
+      const orderAmount = Number(data.total || data.totalAmount || data.grandTotal || 0);
+      totalDeliveredAmount += orderAmount;
+      if (orderAmount >= 300) {
+        hasDeliveredOrderAtLeast300 = true;
+      }
     });
 
-    console.log(`Referred user ${referredUserId} total delivered orders value: ৳${totalDeliveredAmount}`);
+    console.log(`Referred user ${referredUserId} total delivered orders value: ৳${totalDeliveredAmount}, has >= ৳300 order: ${hasDeliveredOrderAtLeast300}`);
 
-    // Must reach total of at least ৳500
-    if (totalDeliveredAmount < 500) {
-      console.log(`Delivered orders total (৳${totalDeliveredAmount}) is less than ৳500 threshold. Reward skipped.`);
+    // Condition: The invited friend must complete a successful (Delivered) order of at least ৳300 (or cumulative delivered >= ৳300)
+    if (totalDeliveredAmount < 300 && !hasDeliveredOrderAtLeast300) {
+      console.log(`Delivered orders total (৳${totalDeliveredAmount}) is less than ৳300 threshold. Reward skipped.`);
       return;
     }
 
-    // 7. Award the bonus! Credit ৳50 to the referrer's Wallet.
-    console.log(`All criteria met! Awarding ৳50 referral bonus to referrer ${referrerId} for referring user ${referredUserId}`);
+    // 7. Award the bonus! Credit ৳19 to the referrer's Wallet immediately.
+    console.log(`All criteria met! Awarding ৳19 referral bonus to referrer ${referrerId} for referring user ${referredUserId}`);
 
     // Mark referral as completed and bonus paid
     await updateDoc(doc(db, "referrals", refDoc.id), {
       status: "completed",
       bonusPaid: true,
-      rewardAmount: 50,
+      rewardAmount: 19,
       updatedAt: serverTimestamp()
     });
 
-    // Pay the referrer 50 TK bonus in their wallet
+    // Pay the referrer ৳19 bonus in their wallet immediately
     const referrerWalletRef = doc(db, "wallet", referrerId);
     const referrerWalletSnap = await getDoc(referrerWalletRef);
     if (referrerWalletSnap.exists()) {
       await updateDoc(referrerWalletRef, {
-        balance: increment(50),
+        balance: increment(19),
+        referralEarnings: increment(19),
         updatedAt: serverTimestamp()
       });
     } else {
       await setDoc(referrerWalletRef, {
         userId: referrerId,
-        balance: 50,
+        balance: 19,
+        referralEarnings: 19,
         updatedAt: serverTimestamp()
       });
+    }
+
+    // Also update referrer's user profile if exists
+    try {
+      const referrerUserRef = doc(db, "users", referrerId);
+      const referrerUserSnap = await getDoc(referrerUserRef);
+      if (referrerUserSnap.exists()) {
+        await updateDoc(referrerUserRef, {
+          walletBalance: increment(19),
+          referralEarnings: increment(19),
+          updatedAt: serverTimestamp()
+        });
+      }
+    } catch (uErr) {
+      console.warn("Could not update referrer user doc:", uErr);
     }
 
     // Log transaction for the referrer
@@ -152,8 +174,8 @@ export async function checkAndRewardReferral(referredUserId: string) {
       id: txId,
       userId: referrerId,
       type: "referral_bonus",
-      amount: 50,
-      description: `Received ৳50 referral bonus because your referred friend (${referredUser.displayName || "Friend"}) completed their ৳500+ delivered orders milestone!`,
+      amount: 19,
+      description: `Received ৳19 referral bonus because your referred friend (${referredUser.displayName || "Friend"}) completed a ৳300+ delivered order!`,
       createdAt: serverTimestamp(),
       referenceId: referredUserId
     });
@@ -163,8 +185,8 @@ export async function checkAndRewardReferral(referredUserId: string) {
       userId: referrerId,
       titleBn: "রেফারেল বোনাস অর্জিত!",
       titleEn: "Referral Bonus Earned!",
-      messageBn: `আপনার বন্ধু (${referredUser.displayName || "বন্ধু"}) কমপক্ষে ৳৫০০ টাকার সফল অর্ডার সম্পন্ন করায় আপনার ওয়ালেটে ৳৫০ যোগ করা হয়েছে।`,
-      messageEn: `৳50 referral reward has been added to your wallet because your friend (${referredUser.displayName || "friend"}) completed ৳500+ of delivered orders.`,
+      messageBn: `আপনার বন্ধু (${referredUser.displayName || "বন্ধু"}) কমপক্ষে ৳৩০০ টাকার সফল অর্ডার সম্পন্ন করায় আপনার ওয়ালেটে ৳১৯ বোনাস জমা হয়েছে।`,
+      messageEn: `৳19 referral reward has been added to your wallet because your friend (${referredUser.displayName || "friend"}) completed ৳300+ of delivered orders.`,
       isRead: false,
       createdAt: serverTimestamp()
     });
@@ -174,8 +196,8 @@ export async function checkAndRewardReferral(referredUserId: string) {
       userId: referredUserId,
       titleBn: "রেফারেল লক্ষ্য সম্পন্ন!",
       titleEn: "Referral Goal Reached!",
-      messageBn: "অভিনন্দন! আপনি সফলভাবে কমপক্ষে ৳৫০০ টাকার সফল অর্ডার সম্পন্ন করায় আপনার রেফারেল লক্ষ্য অর্জিত হয়েছে।",
-      messageEn: "Congratulations! You have successfully completed ৳500+ of delivered orders, fulfilling your referral milestone.",
+      messageBn: "অভিনন্দন! আপনি সফলভাবে কমপক্ষে ৳৩০০ টাকার সফল অর্ডার সম্পন্ন করায় আপনার রেফারেল লক্ষ্য অর্জিত হয়েছে।",
+      messageEn: "Congratulations! You have successfully completed ৳300+ of delivered orders, fulfilling your referral milestone.",
       isRead: false,
       createdAt: serverTimestamp()
     });
