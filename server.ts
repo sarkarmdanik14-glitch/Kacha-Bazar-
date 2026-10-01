@@ -2516,16 +2516,16 @@ app.post("/api/auth/forgot-password/send-code", rateLimiter(30, 60000), async (r
       maskedTarget = targetPhone.substring(0, 4) + "****" + targetPhone.substring(targetPhone.length - 2);
     }
 
-    // Send in-app notification asynchronously
+    // Send in-app notification asynchronously (without leaking the raw OTP code)
     try {
       const sdb = await getServerDb();
       const { collection: fCol, addDoc: fAddDoc } = await import("firebase/firestore");
       await fAddDoc(fCol(sdb, "notifications"), {
         userId: userId,
-        titleBn: "পাসওয়ার্ড রিসেট ভেরিফিকেশন কোড",
-        titleEn: "Password Reset Verification Code",
-        messageBn: `আপনার পাসওয়ার্ড রিসেট ভেরিফিকেশন কোড হলো: ${code}। এটি ১৫ মিনিটের জন্য কার্যকর থাকবে।`,
-        messageEn: `Your password reset verification code is: ${code}. Valid for 15 minutes.`,
+        titleBn: "পাসওয়ার্ড রিসেট অনুরোধ",
+        titleEn: "Password Reset Request",
+        messageBn: `আপনার অ্যাকাউন্টের পাসওয়ার্ড রিসেটের জন্য একটি ৬-সংখ্যার ভেরিফিকেশন কোড প্রেরণ করা হয়েছে। এটি ১৫ মিনিটের জন্য কার্যকর।`,
+        messageEn: `A 6-digit verification code has been dispatched for your password reset request. Valid for 15 minutes.`,
         type: "security",
         read: false,
         createdAt: new Date().toISOString()
@@ -2536,7 +2536,6 @@ app.post("/api/auth/forgot-password/send-code", rateLimiter(30, 60000), async (r
       success: true,
       resetId: resetId,
       maskedTarget: maskedTarget || cleanInput,
-      previewCode: code, // Displayed in UI preview for instantaneous verification
       messageBn: `একটি ৬-সংখ্যার ভেরিফিকেশন কোড ${maskedTarget || cleanInput} ঠিকানায় পাঠানো হয়েছে।`,
       messageEn: `A 6-digit verification code has been sent to ${maskedTarget || cleanInput}.`
     });

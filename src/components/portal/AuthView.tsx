@@ -65,7 +65,6 @@ export default function AuthView({
   const [forgotResetId, setForgotResetId] = useState<string>("");
   const [forgotMaskedTarget, setForgotMaskedTarget] = useState<string>("");
   const [forgotOtpCode, setForgotOtpCode] = useState<string>("");
-  const [forgotPreviewCode, setForgotPreviewCode] = useState<string>("");
   const [forgotResetToken, setForgotResetToken] = useState<string>("");
   const [newPassword, setNewPassword] = useState<string>("");
   const [confirmNewPassword, setConfirmNewPassword] = useState<string>("");
@@ -137,7 +136,6 @@ export default function AuthView({
       if (res && res.success) {
         setForgotResetId(res.resetId);
         setForgotMaskedTarget(res.maskedTarget || ident);
-        setForgotPreviewCode(res.previewCode || "");
         setForgotStep("verify");
         setForgotTimer(60);
         setSuccessMsg(res.messageBn || getTranslation("ভেরিফিকেশন কোড সফলভাবে পাঠানো হয়েছে।", "Verification code sent successfully."));
@@ -1016,26 +1014,6 @@ export default function AuthView({
                 {getTranslation("নম্বর বা ইমেইল পরিবর্তন করুন", "Change Email or Phone")}
               </button>
             </div>
-
-            {forgotPreviewCode && (
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl text-xs flex items-center justify-between shadow-2xs">
-                <div>
-                  <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider block">
-                    {getTranslation("ভেরিফিকেশন ওটিপি কোড", "Verification OTP Code")}
-                  </span>
-                  <strong className="font-mono text-base font-black tracking-widest text-emerald-950">
-                    {forgotPreviewCode}
-                  </strong>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setForgotOtpCode(forgotPreviewCode)}
-                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3 py-1.5 rounded-xl cursor-pointer shadow-xs transition"
-                >
-                  {getTranslation("অটো-ফিল কোড", "Auto Fill")}
-                </button>
-              </div>
-            )}
 
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">

@@ -36,7 +36,8 @@ import {
   RefreshCw
 } from "lucide-react";
 import QRCode from "qrcode";
-import { db, doc, setDoc, serverTimestamp, onSnapshot } from "../../lib/firebase";
+import { db, doc, setDoc, serverTimestamp, onSnapshot, auth, sendEmailVerification, RecaptchaVerifier, signInWithPhoneNumber } from "../../lib/firebase";
+import type { ConfirmationResult } from "firebase/auth";
 import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from "../../lib/memberIdUtils";
 import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
 import { apiClient } from "../../lib/apiClient";
@@ -272,15 +273,255 @@ export default function CustomerDashboardMobile({
   const [showAddressModal, setShowAddressModal] = useState<boolean>(false);
   const [showWishlistModal, setShowWishlistModal] = useState<boolean>(false);
 
-  // Email and Phone OTP verification states
+  // Email and Phone verification states
   const [emailVerifiedLocal, setEmailVerifiedLocal] = useState<boolean>(isEmailVerified);
   const [phoneVerifiedLocal, setPhoneVerifiedLocal] = useState<boolean>(isPhoneVerified);
-  const [emailOtpSent, setEmailOtpSent] = useState<boolean>(false);
-  const [emailOtpCode, setEmailOtpCode] = useState<string>("");
-  const [genEmailOtp, setGenEmailOtp] = useState<string>("");
+
+  // Real Firebase Auth Email Verification State
+  const [isSendingVerificationEmail, setIsSendingVerificationEmail] = useState<boolean>(false);
+  const [verificationEmailSent, setVerificationEmailSent] = useState<boolean>(false);
+  const [isCheckingEmailStatus, setIsCheckingEmailStatus] = useState<boolean>(false);
+  const [emailVerificationCooldown, setEmailVerificationCooldown] = useState<number>(0);
+
+  // Phone OTP verification states (Firebase Phone Auth signInWithPhoneNumber)
   const [phoneOtpSent, setPhoneOtpSent] = useState<boolean>(false);
   const [phoneOtpCode, setPhoneOtpCode] = useState<string>("");
-  const [genPhoneOtp, setGenPhoneOtp] = useState<string>("");
+  const [isSendingPhoneOtp, setIsSendingPhoneOtp] = useState<boolean>(false);
+  const [isVerifyingPhone, setIsVerifyingPhone] = useState<boolean>(false);
+  const [phoneConfirmationResult, setPhoneConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [phoneOtpCooldown, setPhoneOtpCooldown] = useState<number>(0);
+
+  // Phone OTP cooldown timer
+  useEffect(() => {
+    let timer: any = null;
+    if (phoneOtpCooldown > 0) {
+      timer = setInterval(() => {
+        setPhoneOtpCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [phoneOtpCooldown]);
+
+  // Email verification cooldown timer
+  useEffect(() => {
+    let timer: any = null;
+    if (emailVerificationCooldown > 0) {
+      timer = setInterval(() => {
+        setEmailVerificationCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [emailVerificationCooldown]);
+
+  // Sync auth.currentUser emailVerified status with Firestore
+  useEffect(() => {
+    const syncEmailVerifiedState = async () => {
+      if (auth.currentUser) {
+        try {
+          await auth.currentUser.reload();
+          if (auth.currentUser.emailVerified && !emailVerifiedLocal) {
+            setEmailVerifiedLocal(true);
+            const uId = initialUser.uid || initialUser.id;
+            if (uId) {
+              await setDoc(doc(db, "users", uId), {
+                isEmailVerified: true,
+                ...(phoneVerifiedLocal ? { isVerified: true } : {}),
+                updatedAt: serverTimestamp()
+              }, { merge: true });
+            }
+          }
+        } catch (e) {
+          // non-blocking
+        }
+      }
+    };
+    syncEmailVerifiedState();
+  }, [initialUser.uid, initialUser.id, emailVerifiedLocal, phoneVerifiedLocal, showProfileEditModal]);
+
+  const handleSendEmailVerification = async () => {
+    const targetEmail = (email || initialUser?.email || auth.currentUser?.email || "").trim();
+    if (!targetEmail || !targetEmail.includes("@")) {
+      triggerToast("অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা প্রদান করুন।");
+      return;
+    }
+
+    if (!auth.currentUser) {
+      triggerToast("ভেরিফিকেশন ইমেইল পাঠাতে লগইন সেশন আবশ্যক।");
+      return;
+    }
+
+    setIsSendingVerificationEmail(true);
+    try {
+      await sendEmailVerification(auth.currentUser);
+      setVerificationEmailSent(true);
+      setEmailVerificationCooldown(60);
+      triggerToast("আপনার ইমেইলে একটি ভেরিফিকেশন লিংক পাঠানো হয়েছে। অনুগ্রহ করে ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।");
+    } catch (err: any) {
+      console.error("Mobile sendEmailVerification error:", err);
+      let errorMsg = "ভেরিফিকেশন ইমেইল পাঠাতে সমস্যা হয়েছে।";
+      if (err?.code === "auth/too-many-requests") {
+        errorMsg = "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
+      } else if (err?.message) {
+        errorMsg = `ভেরিফিকেশন ইমেইল পাঠাতে ব্যর্থ: ${err.message}`;
+      }
+      triggerToast(errorMsg);
+    } finally {
+      setIsSendingVerificationEmail(false);
+    }
+  };
+
+  const handleCheckEmailVerificationStatus = async () => {
+    if (!auth.currentUser) {
+      triggerToast("লগইন সেশন পাওয়া যায়নি। অনুগ্রহ করে পুনরায় লগইন করুন।");
+      return;
+    }
+
+    setIsCheckingEmailStatus(true);
+    try {
+      await auth.currentUser.reload();
+      if (auth.currentUser.emailVerified) {
+        setEmailVerifiedLocal(true);
+        const uId = initialUser.uid || initialUser.id;
+        if (uId) {
+          await setDoc(doc(db, "users", uId), {
+            isEmailVerified: true,
+            ...(phoneVerifiedLocal ? { isVerified: true } : {}),
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        }
+        setVerificationEmailSent(false);
+        triggerToast("অভিনন্দন! আপনার ইমেইল সফলভাবে ভেরিফাইড হয়েছে ✓");
+      } else {
+        triggerToast("ইমেইল এখনো ভেরিফাই করা হয়নি। অনুগ্রহ করে ইনবক্সের লিংকে ক্লিক করার পর আবার চেক করুন।");
+      }
+    } catch (err: any) {
+      console.error("Mobile email reload status error:", err);
+      triggerToast("স্ট্যাটাস চেক করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
+    } finally {
+      setIsCheckingEmailStatus(false);
+    }
+  };
+
+  const handleSendPhoneOtp = async () => {
+    const rawPhone = (phone || "").trim();
+    if (!rawPhone || rawPhone.length < 10) {
+      triggerToast("অনুগ্রহ করে একটি সঠিক মোবাইল নম্বর লিখুন (কমপক্ষে ১০ ডিজিট)।");
+      return;
+    }
+
+    let formattedPhone = rawPhone.replace(/[\s-]/g, "");
+    if (!formattedPhone.startsWith("+")) {
+      if (formattedPhone.startsWith("880")) {
+        formattedPhone = `+${formattedPhone}`;
+      } else if (formattedPhone.startsWith("0")) {
+        formattedPhone = `+88${formattedPhone}`;
+      } else {
+        formattedPhone = `+880${formattedPhone}`;
+      }
+    }
+
+    setIsSendingPhoneOtp(true);
+    try {
+      let recaptchaContainer = document.getElementById("mobile-phone-verify-recaptcha");
+      if (!recaptchaContainer) {
+        recaptchaContainer = document.createElement("div");
+        recaptchaContainer.id = "mobile-phone-verify-recaptcha";
+        document.body.appendChild(recaptchaContainer);
+      }
+
+      if ((window as any).mobilePhoneVerifyRecaptchaVerifier) {
+        try {
+          (window as any).mobilePhoneVerifyRecaptchaVerifier.clear();
+        } catch (e) {}
+        (window as any).mobilePhoneVerifyRecaptchaVerifier = null;
+      }
+
+      const appVerifier = new RecaptchaVerifier(auth, "mobile-phone-verify-recaptcha", {
+        size: "invisible",
+        callback: () => {},
+        "expired-callback": () => {
+          triggerToast("ক্যাপচা মেয়াদ উত্তীর্ণ হয়েছে। আবার চেষ্টা করুন।");
+        }
+      });
+      (window as any).mobilePhoneVerifyRecaptchaVerifier = appVerifier;
+
+      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+      setPhoneConfirmationResult(confirmation);
+      setPhoneOtpSent(true);
+      setPhoneOtpCooldown(60);
+      triggerToast(`${rawPhone} নম্বরে একটি ওটিপি কোড পাঠানো হয়েছে।`);
+    } catch (err: any) {
+      console.error("Mobile Firebase Phone Auth error:", err);
+      let errorMsg = "এসএমএস ওটিপি পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।";
+
+      if (err?.code === "auth/unauthorized-domain" || err?.message?.includes("unauthorized-domain")) {
+        const domain = typeof window !== "undefined" ? window.location.hostname : "localhost";
+        errorMsg = `ডোমেইনটি অনুমোদিত নয় (${domain})। Firebase Console-এ যোগ করুন।`;
+      } else if (err?.code === "auth/quota-exceeded") {
+        errorMsg = "এসএমএস কোটার দৈনিক লিমিট শেষ হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।";
+      } else if (err?.code === "auth/invalid-phone-number") {
+        errorMsg = "মোবাইল নম্বরটি সঠিক নয়। অনুগ্রহ করে সঠিক ১১ ডিজিটের নম্বর দিন।";
+      } else if (err?.code === "auth/too-many-requests") {
+        errorMsg = "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন।";
+      } else if (err?.message) {
+        errorMsg = `এসএমএস পাঠাতে ব্যর্থ: ${err.message}`;
+      }
+
+      triggerToast(errorMsg);
+    } finally {
+      setIsSendingPhoneOtp(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    const code = phoneOtpCode.trim();
+    if (!code) {
+      triggerToast("অনুগ্রহ করে ওটিপি কোডটি লিখুন।");
+      return;
+    }
+
+    if (!phoneConfirmationResult) {
+      triggerToast("অনুগ্রহ করে প্রথমে মোবাইলে ওটিপি কোড পাঠান।");
+      return;
+    }
+
+    setIsVerifyingPhone(true);
+    try {
+      await phoneConfirmationResult.confirm(code);
+
+      setPhoneVerifiedLocal(true);
+      const uId = initialUser.uid || initialUser.id;
+      if (uId) {
+        await setDoc(doc(db, "users", uId), {
+          isPhoneVerified: true,
+          phone: phone,
+          ...(emailVerifiedLocal ? { isVerified: true } : {}),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+      setPhoneOtpSent(false);
+      setPhoneOtpCode("");
+      setPhoneConfirmationResult(null);
+      triggerToast("অভিনন্দন! ফোন নাম্বার সফলভাবে ভেরিফাই করা হয়েছে! ✓");
+    } catch (err: any) {
+      console.error("Mobile error confirming phone OTP:", err);
+      let errorMsg = "ভুল OTP কোড! অনুগ্রহ করে আবার চেষ্টা করুন।";
+      if (err?.code === "auth/invalid-verification-code") {
+        errorMsg = "ভুল ওটিপি কোড! অনুগ্রহ করে যাচাই করে আবার লিখুন।";
+      } else if (err?.code === "auth/code-expired") {
+        errorMsg = "ওটিপি কোডের মেয়াদ উত্তীর্ণ হয়ে গেছে।";
+      } else if (err?.message) {
+        errorMsg = `যাচাইকরণ ব্যর্থ: ${err.message}`;
+      }
+      triggerToast(errorMsg);
+    } finally {
+      setIsVerifyingPhone(false);
+    }
+  };
 
   // Security & Password Reset states in Profile Settings
   const [newPasswordInput, setNewPasswordInput] = useState<string>("");
@@ -294,7 +535,6 @@ export default function CustomerDashboardMobile({
   const [securityOtpCode, setSecurityOtpCode] = useState<string>("");
   const [securityResetId, setSecurityResetId] = useState<string>("");
   const [securityResetToken, setSecurityResetToken] = useState<string>("");
-  const [securityPreviewCode, setSecurityPreviewCode] = useState<string>("");
   const [securityTimer, setSecurityTimer] = useState<number>(0);
   const [isSendingSecurityOtp, setIsSendingSecurityOtp] = useState<boolean>(false);
   const [isVerifyingSecurityOtp, setIsVerifyingSecurityOtp] = useState<boolean>(false);
@@ -331,7 +571,6 @@ export default function CustomerDashboardMobile({
 
       if (res && res.success) {
         setSecurityResetId(res.resetId);
-        setSecurityPreviewCode(res.previewCode || "");
         setSecurityOtpSent(true);
         setSecurityTimer(60);
         setSecuritySuccess(res.messageBn || "ভেরিফিকেশন কোড পাঠানো হয়েছে!");
@@ -1398,45 +1637,67 @@ export default function CustomerDashboardMobile({
                 <p className="text-[10px] text-slate-500 font-mono">{email}</p>
 
                 {!emailVerifiedLocal && (
-                  <div className="pt-1.5 border-t border-slate-200 space-y-2">
-                    {!emailOtpSent ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const code = Math.floor(100000 + Math.random() * 900000).toString();
-                          setGenEmailOtp(code);
-                          setEmailOtpSent(true);
-                          triggerToast(`ইমেইলে OTP কোড পাঠানো হয়েছে: ${code}`);
-                        }}
-                        className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
-                      >
-                        ভেরিফাই করুন / OTP পাঠান
-                      </button>
-                    ) : (
-                      <div className="space-y-1.5">
-                        <input
-                          type="text"
-                          maxLength={6}
-                          value={emailOtpCode}
-                          onChange={(e) => setEmailOtpCode(e.target.value.replace(/\D/g, ""))}
-                          placeholder="৬-সংখ্যার কোড লিখুন"
-                          className="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-center font-mono font-bold"
-                        />
+                  <div className="pt-2 border-t border-slate-200 space-y-2.5">
+                    {!verificationEmailSent ? (
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-slate-500 leading-tight">
+                          Firebase Auth-এর মাধ্যমে আপনার ইমেইলে নিরাপদ যাচাইকরণ লিংক পাঠানো হবে।
+                        </p>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (emailOtpCode === genEmailOtp || emailOtpCode === "123456") {
-                              setEmailVerifiedLocal(true);
-                              setEmailOtpSent(false);
-                              triggerToast("ইমেইল সফলভাবে ভেরিফাই করা হয়েছে!");
-                            } else {
-                              triggerToast("সঠিক OTP কোড দিন!");
-                            }
-                          }}
-                          className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                          onClick={handleSendEmailVerification}
+                          disabled={isSendingVerificationEmail || emailVerificationCooldown > 0}
+                          className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
                         >
-                          সাবমিট করুন / ভেরিফাই করুন
+                          {isSendingVerificationEmail ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>পাঠানো হচ্ছে...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="w-3.5 h-3.5" />
+                              <span>ভেরিফিকেশন লিংক পাঠান</span>
+                            </>
+                          )}
                         </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200 animate-in fade-in duration-200">
+                        <div className="flex items-start space-x-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <div className="space-y-0.5">
+                            <p className="text-[11px] font-bold text-emerald-950">
+                              ভেরিফিকেশন ইমেইল পাঠানো হয়েছে!
+                            </p>
+                            <p className="text-[10px] text-emerald-900/80 leading-relaxed">
+                              ইনবক্স বা স্প্যাম ফোল্ডারে পাঠানো লিংকে ক্লিক করুন। এরপর নিচের বাটনে ক্লিক করে স্ট্যাটাস চেক করুন।
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 pt-1 border-t border-emerald-200/60">
+                          <button
+                            type="button"
+                            onClick={handleCheckEmailVerificationStatus}
+                            disabled={isCheckingEmailStatus}
+                            className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1 cursor-pointer disabled:opacity-50 shadow-xs"
+                          >
+                            <RefreshCw className={`w-3 h-3 ${isCheckingEmailStatus ? "animate-spin" : ""}`} />
+                            <span>ভেরিফিকেশন চেক করুন</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleSendEmailVerification}
+                            disabled={isSendingVerificationEmail || emailVerificationCooldown > 0}
+                            className="px-2.5 py-1.5 bg-white text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-bold transition cursor-pointer disabled:opacity-50"
+                          >
+                            {emailVerificationCooldown > 0
+                              ? `${emailVerificationCooldown} সে.`
+                              : "পুনরায় পাঠান"}
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1463,40 +1724,54 @@ export default function CustomerDashboardMobile({
                     {!phoneOtpSent ? (
                       <button
                         type="button"
-                        onClick={() => {
-                          const code = Math.floor(100000 + Math.random() * 900000).toString();
-                          setGenPhoneOtp(code);
-                          setPhoneOtpSent(true);
-                          triggerToast(`${phone} নম্বরে OTP পাঠানো হয়েছে: ${code}`);
-                        }}
-                        className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                        onClick={handleSendPhoneOtp}
+                        disabled={isSendingPhoneOtp || phoneOtpCooldown > 0}
+                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
                       >
-                        OTP পাঠান
+                        {isSendingPhoneOtp && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                        <span>
+                          {phoneOtpCooldown > 0
+                            ? `পুনরায় পাঠান (${phoneOtpCooldown} সে.)`
+                            : "SMS OTP পাঠান"}
+                        </span>
                       </button>
                     ) : (
-                      <div className="space-y-1.5">
+                      <div className="space-y-2 bg-white p-2.5 rounded-lg border border-emerald-200">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-emerald-800">
+                            ফোনে প্রেরিত ৬-সংখ্যার OTP লিখুন:
+                          </span>
+                          {phoneOtpCooldown > 0 ? (
+                            <span className="text-[9px] text-slate-400 font-mono">
+                              {phoneOtpCooldown} সে.
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleSendPhoneOtp}
+                              disabled={isSendingPhoneOtp}
+                              className="text-[9px] text-emerald-600 hover:underline font-bold cursor-pointer"
+                            >
+                              পুনরায় কোড
+                            </button>
+                          )}
+                        </div>
                         <input
                           type="text"
                           maxLength={6}
                           value={phoneOtpCode}
                           onChange={(e) => setPhoneOtpCode(e.target.value.replace(/\D/g, ""))}
-                          placeholder="৪/৬-সংখ্যার OTP লিখুন"
-                          className="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs text-center font-mono font-bold"
+                          placeholder="• • • • • •"
+                          className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-500 rounded-lg p-2 text-xs text-center font-mono font-bold tracking-widest outline-none"
                         />
                         <button
                           type="button"
-                          onClick={() => {
-                            if (phoneOtpCode === genPhoneOtp || phoneOtpCode === "123456") {
-                              setPhoneVerifiedLocal(true);
-                              setPhoneOtpSent(false);
-                              triggerToast("ফোন নাম্বার সফলভাবে ভেরিফাই করা হয়েছে!");
-                            } else {
-                              triggerToast("সঠিক OTP কোড দিন!");
-                            }
-                          }}
-                          className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                          onClick={handleVerifyPhoneOtp}
+                          disabled={isVerifyingPhone || phoneOtpCode.length < 6}
+                          className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
                         >
-                          সাবমিট করুন / ভেরিফাই করুন
+                          {isVerifyingPhone && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                          <span>যাচাই সম্পন্ন করুন</span>
                         </button>
                       </div>
                     )}
@@ -1625,26 +1900,6 @@ export default function CustomerDashboardMobile({
                       </button>
                     ) : (
                       <div className="space-y-2.5 pt-2 border-t border-slate-200">
-                        {securityPreviewCode && (
-                          <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-2 rounded-xl text-xs flex items-center justify-between shadow-2xs">
-                            <div>
-                              <span className="text-[9px] text-emerald-700 font-bold uppercase tracking-wider block">
-                                ভেরিফিকেশন ওটিপি কোড
-                              </span>
-                              <strong className="font-mono text-xs font-black tracking-widest text-emerald-950">
-                                {securityPreviewCode}
-                              </strong>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setSecurityOtpCode(securityPreviewCode)}
-                              className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-0.5 rounded-lg cursor-pointer transition shadow-2xs"
-                            >
-                              অটো-ফিল কোড
-                            </button>
-                          </div>
-                        )}
-
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 mb-1">
                             ৬-সংখ্যার কোডটি লিখুন:

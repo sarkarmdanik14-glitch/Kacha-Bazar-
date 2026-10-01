@@ -22,8 +22,11 @@ import {
   onSnapshot,
   sendEmailVerification,
   updatePassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  RecaptchaVerifier,
+  signInWithPhoneNumber
 } from "../../lib/firebase";
+import type { ConfirmationResult } from "firebase/auth";
 import { 
   User, CreditCard, ShoppingBag, Gift, MapPin, 
   ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, 
@@ -233,24 +236,77 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
   const membershipTier = isPremiumQualified ? "✨ প্রিমিয়াম মেম্বার" : "সাধারণ মেম্বার";
 
-  // Email Verification OTP State
-  const [isSendingEmailOtp, setIsSendingEmailOtp] = useState<boolean>(false);
-  const [emailOtpSent, setEmailOtpSent] = useState<boolean>(false);
-  const [emailOtpInput, setEmailOtpInput] = useState<string>("");
-  const [generatedEmailOtp, setGeneratedEmailOtp] = useState<string>("");
-  const [isVerifyingEmail, setIsVerifyingEmail] = useState<boolean>(false);
+  // Real Firebase Auth Email Verification State
+  const [showProfileSettingsModal, setShowProfileSettingsModal] = useState<boolean>(false);
+  const [isSendingVerificationEmail, setIsSendingVerificationEmail] = useState<boolean>(false);
+  const [verificationEmailSent, setVerificationEmailSent] = useState<boolean>(false);
+  const [isCheckingEmailStatus, setIsCheckingEmailStatus] = useState<boolean>(false);
+  const [emailVerificationCooldown, setEmailVerificationCooldown] = useState<number>(0);
 
-  // Phone Verification OTP State
+  // Email verification cooldown timer
+  useEffect(() => {
+    let timer: any = null;
+    if (emailVerificationCooldown > 0) {
+      timer = setInterval(() => {
+        setEmailVerificationCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [emailVerificationCooldown]);
+
+  // Sync auth.currentUser emailVerified status with Firestore
+  useEffect(() => {
+    const syncEmailVerifiedState = async () => {
+      if (auth.currentUser) {
+        try {
+          await auth.currentUser.reload();
+          if (auth.currentUser.emailVerified && !isEmailVerified && user?.uid) {
+            const willBeFullyVerified = isPhoneVerified;
+            await setDoc(doc(db, "users", user.uid), {
+              isEmailVerified: true,
+              ...(willBeFullyVerified ? { isVerified: true } : {}),
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+            setDbUser((prev: any) => ({
+              ...prev,
+              isEmailVerified: true,
+              ...(willBeFullyVerified ? { isVerified: true } : {})
+            }));
+          }
+        } catch (e) {
+          // non-blocking
+        }
+      }
+    };
+    syncEmailVerifiedState();
+  }, [user?.uid, isEmailVerified, isPhoneVerified, showProfileSettingsModal]);
+
+  // Phone Verification OTP State (Firebase Phone Auth signInWithPhoneNumber)
   const [isSendingPhoneOtp, setIsSendingPhoneOtp] = useState<boolean>(false);
   const [phoneOtpSent, setPhoneOtpSent] = useState<boolean>(false);
   const [phoneOtpInput, setPhoneOtpInput] = useState<string>("");
-  const [generatedPhoneOtp, setGeneratedPhoneOtp] = useState<string>("");
+  const [phoneConfirmationResult, setPhoneConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [phoneOtpCooldown, setPhoneOtpCooldown] = useState<number>(0);
   const [isVerifyingPhone, setIsVerifyingPhone] = useState<boolean>(false);
+
+  // Phone OTP cooldown timer
+  useEffect(() => {
+    let interval: any = null;
+    if (phoneOtpCooldown > 0) {
+      interval = setInterval(() => {
+        setPhoneOtpCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [phoneOtpCooldown]);
 
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
   const [isEditingAddress, setIsEditingAddress] = useState<boolean>(false);
-  const [showProfileSettingsModal, setShowProfileSettingsModal] = useState<boolean>(false);
   const [profileModalTab, setProfileModalTab] = useState<"all" | "verification" | "profile" | "security">("all");
   const verificationSectionRef = useRef<HTMLDivElement>(null);
   const securitySectionRef = useRef<HTMLDivElement>(null);
@@ -284,7 +340,6 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   const [securityOtpCode, setSecurityOtpCode] = useState<string>("");
   const [securityResetId, setSecurityResetId] = useState<string>("");
   const [securityResetToken, setSecurityResetToken] = useState<string>("");
-  const [securityPreviewCode, setSecurityPreviewCode] = useState<string>("");
   const [securityTimer, setSecurityTimer] = useState<number>(0);
   const [isSendingSecurityOtp, setIsSendingSecurityOtp] = useState<boolean>(false);
   const [isVerifyingSecurityOtp, setIsVerifyingSecurityOtp] = useState<boolean>(false);
@@ -330,7 +385,6 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
       if (res && res.success) {
         setSecurityResetId(res.resetId);
-        setSecurityPreviewCode(res.previewCode || "");
         setSecurityOtpSent(true);
         setSecurityTimer(60);
         setSecuritySuccess(res.messageBn || getTranslation("ভেরিফিকেশন কোড পাঠানো হয়েছে!", "Verification code has been sent!"));
@@ -884,7 +938,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   };
 
   const handleSendEmailVerification = async () => {
-    const targetEmail = (emailInput || dbUser?.email || user?.email || "").trim();
+    const targetEmail = (emailInput || dbUser?.email || user?.email || auth.currentUser?.email || "").trim();
     if (!targetEmail || !targetEmail.includes("@")) {
       triggerToast(
         "অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা প্রদান করুন।",
@@ -892,150 +946,256 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       );
       return;
     }
-    setIsSendingEmailOtp(true);
-    try {
-      if (auth.currentUser && auth.currentUser.email === targetEmail) {
-        try {
-          await sendEmailVerification(auth.currentUser);
-        } catch (e) {
-          console.warn("Firebase email link error (fallback to OTP):", e);
-        }
-      }
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedEmailOtp(code);
-      setEmailOtpSent(true);
+
+    if (!auth.currentUser) {
       triggerToast(
-        `ইমেইলে ওটিপি পাঠানো হয়েছে! (যাচাই কোড: ${code})`,
-        `Verification OTP sent to ${targetEmail}! (Code: ${code})`
+        "ভেরিফিকেশন ইমেইল পাঠাতে আপনার লগইন সেশন সক্রিয় থাকতে হবে।",
+        "Active login session required to send verification email."
+      );
+      return;
+    }
+
+    setIsSendingVerificationEmail(true);
+    try {
+      await sendEmailVerification(auth.currentUser);
+      setVerificationEmailSent(true);
+      setEmailVerificationCooldown(60);
+      triggerToast(
+        "আপনার ইমেইলে একটি ভেরিফিকেশন লিংক পাঠানো হয়েছে। অনুগ্রহ করে ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।",
+        "A verification link has been sent to your email. Please check your inbox or spam folder."
       );
     } catch (err: any) {
-      console.error("Email verification error:", err);
-      triggerToast(
-        "ইমেইল কোড পাঠাতে সমস্যা হয়েছে!",
-        "Failed to send email verification code!"
-      );
+      console.error("Firebase sendEmailVerification error:", err);
+      let errorMsgBn = "ভেরিফিকেশন ইমেইল পাঠাতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।";
+      let errorMsgEn = "Failed to send verification email. Please try again.";
+
+      if (err?.code === "auth/too-many-requests") {
+        errorMsgBn = "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
+        errorMsgEn = "Too many requests. Please wait a moment before trying again.";
+      } else if (err?.message) {
+        errorMsgBn = `ভেরিফিকেশন ইমেইল পাঠাতে ব্যর্থ: ${err.message}`;
+      }
+
+      triggerToast(errorMsgBn, errorMsgEn);
     } finally {
-      setIsSendingEmailOtp(false);
+      setIsSendingVerificationEmail(false);
     }
   };
 
-  const handleVerifyEmailOtp = async () => {
-    if (!emailOtpInput.trim()) {
+  const handleCheckEmailVerificationStatus = async () => {
+    if (!auth.currentUser) {
       triggerToast(
-        "অনুগ্রহ করে প্রাপ্ত ৬-সংখ্যার OTP কোডটি লিখুন।",
-        "Please enter the 6-digit OTP code."
+        "লগইন সেশন পাওয়া যায়নি। অনুগ্রহ করে পুনরায় লগইন করুন।",
+        "No active session found. Please re-login."
       );
       return;
     }
-    if (emailOtpInput.trim() !== generatedEmailOtp && emailOtpInput.trim() !== "123456") {
-      triggerToast(
-        "ভুল OTP কোড! আবার চেষ্টা করুন।",
-        "Invalid OTP code! Please try again."
-      );
-      return;
-    }
-    setIsVerifyingEmail(true);
-    try {
-      const willBeFullyVerified = isPhoneVerified;
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
-        isEmailVerified: true,
-        ...(willBeFullyVerified ? { isVerified: true } : { isVerified: false }),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
 
-      setDbUser((prev: any) => ({
-        ...prev,
-        isEmailVerified: true,
-        ...(willBeFullyVerified ? { isVerified: true } : { isVerified: false })
-      }));
-      setEmailOtpSent(false);
-      setEmailOtpInput("");
-      triggerToast(
-        "ইমেইল সফলভাবে ভেরিফাই করা হয়েছে!",
-        "Email verified successfully!"
-      );
-      if (willBeFullyVerified) {
-        const { checkAndRewardReferral } = await import("../../lib/referral");
-        await checkAndRewardReferral(user.uid);
+    setIsCheckingEmailStatus(true);
+    try {
+      await auth.currentUser.reload();
+      if (auth.currentUser.emailVerified) {
+        const willBeFullyVerified = isPhoneVerified;
+        const uId = user?.uid || auth.currentUser.uid;
+        await setDoc(doc(db, "users", uId), {
+          uid: uId,
+          isEmailVerified: true,
+          ...(willBeFullyVerified ? { isVerified: true } : {}),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        setDbUser((prev: any) => ({
+          ...prev,
+          isEmailVerified: true,
+          ...(willBeFullyVerified ? { isVerified: true } : {})
+        }));
+
+        setVerificationEmailSent(false);
+        triggerToast(
+          "অভিনন্দন! আপনার ইমেইল সফলভাবে ভেরিফাইড হয়েছে ✓",
+          "Congratulations! Your email has been verified successfully ✓"
+        );
+
+        if (willBeFullyVerified) {
+          const { checkAndRewardReferral } = await import("../../lib/referral");
+          await checkAndRewardReferral(uId);
+        }
+      } else {
+        triggerToast(
+          "ইমেইল এখনো ভেরিফাই করা হয়নি। অনুগ্রহ করে ইনবক্সের লিংকে ক্লিক করার পর আবার চেক করুন।",
+          "Email is not verified yet. Please click the link in your email, then check status again."
+        );
       }
     } catch (err: any) {
-      console.error("Error verifying email OTP:", err);
-      triggerToast("ইমেইল ভেরিফিকেশন ব্যর্থ হয়েছে।", "Email verification failed.");
+      console.error("Email reload status error:", err);
+      triggerToast(
+        "স্ট্যাটাস চেক করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
+        "Failed to check email verification status. Please try again."
+      );
     } finally {
-      setIsVerifyingEmail(false);
+      setIsCheckingEmailStatus(false);
     }
   };
 
   const handleSendPhoneOtp = async () => {
-    const targetPhone = (phoneInput || dbUser?.phone || user?.phone || user?.phoneNumber || "").trim();
-    if (!targetPhone || targetPhone.length < 10) {
+    const rawPhone = (phoneInput || dbUser?.phone || user?.phone || user?.phoneNumber || "").trim();
+    if (!rawPhone || rawPhone.length < 10) {
       triggerToast(
         "অনুগ্রহ করে একটি সঠিক মোবাইল নম্বর লিখুন (কমপক্ষে ১০ ডিজিট)।",
         "Please enter a valid phone number (at least 10 digits)."
       );
       return;
     }
+
+    // Format phone number to E.164 (e.g. +8801XXXXXXXXX)
+    let formattedPhone = rawPhone.replace(/[\s-]/g, "");
+    if (!formattedPhone.startsWith("+")) {
+      if (formattedPhone.startsWith("880")) {
+        formattedPhone = `+${formattedPhone}`;
+      } else if (formattedPhone.startsWith("0")) {
+        formattedPhone = `+88${formattedPhone}`;
+      } else {
+        formattedPhone = `+880${formattedPhone}`;
+      }
+    }
+
     setIsSendingPhoneOtp(true);
     try {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedPhoneOtp(code);
+      // Ensure recaptcha container element exists in DOM
+      let recaptchaContainer = document.getElementById("phone-verify-recaptcha");
+      if (!recaptchaContainer) {
+        recaptchaContainer = document.createElement("div");
+        recaptchaContainer.id = "phone-verify-recaptcha";
+        document.body.appendChild(recaptchaContainer);
+      }
+
+      // Clear previous verifier instance to prevent reCAPTCHA rendering conflicts
+      if ((window as any).phoneVerifyRecaptchaVerifier) {
+        try {
+          (window as any).phoneVerifyRecaptchaVerifier.clear();
+        } catch (e) {}
+        (window as any).phoneVerifyRecaptchaVerifier = null;
+      }
+
+      const appVerifier = new RecaptchaVerifier(auth, "phone-verify-recaptcha", {
+        size: "invisible",
+        callback: () => {},
+        "expired-callback": () => {
+          triggerToast(
+            "ক্যাপচা মেয়াদ উত্তীর্ণ হয়েছে। আবার চেষ্টা করুন।",
+            "reCAPTCHA expired. Please try again."
+          );
+        }
+      });
+      (window as any).phoneVerifyRecaptchaVerifier = appVerifier;
+
+      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+      setPhoneConfirmationResult(confirmation);
       setPhoneOtpSent(true);
+      setPhoneOtpCooldown(60);
       triggerToast(
-        `${targetPhone} নম্বরে OTP পাঠানো হয়েছে! (যাচাই কোড: ${code})`,
-        `OTP sent to ${targetPhone}! (Code: ${code})`
+        `${rawPhone} নম্বরে একটি ওটিপি কোড পাঠানো হয়েছে। অনুগ্রহ করে কোডটি লিখুন।`,
+        `An SMS verification OTP has been sent to ${rawPhone}. Please enter it below.`
       );
     } catch (err: any) {
-      console.error("Phone OTP error:", err);
-      triggerToast("OTP পাঠাতে ব্যর্থ হয়েছে।", "Failed to send phone OTP.");
+      console.error("Firebase Phone Auth error:", err);
+      let errorMsgBn = "এসএমএস ওটিপি পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।";
+      let errorMsgEn = "Failed to send SMS OTP. Please try again.";
+
+      if (err?.code === "auth/unauthorized-domain" || err?.message?.includes("unauthorized-domain")) {
+        const domain = typeof window !== "undefined" ? window.location.hostname : "localhost";
+        errorMsgBn = `ডোমেইনটি অনুমোদিত নয় (${domain})। Firebase Console → Authentication → Settings → Authorized domains-এ যোগ করুন।`;
+        errorMsgEn = `Domain is not authorized (${domain}). Please add it in Firebase Console Authorized Domains.`;
+      } else if (err?.code === "auth/quota-exceeded") {
+        errorMsgBn = "এসএমএস কোটার দৈনিক লিমিট শেষ হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
+        errorMsgEn = "SMS quota exceeded for today. Please try again later.";
+      } else if (err?.code === "auth/invalid-phone-number") {
+        errorMsgBn = "মোবাইল নম্বরটি সঠিক নয়। অনুগ্রহ করে সঠিক ১১ ডিজিটের নম্বর দিন।";
+        errorMsgEn = "Invalid phone number format. Please provide a valid 11-digit mobile number.";
+      } else if (err?.code === "auth/too-many-requests") {
+        errorMsgBn = "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
+        errorMsgEn = "Too many requests. Please wait a moment and try again.";
+      } else if (err?.message) {
+        errorMsgBn = `এসএমএস পাঠাতে ব্যর্থ: ${err.message}`;
+      }
+
+      triggerToast(errorMsgBn, errorMsgEn);
     } finally {
       setIsSendingPhoneOtp(false);
     }
   };
 
   const handleVerifyPhoneOtp = async () => {
-    if (!phoneOtpInput.trim()) {
+    const code = phoneOtpInput.trim();
+    if (!code) {
       triggerToast(
-        "অনুগ্রহ করে আপনার ফোনে প্রাপ্ত ৬-সংখ্যার OTP লিখুন।",
-        "Please enter the 6-digit phone OTP."
+        "অনুগ্রহ করে আপনার ফোনে প্রাপ্ত ওটিপি কোডটি লিখুন।",
+        "Please enter the OTP code received on your phone."
       );
       return;
     }
-    if (phoneOtpInput.trim() !== generatedPhoneOtp && phoneOtpInput.trim() !== "123456") {
+
+    if (!phoneConfirmationResult) {
       triggerToast(
-        "ভুল OTP কোড! আবার চেষ্টা করুন।",
-        "Invalid OTP code! Please try again."
+        "অনুগ্রহ করে প্রথমে মোবাইলে ওটিপি কোড পাঠান।",
+        "Please request an SMS verification OTP first."
       );
       return;
     }
+
     setIsVerifyingPhone(true);
     try {
+      await phoneConfirmationResult.confirm(code);
+
       const willBeFullyVerified = isEmailVerified;
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
-        isPhoneVerified: true,
-        ...(willBeFullyVerified ? { isVerified: true } : { isVerified: false }),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      const targetPhone = (phoneInput || dbUser?.phone || user?.phone || user?.phoneNumber || "").trim();
+      const uId = user?.uid || auth.currentUser?.uid;
+
+      if (uId) {
+        await setDoc(doc(db, "users", uId), {
+          uid: uId,
+          isPhoneVerified: true,
+          phone: targetPhone,
+          ...(willBeFullyVerified ? { isVerified: true } : { isVerified: false }),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
 
       setDbUser((prev: any) => ({
         ...prev,
         isPhoneVerified: true,
+        phone: targetPhone,
         ...(willBeFullyVerified ? { isVerified: true } : { isVerified: false })
       }));
       setPhoneOtpSent(false);
       setPhoneOtpInput("");
+      setPhoneConfirmationResult(null);
+
       triggerToast(
-        "ফোন নাম্বার সফলভাবে ভেরিফাই করা হয়েছে!",
-        "Phone number verified successfully!"
+        "অভিনন্দন! ফোন নাম্বার সফলভাবে ভেরিফাই করা হয়েছে! ✓",
+        "Congratulations! Phone number has been verified successfully! ✓"
       );
-      if (willBeFullyVerified) {
+
+      if (willBeFullyVerified && uId) {
         const { checkAndRewardReferral } = await import("../../lib/referral");
-        await checkAndRewardReferral(user.uid);
+        await checkAndRewardReferral(uId);
       }
     } catch (err: any) {
       console.error("Error verifying phone OTP:", err);
-      triggerToast("ফোন ভেরিফিকেশন ব্যর্থ হয়েছে।", "Phone verification failed.");
+      let errorMsgBn = "ভুল OTP কোড! আবার চেষ্টা করুন।";
+      let errorMsgEn = "Invalid OTP code. Please try again.";
+
+      if (err?.code === "auth/invalid-verification-code") {
+        errorMsgBn = "ভুল ওটিপি কোড! অনুগ্রহ করে আপনার ফোনে প্রাপ্ত কোডটি যাচাই করে আবার লিখুন।";
+        errorMsgEn = "Incorrect verification code. Please check your SMS and try again.";
+      } else if (err?.code === "auth/code-expired") {
+        errorMsgBn = "ওটিপি কোডের মেয়াদ উত্তীর্ণ হয়ে গেছে। অনুগ্রহ করে পুনরায় নতুন কোড পাঠান।";
+        errorMsgEn = "Verification code has expired. Please send a new code.";
+      } else if (err?.message) {
+        errorMsgBn = `যাচাইকরণ ব্যর্থ: ${err.message}`;
+      }
+
+      triggerToast(errorMsgBn, errorMsgEn);
     } finally {
       setIsVerifyingPhone(false);
     }
@@ -2864,53 +3024,76 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                 </div>
 
                 {!isEmailVerified && (
-                  <div className="pt-2 border-t border-slate-200/60 space-y-2.5">
-                    {!emailOtpSent ? (
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-[11px] text-slate-500">
-                          {getTranslation("আপনার ইমেইলে যাচাইকরণ ওটিপি পাঠানো হবে।", "A verification OTP code will be sent to your email.")}
-                        </p>
+                  <div className="pt-2.5 border-t border-slate-200/60 space-y-3">
+                    {!verificationEmailSent ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200/80">
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-bold text-slate-800">
+                            {getTranslation("অফিসিয়াল ইমেইল ভেরিফিকেশন লিংক", "Official Email Verification Link")}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {getTranslation(
+                              "Firebase Auth-এর মাধ্যমে আপনার ঠিকানায় নিরাপদ যাচাইকরণ লিংক পাঠানো হবে।",
+                              "A secure verification link will be sent to your address via Firebase Auth."
+                            )}
+                          </p>
+                        </div>
                         <button
                           type="button"
                           onClick={handleSendEmailVerification}
-                          disabled={isSendingEmailOtp}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer disabled:opacity-50 shadow-xs"
+                          disabled={isSendingVerificationEmail || emailVerificationCooldown > 0}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 shrink-0 cursor-pointer disabled:opacity-50 shadow-xs"
                         >
-                          {isSendingEmailOtp && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                          <span>{getTranslation("ভেরিফাই করুন", "Verify Email")}</span>
+                          {isSendingVerificationEmail ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>{getTranslation("পাঠানো হচ্ছে...", "Sending...")}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="w-3.5 h-3.5" />
+                              <span>{getTranslation("ভেরিফিকেশন লিংক পাঠান", "Send Verification Link")}</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     ) : (
-                      <div className="space-y-2 bg-white p-3 rounded-xl border border-emerald-200">
-                        <p className="text-[11px] text-emerald-800 font-bold">
-                          {getTranslation("আপনার ইমেইলে পাঠানো ৬-সংখ্যার OTP কোডটি লিখুন:", "Enter the 6-digit OTP code sent to your email:")}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            maxLength={6}
-                            value={emailOtpInput}
-                            onChange={(e) => setEmailOtpInput(e.target.value.replace(/\D/g, ""))}
-                            placeholder="123456"
-                            className="flex-1 bg-slate-50 border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-1.5 text-xs font-mono font-bold tracking-widest text-slate-800 outline-none text-center"
-                          />
+                      <div className="space-y-3 bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-200/80 animate-in fade-in duration-200">
+                        <div className="flex items-start space-x-2.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold text-emerald-950">
+                              {getTranslation("ভেরিফিকেশন ইমেইল পাঠানো হয়েছে!", "Verification Email Sent!")}
+                            </p>
+                            <p className="text-[11px] text-emerald-900/80 leading-relaxed">
+                              {getTranslation(
+                                `আপনার ${emailInput || dbUser?.email || user?.email || ""} ইনবক্স বা স্প্যাম ফোল্ডার চেক করে প্রেরিত ভেরিফিকেশন লিংকে ক্লিক করুন। এরপর নিচের বাটনে ক্লিক করে ভেরিফিকেশন স্ট্যাটাস আপডেট করুন।`,
+                                `Please check the inbox or spam folder of ${emailInput || dbUser?.email || user?.email || ""} and click the verification link. Then click the button below to update your verification status.`
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-emerald-200/60">
                           <button
                             type="button"
-                            onClick={handleVerifyEmailOtp}
-                            disabled={isVerifyingEmail || emailOtpInput.length < 4}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer disabled:opacity-50 shadow-xs"
+                            onClick={handleCheckEmailVerificationStatus}
+                            disabled={isCheckingEmailStatus}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
                           >
-                            {isVerifyingEmail && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                            <span>{getTranslation("সাবমিট করুন", "Submit")}</span>
+                            <RefreshCw className={`w-3.5 h-3.5 ${isCheckingEmailStatus ? "animate-spin" : ""}`} />
+                            <span>{getTranslation("ভেরিফিকেশন চেক করুন", "Check Status")}</span>
                           </button>
+
                           <button
                             type="button"
                             onClick={handleSendEmailVerification}
-                            disabled={isSendingEmailOtp}
-                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg text-xs cursor-pointer"
-                            title={getTranslation("পুনরায় পাঠান", "Resend")}
+                            disabled={isSendingVerificationEmail || emailVerificationCooldown > 0}
+                            className="px-3 py-2 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
                           >
-                            <RefreshCw className="w-3.5 h-3.5" />
+                            {emailVerificationCooldown > 0
+                              ? getTranslation(`পুনরায় পাঠান (${emailVerificationCooldown} সে.)`, `Resend (${emailVerificationCooldown}s)`)
+                              : getTranslation("পুনরায় লিংক পাঠান", "Resend Link")}
                           </button>
                         </div>
                       </div>
@@ -2951,49 +3134,60 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                     {!phoneOtpSent ? (
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[11px] text-slate-500">
-                          {getTranslation("মোবাইলে এসএমএস-এর মাধ্যমে ওটিপি কোড পাঠানো হবে।", "An SMS OTP code will be sent to your phone.")}
+                          {getTranslation("Google Firebase Auth-এর মাধ্যমে মোবাইলে নিরাপদ এসএমএস ওটিপি পাঠানো হবে।", "A secure SMS OTP will be sent to your phone via Google Firebase Auth.")}
                         </p>
                         <button
                           type="button"
                           onClick={handleSendPhoneOtp}
-                          disabled={isSendingPhoneOtp}
+                          disabled={isSendingPhoneOtp || phoneOtpCooldown > 0}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer disabled:opacity-50 shadow-xs"
                         >
                           {isSendingPhoneOtp && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                          <span>{getTranslation("OTP পাঠান", "Send OTP")}</span>
+                          <span>
+                            {phoneOtpCooldown > 0
+                              ? getTranslation(`অপেক্ষা করুন (${phoneOtpCooldown}s)`, `Wait (${phoneOtpCooldown}s)`)
+                              : getTranslation("SMS OTP পাঠান", "Send SMS OTP")}
+                          </span>
                         </button>
                       </div>
                     ) : (
                       <div className="space-y-2 bg-white p-3 rounded-xl border border-emerald-200">
-                        <p className="text-[11px] text-emerald-800 font-bold">
-                          {getTranslation("আপনার ফোনে প্রাপ্ত ৪/৬-সংখ্যার OTP কোডটি লিখুন:", "Enter the 4/6-digit OTP code received on your phone:")}
-                        </p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-[11px] text-emerald-800 font-bold">
+                            {getTranslation("আপনার ফোনে প্রেরিত ৬-সংখ্যার এসএমএস OTP লিখুন:", "Enter the 6-digit SMS OTP received on your phone:")}
+                          </p>
+                          {phoneOtpCooldown > 0 ? (
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {getTranslation(`পুনরায় পাঠান (${phoneOtpCooldown}s)`, `Resend (${phoneOtpCooldown}s)`)}
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleSendPhoneOtp}
+                              disabled={isSendingPhoneOtp}
+                              className="text-[10px] text-emerald-600 hover:underline font-bold cursor-pointer"
+                            >
+                              {getTranslation("পুনরায় কোড পাঠান", "Resend Code")}
+                            </button>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
                           <input
                             type="text"
                             maxLength={6}
                             value={phoneOtpInput}
                             onChange={(e) => setPhoneOtpInput(e.target.value.replace(/\D/g, ""))}
-                            placeholder="123456"
+                            placeholder="• • • • • •"
                             className="flex-1 bg-slate-50 border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-1.5 text-xs font-mono font-bold tracking-widest text-slate-800 outline-none text-center"
                           />
                           <button
                             type="button"
                             onClick={handleVerifyPhoneOtp}
-                            disabled={isVerifyingPhone || phoneOtpInput.length < 4}
+                            disabled={isVerifyingPhone || phoneOtpInput.length < 6}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer disabled:opacity-50 shadow-xs"
                           >
                             {isVerifyingPhone && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                            <span>{getTranslation("সাবমিট করুন / ভেরিফাই করুন", "Verify OTP")}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleSendPhoneOtp}
-                            disabled={isSendingPhoneOtp}
-                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg text-xs cursor-pointer"
-                            title={getTranslation("পুনরায় পাঠান", "Resend OTP")}
-                          >
-                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>{getTranslation("যাচাই সম্পন্ন করুন", "Verify OTP")}</span>
                           </button>
                         </div>
                       </div>
@@ -3147,26 +3341,6 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                       </button>
                     ) : (
                       <div className="space-y-3 pt-2 border-t border-slate-200">
-                        {securityPreviewCode && (
-                          <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-2.5 rounded-xl text-xs flex items-center justify-between shadow-2xs">
-                            <div>
-                              <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider block">
-                                {getTranslation("ভেরিফিকেশন ওটিপি কোড", "Verification OTP Code")}
-                              </span>
-                              <strong className="font-mono text-sm font-black tracking-widest text-emerald-950">
-                                {securityPreviewCode}
-                              </strong>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setSecurityOtpCode(securityPreviewCode)}
-                              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg cursor-pointer transition shadow-2xs"
-                            >
-                              {getTranslation("অটো-ফিল কোড", "Auto Fill")}
-                            </button>
-                          </div>
-                        )}
-
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 mb-1">
                             {getTranslation("৬-সংখ্যার কোডটি লিখুন:", "Enter the 6-digit verification code:")}
