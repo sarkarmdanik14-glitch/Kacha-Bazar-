@@ -17,9 +17,10 @@ import {
   where,
   getDocs,
   signOut,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail
 } from "../../lib/firebase";
-import { User, Mail, Lock, AlertCircle, Key, LogIn, UserPlus, Gift, Sparkles, RefreshCw, Smartphone, Store, Eye, EyeOff } from "lucide-react";
+import { User, Mail, Lock, AlertCircle, Key, LogIn, UserPlus, Gift, Sparkles, RefreshCw, Smartphone, Store, Eye, EyeOff, ArrowLeft, CheckCircle2, ShieldCheck, Check } from "lucide-react";
 import { authenticatePartner } from "../../lib/partnerManager";
 import { apiClient } from "../../lib/apiClient";
 import { createTranslator } from "../../lib/formatUtils";
@@ -57,6 +58,22 @@ export default function AuthView({
     return (initialReferralCode || localStorage.getItem("referredBy") || sessionStorage.getItem("referredBy") || "").trim().toUpperCase();
   });
 
+  // Forgot Password / Password Reset workflow states
+  const [isForgotPassword, setIsForgotPassword] = useState<boolean>(false);
+  const [forgotStep, setForgotStep] = useState<"request" | "verify" | "reset" | "success">("request");
+  const [forgotIdentifier, setForgotIdentifier] = useState<string>("");
+  const [forgotResetId, setForgotResetId] = useState<string>("");
+  const [forgotMaskedTarget, setForgotMaskedTarget] = useState<string>("");
+  const [forgotOtpCode, setForgotOtpCode] = useState<string>("");
+  const [forgotPreviewCode, setForgotPreviewCode] = useState<string>("");
+  const [forgotResetToken, setForgotResetToken] = useState<string>("");
+  const [newPassword, setNewPassword] = useState<string>("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState<string>("");
+  const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState<boolean>(false);
+  const [forgotTimer, setForgotTimer] = useState<number>(0);
+  const [successMsg, setSuccessMsg] = useState<string>("");
+
   React.useEffect(() => {
     if (initialAuthMode === "register") {
       setIsLogin(false);
@@ -79,6 +96,131 @@ export default function AuthView({
   const [otpNotice, setOtpNotice] = useState<string>("");
 
   const getTranslation = createTranslator(lang);
+
+  // Countdown timer for resending OTP code
+  React.useEffect(() => {
+    if (forgotTimer <= 0) return;
+    const interval = setInterval(() => {
+      setForgotTimer((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [forgotTimer]);
+
+  // Step 1: Send Reset Code
+  const handleSendResetCode = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const ident = (forgotIdentifier || email || phone || "").trim();
+    if (!ident) {
+      setError(getTranslation("অনুগ্রহ করে আপনার নিবন্ধিত ইমেইল বা মোবাইল নম্বর দিন।", "Please enter your registered email or phone number."));
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      // 1. Try Firebase Auth client sendPasswordResetEmail if identifier is an email
+      if (ident.includes("@")) {
+        try {
+          await sendPasswordResetEmail(auth, ident);
+        } catch (fbErr: any) {
+          console.warn("Client sendPasswordResetEmail notice:", fbErr?.message);
+        }
+      }
+
+      // 2. Call backend send-code API
+      const res = await apiClient.post("/api/auth/forgot-password/send-code", {
+        identifier: ident
+      });
+
+      if (res && res.success) {
+        setForgotResetId(res.resetId);
+        setForgotMaskedTarget(res.maskedTarget || ident);
+        setForgotPreviewCode(res.previewCode || "");
+        setForgotStep("verify");
+        setForgotTimer(60);
+        setSuccessMsg(res.messageBn || getTranslation("ভেরিফিকেশন কোড সফলভাবে পাঠানো হয়েছে।", "Verification code sent successfully."));
+      } else {
+        throw new Error(res?.error || res?.message || getTranslation("কোড পাঠাতে সমস্যা হয়েছে।", "Failed to send code."));
+      }
+    } catch (err: any) {
+      setError(err?.message || getTranslation("কোড পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।", "Failed to send code. Please try again."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2: Verify 6-digit Code
+  const handleVerifyResetCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = forgotOtpCode.trim();
+    if (code.length < 6) {
+      setError(getTranslation("অনুগ্রহ করে সম্পূর্ণ ৬-সংখ্যার কোড লিখুন।", "Please enter the complete 6-digit code."));
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      const res = await apiClient.post("/api/auth/forgot-password/verify-code", {
+        resetId: forgotResetId,
+        code: code
+      });
+
+      if (res && res.success && res.resetToken) {
+        setForgotResetToken(res.resetToken);
+        setForgotStep("reset");
+        setSuccessMsg(res.messageBn || getTranslation("কোড সফলভাবে যাচাই হয়েছে! এবার নতুন পাসওয়ার্ড দিন।", "Code verified! Now enter your new password."));
+      } else {
+        throw new Error(res?.error || res?.message || getTranslation("কোড যাচাই করতে সমস্যা হয়েছে।", "Failed to verify code."));
+      }
+    } catch (err: any) {
+      setError(err?.message || getTranslation("ভুল ভেরিফিকেশন কোড। অনুগ্রহ করে সঠিক কোড দিন।", "Invalid verification code. Please check and try again."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 3: Complete Reset & Set New Password
+  const handleCompleteReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      setError(getTranslation("পাসওয়ার্ড ন্যূনতম ৬ অক্ষরের হতে হবে।", "Password must be at least 6 characters long."));
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setError(getTranslation("নতুন পাসওয়ার্ড দুটি মিলছে না! অনুগ্রহ করে মিলিয়ে লিখুন।", "New passwords do not match."));
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      const res = await apiClient.post("/api/auth/forgot-password/reset", {
+        resetToken: forgotResetToken,
+        newPassword: newPassword
+      });
+
+      if (res && res.success) {
+        setForgotStep("success");
+        setSuccessMsg(res.messageBn || getTranslation("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!", "Password has been successfully reset!"));
+        if (forgotIdentifier && forgotIdentifier.includes("@")) {
+          setEmail(forgotIdentifier);
+        }
+      } else {
+        throw new Error(res?.error || res?.message || getTranslation("পাসওয়ার্ড পরিবর্তন করতে সমস্যা হয়েছে।", "Failed to reset password."));
+      }
+    } catch (err: any) {
+      setError(err?.message || getTranslation("পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।", "Failed to update password. Please try again."));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Helper to verify if user is a real admin in Firestore
   const checkIsAdmin = async (uid: string): Promise<boolean> => {
@@ -761,6 +903,303 @@ export default function AuthView({
     }
   };
 
+  if (isForgotPassword) {
+    return (
+      <div className="w-full max-w-md mx-auto bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-100 relative overflow-hidden animate-fade-in">
+        {/* Decorative gradient headers */}
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600"></div>
+
+        {/* Header navigation */}
+        <div className="flex items-center justify-between mb-4">
+          <button
+            type="button"
+            onClick={() => {
+              setIsForgotPassword(false);
+              setForgotStep("request");
+              setError("");
+              setSuccessMsg("");
+            }}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>{getTranslation("লগইনে ফিরে যান", "Back to Login")}</span>
+          </button>
+          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
+            {getTranslation("নিরাপদ রিসেট", "Secure Reset")}
+          </span>
+        </div>
+
+        <div className="text-center mb-5">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2.5 border border-emerald-100">
+            <Key className="w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-black text-slate-800 tracking-tight">
+            {getTranslation("পাসওয়ার্ড রিসেট", "Reset Password")}
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            {forgotStep === "request" && getTranslation("আপনার নিবন্ধিত ইমেইল বা ফোন নম্বর দিন। আমরা একটি ৬-সংখ্যার ভেরিফিকেশন কোড পাঠাব।", "Enter your registered email or phone to receive a 6-digit verification code.")}
+            {forgotStep === "verify" && getTranslation("আপনার কাছে পাঠানো ৬-সংখ্যার কোডটি প্রবেশ করান।", "Enter the 6-digit verification code sent to your device.")}
+            {forgotStep === "reset" && getTranslation("আপনার অ্যাকাউন্টের জন্য নতুন পাসওয়ার্ড সেট করুন।", "Create a new strong password for your account.")}
+            {forgotStep === "success" && getTranslation("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!", "Password changed successfully!")}
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-4 bg-red-50 border border-red-100 text-red-700 text-xs rounded-xl p-3 flex items-start space-x-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {successMsg && forgotStep !== "success" && (
+          <div className="mb-4 bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs rounded-xl p-3 flex items-start space-x-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+            <span>{successMsg}</span>
+          </div>
+        )}
+
+        {/* STEP 1: REQUEST CODE */}
+        {forgotStep === "request" && (
+          <form onSubmit={handleSendResetCode} className="space-y-4">
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                {getTranslation("নিবন্ধিত ইমেইল বা মোবাইল নম্বর", "Registered Email or Phone")}
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+                <input
+                  type="text"
+                  required
+                  placeholder={getTranslation("যেমন: user@example.com বা 017XXXXXXXX", "e.g. user@example.com or 017XXXXXXXX")}
+                  value={forgotIdentifier}
+                  onChange={(e) => setForgotIdentifier(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !forgotIdentifier.trim()}
+              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-3 rounded-2xl text-xs font-black shadow-md hover:shadow-lg transition flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {loading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>{getTranslation("কোড পাঠানো হচ্ছে...", "Sending Code...")}</span>
+                </>
+              ) : (
+                <>
+                  <Key className="w-4 h-4" />
+                  <span>{getTranslation("ভেরিফিকেশন কোড পাঠান", "Send Verification Code")}</span>
+                </>
+              )}
+            </button>
+          </form>
+        )}
+
+        {/* STEP 2: VERIFY CODE */}
+        {forgotStep === "verify" && (
+          <form onSubmit={handleVerifyResetCode} className="space-y-4">
+            <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl text-xs text-slate-600">
+              <p className="text-[11px]">
+                {getTranslation("কোড পাঠানো হয়েছে:", "Code sent to:")} <strong className="text-slate-800 font-semibold">{forgotMaskedTarget}</strong>
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setForgotStep("request");
+                  setError("");
+                }}
+                className="text-[10px] text-emerald-600 hover:underline font-bold mt-1 inline-block cursor-pointer"
+              >
+                {getTranslation("নম্বর বা ইমেইল পরিবর্তন করুন", "Change Email or Phone")}
+              </button>
+            </div>
+
+            {forgotPreviewCode && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl text-xs flex items-center justify-between shadow-2xs">
+                <div>
+                  <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider block">
+                    {getTranslation("ভেরিফিকেশন ওটিপি কোড", "Verification OTP Code")}
+                  </span>
+                  <strong className="font-mono text-base font-black tracking-widest text-emerald-950">
+                    {forgotPreviewCode}
+                  </strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForgotOtpCode(forgotPreviewCode)}
+                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3 py-1.5 rounded-xl cursor-pointer shadow-xs transition"
+                >
+                  {getTranslation("অটো-ফিল কোড", "Auto Fill")}
+                </button>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                {getTranslation("৬-সংখ্যার ভেরিফিকেশন কোড (OTP)", "6-Digit Verification Code (OTP)")}
+              </label>
+              <input
+                type="text"
+                required
+                maxLength={6}
+                placeholder="• • • • • •"
+                value={forgotOtpCode}
+                onChange={(e) => setForgotOtpCode(e.target.value.replace(/\D/g, ""))}
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-base font-mono text-center tracking-widest font-black focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || forgotOtpCode.trim().length < 6}
+              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-3 rounded-2xl text-xs font-black shadow-md hover:shadow-lg transition flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {loading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>{getTranslation("কোড যাচাই হচ্ছে...", "Verifying Code...")}</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>{getTranslation("যাচাই করুন ও এগিয়ে যান", "Verify & Proceed")}</span>
+                </>
+              )}
+            </button>
+
+            <div className="text-center pt-2">
+              {forgotTimer > 0 ? (
+                <span className="text-[11px] text-slate-400 font-bold">
+                  {getTranslation(`পুনরায় কোড পাঠানোর সময় বাকি: ${forgotTimer} সেকেন্ড`, `Resend code in: ${forgotTimer}s`)}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleSendResetCode()}
+                  className="text-xs text-emerald-600 hover:text-emerald-700 font-bold hover:underline cursor-pointer"
+                >
+                  {getTranslation("কোড পাননি? পুনরায় পাঠান", "Didn't receive code? Resend")}
+                </button>
+              )}
+            </div>
+          </form>
+        )}
+
+        {/* STEP 3: SET NEW PASSWORD */}
+        {forgotStep === "reset" && (
+          <form onSubmit={handleCompleteReset} className="space-y-4">
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                {getTranslation("নতুন পাসওয়ার্ড", "New Password")}
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  required
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-11 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((prev) => !prev)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition p-1 rounded-lg hover:bg-slate-200/50"
+                  tabIndex={-1}
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                {getTranslation("নতুন পাসওয়ার্ড নিশ্চিত করুন", "Confirm New Password")}
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+                <input
+                  type={showConfirmNewPassword ? "text" : "password"}
+                  required
+                  placeholder="••••••••"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-11 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmNewPassword((prev) => !prev)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition p-1 rounded-lg hover:bg-slate-200/50"
+                  tabIndex={-1}
+                >
+                  {showConfirmNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-slate-400 font-medium">
+              {getTranslation("পাসওয়ার্ড ন্যূনতম ৬ অক্ষরের হতে হবে।", "Password must be at least 6 characters long.")}
+            </p>
+
+            <button
+              type="submit"
+              disabled={loading || !newPassword || !confirmNewPassword}
+              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-3 rounded-2xl text-xs font-black shadow-md hover:shadow-lg transition flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {loading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>{getTranslation("পাসওয়ার্ড সংরক্ষণ হচ্ছে...", "Saving Password...")}</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{getTranslation("পাসওয়ার্ড সংরক্ষণ করুন", "Save New Password")}</span>
+                </>
+              )}
+            </button>
+          </form>
+        )}
+
+        {/* STEP 4: SUCCESS */}
+        {forgotStep === "success" && (
+          <div className="text-center space-y-4 py-2">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-md animate-scale-up">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-900">
+                {getTranslation("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!", "Password Successfully Changed!")}
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                {getTranslation("এখন আপনার নতুন পাসওয়ার্ড দিয়ে স্বাচ্ছন্দ্যে লগইন করতে পারেন।", "You can now log in to your account using your new password.")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsForgotPassword(false);
+                setIsLogin(true);
+                setForgotStep("request");
+                setPassword("");
+                setError("");
+                setSuccessMsg("");
+              }}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-2xl text-xs font-black shadow-md hover:shadow-lg transition flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>{getTranslation("নতুন পাসওয়ার্ড দিয়ে লগইন করুন", "Log in with New Password")}</span>
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-md mx-auto bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-100 relative overflow-hidden animate-fade-in">
       
@@ -1002,9 +1441,27 @@ export default function AuthView({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                {getTranslation("পাসওয়ার্ড", "Password")}
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  {getTranslation("পাসওয়ার্ড", "Password")}
+                </label>
+                {isLogin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsForgotPassword(true);
+                      setForgotStep("request");
+                      setForgotIdentifier(email || phone || "");
+                      setError("");
+                      setSuccessMsg("");
+                    }}
+                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer transition flex items-center gap-1"
+                  >
+                    <Key className="w-3 h-3 text-emerald-500" />
+                    <span>{getTranslation("পাসওয়ার্ড ভুলে গেছেন?", "Forgot Password?")}</span>
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
                 <input
@@ -1030,6 +1487,23 @@ export default function AuthView({
                   )}
                 </button>
               </div>
+              {isLogin && (
+                <div className="flex justify-end mt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsForgotPassword(true);
+                      setForgotStep("request");
+                      setForgotIdentifier(email || phone || "");
+                      setError("");
+                      setSuccessMsg("");
+                    }}
+                    className="text-[11px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer transition"
+                  >
+                    {getTranslation("পাসওয়ার্ড রিসেট করুন", "Reset your password")}
+                  </button>
+                </div>
+              )}
             </div>
 
             {!isLogin && (

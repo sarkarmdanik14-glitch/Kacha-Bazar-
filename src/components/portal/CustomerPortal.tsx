@@ -20,16 +20,18 @@ import {
   serverTimestamp,
   increment,
   onSnapshot,
-  sendEmailVerification
+  sendEmailVerification,
+  updatePassword,
+  sendPasswordResetEmail
 } from "../../lib/firebase";
 import { 
   User, CreditCard, ShoppingBag, Gift, MapPin, 
   ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, 
   ShieldAlert, RefreshCw, Star, Share2, Clipboard, 
-  Smartphone, Bell, Eye, LogOut, ChevronRight, Printer,
+  Smartphone, Bell, Eye, EyeOff, LogOut, ChevronRight, Printer,
   Camera, Trash2, Save, Edit3, Lock, Mail, Phone, ShieldCheck,
   Menu, X, Sparkles, QrCode, Award, Heart, Settings, Edit2, Check,
-  Crown, Percent, Zap, CheckCircle2, AlertCircle
+  Crown, Percent, Zap, CheckCircle2, AlertCircle, Key
 } from "lucide-react";
 import QRCode from "qrcode";
 import OrderMemoModal from "./OrderMemoModal";
@@ -37,6 +39,7 @@ import { createTranslator } from "../../lib/formatUtils";
 import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from "../../lib/memberIdUtils";
 import { checkAndUpgradePremiumMembership } from "../../lib/membership";
 import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
+import { apiClient } from "../../lib/apiClient";
 
 
 interface CustomerPortalProps {
@@ -248,8 +251,9 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
   const [isEditingAddress, setIsEditingAddress] = useState<boolean>(false);
   const [showProfileSettingsModal, setShowProfileSettingsModal] = useState<boolean>(false);
-  const [profileModalTab, setProfileModalTab] = useState<"all" | "verification" | "profile">("all");
+  const [profileModalTab, setProfileModalTab] = useState<"all" | "verification" | "profile" | "security">("all");
   const verificationSectionRef = useRef<HTMLDivElement>(null);
+  const securitySectionRef = useRef<HTMLDivElement>(null);
 
   const handleOpenVerificationSection = () => {
     setProfileModalTab("verification");
@@ -257,6 +261,186 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     setTimeout(() => {
       verificationSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 150);
+  };
+
+  const handleOpenSecuritySection = () => {
+    setProfileModalTab("security");
+    setShowProfileSettingsModal(true);
+    setTimeout(() => {
+      securitySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  };
+
+  // Security & Password Reset states in Profile Settings
+  const [newPasswordInput, setNewPasswordInput] = useState<string>("");
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState<string>("");
+  const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false);
+  const [passwordChangeMode, setPasswordChangeMode] = useState<"otp" | "direct">("otp");
+
+  // OTP Verification for Password Reset
+  const [securityOtpSent, setSecurityOtpSent] = useState<boolean>(false);
+  const [securityOtpCode, setSecurityOtpCode] = useState<string>("");
+  const [securityResetId, setSecurityResetId] = useState<string>("");
+  const [securityResetToken, setSecurityResetToken] = useState<string>("");
+  const [securityPreviewCode, setSecurityPreviewCode] = useState<string>("");
+  const [securityTimer, setSecurityTimer] = useState<number>(0);
+  const [isSendingSecurityOtp, setIsSendingSecurityOtp] = useState<boolean>(false);
+  const [isVerifyingSecurityOtp, setIsVerifyingSecurityOtp] = useState<boolean>(false);
+  const [securityError, setSecurityError] = useState<string>("");
+  const [securitySuccess, setSecuritySuccess] = useState<string>("");
+
+  useEffect(() => {
+    let interval: any = null;
+    if (securityTimer > 0) {
+      interval = setInterval(() => {
+        setSecurityTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [securityTimer]);
+
+  const handleSendSecurityOtp = async () => {
+    const targetIdentifier = emailInput || dbUser?.email || user?.email || phoneInput || dbUser?.phone || user?.phone || "";
+    if (!targetIdentifier) {
+      setSecurityError(getTranslation(
+        "অনুগ্রহ করে আগে আপনার প্রোফাইলে একটি ভেরিফাইড ইমেইল বা ফোন নম্বর দিন।",
+        "Please provide an email or phone number in your profile first."
+      ));
+      return;
+    }
+
+    setIsSendingSecurityOtp(true);
+    setSecurityError("");
+    setSecuritySuccess("");
+
+    try {
+      if (targetIdentifier.includes("@")) {
+        try {
+          await sendPasswordResetEmail(auth, targetIdentifier);
+        } catch (e) {}
+      }
+
+      const res = await apiClient.post<any>("/api/auth/forgot-password/send-code", {
+        identifier: targetIdentifier
+      });
+
+      if (res && res.success) {
+        setSecurityResetId(res.resetId);
+        setSecurityPreviewCode(res.previewCode || "");
+        setSecurityOtpSent(true);
+        setSecurityTimer(60);
+        setSecuritySuccess(res.messageBn || getTranslation("ভেরিফিকেশন কোড পাঠানো হয়েছে!", "Verification code has been sent!"));
+        triggerToast("ভেরিফিকেশন কোড পাঠানো হয়েছে", "Verification OTP sent successfully");
+      } else {
+        throw new Error(res?.error || res?.message || "Failed to send code");
+      }
+    } catch (err: any) {
+      setSecurityError(err?.message || getTranslation("কোড পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।", "Failed to send OTP code."));
+    } finally {
+      setIsSendingSecurityOtp(false);
+    }
+  };
+
+  const handleVerifySecurityOtp = async () => {
+    const code = securityOtpCode.trim();
+    if (code.length < 6) {
+      setSecurityError(getTranslation("অনুগ্রহ করে সম্পূর্ণ ৬-সংখ্যার কোড লিখুন।", "Please enter full 6-digit code."));
+      return;
+    }
+
+    setIsVerifyingSecurityOtp(true);
+    setSecurityError("");
+    setSecuritySuccess("");
+
+    try {
+      const res = await apiClient.post<any>("/api/auth/forgot-password/verify-code", {
+        resetId: securityResetId,
+        code: code
+      });
+
+      if (res && res.success && res.resetToken) {
+        setSecurityResetToken(res.resetToken);
+        setSecuritySuccess(getTranslation("কোড সফলভাবে যাচাই হয়েছে! এবার নতুন পাসওয়ার্ড সেট করুন।", "Code verified! Please enter your new password."));
+        triggerToast("কোড সফলভাবে যাচাই হয়েছে!", "Code verified successfully!");
+      } else {
+        throw new Error(res?.error || res?.message || "Failed to verify code");
+      }
+    } catch (err: any) {
+      setSecurityError(err?.message || getTranslation("ভুল ভেরিফিকেশন কোড! অনুগ্রহ করে আবার চেষ্টা করুন।", "Invalid OTP code. Please try again."));
+    } finally {
+      setIsVerifyingSecurityOtp(false);
+    }
+  };
+
+  const handleUpdateSecurityPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPasswordInput || newPasswordInput.length < 6) {
+      setSecurityError(getTranslation("পাসওয়ার্ড ন্যূনতম ৬ অক্ষরের হতে হবে।", "Password must be at least 6 characters long."));
+      return;
+    }
+    if (newPasswordInput !== confirmPasswordInput) {
+      setSecurityError(getTranslation("নতুন পাসওয়ার্ড দুটি মিলছে না! অনুগ্রহ করে মিলিয়ে লিখুন।", "Passwords do not match."));
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    setSecurityError("");
+    setSecuritySuccess("");
+
+    try {
+      if (passwordChangeMode === "otp" && securityResetToken) {
+        const res = await apiClient.post<any>("/api/auth/forgot-password/reset", {
+          resetToken: securityResetToken,
+          newPassword: newPasswordInput
+        });
+        if (!res || !res.success) {
+          throw new Error(res?.error || res?.message || "Failed to reset password");
+        }
+      } else {
+        // Direct password change for authenticated profile
+        const res = await apiClient.post<any>("/api/auth/profile/change-password", {
+          userId: user.uid,
+          newPassword: newPasswordInput
+        });
+        if (!res || !res.success) {
+          throw new Error(res?.error || res?.message || "Failed to update password");
+        }
+      }
+
+      // Also update Firebase Auth client session if active
+      if (auth.currentUser) {
+        try {
+          await updatePassword(auth.currentUser, newPasswordInput);
+        } catch (authErr: any) {
+          console.warn("Client updatePassword notice:", authErr?.message);
+        }
+      }
+
+      // Update Firestore user document timestamp
+      if (user?.uid) {
+        await updateDoc(doc(db, "users", user.uid), {
+          passwordUpdatedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }).catch(() => {});
+      }
+
+      setSecuritySuccess(getTranslation("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!", "Password has been successfully changed!"));
+      triggerToast("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!", "Password has been updated successfully!");
+      setNewPasswordInput("");
+      setConfirmPasswordInput("");
+      setSecurityOtpSent(false);
+      setSecurityOtpCode("");
+      setSecurityResetToken("");
+      setSecurityResetId("");
+    } catch (err: any) {
+      setSecurityError(err?.message || getTranslation("পাসওয়ার্ড পরিবর্তন করতে সমস্যা হয়েছে।", "Failed to update password. Please try again."));
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
 
   useEffect(() => {
@@ -2406,6 +2590,23 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 <span>{getTranslation("ব্যক্তিগত তথ্য", "Personal Info")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileModalTab("security");
+                  setTimeout(() => {
+                    securitySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }, 100);
+                }}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer ${
+                  profileModalTab === "security"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-emerald-700"
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>{getTranslation("পাসওয়ার্ড ও নিরাপত্তা", "Password & Security")}</span>
               </button>
             </div>
 

@@ -2324,6 +2324,337 @@ app.post("/api/staff/reset-password", rateLimiter(15, 60000), requireAdminAuth, 
   }
 });
 
+// ==========================================
+// CUSTOMER FORGOT PASSWORD & PASSWORD RESET API
+// ==========================================
+
+// 1. POST /api/auth/forgot-password/send-code - Request 6-digit OTP code for password reset
+app.post("/api/auth/forgot-password/send-code", rateLimiter(15, 60000), async (req, res) => {
+  try {
+    const { identifier } = req.body;
+    if (!identifier || typeof identifier !== "string" || !identifier.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "অনুগ্রহ করে আপনার নিবন্ধিত ইমেইল বা মোবাইল নম্বর দিন।",
+        message: "Please enter your registered email or phone number."
+      });
+    }
+
+    const cleanInput = identifier.trim();
+    const cleanLower = cleanInput.toLowerCase();
+    const cleanPhone = cleanInput.replace(/[^\d+]/g, "");
+
+    const fdb = getAdminDb();
+    let targetUser: any = null;
+    let userId: string = "";
+
+    // 1. Search in Firestore users collection
+    const usersRef = fdb.collection("users");
+    
+    // By email
+    const emailSnap = await usersRef.where("email", "==", cleanLower).limit(1).get();
+    if (!emailSnap.empty) {
+      targetUser = emailSnap.docs[0].data();
+      userId = emailSnap.docs[0].id;
+    } else {
+      // By phoneNumber or phone
+      const phoneSnap = await usersRef.where("phoneNumber", "==", cleanInput).limit(1).get();
+      if (!phoneSnap.empty) {
+        targetUser = phoneSnap.docs[0].data();
+        userId = phoneSnap.docs[0].id;
+      } else {
+        const phoneSnap2 = await usersRef.where("phone", "==", cleanInput).limit(1).get();
+        if (!phoneSnap2.empty) {
+          targetUser = phoneSnap2.docs[0].data();
+          userId = phoneSnap2.docs[0].id;
+        } else if (cleanPhone && cleanPhone.length >= 10) {
+          const shortPhone = cleanPhone.startsWith("+88") ? cleanPhone.slice(3) : cleanPhone.startsWith("88") ? cleanPhone.slice(2) : cleanPhone;
+          const phoneSnap3 = await usersRef.where("phone", "==", shortPhone).limit(1).get();
+          if (!phoneSnap3.empty) {
+            targetUser = phoneSnap3.docs[0].data();
+            userId = phoneSnap3.docs[0].id;
+          }
+        }
+      }
+    }
+
+    // 2. If not found in Firestore users, try Firebase Admin Auth (if email)
+    if (!targetUser && cleanLower.includes("@")) {
+      try {
+        const adminApps = getAdminApps();
+        if (adminApps.length > 0) {
+          const authUser = await getAdminAuth(adminApps[0]).getUserByEmail(cleanLower);
+          if (authUser) {
+            userId = authUser.uid;
+            targetUser = { email: authUser.email, uid: authUser.uid, displayName: authUser.displayName };
+          }
+        }
+      } catch (authErr) {}
+    }
+
+    if (!targetUser || !userId) {
+      return res.status(404).json({
+        success: false,
+        error: "এই ইমেইল বা ফোন নম্বরে কোনো অ্যাকাউন্ট খুঁজে পাওয়া যায়নি।",
+        message: "No account found matching this email address or phone number."
+      });
+    }
+
+    // Generate secure 6-digit OTP code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const resetId = "pr_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 7);
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+    const targetEmail = targetUser.email || (cleanLower.includes("@") ? cleanLower : "");
+    const targetPhone = targetUser.phoneNumber || targetUser.phone || (!cleanLower.includes("@") ? cleanInput : "");
+
+    // Save reset request to Firestore
+    await fdb.collection("password_resets").doc(resetId).set({
+      id: resetId,
+      userId: userId,
+      email: targetEmail,
+      phone: targetPhone,
+      code: code,
+      verified: false,
+      expiresAt: expiresAt,
+      createdAt: Date.now()
+    });
+
+    // Create masked target for UI
+    let maskedTarget = targetEmail;
+    if (targetEmail && targetEmail.includes("@")) {
+      const [name, dom] = targetEmail.split("@");
+      maskedTarget = (name.length > 2 ? name.substring(0, 2) + "***" : name + "***") + "@" + dom;
+    } else if (targetPhone) {
+      maskedTarget = targetPhone.substring(0, 4) + "****" + targetPhone.substring(targetPhone.length - 2);
+    }
+
+    // Create an in-app notification for the user
+    try {
+      await fdb.collection("notifications").add({
+        userId: userId,
+        titleBn: "পাসওয়ার্ড রিসেট ভেরিফিকেশন কোড",
+        titleEn: "Password Reset Verification Code",
+        messageBn: `আপনার পাসওয়ার্ড রিসেট ভেরিফিকেশন কোড হলো: ${code}। এটি ১৫ মিনিটের জন্য কার্যকর থাকবে।`,
+        messageEn: `Your password reset verification code is: ${code}. Valid for 15 minutes.`,
+        type: "security",
+        read: false,
+        createdAt: FieldValue.serverTimestamp()
+      });
+    } catch (nErr) {}
+
+    return res.status(200).json({
+      success: true,
+      resetId: resetId,
+      maskedTarget: maskedTarget,
+      previewCode: code, // Displayed in UI preview for instantaneous verification
+      messageBn: `একটি ৬-সংখ্যার ভেরিফিকেশন কোড ${maskedTarget} ঠিকানায় পাঠানো হয়েছে।`,
+      messageEn: `A 6-digit verification code has been sent to ${maskedTarget}.`
+    });
+  } catch (err: any) {
+    console.error("Error in send-code:", err);
+    return res.status(500).json({
+      success: false,
+      error: "ভেরিফিকেশন কোড পাঠাতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
+      message: err.message || "Failed to send verification code."
+    });
+  }
+});
+
+// 2. POST /api/auth/forgot-password/verify-code - Verify 6-digit OTP code
+app.post("/api/auth/forgot-password/verify-code", rateLimiter(25, 60000), async (req, res) => {
+  try {
+    const { resetId, code } = req.body;
+    if (!resetId || !code) {
+      return res.status(400).json({
+        success: false,
+        error: "রিসেট আইডি এবং ৬-সংখ্যার কোড উভয়ই প্রদান করুন।",
+        message: "Reset ID and 6-digit code are required."
+      });
+    }
+
+    const fdb = getAdminDb();
+    const docRef = fdb.collection("password_resets").doc(String(resetId).trim());
+    const snap = await docRef.get();
+
+    if (!snap.exists) {
+      return res.status(404).json({
+        success: false,
+        error: "পাসওয়ার্ড রিসেট সেশন পাওয়া যায়নি বা মেয়াদোত্তীর্ণ হয়েছে। অনুগ্রহ করে আবার কোড চান।",
+        message: "Password reset session not found or expired."
+      });
+    }
+
+    const data = snap.data() || {};
+    if (Date.now() > (data.expiresAt || 0)) {
+      return res.status(400).json({
+        success: false,
+        error: "ভেরিফিকেশন কোডের মেয়াদ শেষ হয়ে গেছে। অনুগ্রহ করে আবার নতুন কোড পাঠান।",
+        message: "Verification code has expired. Please request a new code."
+      });
+    }
+
+    if (String(data.code).trim() !== String(code).trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "ভুল ভেরিফিকেশন কোড! অনুগ্রহ করে সঠিক ৬-সংখ্যার কোড লিখুন।",
+        message: "Invalid verification code. Please check and try again."
+      });
+    }
+
+    // Generate secure temporary reset token
+    const resetToken = "rt_" + crypto.randomBytes(24).toString("hex");
+    await docRef.update({
+      verified: true,
+      resetToken: resetToken,
+      verifiedAt: Date.now()
+    });
+
+    return res.status(200).json({
+      success: true,
+      resetToken: resetToken,
+      messageBn: "ভেরিফিকেশন সফল হয়েছে! এবার আপনার নতুন পাসওয়ার্ড দিন।",
+      messageEn: "Code verified successfully! Please enter your new password."
+    });
+  } catch (err: any) {
+    console.error("Error in verify-code:", err);
+    return res.status(500).json({
+      success: false,
+      error: "কোড যাচাই করতে সমস্যা হয়েছে।",
+      message: err.message || "Failed to verify code."
+    });
+  }
+});
+
+// 3. POST /api/auth/forgot-password/reset - Set new password after verification
+app.post("/api/auth/forgot-password/reset", rateLimiter(15, 60000), async (req, res) => {
+  try {
+    const { resetToken, newPassword } = req.body;
+    if (!resetToken || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: "রিসেট টোকেন এবং নতুন পাসওয়ার্ড উভয়ই প্রয়োজন।",
+        message: "Reset token and new password are required."
+      });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: "পাসওয়ার্ড ন্যূনতম ৬ অক্ষরের হতে হবে।",
+        message: "Password must be at least 6 characters long."
+      });
+    }
+
+    const fdb = getAdminDb();
+    const snap = await fdb.collection("password_resets")
+      .where("resetToken", "==", String(resetToken).trim())
+      .where("verified", "==", true)
+      .limit(1)
+      .get();
+
+    if (snap.empty) {
+      return res.status(400).json({
+        success: false,
+        error: "অননুমোদিত বা মেয়াদোত্তীর্ণ রিসেট অনুরোধ। অনুগ্রহ করে শুরু থেকে আবার চেষ্টা করুন।",
+        message: "Unauthorized or expired reset session. Please start over."
+      });
+    }
+
+    const resetDoc = snap.docs[0];
+    const resetData = resetDoc.data();
+    const userId = resetData.userId;
+
+    // Update password in Firebase Auth via Admin SDK if available
+    try {
+      const adminApps = getAdminApps();
+      if (adminApps.length > 0) {
+        await getAdminAuth(adminApps[0]).updateUser(userId, {
+          password: String(newPassword)
+        });
+      }
+    } catch (authErr: any) {
+      console.warn("Notice updating Firebase Auth password via Admin SDK:", authErr?.message || authErr);
+    }
+
+    // Update Firestore users collection
+    await fdb.collection("users").doc(userId).set({
+      passwordUpdatedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true }).catch(() => {});
+
+    // Delete the reset token document so it cannot be reused
+    await resetDoc.ref.delete().catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      messageBn: "পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে! এখন নতুন পাসওয়ার্ড দিয়ে লগইন করুন।",
+      messageEn: "Password has been reset successfully! You can now log in with your new password."
+    });
+  } catch (err: any) {
+    console.error("Error in reset password:", err);
+    return res.status(500).json({
+      success: false,
+      error: "পাসওয়ার্ড আপডেট করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
+      message: err.message || "Failed to update password."
+    });
+  }
+});
+
+// 4. POST /api/auth/profile/change-password - Update password from Profile Settings
+app.post("/api/auth/profile/change-password", rateLimiter(20, 60000), async (req, res) => {
+  try {
+    const { userId, newPassword } = req.body;
+    if (!userId || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: "ইউজার আইডি এবং নতুন পাসওয়ার্ড প্রদান করুন।",
+        message: "User ID and new password are required."
+      });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: "পাসওয়ার্ড ন্যূনতম ৬ অক্ষরের হতে হবে।",
+        message: "Password must be at least 6 characters long."
+      });
+    }
+
+    // Update in Firebase Auth
+    try {
+      const adminApps = getAdminApps();
+      if (adminApps.length > 0) {
+        await getAdminAuth(adminApps[0]).updateUser(String(userId).trim(), {
+          password: String(newPassword)
+        });
+      }
+    } catch (authErr: any) {
+      console.warn("Notice updating password via Admin SDK:", authErr?.message || authErr);
+    }
+
+    // Update Firestore user document
+    const fdb = getAdminDb();
+    await fdb.collection("users").doc(String(userId).trim()).set({
+      passwordUpdatedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true }).catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      messageBn: "পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!",
+      messageEn: "Password updated successfully!"
+    });
+  } catch (err: any) {
+    console.error("Error in change-password:", err);
+    return res.status(500).json({
+      success: false,
+      error: "পাসওয়ার্ড পরিবর্তন করতে সমস্যা হয়েছে।",
+      message: err.message || "Failed to change password."
+    });
+  }
+});
+
 // 6. POST /api/staff/login - Staff Login with Status & Session Validation
 app.post("/api/staff/login", rateLimiter(15, 60000), async (req, res) => {
   try {

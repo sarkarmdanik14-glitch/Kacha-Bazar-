@@ -11,7 +11,11 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   updateProfile,
-  sendEmailVerification
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential
 } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
@@ -110,7 +114,11 @@ export {
   runTransaction,
   arrayUnion,
   RecaptchaVerifier,
-  signInWithPhoneNumber
+  signInWithPhoneNumber,
+  sendPasswordResetEmail,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential
 };
 
 // Seeding function to populate categories, products, settings, and coupons if they are empty
