@@ -51,7 +51,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   });
 
   const isProductDeleted = (p: any) => {
-    return deletedProductIds.has(p.id) || p.isDeleted === true || p.status === "deleted" || p.status === "inactive_deleted" || p.deleted === true;
+    return deletedProductIds.has(p.id) || p.isDeleted === true || p.status === "deleted" || p.status === "inactive_deleted" || p.deleted === true || /^sn\d+$/i.test(p.id);
   };
 
   const handleDeleteSuccess = (deletedId: string) => {
@@ -835,10 +835,11 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       const isRestItem = isCategoryMatch(prodCategory, "restaurant") || prodCategory === "bakery-sweets" || prodCategory === "restaurant" || prodCategory === "রেস্টুরেন্ট";
       const isGroceryItem = isCategoryMatch(prodCategory, "groceries") || prodCategory === "groceries" || prodCategory === "মুদি পণ্য";
       const isDryFoodItem = isCategoryMatch(prodCategory, "frozen") || prodCategory === "frozen" || prodCategory === "dry-food" || prodCategory === "dryfood" || prodCategory === "ড্রাই ফুড";
+      const isConfectioneryItem = isCategoryMatch(prodCategory, "snacks-biscuits") || prodCategory === "snacks-biscuits" || prodCategory === "confectionery" || prodCategory === "কনফেকশনারি";
 
       const selectedSub = subcategories.find(s => s.id === prodSubcategoryId) ||
                           (isRestItem ? RESTAURANT_SUBCATEGORIES.find(s => s.id === prodSubcategoryId) : null);
-      const resolvedSubName = selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || (isRestItem ? "বিরিয়ানি, পোলাও ও রাইস" : (isDryFoodItem ? "ড্রাই ফুড" : "General")));
+      const resolvedSubName = selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || (isRestItem ? "বিরিয়ানি, পোলাও ও রাইস" : (isDryFoodItem ? "ড্রাই ফুড" : (isConfectioneryItem ? "চকলেট ও ক্যান্ডি" : "General"))));
       const resolvedSubId = prodSubcategoryId || (selectedSub ? selectedSub.id : "");
 
       const finalId = editingProduct ? (editingProduct.id || prodId) : (prodId || `prod_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`);
@@ -847,28 +848,30 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         ? "groceries" 
         : (isRestItem 
             ? "bakery-sweets" 
-            : (isDryFoodItem ? "frozen" : (normalizeCategoryId(prodCategory) || prodCategory)));
+            : (isDryFoodItem ? "frozen" : (isConfectioneryItem ? "snacks-biscuits" : (normalizeCategoryId(prodCategory) || prodCategory))));
 
       const resolvedCategoryName = isGroceryItem 
         ? "মুদি পণ্য" 
         : (isRestItem 
             ? "রেস্টুরেন্ট" 
-            : (isDryFoodItem ? "ড্রাই ফুড" : (prodCategory === "groceries" ? "মুদি পণ্য" : prodCategory)));
+            : (isDryFoodItem ? "ড্রাই ফুড" : (isConfectioneryItem ? "কনফেকশনারি" : (prodCategory === "groceries" ? "মুদি পণ্য" : prodCategory))));
 
       const payload: any = {
         id: finalId,
+        name: prodNameBn.trim(),
         nameEn: prodNameEn.trim(),
         nameBn: prodNameBn.trim(),
         price: Number(prodPrice) || 0,
         originalPrice: Number(prodOrigPrice) || Number(prodPrice) || 0,
-        unitEn: prodUnitEn.trim() || "1 kg",
-        unitBn: prodUnitBn.trim() || "১ কেজি",
+        unit: prodUnitBn.trim() || "১ পিছ",
+        unitEn: prodUnitEn.trim() || "1 pc",
+        unitBn: prodUnitBn.trim() || "১ পিছ",
         categoryId: resolvedCategoryId,
         subcategoryId: resolvedSubId,
         subCategoryId: resolvedSubId,
         category: resolvedCategoryName,
         categoryBn: resolvedCategoryName,
-        categoryEn: isDryFoodItem ? "Dry Food" : (isRestItem ? "Restaurant" : (isGroceryItem ? "Groceries" : prodNameEn)),
+        categoryEn: isDryFoodItem ? "Dry Food" : (isRestItem ? "Restaurant" : (isGroceryItem ? "Groceries" : (isConfectioneryItem ? "Confectionery" : prodNameEn))),
         subcategory: resolvedSubName,
         subCategory: resolvedSubName,
         stock: Number(prodStock) || 0,

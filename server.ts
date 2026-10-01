@@ -989,7 +989,7 @@ function getStaffFromSession(req: express.Request): { staffId: string; email: st
   const userEmail = ((req.headers["x-user-email"] as string) || "").trim().toLowerCase();
   const staffIdHeader = ((req.headers["x-staff-id"] as string) || "").trim().toUpperCase();
 
-  if (userEmail === "sarkarmdanik14@gmail.com" || userEmail === "grphics949@gmail.com") {
+  if (userEmail === "sarkarmdanik14@gmail.com" || userEmail === "grphics949@gmail.com" || userEmail === "kachabazar369@gmail.com") {
     return {
       staffId: "CFI-KB-001",
       email: userEmail,
@@ -1116,7 +1116,7 @@ async function verifyFirebaseTokenAuth(req: express.Request): Promise<{ staffId:
       (uid && s.id === uid)
     );
 
-    if (!staff && (email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com")) {
+    if (!staff && (email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com")) {
       staff = staffList.find(s => s.role === "super_admin" || s.isSuperAdmin);
       if (!staff) {
         return {
@@ -2902,27 +2902,36 @@ app.post("/api/products/upsert", rateLimiter(60, 60000), requireStaffAuth, async
       rawCategory === "ড্রাইফুড" ||
       rawCategory.includes("ড্রাই ফুড");
 
+    const isConfectionery = 
+      rawCategory === "snacks-biscuits" ||
+      rawCategory === "confectionery" ||
+      rawCategory === "কনফেকশনারি" ||
+      rawCategory === "কনফেকশনারী" ||
+      rawCategory.includes("কনফেকশনারি");
+
     const resolvedCategory = isGrocery 
       ? "মুদি পণ্য" 
-      : (isDryFood ? "ড্রাই ফুড" : (product.category || "groceries"));
+      : (isDryFood ? "ড্রাই ফুড" : (isConfectionery ? "কনফেকশনারি" : (product.category || "groceries")));
     const resolvedCategoryId = isGrocery 
       ? "groceries" 
-      : (isDryFood ? "frozen" : (product.categoryId || product.category || "groceries"));
+      : (isDryFood ? "frozen" : (isConfectionery ? "snacks-biscuits" : (product.categoryId || product.category || "groceries")));
     const resolvedImg = (product.image || product.imageUrl || "").toString().trim() || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80";
 
     const payload: any = {
       ...product,
       id: prodId,
+      name: (product.name || product.nameBn || "").toString().trim(),
       nameEn: (product.nameEn || "").toString().trim(),
-      nameBn: (product.nameBn || "").toString().trim(),
+      nameBn: (product.nameBn || product.name || "").toString().trim(),
       price: Number(product.price) || 0,
       originalPrice: Number(product.originalPrice) || Number(product.price) || 0,
-      unitEn: product.unitEn || "1 kg",
-      unitBn: product.unitBn || "১ কেজি",
+      unit: product.unit || product.unitBn || "১ পিছ",
+      unitEn: product.unitEn || "1 pc",
+      unitBn: product.unitBn || product.unit || "১ পিছ",
       category: resolvedCategory,
       categoryId: resolvedCategoryId,
       categoryBn: resolvedCategory,
-      categoryEn: isDryFood ? "Dry Food" : (isGrocery ? "Groceries" : (product.categoryEn || product.nameEn)),
+      categoryEn: isDryFood ? "Dry Food" : (isGrocery ? "Groceries" : (isConfectionery ? "Confectionery" : (product.categoryEn || product.nameEn))),
       subcategory: product.subcategory || product.subCategory || (isDryFood ? "ড্রাই ফুড" : "General"),
       subCategory: product.subCategory || product.subcategory || (isDryFood ? "ড্রাই ফুড" : "General"),
       subcategoryId: product.subcategoryId || product.subCategoryId || "",

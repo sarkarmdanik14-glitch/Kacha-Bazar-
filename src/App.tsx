@@ -13,7 +13,7 @@ import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, Subcategory, CartItem, Review, ProductOption } from "./types";
-import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
+import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_PRODUCTS_RAW, CONFECTIONERY_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
 import { resolveProductDisplayUnit } from "./lib/productWeightUtils";
 import { subscribeToAllSubcategories } from "./lib/subcategoryService";
 import { 
@@ -738,6 +738,11 @@ export default function App() {
             return;
           }
 
+          // Completely remove legacy confectionery seed items (sn1..sn30)
+          if (/^sn\d+$/i.test(doc.id)) {
+            return;
+          }
+
           // Completely remove ALL old/legacy products under "কসমেটিকস ও বিউটি কর্নার" except new cos items
           const isLegacyCosmetics = 
             (data.category === "personal-care" || data.category === "cosmetics" || data.category === "beauty" || data.category === "beauty-cosmetics") &&
@@ -770,6 +775,14 @@ export default function App() {
           if (!existingIds.has(cp.id) && !savedDeleted.has(cp.id)) {
             items.push(cp);
             existingIds.add(cp.id);
+          }
+        }
+
+        // Ensure all new confectionery products are present in items list
+        for (const conf of CONFECTIONERY_PRODUCTS_RAW) {
+          if (!existingIds.has(conf.id) && !savedDeleted.has(conf.id)) {
+            items.push(conf);
+            existingIds.add(conf.id);
           }
         }
 

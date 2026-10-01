@@ -95,7 +95,12 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
   { categoryId: "frozen", nameBn: "নুডলস, পাস্তা ও সুপ", nameEn: "Noodles, Pasta & Soup", order: 4, isActive: true },
   { categoryId: "frozen", nameBn: "চানাচুর, চিপস ও স্ন্যাক্স", nameEn: "Chanachur, Chips & Snacks", order: 5, isActive: true },
   { categoryId: "frozen", nameBn: "চা ও কফি", nameEn: "Tea & Coffee", order: 6, isActive: true },
-  { categoryId: "frozen", nameBn: "অন্যান্য ড্রাই ফুড", nameEn: "Other Dry Food", order: 7, isActive: true }
+  { categoryId: "frozen", nameBn: "অন্যান্য ড্রাই ফুড", nameEn: "Other Dry Food", order: 7, isActive: true },
+
+  // 12. Confectionery (কনফেকশনারি)
+  { categoryId: "snacks-biscuits", nameBn: "চকলেট ও ক্যান্ডি", nameEn: "Chocolates & Candies", order: 1, isActive: true },
+  { categoryId: "snacks-biscuits", nameBn: "বিস্কুট ও কুকিজ", nameEn: "Biscuits & Cookies", order: 2, isActive: true },
+  { categoryId: "snacks-biscuits", nameBn: "কেক, বান ও পাউরুটি", nameEn: "Cakes, Buns & Bread", order: 3, isActive: true }
 ];
 
 /**
@@ -111,7 +116,15 @@ export async function getSubcategoriesForCategory(categoryId: string): Promise<S
     categoryId === "dry food" || 
     categoryId === "ড্রাই ফুড" || 
     categoryId === "ড্রাইফুড"
-  ) ? "frozen" : categoryId;
+  ) ? "frozen" : (
+    (
+      categoryId === "confectionery" ||
+      categoryId === "confectionary" ||
+      categoryId === "bakery" ||
+      categoryId === "কনফেকশনারি" ||
+      categoryId === "কনফেকশনারী"
+    ) ? "snacks-biscuits" : categoryId
+  );
   try {
     const q = query(
       collection(db, "subcategories"),
