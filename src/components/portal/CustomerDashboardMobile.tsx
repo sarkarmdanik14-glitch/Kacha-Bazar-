@@ -29,12 +29,17 @@ import {
   Zap,
   CheckCircle2,
   Eye,
+  EyeOff,
+  Lock,
+  Key,
+  AlertCircle,
   RefreshCw
 } from "lucide-react";
 import QRCode from "qrcode";
 import { db, doc, setDoc, serverTimestamp, onSnapshot } from "../../lib/firebase";
 import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from "../../lib/memberIdUtils";
 import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
+import { apiClient } from "../../lib/apiClient";
 
 export interface CustomerDashboardProps {
   initialUser?: {
@@ -244,14 +249,23 @@ export default function CustomerDashboardMobile({
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
   const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
   const [showProfileEditModal, setShowProfileEditModal] = useState<boolean>(false);
-  const [profileModalTab, setProfileModalTab] = useState<"all" | "verification" | "profile">("all");
+  const [profileModalTab, setProfileModalTab] = useState<"all" | "verification" | "profile" | "security">("all");
   const verificationSectionRef = useRef<HTMLDivElement>(null);
+  const securitySectionRef = useRef<HTMLDivElement>(null);
 
   const handleOpenVerificationSection = () => {
     setProfileModalTab("verification");
     setShowProfileEditModal(true);
     setTimeout(() => {
       verificationSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  };
+
+  const handleOpenSecuritySection = () => {
+    setProfileModalTab("security");
+    setShowProfileEditModal(true);
+    setTimeout(() => {
+      securitySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 150);
   };
   const [showMembershipModal, setShowMembershipModal] = useState<boolean>(false);
@@ -267,6 +281,151 @@ export default function CustomerDashboardMobile({
   const [phoneOtpSent, setPhoneOtpSent] = useState<boolean>(false);
   const [phoneOtpCode, setPhoneOtpCode] = useState<string>("");
   const [genPhoneOtp, setGenPhoneOtp] = useState<string>("");
+
+  // Security & Password Reset states in Profile Settings
+  const [newPasswordInput, setNewPasswordInput] = useState<string>("");
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState<string>("");
+  const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false);
+
+  // OTP Verification for Password Reset
+  const [securityOtpSent, setSecurityOtpSent] = useState<boolean>(false);
+  const [securityOtpCode, setSecurityOtpCode] = useState<string>("");
+  const [securityResetId, setSecurityResetId] = useState<string>("");
+  const [securityResetToken, setSecurityResetToken] = useState<string>("");
+  const [securityPreviewCode, setSecurityPreviewCode] = useState<string>("");
+  const [securityTimer, setSecurityTimer] = useState<number>(0);
+  const [isSendingSecurityOtp, setIsSendingSecurityOtp] = useState<boolean>(false);
+  const [isVerifyingSecurityOtp, setIsVerifyingSecurityOtp] = useState<boolean>(false);
+  const [securityError, setSecurityError] = useState<string>("");
+  const [securitySuccess, setSecuritySuccess] = useState<string>("");
+
+  useEffect(() => {
+    let interval: any = null;
+    if (securityTimer > 0) {
+      interval = setInterval(() => {
+        setSecurityTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [securityTimer]);
+
+  const handleSendSecurityOtp = async () => {
+    const targetIdentifier = email || phone || initialUser?.email || initialUser?.phone || "";
+    if (!targetIdentifier) {
+      setSecurityError("অনুগ্রহ করে আগে আপনার প্রোফাইলে একটি ইমেইল বা ফোন নম্বর দিন।");
+      return;
+    }
+
+    setIsSendingSecurityOtp(true);
+    setSecurityError("");
+    setSecuritySuccess("");
+
+    try {
+      const res = await apiClient.post<any>("/api/auth/forgot-password/send-code", {
+        identifier: targetIdentifier
+      });
+
+      if (res && res.success) {
+        setSecurityResetId(res.resetId);
+        setSecurityPreviewCode(res.previewCode || "");
+        setSecurityOtpSent(true);
+        setSecurityTimer(60);
+        setSecuritySuccess(res.messageBn || "ভেরিফিকেশন কোড পাঠানো হয়েছে!");
+        triggerToast("ভেরিফিকেশন কোড পাঠানো হয়েছে!");
+      } else {
+        throw new Error(res?.error || res?.message || "কোড পাঠাতে ব্যর্থ হয়েছে");
+      }
+    } catch (err: any) {
+      setSecurityError(err?.message || "কোড পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
+    } finally {
+      setIsSendingSecurityOtp(false);
+    }
+  };
+
+  const handleVerifySecurityOtp = async () => {
+    const code = securityOtpCode.trim();
+    if (code.length < 6) {
+      setSecurityError("অনুগ্রহ করে সম্পূর্ণ ৬-সংখ্যার কোড লিখুন।");
+      return;
+    }
+
+    setIsVerifyingSecurityOtp(true);
+    setSecurityError("");
+    setSecuritySuccess("");
+
+    try {
+      const res = await apiClient.post<any>("/api/auth/forgot-password/verify-code", {
+        resetId: securityResetId,
+        code: code
+      });
+
+      if (res && res.success && res.resetToken) {
+        setSecurityResetToken(res.resetToken);
+        setSecuritySuccess("কোড সফলভাবে যাচাই হয়েছে! এবার নতুন পাসওয়ার্ড সেট করুন।");
+        triggerToast("কোড সফলভাবে যাচাই হয়েছে!");
+      } else {
+        throw new Error(res?.error || res?.message || "কোড যাচাই ব্যর্থ হয়েছে");
+      }
+    } catch (err: any) {
+      setSecurityError(err?.message || "ভুল ভেরিফিকেশন কোড! অনুগ্রহ করে আবার চেষ্টা করুন।");
+    } finally {
+      setIsVerifyingSecurityOtp(false);
+    }
+  };
+
+  const handleUpdateSecurityPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPasswordInput || newPasswordInput.length < 6) {
+      setSecurityError("পাসওয়ার্ড ন্যূনতম ৬ অক্ষরের হতে হবে।");
+      return;
+    }
+    if (newPasswordInput !== confirmPasswordInput) {
+      setSecurityError("নতুন পাসওয়ার্ড দুটি মিলছে না! অনুগ্রহ করে মিলিয়ে লিখুন।");
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    setSecurityError("");
+    setSecuritySuccess("");
+
+    try {
+      if (securityResetToken) {
+        const res = await apiClient.post<any>("/api/auth/forgot-password/reset", {
+          resetToken: securityResetToken,
+          newPassword: newPasswordInput
+        });
+        if (!res || !res.success) {
+          throw new Error(res?.error || res?.message || "পাসওয়ার্ড রিসেট ব্যর্থ হয়েছে");
+        }
+      } else {
+        const uId = initialUser.uid || initialUser.id || customerId;
+        const res = await apiClient.post<any>("/api/auth/profile/change-password", {
+          userId: uId,
+          newPassword: newPasswordInput
+        });
+        if (!res || !res.success) {
+          throw new Error(res?.error || res?.message || "পাসওয়ার্ড আপডেট ব্যর্থ হয়েছে");
+        }
+      }
+
+      setSecuritySuccess("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!");
+      triggerToast("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!");
+      setNewPasswordInput("");
+      setConfirmPasswordInput("");
+      setSecurityOtpSent(false);
+      setSecurityOtpCode("");
+      setSecurityResetToken("");
+      setSecurityResetId("");
+    } catch (err: any) {
+      setSecurityError(err?.message || "পাসওয়ার্ড পরিবর্তন করতে সমস্যা হয়েছে।");
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
 
   const isFullyVerified = Boolean(emailVerifiedLocal && phoneVerifiedLocal);
 
@@ -1070,6 +1229,23 @@ export default function CustomerDashboardMobile({
                 <User className="w-3.5 h-3.5" />
                 <span>ব্যক্তিগত তথ্য</span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileModalTab("security");
+                  setTimeout(() => {
+                    securitySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }, 100);
+                }}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer ${
+                  profileModalTab === "security"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-emerald-700"
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>নিরাপত্তা</span>
+              </button>
             </div>
 
             {(profileModalTab === "all" || profileModalTab === "profile") && (
@@ -1370,6 +1546,231 @@ export default function CustomerDashboardMobile({
                 </div>
               </div>
             </div>
+            )}
+
+            {/* SECTION: পাসওয়ার্ড পরিবর্তন ও নিরাপত্তা (Change Password & Security) */}
+            {(profileModalTab === "all" || profileModalTab === "security") && (
+              <div ref={securitySectionRef} className="pt-3 border-t border-gray-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                      <Lock className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-slate-800">
+                        পাসওয়ার্ড পরিবর্তন ও নিরাপত্তা
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        ৬-সংখ্যার ওটিপি যাচাইকরণের মাধ্যমে নতুন পাসওয়ার্ড সেট করুন
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    নিরাপদ যাচাই
+                  </span>
+                </div>
+
+                {securityError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl p-2.5 flex items-start space-x-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{securityError}</span>
+                  </div>
+                )}
+
+                {securitySuccess && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl p-2.5 flex items-start space-x-2">
+                    <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+                    <span>{securitySuccess}</span>
+                  </div>
+                )}
+
+                {/* Step 1: Send & Verify OTP if not yet verified */}
+                {!securityResetToken ? (
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 space-y-2.5">
+                    <div className="flex items-start space-x-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <Key className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1">
+                        <h5 className="text-[11px] font-bold text-slate-800">
+                          ধাপ ১: ওটিপি কোড যাচাইকরণ
+                        </h5>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          পাসওয়ার্ড পরিবর্তনের পূর্বে আপনার পরিচয় নিশ্চিত করতে নিবন্ধিত অ্যাকাউন্টে ৬-সংখ্যার কোড পাঠানো হবে।
+                        </p>
+                        <p className="text-[10px] font-mono text-emerald-700 font-bold mt-1 truncate">
+                          {email || phone || initialUser?.email || initialUser?.phone || "Registered Account"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {!securityOtpSent ? (
+                      <button
+                        type="button"
+                        onClick={handleSendSecurityOtp}
+                        disabled={isSendingSecurityOtp}
+                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {isSendingSecurityOtp ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>কোড পাঠানো হচ্ছে...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Key className="w-3.5 h-3.5" />
+                            <span>ভেরিফিকেশন কোড পাঠান</span>
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <div className="space-y-2.5 pt-2 border-t border-slate-200">
+                        {securityPreviewCode && (
+                          <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-2 rounded-xl text-xs flex items-center justify-between shadow-2xs">
+                            <div>
+                              <span className="text-[9px] text-emerald-700 font-bold uppercase tracking-wider block">
+                                ভেরিফিকেশন ওটিপি কোড
+                              </span>
+                              <strong className="font-mono text-xs font-black tracking-widest text-emerald-950">
+                                {securityPreviewCode}
+                              </strong>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSecurityOtpCode(securityPreviewCode)}
+                              className="text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-0.5 rounded-lg cursor-pointer transition shadow-2xs"
+                            >
+                              অটো-ফিল কোড
+                            </button>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                            ৬-সংখ্যার কোডটি লিখুন:
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              maxLength={6}
+                              value={securityOtpCode}
+                              onChange={(e) => setSecurityOtpCode(e.target.value.replace(/\D/g, ""))}
+                              placeholder="• • • • • •"
+                              className="flex-1 bg-white border border-slate-300 focus:border-emerald-500 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold tracking-widest text-slate-800 outline-none text-center"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleVerifySecurityOtp}
+                              disabled={isVerifyingSecurityOtp || securityOtpCode.length < 6}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 shrink-0 cursor-pointer disabled:opacity-50 shadow-xs"
+                            >
+                              {isVerifyingSecurityOtp && <RefreshCw className="w-3 h-3 animate-spin" />}
+                              <span>যাচাই করুন</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[10px] text-slate-400">
+                          {securityTimer > 0 ? (
+                            <span>পুনরায় কোড: {securityTimer} সে.</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleSendSecurityOtp}
+                              className="text-emerald-600 hover:underline font-bold cursor-pointer"
+                            >
+                              কোড পাননি? পুনরায় পাঠান
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Step 2: Set New Password Form */
+                  <form onSubmit={handleUpdateSecurityPassword} className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 space-y-3">
+                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1.5 rounded-lg text-[11px] font-bold">
+                      <div className="flex items-center space-x-1.5">
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>ওটিপি সফলভাবে যাচাই হয়েছে ✓</span>
+                      </div>
+                      <span className="text-[9px] uppercase font-mono font-bold text-emerald-700">ধাপ ২ / ২</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                        নতুন পাসওয়ার্ড দিন
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          required
+                          placeholder="••••••••"
+                          value={newPasswordInput}
+                          onChange={(e) => setNewPasswordInput(e.target.value)}
+                          className="w-full bg-white border border-slate-300 focus:border-emerald-500 rounded-xl pl-3 pr-9 py-1.5 text-xs text-slate-800 outline-none transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword((prev) => !prev)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                          tabIndex={-1}
+                          title={showNewPassword ? "লুকান" : "দেখুন"}
+                        >
+                          {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                        নতুন পাসওয়ার্ড নিশ্চিত করুন
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          required
+                          placeholder="••••••••"
+                          value={confirmPasswordInput}
+                          onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                          className="w-full bg-white border border-slate-300 focus:border-emerald-500 rounded-xl pl-3 pr-9 py-1.5 text-xs text-slate-800 outline-none transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword((prev) => !prev)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                          tabIndex={-1}
+                          title={showConfirmPassword ? "লুকান" : "দেখুন"}
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-[9px] text-slate-400">
+                      পাসওয়ার্ড ন্যূনতম ৬ অক্ষরের হতে হবে।
+                    </p>
+
+                    <button
+                      type="submit"
+                      disabled={isUpdatingPassword || !newPasswordInput || !confirmPasswordInput}
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {isUpdatingPassword ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>পাসওয়ার্ড সংরক্ষণ হচ্ছে...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>নতুন পাসওয়ার্ড সংরক্ষণ করুন</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </div>
             )}
           </div>
         </div>

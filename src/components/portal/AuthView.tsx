@@ -1488,7 +1488,10 @@ export default function AuthView({
                 </button>
               </div>
               {isLogin && (
-                <div className="flex justify-end mt-1.5">
+                <div className="flex items-center justify-between mt-2 px-1">
+                  <span className="text-[11px] text-slate-400">
+                    {getTranslation("পাসওয়ার্ড মনে নেই?", "Can't remember password?")}
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
@@ -1498,9 +1501,10 @@ export default function AuthView({
                       setError("");
                       setSuccessMsg("");
                     }}
-                    className="text-[11px] font-medium text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer transition"
+                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer transition inline-flex items-center gap-1"
                   >
-                    {getTranslation("পাসওয়ার্ড রিসেট করুন", "Reset your password")}
+                    <Key className="w-3 h-3 text-emerald-500" />
+                    <span>{getTranslation("পাসওয়ার্ড ভুলে গেছেন? রিসেট করুন", "Forgot Password? Reset")}</span>
                   </button>
                 </div>
               )}

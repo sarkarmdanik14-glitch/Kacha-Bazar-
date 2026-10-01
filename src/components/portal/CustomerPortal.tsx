@@ -3067,7 +3067,233 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             </div>
             )}
 
-            {/* Modal Bottom Close Button */}
+            {/* SECTION 4: পাসওয়ার্ড পরিবর্তন ও নিরাপত্তা (Change Password & Security) */}
+            {(profileModalTab === "all" || profileModalTab === "security") && (
+              <div ref={securitySectionRef} className="pt-5 border-t border-gray-100 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-slate-800">
+                        {getTranslation("পাসওয়ার্ড পরিবর্তন ও নিরাপত্তা", "Change Password & Security")}
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        {getTranslation("৬-সংখ্যার ওটিপি যাচাইকরণের মাধ্যমে নতুন পাসওয়ার্ড সেট করুন", "Reset or update your password with secure OTP verification")}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    {getTranslation("নিরাপদ যাচাই", "Secure Reset")}
+                  </span>
+                </div>
+
+                {securityError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl p-3 flex items-start space-x-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{securityError}</span>
+                  </div>
+                )}
+
+                {securitySuccess && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl p-3 flex items-start space-x-2">
+                    <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+                    <span>{securitySuccess}</span>
+                  </div>
+                )}
+
+                {/* Step 1: Send & Verify OTP if not yet verified */}
+                {!securityResetToken ? (
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <Key className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1">
+                        <h5 className="text-xs font-bold text-slate-800">
+                          {getTranslation("ধাপ ১: ওটিপি কোড যাচাইকরণ", "Step 1: OTP Code Verification")}
+                        </h5>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {getTranslation(
+                            "পাসওয়ার্ড পরিবর্তনের পূর্বে আপনার পরিচয় নিশ্চিত করতে নিবন্ধিত ইমেইল বা নম্বরে ৬-সংখ্যার কোড পাঠানো হবে।",
+                            "To verify your identity before changing password, a 6-digit code will be sent to your registered account."
+                          )}
+                        </p>
+                        <p className="text-[11px] font-mono text-emerald-700 font-bold mt-1">
+                          {emailInput || dbUser?.email || user?.email || phoneInput || dbUser?.phone || user?.phone || "Registered Account"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {!securityOtpSent ? (
+                      <button
+                        type="button"
+                        onClick={handleSendSecurityOtp}
+                        disabled={isSendingSecurityOtp}
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                      >
+                        {isSendingSecurityOtp ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>{getTranslation("কোড পাঠানো হচ্ছে...", "Sending Code...")}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Key className="w-4 h-4" />
+                            <span>{getTranslation("ভেরিফিকেশন কোড পাঠান", "Send Verification Code")}</span>
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <div className="space-y-3 pt-2 border-t border-slate-200">
+                        {securityPreviewCode && (
+                          <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-2.5 rounded-xl text-xs flex items-center justify-between shadow-2xs">
+                            <div>
+                              <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider block">
+                                {getTranslation("ভেরিফিকেশন ওটিপি কোড", "Verification OTP Code")}
+                              </span>
+                              <strong className="font-mono text-sm font-black tracking-widest text-emerald-950">
+                                {securityPreviewCode}
+                              </strong>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSecurityOtpCode(securityPreviewCode)}
+                              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg cursor-pointer transition shadow-2xs"
+                            >
+                              {getTranslation("অটো-ফিল কোড", "Auto Fill")}
+                            </button>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                            {getTranslation("৬-সংখ্যার কোডটি লিখুন:", "Enter the 6-digit verification code:")}
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              maxLength={6}
+                              value={securityOtpCode}
+                              onChange={(e) => setSecurityOtpCode(e.target.value.replace(/\D/g, ""))}
+                              placeholder="• • • • • •"
+                              className="flex-1 bg-white border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-2 text-sm font-mono font-bold tracking-widest text-slate-800 outline-none text-center"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleVerifySecurityOtp}
+                              disabled={isVerifyingSecurityOtp || securityOtpCode.length < 6}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-black transition flex items-center space-x-1 shrink-0 cursor-pointer disabled:opacity-50 shadow-xs"
+                            >
+                              {isVerifyingSecurityOtp && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                              <span>{getTranslation("যাচাই করুন", "Verify OTP")}</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          {securityTimer > 0 ? (
+                            <span>{getTranslation(`পুনরায় কোড: ${securityTimer} সে.`, `Resend in: ${securityTimer}s`)}</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleSendSecurityOtp}
+                              className="text-emerald-600 hover:underline font-bold cursor-pointer"
+                            >
+                              {getTranslation("কোড পাননি? পুনরায় পাঠান", "Didn't receive code? Resend")}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Step 2: Set New Password Form */
+                  <form onSubmit={handleUpdateSecurityPassword} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3.5">
+                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-2 rounded-xl text-xs font-bold">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>{getTranslation("ওটিপি সফলভাবে যাচাই হয়েছে ✓", "OTP Verified Successfully ✓")}</span>
+                      </div>
+                      <span className="text-[10px] uppercase font-mono font-bold text-emerald-700">Step 2 / 2</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        {getTranslation("নতুন পাসওয়ার্ড দিন", "Set New Password")}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          required
+                          placeholder="••••••••"
+                          value={newPasswordInput}
+                          onChange={(e) => setNewPasswordInput(e.target.value)}
+                          className="w-full bg-white border border-slate-300 focus:border-emerald-500 rounded-xl pl-3 pr-10 py-2 text-xs text-slate-800 outline-none transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword((prev) => !prev)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                          tabIndex={-1}
+                          title={showNewPassword ? getTranslation("পাসওয়ার্ড লুকান", "Hide") : getTranslation("পাসওয়ার্ড দেখুন", "Show")}
+                        >
+                          {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        {getTranslation("পাসওয়ার্ড নিশ্চিত করুন", "Confirm Password")}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          required
+                          placeholder="••••••••"
+                          value={confirmPasswordInput}
+                          onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                          className="w-full bg-white border border-slate-300 focus:border-emerald-500 rounded-xl pl-3 pr-10 py-2 text-xs text-slate-800 outline-none transition"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword((prev) => !prev)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                          tabIndex={-1}
+                          title={showConfirmPassword ? getTranslation("পাসওয়ার্ড লুকান", "Hide") : getTranslation("পাসওয়ার্ড দেখুন", "Show")}
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400">
+                      {getTranslation("পাসওয়ার্ড ন্যূনতম ৬ অক্ষরের হতে হবে।", "Password must be at least 6 characters long.")}
+                    </p>
+
+                    <button
+                      type="submit"
+                      disabled={isUpdatingPassword || !newPasswordInput || !confirmPasswordInput}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {isUpdatingPassword ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>{getTranslation("পাসওয়ার্ড সংরক্ষণ হচ্ছে...", "Saving Password...")}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>{getTranslation("নতুন পাসওয়ার্ড সংরক্ষণ করুন", "Save New Password")}</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
             <div className="pt-2">
               <button
                 type="button"
