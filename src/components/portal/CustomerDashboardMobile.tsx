@@ -426,13 +426,13 @@ export default function CustomerDashboardMobile({
 
     setIsSendingPhoneOtp(true);
     try {
-      let recaptchaContainer = document.getElementById("mobile-phone-verify-recaptcha");
-      if (!recaptchaContainer) {
-        recaptchaContainer = document.createElement("div");
-        recaptchaContainer.id = "mobile-phone-verify-recaptcha";
-        document.body.appendChild(recaptchaContainer);
+      // 1. Reset any previous verifier instance
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {}
+        window.recaptchaVerifier = undefined;
       }
-
       if ((window as any).mobilePhoneVerifyRecaptchaVerifier) {
         try {
           (window as any).mobilePhoneVerifyRecaptchaVerifier.clear();
@@ -440,15 +440,35 @@ export default function CustomerDashboardMobile({
         (window as any).mobilePhoneVerifyRecaptchaVerifier = null;
       }
 
-      const appVerifier = new RecaptchaVerifier(auth, "mobile-phone-verify-recaptcha", {
+      // 2. Ensure target element exists for invisible binding
+      let targetButton = document.getElementById("mobile-phone-verify-button");
+      if (!targetButton) {
+        const fallbackContainer = document.createElement("div");
+        fallbackContainer.id = "mobile-phone-verify-button";
+        fallbackContainer.style.display = "none";
+        document.body.appendChild(fallbackContainer);
+      }
+
+      // 3. Configure invisible RecaptchaVerifier
+      const appVerifier = new RecaptchaVerifier(auth, "mobile-phone-verify-button", {
         size: "invisible",
-        callback: () => {},
+        callback: () => {
+          // reCAPTCHA solved silently in the background
+        },
         "expired-callback": () => {
-          triggerToast("ক্যাপচা মেয়াদ উত্তীর্ণ হয়েছে। আবার চেষ্টা করুন।");
+          if (window.recaptchaVerifier) {
+            try {
+              window.recaptchaVerifier.clear();
+            } catch (e) {}
+            window.recaptchaVerifier = undefined;
+          }
+          triggerToast("ক্যাপচা মেয়াদ উত্তীর্ণ হয়েছে। অনুগ্রহ করে আবার ওটিপি পাঠান।");
         }
       });
+      window.recaptchaVerifier = appVerifier;
       (window as any).mobilePhoneVerifyRecaptchaVerifier = appVerifier;
 
+      // 4. Trigger signInWithPhoneNumber silently in the background
       const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
       setPhoneConfirmationResult(confirmation);
       setPhoneOtpSent(true);
@@ -456,17 +476,34 @@ export default function CustomerDashboardMobile({
       triggerToast(`${rawPhone} নম্বরে একটি ওটিপি কোড পাঠানো হয়েছে।`);
     } catch (err: any) {
       console.error("Mobile Firebase Phone Auth error:", err);
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {}
+        window.recaptchaVerifier = undefined;
+      }
+      if ((window as any).mobilePhoneVerifyRecaptchaVerifier) {
+        try {
+          (window as any).mobilePhoneVerifyRecaptchaVerifier.clear();
+        } catch (e) {}
+        (window as any).mobilePhoneVerifyRecaptchaVerifier = null;
+      }
+
       let errorMsg = "এসএমএস ওটিপি পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।";
 
       if (err?.code === "auth/unauthorized-domain" || err?.message?.includes("unauthorized-domain")) {
         const domain = typeof window !== "undefined" ? window.location.hostname : "localhost";
-        errorMsg = `ডোমেইনটি অনুমোদিত নয় (${domain})। Firebase Console-এ যোগ করুন।`;
-      } else if (err?.code === "auth/quota-exceeded") {
+        errorMsg = `ডোমেইনটি অনুমোদিত নয় (${domain})। Firebase Console → Authentication → Settings → Authorized domains-এ যোগ করুন।`;
+      } else if (err?.code === "auth/quota-exceeded" || err?.message?.includes("quota")) {
         errorMsg = "এসএমএস কোটার দৈনিক লিমিট শেষ হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।";
       } else if (err?.code === "auth/invalid-phone-number") {
-        errorMsg = "মোবাইল নম্বরটি সঠিক নয়। অনুগ্রহ করে সঠিক ১১ ডিজিটের নম্বর দিন।";
+        errorMsg = "মোবাইল নম্বরটি সঠিক নয়। অনুগ্রহ করে সঠিক ১১ ডিজিটের নম্বর দিন (যেমন: 017XXXXXXXX)।";
       } else if (err?.code === "auth/too-many-requests") {
-        errorMsg = "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন।";
+        errorMsg = "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
+      } else if (err?.code === "auth/captcha-check-failed") {
+        errorMsg = "reCAPTCHA ভেরিফিকেশন সম্পন্ন হতে পারেনি। অনুগ্রহ করে আবার চেষ্টা করুন।";
+      } else if (err?.code === "auth/network-request-failed") {
+        errorMsg = "নেটওয়ার্ক সংযোগ ত্রুটি। ইন্টারনেট সংযোগ পরীক্ষা করুন।";
       } else if (err?.message) {
         errorMsg = `এসএমএস পাঠাতে ব্যর্থ: ${err.message}`;
       }
@@ -1723,6 +1760,7 @@ export default function CustomerDashboardMobile({
                   <div className="pt-1.5 border-t border-slate-200 space-y-2">
                     {!phoneOtpSent ? (
                       <button
+                        id="mobile-phone-verify-button"
                         type="button"
                         onClick={handleSendPhoneOtp}
                         disabled={isSendingPhoneOtp || phoneOtpCooldown > 0}
@@ -1732,7 +1770,7 @@ export default function CustomerDashboardMobile({
                         <span>
                           {phoneOtpCooldown > 0
                             ? `পুনরায় পাঠান (${phoneOtpCooldown} সে.)`
-                            : "SMS OTP পাঠান"}
+                            : "ওটিপি পাঠান / ভেরিফাই করুন"}
                         </span>
                       </button>
                     ) : (

@@ -1061,15 +1061,13 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
     setIsSendingPhoneOtp(true);
     try {
-      // Ensure recaptcha container element exists in DOM
-      let recaptchaContainer = document.getElementById("phone-verify-recaptcha");
-      if (!recaptchaContainer) {
-        recaptchaContainer = document.createElement("div");
-        recaptchaContainer.id = "phone-verify-recaptcha";
-        document.body.appendChild(recaptchaContainer);
+      // 1. Reset any previous verifier instance to prevent reCAPTCHA rendering conflicts
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {}
+        window.recaptchaVerifier = undefined;
       }
-
-      // Clear previous verifier instance to prevent reCAPTCHA rendering conflicts
       if ((window as any).phoneVerifyRecaptchaVerifier) {
         try {
           (window as any).phoneVerifyRecaptchaVerifier.clear();
@@ -1077,18 +1075,38 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         (window as any).phoneVerifyRecaptchaVerifier = null;
       }
 
-      const appVerifier = new RecaptchaVerifier(auth, "phone-verify-recaptcha", {
+      // 2. Ensure target element exists for invisible binding
+      let targetButton = document.getElementById("phone-verify-button");
+      if (!targetButton) {
+        const fallbackContainer = document.createElement("div");
+        fallbackContainer.id = "phone-verify-button";
+        fallbackContainer.style.display = "none";
+        document.body.appendChild(fallbackContainer);
+      }
+
+      // 3. Configure invisible RecaptchaVerifier
+      const appVerifier = new RecaptchaVerifier(auth, "phone-verify-button", {
         size: "invisible",
-        callback: () => {},
+        callback: () => {
+          // reCAPTCHA solved silently in the background
+        },
         "expired-callback": () => {
+          if (window.recaptchaVerifier) {
+            try {
+              window.recaptchaVerifier.clear();
+            } catch (e) {}
+            window.recaptchaVerifier = undefined;
+          }
           triggerToast(
             "ক্যাপচা মেয়াদ উত্তীর্ণ হয়েছে। আবার চেষ্টা করুন।",
-            "reCAPTCHA expired. Please try again."
+            "reCAPTCHA token expired. Please click Send OTP again."
           );
         }
       });
+      window.recaptchaVerifier = appVerifier;
       (window as any).phoneVerifyRecaptchaVerifier = appVerifier;
 
+      // 4. Trigger signInWithPhoneNumber silently in background
       const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
       setPhoneConfirmationResult(confirmation);
       setPhoneOtpSent(true);
@@ -1099,6 +1117,19 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       );
     } catch (err: any) {
       console.error("Firebase Phone Auth error:", err);
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {}
+        window.recaptchaVerifier = undefined;
+      }
+      if ((window as any).phoneVerifyRecaptchaVerifier) {
+        try {
+          (window as any).phoneVerifyRecaptchaVerifier.clear();
+        } catch (e) {}
+        (window as any).phoneVerifyRecaptchaVerifier = null;
+      }
+
       let errorMsgBn = "এসএমএস ওটিপি পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।";
       let errorMsgEn = "Failed to send SMS OTP. Please try again.";
 
@@ -1106,15 +1137,21 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         const domain = typeof window !== "undefined" ? window.location.hostname : "localhost";
         errorMsgBn = `ডোমেইনটি অনুমোদিত নয় (${domain})। Firebase Console → Authentication → Settings → Authorized domains-এ যোগ করুন।`;
         errorMsgEn = `Domain is not authorized (${domain}). Please add it in Firebase Console Authorized Domains.`;
-      } else if (err?.code === "auth/quota-exceeded") {
+      } else if (err?.code === "auth/quota-exceeded" || err?.message?.includes("quota")) {
         errorMsgBn = "এসএমএস কোটার দৈনিক লিমিট শেষ হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
         errorMsgEn = "SMS quota exceeded for today. Please try again later.";
       } else if (err?.code === "auth/invalid-phone-number") {
-        errorMsgBn = "মোবাইল নম্বরটি সঠিক নয়। অনুগ্রহ করে সঠিক ১১ ডিজিটের নম্বর দিন।";
+        errorMsgBn = "মোবাইল নম্বরটি সঠিক নয়। অনুগ্রহ করে সঠিক ১১ ডিজিটের নম্বর দিন (যেমন: 017XXXXXXXX)।";
         errorMsgEn = "Invalid phone number format. Please provide a valid 11-digit mobile number.";
       } else if (err?.code === "auth/too-many-requests") {
         errorMsgBn = "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
         errorMsgEn = "Too many requests. Please wait a moment and try again.";
+      } else if (err?.code === "auth/captcha-check-failed") {
+        errorMsgBn = "reCAPTCHA ভেরিফিকেশন সম্পন্ন হতে পারেনি। অনুগ্রহ করে আবার চেষ্টা করুন।";
+        errorMsgEn = "reCAPTCHA verification failed. Please try again.";
+      } else if (err?.code === "auth/network-request-failed") {
+        errorMsgBn = "নেটওয়ার্ক সংযোগ ত্রুটি। অনুগ্রহ করে আপনার ইন্টারনেট সংযোগ পরীক্ষা করুন।";
+        errorMsgEn = "Network error. Please check your internet connection.";
       } else if (err?.message) {
         errorMsgBn = `এসএমএস পাঠাতে ব্যর্থ: ${err.message}`;
       }
@@ -3137,6 +3174,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                           {getTranslation("Google Firebase Auth-এর মাধ্যমে মোবাইলে নিরাপদ এসএমএস ওটিপি পাঠানো হবে।", "A secure SMS OTP will be sent to your phone via Google Firebase Auth.")}
                         </p>
                         <button
+                          id="phone-verify-button"
                           type="button"
                           onClick={handleSendPhoneOtp}
                           disabled={isSendingPhoneOtp || phoneOtpCooldown > 0}
@@ -3146,7 +3184,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                           <span>
                             {phoneOtpCooldown > 0
                               ? getTranslation(`অপেক্ষা করুন (${phoneOtpCooldown}s)`, `Wait (${phoneOtpCooldown}s)`)
-                              : getTranslation("SMS OTP পাঠান", "Send SMS OTP")}
+                              : getTranslation("ওটিপি পাঠান / ভেরিফাই করুন", "Send OTP / Verify")}
                           </span>
                         </button>
                       </div>

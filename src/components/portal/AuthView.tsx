@@ -94,6 +94,18 @@ export default function AuthView({
   const [confirmationResult, setConfirmationResult] = useState<any | null>(null);
   const [otpNotice, setOtpNotice] = useState<string>("");
 
+  // Clean up any lingering invisible reCAPTCHA verifier instance when AuthView unmounts
+  React.useEffect(() => {
+    return () => {
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {}
+        window.recaptchaVerifier = undefined;
+      }
+    };
+  }, []);
+
   const getTranslation = createTranslator(lang);
 
   // Countdown timer for resending OTP code
@@ -360,35 +372,71 @@ export default function AuthView({
   const handleSendOTP = async () => {
     setError("");
     setOtpNotice("");
-    if (!phone) {
+    if (!phone || !phone.trim()) {
       setError(getTranslation("অনুগ্রহ করে মোবাইল নম্বর প্রদান করুন।", "Please provide a mobile number."));
       return;
     }
     setOtpSending(true);
     
-    let formattedPhone = phone.trim();
+    let formattedPhone = phone.trim().replace(/[\s-]/g, "");
     if (formattedPhone.startsWith("0")) {
       formattedPhone = "+88" + formattedPhone;
     } else if (!formattedPhone.startsWith("+")) {
-      formattedPhone = "+880" + formattedPhone;
+      if (formattedPhone.startsWith("880")) {
+        formattedPhone = "+" + formattedPhone;
+      } else {
+        formattedPhone = "+880" + formattedPhone;
+      }
     }
 
     try {
-      const container = document.getElementById("recaptcha-container");
-      if (!container) {
-        const div = document.createElement("div");
-        div.id = "recaptcha-container";
-        document.body.appendChild(div);
+      // 1. Reset any previous verifier instance to clear stale tokens or rendering state
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {
+          console.warn("Notice clearing previous reCAPTCHA instance:", e);
+        }
+        window.recaptchaVerifier = undefined;
       }
 
-      const appVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+      // 2. Ensure target button element exists in DOM for binding
+      let targetButton = document.getElementById("phone-sign-in-button");
+      if (!targetButton) {
+        const fallbackContainer = document.createElement("div");
+        fallbackContainer.id = "phone-sign-in-button";
+        fallbackContainer.style.display = "none";
+        document.body.appendChild(fallbackContainer);
+      }
+
+      // 3. Configure invisible RecaptchaVerifier bound directly to phone-sign-in-button
+      // Do NOT render a visible checkbox container (size: 'invisible' renders silently in background)
+      const appVerifier = new RecaptchaVerifier(auth, "phone-sign-in-button", {
         size: "invisible",
-        callback: () => {},
+        callback: () => {
+          // reCAPTCHA verification passed silently in the background
+        },
         "expired-callback": () => {
-          setError(getTranslation("ক্যাপচা মেয়াদ উত্তীর্ণ হয়েছে। আবার চেষ্টা করুন।", "reCAPTCHA expired. Please try again."));
+          // Reset verifier instance if token expires
+          if (window.recaptchaVerifier) {
+            try {
+              window.recaptchaVerifier.clear();
+            } catch (e) {}
+            window.recaptchaVerifier = undefined;
+          }
+          setError(
+            getTranslation(
+              "ক্যাপচা মেয়াদ উত্তীর্ণ হয়েছে। অনুগ্রহ করে আবার ওটিপি পাঠান।",
+              "reCAPTCHA token expired. Please click Send OTP again."
+            )
+          );
         }
       });
 
+      // Save active verifier to window
+      window.recaptchaVerifier = appVerifier;
+
+      // 4. Trigger signInWithPhoneNumber silently in background with invisible verifier
       const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
       setConfirmationResult(confirmation);
       setOtpSent(true);
@@ -401,6 +449,13 @@ export default function AuthView({
       );
     } catch (err: any) {
       console.error("Firebase Phone Auth error:", err);
+      // If reCAPTCHA token expires or throws an error, reset the verifier instance
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {}
+        window.recaptchaVerifier = undefined;
+      }
       setConfirmationResult(null);
       setOtpSent(false);
       setOtpNotice("");
@@ -411,25 +466,35 @@ export default function AuthView({
       );
 
       if (err?.code === "auth/unauthorized-domain" || err?.message?.includes("unauthorized-domain")) {
-        const domain = typeof window !== "undefined" ? window.location.hostname : "kachabazar-fawn.vercel.app";
+        const domain = typeof window !== "undefined" ? window.location.hostname : "localhost";
         userFriendlyMessage = getTranslation(
           `ডোমেইনটি অনুমোদিত নয় (${domain})। অনুগ্রহ করে Firebase Console → Authentication → Settings → Authorized domains-এ ডোমেইনটি যোগ করুন।`,
           `Domain is not authorized (${domain}). Please add this domain to Firebase Console → Authentication → Settings → Authorized domains.`
         );
-      } else if (err?.code === "auth/quota-exceeded") {
+      } else if (err?.code === "auth/quota-exceeded" || err?.message?.includes("quota")) {
         userFriendlyMessage = getTranslation(
-          "এসএমএস কোটার দৈনিক লিমিট শেষ হয়েছে। অনুগ্রহ করে ইমেইল দিয়ে লগইন করুন অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।",
+          "এসএমএস কোটার দৈনিক লিমিট শেষ হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন অথবা ইমেইল দিয়ে লগইন করুন।",
           "SMS quota exceeded for today. Please retry later or sign in with Email."
         );
       } else if (err?.code === "auth/invalid-phone-number") {
         userFriendlyMessage = getTranslation(
-          "মোবাইল নম্বরটি সঠিক নয়। অনুগ্রহ করে সঠিক ১১ ডিজিটের নম্বর দিন।",
+          "মোবাইল নম্বরটি সঠিক নয়। অনুগ্রহ করে সঠিক ১১ ডিজিটের নম্বর দিন (যেমন: 017XXXXXXXX)।",
           "Invalid phone number format. Please provide a valid 11-digit mobile number."
         );
       } else if (err?.code === "auth/too-many-requests") {
         userFriendlyMessage = getTranslation(
-          "অতিরিক্ত অনুরোধের কারণে সাময়িক ব্লক করা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।",
+          "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।",
           "Too many requests from this device. Please wait a moment and try again."
+        );
+      } else if (err?.code === "auth/captcha-check-failed") {
+        userFriendlyMessage = getTranslation(
+          "reCAPTCHA ভেরিফিকেশন সম্পন্ন হতে পারেনি। অনুগ্রহ করে আবার চেষ্টা করুন।",
+          "reCAPTCHA verification failed. Please try again."
+        );
+      } else if (err?.code === "auth/network-request-failed") {
+        userFriendlyMessage = getTranslation(
+          "নেটওয়ার্ক সংযোগ ত্রুটি। অনুগ্রহ করে আপনার ইন্টারনেট সংযোগ পরীক্ষা করুন।",
+          "Network error. Please check your internet connection and try again."
         );
       } else if (err?.message) {
         userFriendlyMessage = `${getTranslation("এসএমএস পাঠাতে ব্যর্থ:", "Failed to send SMS:")} ${err.message}`;
@@ -1274,15 +1339,22 @@ export default function AuthView({
 
             {!otpSent ? (
               <button
+                id="phone-sign-in-button"
                 type="button"
                 disabled={otpSending}
                 onClick={handleSendOTP}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-emerald-800 border border-slate-200 py-2.5 rounded-2xl text-xs font-black transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-2.5 rounded-2xl text-xs font-black transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 shadow-sm"
               >
                 {otpSending ? (
-                  <span className="w-4 h-4 border-2 border-emerald-800 border-t-transparent rounded-full animate-spin"></span>
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                    <span>{getTranslation("ওটিপি পাঠানো হচ্ছে...", "Sending OTP...")}</span>
+                  </>
                 ) : (
-                  <span>{getTranslation("ভেরিফিকেশন কোড পাঠান", "Send Verification OTP")}</span>
+                  <>
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>{getTranslation("ওটিপি পাঠান / ভেরিফাই করুন", "Send OTP / Verify")}</span>
+                  </>
                 )}
               </button>
             ) : (
@@ -1419,27 +1491,9 @@ export default function AuthView({
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  {getTranslation("পাসওয়ার্ড", "Password")}
-                </label>
-                {isLogin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsForgotPassword(true);
-                      setForgotStep("request");
-                      setForgotIdentifier(email || phone || "");
-                      setError("");
-                      setSuccessMsg("");
-                    }}
-                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer transition flex items-center gap-1"
-                  >
-                    <Key className="w-3 h-3 text-emerald-500" />
-                    <span>{getTranslation("পাসওয়ার্ড ভুলে গেছেন?", "Forgot Password?")}</span>
-                  </button>
-                )}
-              </div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                {getTranslation("পাসওয়ার্ড", "Password")}
+              </label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
                 <input
@@ -1466,10 +1520,7 @@ export default function AuthView({
                 </button>
               </div>
               {isLogin && (
-                <div className="flex items-center justify-between mt-2 px-1">
-                  <span className="text-[11px] text-slate-400">
-                    {getTranslation("পাসওয়ার্ড মনে নেই?", "Can't remember password?")}
-                  </span>
+                <div className="flex justify-end mt-1.5 px-0.5">
                   <button
                     type="button"
                     onClick={() => {
@@ -1479,10 +1530,10 @@ export default function AuthView({
                       setError("");
                       setSuccessMsg("");
                     }}
-                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer transition inline-flex items-center gap-1"
+                    className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer transition inline-flex items-center gap-1"
                   >
-                    <Key className="w-3 h-3 text-emerald-500" />
-                    <span>{getTranslation("পাসওয়ার্ড ভুলে গেছেন? রিসেট করুন", "Forgot Password? Reset")}</span>
+                    <Key className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>{getTranslation("পাসওয়ার্ড ভুলে গেছেন?", "Forgot Password?")}</span>
                   </button>
                 </div>
               )}
