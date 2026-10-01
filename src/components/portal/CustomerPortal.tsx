@@ -34,6 +34,7 @@ import {
 import QRCode from "qrcode";
 import OrderMemoModal from "./OrderMemoModal";
 import { createTranslator } from "../../lib/formatUtils";
+import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from "../../lib/memberIdUtils";
 import { checkAndUpgradePremiumMembership } from "../../lib/membership";
 import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
 
@@ -137,24 +138,20 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     }
   }, [dbUser?.displayName, dbUser?.name, dbUser?.fullName, dbUser?.phone, dbUser?.email, dbUser?.address, dbUser?.photoURL]);
 
-  // Digital ID and Membership States - Every ID strictly starts with FCI prefix
-  const getFormattedCustomerId = () => {
-    const rawId = dbUser?.customerId;
-    if (rawId && typeof rawId === "string") {
-      if (rawId.toUpperCase().startsWith("GD")) {
-        return "FCI" + rawId.substring(2);
-      }
-      if (!rawId.toUpperCase().startsWith("FCI")) {
-        return "FCI" + rawId;
-      }
-      return rawId;
-    }
-    const cleanUid = (user?.uid || "").replace(/[^a-zA-Z0-9]/g, "");
-    const suffix = cleanUid.length >= 3 ? cleanUid.substring(0, 3).toUpperCase() : "782";
-    return `FCI${suffix}`;
-  };
+  // Digital ID and Membership States - Every ID strictly starts with CFI prefix
+  const customerId = normalizeMemberId(dbUser?.customerId, user?.uid);
 
-  const customerId = getFormattedCustomerId();
+  // Auto-sync & migrate legacy ID in Firestore (e.g. FCIMWZ -> CFIMWZ) without altering any user credentials or balance
+  useEffect(() => {
+    if (user?.uid && dbUser) {
+      const fixedId = normalizeMemberId(dbUser.customerId, user.uid);
+      if (dbUser.customerId !== fixedId) {
+        setDoc(doc(db, "users", user.uid), { customerId: fixedId }, { merge: true }).catch((err) => {
+          console.warn("Notice syncing updated CFI customerId:", err);
+        });
+      }
+    }
+  }, [user?.uid, dbUser?.customerId]);
   // Primary dynamic profile name from registered user details
   const profileName = (dbUser?.displayName || dbUser?.name || dbUser?.fullName || user?.displayName || user?.name || "মোহাম্মদ").trim();
 
@@ -181,7 +178,26 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   const isPhoneVerified = Boolean(dbUser?.isPhoneVerified);
   // Account Status Rule: Only when BOTH Email & Phone verifications are complete is the overall account verified
   const isAccountVerified = Boolean((isEmailVerified && isPhoneVerified) || (dbUser?.isVerified && isEmailVerified && isPhoneVerified));
-  const rewardPoints = dbUser?.rewardPoints ?? 120;
+
+  // Reward points strictly initialized to 0 for accounts with no points earned
+  const rewardPoints = dbUser?.rewardPoints ?? dbUser?.points ?? 0;
+
+  // Real-time numeric value strictly from users/{userId}/walletBalance, fallback to users/{userId}/balance, then wallet/{userId}/balance, strictly defaulting to 0
+  const realTimeWalletBalance = Number(dbUser?.walletBalance ?? dbUser?.balance ?? walletBalance ?? 0);
+
+  // Auto-initialize reward points strictly at 0 in Firestore if missing
+  useEffect(() => {
+    if (user?.uid && dbUser && dbUser.rewardPoints === undefined && dbUser.points === undefined) {
+      setDoc(doc(db, "users", user.uid), { rewardPoints: 0, points: 0 }, { merge: true }).catch(() => {});
+    }
+  }, [user?.uid, dbUser?.rewardPoints, dbUser?.points]);
+
+  // Auto-initialize wallet balance strictly at 0 in Firestore if missing
+  useEffect(() => {
+    if (user?.uid && dbUser && dbUser.walletBalance === undefined && dbUser.balance === undefined) {
+      setDoc(doc(db, "users", user.uid), { walletBalance: 0, balance: 0 }, { merge: true }).catch(() => {});
+    }
+  }, [user?.uid, dbUser?.walletBalance, dbUser?.balance]);
 
   // Dynamic Premium Membership criteria evaluation (e.g. single-day delivered orders >= ৳6,000)
   const isPremiumQualified = useMemo(() => {
@@ -341,53 +357,66 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         "ছবির সাইজ ১০ মেগাবাইটের কম হতে হবে",
         "Image size must be less than 10MB"
       );
+      if (e.target) e.target.value = "";
       return;
     }
 
     setIsUploadingPhoto(true);
+
+    // 1. Immediate local preview via URL.createObjectURL for 0ms perceived lag
+    const localPreviewUrl = URL.createObjectURL(file);
+    setPhotoUrlInput(localPreviewUrl);
+    setDbUser((prev: any) => ({
+      ...prev,
+      photoURL: localPreviewUrl,
+      avatar: localPreviewUrl,
+      image: localPreviewUrl
+    }));
+
     try {
-      // 1. Immediately compress to a lightweight web-friendly dataUrl (max 400px, 0.82 quality)
-      const compressed = await compressImage(file, 400, 0.82);
-      const immediateDataUrl = compressed.dataUrl;
+      // 2. Compress image for fast transfer & local data URL
+      const compressed = await compressImage(file, 400, 0.85);
+      const immediateDataUrl = compressed.dataUrl || localPreviewUrl;
 
-      if (!immediateDataUrl) {
-        throw new Error("Could not process image");
-      }
-
-      // 2. Immediately update UI state - 0ms perceived lag
-      setPhotoUrlInput(immediateDataUrl);
-      setDbUser((prev: any) => ({
-        ...prev,
-        photoURL: immediateDataUrl
-      }));
-
+      // Update storage and broadcast event
       try {
         localStorage.setItem("kb_user_photo", immediateDataUrl);
         window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: immediateDataUrl } }));
       } catch {}
 
-      // 3. Immediately persist to Firestore document
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
-        photoURL: immediateDataUrl,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      // 3. Persist to Firestore user document under photoURL, avatar, and image without affecting other fields
+      if (user?.uid) {
+        await setDoc(doc(db, "users", user.uid), {
+          uid: user.uid,
+          photoURL: immediateDataUrl,
+          avatar: immediateDataUrl,
+          image: immediateDataUrl,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
 
-      // 4. In background, attempt upload to CDN to replace large data URL with lightweight CDN link
+      // 4. In background, upload to Cloudinary CDN / Firebase Storage fallback
       uploadImageWithFallback(file, {
         folder: "profiles",
         maxDimension: 400,
-        quality: 0.82
+        quality: 0.85
       }).then(async (cdnUrl) => {
         if (cdnUrl && !cdnUrl.startsWith("data:") && user?.uid) {
           setPhotoUrlInput(cdnUrl);
-          setDbUser((prev: any) => ({ ...prev, photoURL: cdnUrl }));
+          setDbUser((prev: any) => ({ 
+            ...prev, 
+            photoURL: cdnUrl, 
+            avatar: cdnUrl, 
+            image: cdnUrl 
+          }));
           try {
             localStorage.setItem("kb_user_photo", cdnUrl);
             window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: cdnUrl } }));
           } catch {}
           await setDoc(doc(db, "users", user.uid), {
             photoURL: cdnUrl,
+            avatar: cdnUrl,
+            image: cdnUrl,
             updatedAt: serverTimestamp()
           }, { merge: true }).catch(() => {});
           if (auth.currentUser) {
@@ -471,6 +500,12 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         if (docSnap.exists()) {
           const udata = docSnap.data();
           setDbUser(udata);
+          // Real-time synchronization of wallet balance directly from users/{userId}/walletBalance
+          if (udata.walletBalance !== undefined) {
+            setWalletBalance(Number(udata.walletBalance) || 0);
+          } else if (udata.balance !== undefined) {
+            setWalletBalance(Number(udata.balance) || 0);
+          }
           if (udata.photoURL !== undefined) {
             setPhotoUrlInput(udata.photoURL || "");
             try {
@@ -532,6 +567,16 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
           txs.push({ id: doc.id, ...doc.data() });
         });
         setTransactions(txs);
+
+        // Reset unintentional default 50 balance back to 0 if user has no actual transactions or qualifying tasks
+        if (txs.length === 0) {
+          const rawBal = Number(dbUser?.walletBalance ?? dbUser?.balance ?? walletBalance ?? 0);
+          if (rawBal === 50) {
+            setWalletBalance(0);
+            setDoc(doc(db, "wallet", user.uid), { balance: 0, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+            setDoc(doc(db, "users", user.uid), { walletBalance: 0, balance: 0, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+          }
+        }
       },
       (err) => console.warn("Customer tx sync notice:", err.message)
     );
@@ -858,6 +903,15 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
   return (
     <div className="w-full h-full bg-slate-50 overflow-hidden flex flex-col md:flex-row relative">
+      {/* Hidden File Input for Profile Avatar Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handlePhotoUpload}
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        style={{ display: "none" }}
+      />
       
       {/* 1. Mobile Slide-out Drawer (Modal) */}
       {isMenuOpen && (
@@ -1277,7 +1331,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                           {getTranslation("ওয়ালেট ব্যালেন্স", "Wallet Balance")}
                         </p>
                         <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">
-                          ৳{walletBalance}
+                          ৳{realTimeWalletBalance}
                         </h4>
                       </div>
 
@@ -1643,7 +1697,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                       <p className="text-[10px] text-emerald-200 font-bold uppercase tracking-wider">
                         {getTranslation("ডিজিটাল কাস্টমার ওয়ালেট", "Digital Customer Wallet")}
                       </p>
-                      <h3 className="text-3xl font-black mt-2">৳{walletBalance}</h3>
+                      <h3 className="text-3xl font-black mt-2">৳{realTimeWalletBalance}</h3>
                     </div>
                     <span className="bg-white/10 backdrop-blur-md text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
                       Active Balance
@@ -2396,8 +2450,16 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                       disabled={isUploadingPhoto}
                       className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                     >
-                      <Camera className="w-3.5 h-3.5" />
-                      <span>{getTranslation("ছবি পরিবর্তন করুন", "Change Photo")}</span>
+                      {isUploadingPhoto ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Camera className="w-3.5 h-3.5" />
+                      )}
+                      <span>
+                        {isUploadingPhoto 
+                          ? getTranslation("আপলোড হচ্ছে...", "Uploading...") 
+                          : getTranslation("ছবি পরিবর্তন করুন", "Change Photo")}
+                      </span>
                     </button>
 
                     {(photoUrlInput || dbUser?.photoURL || user?.photoURL) && (

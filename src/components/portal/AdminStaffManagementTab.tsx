@@ -1309,7 +1309,9 @@ export default function AdminStaffManagementTab({
                   <button
                     type="button"
                     onClick={() => setShowFormPassword(!showFormPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-md transition"
+                    title={showFormPassword ? getTranslation("পাসওয়ার্ড লুকান", "Hide Password") : getTranslation("পাসওয়ার্ড দেখুন", "Show Password")}
+                    aria-label={showFormPassword ? "Hide password" : "Show password"}
                   >
                     {showFormPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -2437,7 +2439,9 @@ export default function AdminStaffManagementTab({
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-md transition"
+                      title={showPassword ? getTranslation("পাসওয়ার্ড লুকান", "Hide Password") : getTranslation("পাসওয়ার্ড দেখুন", "Show Password")}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>

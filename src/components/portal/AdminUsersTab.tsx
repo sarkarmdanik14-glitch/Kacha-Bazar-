@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   User, Store, Bike, DollarSign, Check, X, RefreshCw, 
   Award, FileText, Gift, PlusCircle, ArrowRight 
 } from "lucide-react";
 import { db, doc, setDoc, updateDoc, collection, serverTimestamp } from "../../lib/firebase";
 import { createTranslator } from "../../lib/formatUtils";
+import { normalizeMemberId } from "../../lib/memberIdUtils";
 
 interface AdminUsersTabProps {
   users: any[];
@@ -28,6 +29,69 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
   const [adjustType, setAdjustType] = useState<"deposit" | "withdraw">("deposit");
   const [adjustReason, setAdjustReason] = useState<string>("");
   const [savingWallet, setSavingWallet] = useState<boolean>(false);
+  const [isSyncingIds, setIsSyncingIds] = useState<boolean>(false);
+
+  // Auto-migrate legacy member IDs in Firestore (e.g. FCIMWZ -> CFIMWZ) without altering balances, orders, or credentials
+  useEffect(() => {
+    if (!users || users.length === 0) return;
+    users.forEach(async (u) => {
+      const uId = u.uid || u.id;
+      if (!uId) return;
+      const currentId = u.customerId;
+      const normalized = normalizeMemberId(currentId, uId);
+      if (currentId !== normalized) {
+        try {
+          await updateDoc(doc(db, "users", uId), {
+            customerId: normalized
+          });
+        } catch {
+          await setDoc(doc(db, "users", uId), { customerId: normalized }, { merge: true }).catch(() => {});
+        }
+      }
+    });
+  }, [users]);
+
+  const handleSyncAndFixAllMemberIds = async () => {
+    if (!users || users.length === 0) {
+      triggerToast("কোন ইউজার রেকর্ড পাওয়া যায়নি।", "No user records to sync.");
+      return;
+    }
+    setIsSyncingIds(true);
+    let updatedCount = 0;
+    try {
+      for (const u of users) {
+        const uId = u.uid || u.id;
+        if (!uId) continue;
+        const currentId = u.customerId;
+        const normalized = normalizeMemberId(currentId, uId);
+        if (currentId !== normalized) {
+          try {
+            await updateDoc(doc(db, "users", uId), { customerId: normalized });
+            updatedCount++;
+          } catch {
+            await setDoc(doc(db, "users", uId), { customerId: normalized }, { merge: true }).catch(() => {});
+            updatedCount++;
+          }
+        }
+      }
+      if (updatedCount > 0) {
+        triggerToast(
+          `${updatedCount} জন গ্রাহকের মেম্বার আইডি সফলভাবে 'CFI' ফরম্যাটে আপডেট হয়েছে!`,
+          `Successfully updated ${updatedCount} member ID(s) to 'CFI' standard!`
+        );
+      } else {
+        triggerToast(
+          "সকল মেম্বার আইডি ইতিমধ্যে সঠিক 'CFI' ফরম্যাটে রয়েছে।",
+          "All Member IDs are already strictly conforming to 'CFI' prefix."
+        );
+      }
+    } catch (err: any) {
+      console.error("Member ID sync error:", err);
+      triggerToast("মেম্বার আইডি আপডেট করতে ত্রুটি হয়েছে।", "Error syncing member IDs.");
+    } finally {
+      setIsSyncingIds(false);
+    }
+  };
 
   // Filter roster
   const filteredUsers = users.filter((u) => {
@@ -125,7 +189,8 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
 
       // 1. Update wallet balance in primary users collection
       await updateDoc(doc(db, "users", uId), {
-        balance: finalBalance
+        balance: finalBalance,
+        walletBalance: finalBalance
       });
 
       // 2. Also try updating role specific sub-collections
@@ -198,24 +263,36 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
       {activeUserSubTab === "roster" && (
         <div className="space-y-4">
           
-          {/* Filter roles */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {(currentUser?.role === "founder" 
-              ? ["all", "customer", "seller", "rider", "admin", "founder"] 
-              : ["all", "customer", "seller", "rider"]
-            ).map((r) => (
-              <button
-                key={r}
-                onClick={() => setActiveFilterRole(r as any)}
-                className={`px-3 py-1.5 rounded-full text-xs font-black uppercase cursor-pointer transition ${
-                  activeFilterRole === r 
-                    ? "bg-slate-800 text-white shadow-sm" 
-                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                }`}
-              >
-                {r === "all" ? getTranslation("সব একাউন্ট", "All Roster") : getTranslation(r === "customer" ? "কাস্টমার" : r === "seller" ? "সেলার" : r === "rider" ? "রাইডার" : r === "admin" ? "এডমিন" : "ফাউন্ডার", r)}
-              </button>
-            ))}
+          {/* Filter roles & CFI Sync */}
+          <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 scrollbar-none flex-wrap sm:flex-nowrap">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+              {(currentUser?.role === "founder" 
+                ? ["all", "customer", "seller", "rider", "admin", "founder"] 
+                : ["all", "customer", "seller", "rider"]
+              ).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setActiveFilterRole(r as any)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-black uppercase cursor-pointer transition ${
+                    activeFilterRole === r 
+                      ? "bg-slate-800 text-white shadow-sm" 
+                      : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  }`}
+                >
+                  {r === "all" ? getTranslation("সব একাউন্ট", "All Roster") : getTranslation(r === "customer" ? "কাস্টমার" : r === "seller" ? "সেলার" : r === "rider" ? "রাইডার" : r === "admin" ? "এডমিন" : "ফাউন্ডার", r)}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={handleSyncAndFixAllMemberIds}
+              disabled={isSyncingIds}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-2xs transition cursor-pointer disabled:opacity-50 shrink-0"
+              title={getTranslation("সকল ইউজারের মেম্বার আইডি CFI ফরম্যাটে সিঙ্ক ও নিশ্চিত করুন", "Sync all Member IDs to CFI format")}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isSyncingIds ? "animate-spin" : ""}`} />
+              <span>{getTranslation("মেম্বার আইডি সিঙ্ক (CFI)", "Sync CFI IDs")}</span>
+            </button>
           </div>
 
           {/* Roster table */}
@@ -242,7 +319,12 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
                     filteredUsers.map((u) => (
                       <tr key={u.uid || u.id} className="hover:bg-slate-50/50">
                         <td className="p-4">
-                          <div className="font-extrabold text-slate-800">{u.displayName || "Kacha Bazar User"}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-extrabold text-slate-800">{u.displayName || "Kacha Bazar User"}</span>
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-black bg-slate-100 text-slate-700 border border-slate-200">
+                              ID: {normalizeMemberId(u.customerId, u.uid || u.id)}
+                            </span>
+                          </div>
                           <div className="text-[10px] text-slate-400 mt-0.5">{u.email}</div>
                           <div className="text-[10px] text-indigo-500 font-bold">{u.phoneNumber || u.phone}</div>
                         </td>
@@ -275,6 +357,9 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
                         </td>
                         <td className="p-4">
                           <div className="font-extrabold text-slate-800">৳{Number(u.balance) || 0}</div>
+                          <div className="text-[10px] font-black text-purple-700 mt-0.5">
+                            {u.rewardPoints ?? u.points ?? 0} pts
+                          </div>
                           <button 
                             onClick={() => handleOpenWalletAdjustment(u)}
                             className="text-[10px] font-black uppercase text-emerald-600 hover:underline mt-1 block cursor-pointer"

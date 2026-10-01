@@ -11,6 +11,7 @@ import PartnerShopPanel from "./PartnerShopPanel";
 import { getCurrentPartnerSession, logoutPartnerSession, PartnerShop } from "../../lib/partnerManager";
 import { apiClient } from "../../lib/apiClient";
 import { createTranslator } from "../../lib/formatUtils";
+import { generateMemberId, normalizeMemberId } from "../../lib/memberIdUtils";
 
 interface PortalModalProps {
   isOpen: boolean;
@@ -18,6 +19,8 @@ interface PortalModalProps {
   lang: "bn" | "en";
   initialTab?: "dashboard" | "orders" | "wallet" | "referral" | "notifications";
   forcedRole?: "customer" | "admin" | "seller" | "rider" | "partner";
+  initialAuthMode?: "login" | "register";
+  referralCode?: string;
   products?: any[];
   categories?: any[];
   banners?: any[];
@@ -31,6 +34,8 @@ export default function PortalModal({
   lang, 
   initialTab, 
   forcedRole,
+  initialAuthMode,
+  referralCode,
   products,
   categories,
   banners,
@@ -327,10 +332,17 @@ export default function PortalModal({
               let userData: any = null;
               if (userDocSnap.exists()) {
                 userData = userDocSnap.data();
+                // Ensure existing user customerId starts strictly with CFI prefix (e.g. FCIMWZ -> CFIMWZ)
+                const normalizedCustId = normalizeMemberId(userData?.customerId, user.uid);
+                if (userData?.customerId !== normalizedCustId) {
+                  userData.customerId = normalizedCustId;
+                  setDoc(doc(db, "users", user.uid), { customerId: normalizedCustId }, { merge: true }).catch((err) => {
+                    console.warn("Notice updating migrated customerId in Firestore:", err);
+                  });
+                }
               } else {
                 const effectiveName = user.displayName || user.email?.split("@")[0] || "মোহাম্মদ";
-                const cleanUid = (user.uid || "").replace(/[^a-zA-Z0-9]/g, "");
-                const customerId = `FCI${cleanUid.length >= 3 ? cleanUid.substring(0, 3).toUpperCase() : "782"}`;
+                const customerId = generateMemberId(user.uid);
                 const sanitizedHandle = effectiveName
                   .toLowerCase()
                   .replace(/\s+/g, "_")
@@ -469,7 +481,13 @@ export default function PortalModal({
           ) : !currentUser ? (
             <div className="h-full flex items-center justify-center p-4 py-12 overflow-y-auto">
               <React.Suspense fallback={<div className="flex flex-col items-center justify-center h-48 space-y-2"><RefreshCw className="w-6 h-6 text-emerald-600 animate-spin" /><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Loading...</p></div>}>
-                <AuthView onAuthSuccess={handleAuthSuccess} lang={lang} forcedRole={forcedRole} />
+                <AuthView 
+                  onAuthSuccess={handleAuthSuccess} 
+                  lang={lang} 
+                  forcedRole={forcedRole}
+                  initialAuthMode={initialAuthMode}
+                  initialReferralCode={referralCode}
+                />
               </React.Suspense>
             </div>
           ) : (

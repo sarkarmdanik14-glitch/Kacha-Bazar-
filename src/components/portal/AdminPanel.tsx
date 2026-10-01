@@ -25,6 +25,7 @@ import {
   BarChart3
 } from "lucide-react";
 import { checkAndRewardReferral } from "../../lib/referral";
+import { awardOrderRewardPoints } from "../../lib/rewardPoints";
 import { mergeCategoryCards, shouldKeepProductGroceryFiltered } from "../../lib/categoryUtils";
 import { ALL_PRODUCTS, CATEGORIES, GROCERY_PRODUCTS_RAW } from "../../data";
 import { resolveAuthenticProductImage } from "../../lib/masterImageRegistry";
@@ -497,7 +498,7 @@ export default function AdminPanel({
       });
       triggerToast(`অর্ডার স্ট্যাটাস আপডেট করা হয়েছে: ${status}`, `Order status updated to: ${status}`);
 
-      if (status === "delivered") {
+      if (status === "delivered" || status === "completed") {
         const orderSnap = await getDoc(doc(db, "orders", orderId));
         if (orderSnap.exists()) {
           const orderData = orderSnap.data();
@@ -505,6 +506,8 @@ export default function AdminPanel({
           if (customerId) {
             await checkAndRewardReferral(customerId);
           }
+          // Real-time reward points calculation & Firestore user increment
+          await awardOrderRewardPoints(orderId, orderData);
         }
       }
     } catch (err) {
@@ -544,6 +547,22 @@ export default function AdminPanel({
             balance: refundAmount,
             updatedAt: serverTimestamp()
           });
+        }
+
+        // Also update users/{customerId} walletBalance and balance atomically
+        const userDocRef = doc(db, "users", orderData.customerId);
+        try {
+          await updateDoc(userDocRef, {
+            walletBalance: increment(refundAmount),
+            balance: increment(refundAmount),
+            updatedAt: serverTimestamp()
+          });
+        } catch {
+          await setDoc(userDocRef, {
+            walletBalance: refundAmount,
+            balance: refundAmount,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
         }
 
         // 2. Create transaction record

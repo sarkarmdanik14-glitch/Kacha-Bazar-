@@ -204,6 +204,14 @@ export default function App() {
   const [showPortalModal, setShowPortalModal] = useState<boolean>(false);
   const [portalInitialTab, setPortalInitialTab] = useState<"dashboard" | "orders" | "wallet" | "referral" | "notifications">("dashboard");
   const [forcedPortalRole, setForcedPortalRole] = useState<"customer" | "admin" | "seller" | "rider" | "partner">("customer");
+  const [portalInitialAuthMode, setPortalInitialAuthMode] = useState<"login" | "register">("login");
+  const [detectedReferralCode, setDetectedReferralCode] = useState<string>(() => {
+    try {
+      return localStorage.getItem("referredBy") || sessionStorage.getItem("referredBy") || "";
+    } catch {
+      return "";
+    }
+  });
   const [loggedInUser, setLoggedInUser] = useState<any | null>(null);
   const [userRole, setUserRole] = useState<string>("customer");
   const [userReferralCode, setUserReferralCode] = useState<string>("");
@@ -406,28 +414,40 @@ export default function App() {
     return subtotal + deliveryFee - discountAmt;
   }, [subtotal, deliveryFee, discountAmt]);
 
-  // Parse referral code from url if present
+  // 1. Dynamic Referral Parameter Capture & Auto-Trigger Sign-up Modal
   useEffect(() => {
-    let ref = new URLSearchParams(window.location.search).get("ref") ||
-              new URLSearchParams(window.location.search).get("referredBy");
+    let rawRef = new URLSearchParams(window.location.search).get("ref") ||
+                 new URLSearchParams(window.location.search).get("referredBy");
     
-    if (!ref && window.location.hash) {
+    if (!rawRef && window.location.hash) {
       const hashParts = window.location.hash.split("?");
       if (hashParts.length > 1) {
         const hashParams = new URLSearchParams(hashParts[1]);
-        ref = hashParams.get("ref") || hashParams.get("referredBy");
+        rawRef = hashParams.get("ref") || hashParams.get("referredBy");
       }
     }
 
-    if (ref) {
-      const cleanRef = ref.trim().toUpperCase();
-      localStorage.setItem("referredBy", cleanRef);
-      triggerToast(
-        `রেফারেল কোড (${cleanRef}) সফলভাবে সংরক্ষণ করা হয়েছে! সাইন আপ করলেই পাবেন উপহার।`,
-        `Referral code (${cleanRef}) successfully applied! Sign up to claim your reward.`
-      );
+    if (rawRef) {
+      const cleanRef = rawRef.trim().toUpperCase();
+      setDetectedReferralCode(cleanRef);
+      try {
+        localStorage.setItem("referredBy", cleanRef);
+        sessionStorage.setItem("referredBy", cleanRef);
+      } catch {}
+
+      // If user is already authenticated in Firebase, DO NOT auto-trigger registration modal
+      if (!auth.currentUser && !loggedInUser) {
+        setForcedPortalRole("customer");
+        setPortalInitialTab("dashboard");
+        setPortalInitialAuthMode("register");
+        setShowPortalModal(true);
+        triggerToast(
+          `🎉 রেফারেল কোড (${cleanRef}) সক্রিয় হয়েছে! নতুন অ্যাকাউন্ট তৈরি করলেই পাবেন বিশেষ উপহার।`,
+          `🎉 Referral code (${cleanRef}) applied! Create an account to receive your bonus reward.`
+        );
+      }
     }
-  }, []);
+  }, [loggedInUser]);
 
   // Listen to Auth State and Fetch Referral Code & Merge Cart
   useEffect(() => {
@@ -436,6 +456,22 @@ export default function App() {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setLoggedInUser(user);
+
+        // If an authenticated user lands on a referral link, do NOT pop up the registration form
+        setPortalInitialAuthMode(prevMode => {
+          if (prevMode === "register") {
+            setShowPortalModal(false);
+            if (window.location.search.includes("ref=") || window.location.search.includes("referredBy=")) {
+              const url = new URL(window.location.href);
+              url.searchParams.delete("ref");
+              url.searchParams.delete("referredBy");
+              const cleanUrl = url.pathname + (url.search ? url.search : "") + (url.hash || "");
+              window.history.replaceState({}, document.title, cleanUrl || window.location.pathname);
+            }
+            return "login";
+          }
+          return prevMode;
+        });
 
         // Immediate initial check from Auth User photo
         if (user.photoURL) {
@@ -4156,6 +4192,15 @@ export default function App() {
           isOpen={showPortalModal} 
           onClose={() => {
             setShowPortalModal(false);
+            setPortalInitialAuthMode("login");
+            // Clean up referral query parameter from URL bar cleanly without refreshing
+            if (window.location.search.includes("ref=") || window.location.search.includes("referredBy=")) {
+              const url = new URL(window.location.href);
+              url.searchParams.delete("ref");
+              url.searchParams.delete("referredBy");
+              const cleanUrl = url.pathname + (url.search ? url.search : "") + (url.hash || "");
+              window.history.replaceState({}, document.title, cleanUrl || window.location.pathname);
+            }
             if (forcedPortalRole !== "customer") {
               setForcedPortalRole("customer");
               if (window.location.search.includes("panel") || window.location.hash || window.location.pathname !== "/") {
@@ -4166,6 +4211,8 @@ export default function App() {
           lang={lang} 
           initialTab={portalInitialTab}
           forcedRole={forcedPortalRole}
+          initialAuthMode={portalInitialAuthMode}
+          referralCode={detectedReferralCode}
           products={products}
           categories={categories}
           banners={banners}

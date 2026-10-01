@@ -19,23 +19,33 @@ import {
   signOut,
   updateProfile
 } from "../../lib/firebase";
-import { User, Mail, Lock, AlertCircle, Key, LogIn, UserPlus, Gift, Sparkles, RefreshCw, Smartphone, Store } from "lucide-react";
+import { User, Mail, Lock, AlertCircle, Key, LogIn, UserPlus, Gift, Sparkles, RefreshCw, Smartphone, Store, Eye, EyeOff } from "lucide-react";
 import { authenticatePartner } from "../../lib/partnerManager";
 import { apiClient } from "../../lib/apiClient";
 import { createTranslator } from "../../lib/formatUtils";
+import { generateMemberId } from "../../lib/memberIdUtils";
 const loginPartnerWithCredentials = authenticatePartner;
 
 interface AuthViewProps {
   onAuthSuccess: (user: any, role: string) => void;
   lang: "bn" | "en";
   forcedRole?: "customer" | "admin" | "seller" | "rider" | "partner";
+  initialAuthMode?: "login" | "register";
+  initialReferralCode?: string;
 }
 
-export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewProps) {
-  const [isLogin, setIsLogin] = useState<boolean>(true);
+export default function AuthView({ 
+  onAuthSuccess, 
+  lang, 
+  forcedRole,
+  initialAuthMode = "login",
+  initialReferralCode 
+}: AuthViewProps) {
+  const [isLogin, setIsLogin] = useState<boolean>(initialAuthMode !== "register");
   const [authMethod, setAuthMethod] = useState<"email" | "phone">("email");
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [fullName, setFullName] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
   const [shopName, setShopName] = useState<string>(""); // for seller
@@ -44,8 +54,22 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [referralInput, setReferralInput] = useState<string>(() => {
-    return localStorage.getItem("referredBy") || "";
+    return (initialReferralCode || localStorage.getItem("referredBy") || sessionStorage.getItem("referredBy") || "").trim().toUpperCase();
   });
+
+  React.useEffect(() => {
+    if (initialAuthMode === "register") {
+      setIsLogin(false);
+    } else if (initialAuthMode === "login") {
+      setIsLogin(true);
+    }
+  }, [initialAuthMode]);
+
+  React.useEffect(() => {
+    if (initialReferralCode) {
+      setReferralInput(initialReferralCode.trim().toUpperCase());
+    }
+  }, [initialReferralCode]);
 
   // Phone auth states
   const [otpCode, setOtpCode] = useState<string>("");
@@ -330,6 +354,9 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
           address: getTranslation("চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর", "Chanchkoir Bazar, Gurudaspur, Natore"),
           referralCode: refCode,
           balance: 0,
+          walletBalance: 0,
+          rewardPoints: 0,
+          points: 0,
           // Conform to firestore.rules: status must be 'pending' or omitted
           ...(role === "seller" || role === "rider" ? { status: "pending" } : {}),
           ...(role === "seller" ? { sellerStatus: "pending" } : {}),
@@ -539,8 +566,7 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
         }
 
         const refCode = "REF" + user.uid.substring(0, 5).toUpperCase();
-        const cleanUid = (user.uid || "").replace(/[^a-zA-Z0-9]/g, "");
-        const customerId = `FCI${cleanUid.length >= 3 ? cleanUid.substring(0, 3).toUpperCase() : "782"}`;
+        const customerId = generateMemberId(user.uid);
         const sanitizedHandle = cleanFullName
           .toLowerCase()
           .replace(/\s+/g, "_")
@@ -561,6 +587,9 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
           address: getTranslation("চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর", "Chanchkoir Bazar, Gurudaspur, Natore"),
           referralCode: refCode,
           balance: 0,
+          walletBalance: 0,
+          rewardPoints: 0,
+          points: 0,
           status: (role === "seller" || role === "rider") ? "pending" : "approved",
           ...(role === "seller" ? { sellerStatus: "pending" } : {}),
           ...(role === "rider" ? { riderStatus: "pending" } : {})
@@ -681,20 +710,27 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
         userRole = userData.role || role;
       } else {
         const refCode = "REF" + user.uid.substring(0, 5).toUpperCase();
+        const customerId = generateMemberId(user.uid);
         userData = {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName || user.email?.split("@")[0] || "User",
+          customerId: customerId,
           role: userRole,
           createdAt: serverTimestamp(),
           address: getTranslation("চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর", "Chanchkoir Bazar, Gurudaspur, Natore"),
-          referralCode: refCode
+          referralCode: refCode,
+          balance: 0,
+          walletBalance: 0,
+          rewardPoints: 0,
+          points: 0
         };
         await setDoc(userDocRef, userData);
         
+        // Strictly initialize wallet with 0 balance for all new registrations
         await setDoc(doc(db, "wallet", user.uid), {
           userId: user.uid,
-          balance: 50,
+          balance: 0,
           updatedAt: serverTimestamp()
         });
 
@@ -970,15 +1006,29 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
                 {getTranslation("পাসওয়ার্ড", "Password")}
               </label>
               <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-11 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer transition p-1 rounded-lg hover:bg-slate-200/50"
+                  title={showPassword ? getTranslation("পাসওয়ার্ড লুকান", "Hide Password") : getTranslation("পাসওয়ার্ড দেখুন", "Show Password")}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
               </div>
             </div>
 
@@ -988,15 +1038,21 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
                   {getTranslation("রেফারেল কোড (ঐচ্ছিক)", "Referral Code (Optional)")}
                 </label>
                 <div className="relative">
-                  <Gift className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  <Gift className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
                   <input
                     type="text"
                     placeholder="e.g., REF12345"
                     value={referralInput}
-                    onChange={(e) => setReferralInput(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs uppercase focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+                    onChange={(e) => setReferralInput(e.target.value.toUpperCase())}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs font-mono font-bold uppercase focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
                   />
                 </div>
+                {referralInput && (
+                  <p className="text-[10.5px] text-emerald-600 font-bold mt-1.5 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                    <span>{getTranslation("রেফারেল কোড যুক্ত হয়েছে! অ্যাকাউন্ট খুললেই বোনাস পাবেন।", "Referral code applied! You will receive your bonus upon registration.")}</span>
+                  </p>
+                )}
               </div>
             )}
           </>

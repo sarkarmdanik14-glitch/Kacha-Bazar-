@@ -100,7 +100,7 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3000);
+    const timer = setTimeout(() => controller.abort(), 15000);
 
     const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
       method: "POST",
@@ -119,7 +119,7 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
     // Graceful fallback to next tier
   }
 
-  // TIER 2: Firebase Storage (Protected with strict 2.5s timeout)
+  // TIER 2: Firebase Storage (Protected with 10s timeout)
   try {
     if (storage) {
       const filename = `${folder}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
@@ -133,7 +133,7 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
       })();
 
       const timeoutPromise = new Promise<string>((_, reject) => 
-        setTimeout(() => reject(new Error("Firebase Storage upload timed out")), 2500)
+        setTimeout(() => reject(new Error("Firebase Storage upload timed out")), 10000)
       );
 
       const downloadUrl = await Promise.race([uploadPromise, timeoutPromise]);

@@ -28,9 +28,13 @@ import {
   Percent,
   Zap,
   CheckCircle2,
-  Eye
+  Eye,
+  RefreshCw
 } from "lucide-react";
 import QRCode from "qrcode";
+import { db, doc, setDoc, serverTimestamp, onSnapshot } from "../../lib/firebase";
+import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from "../../lib/memberIdUtils";
+import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
 
 export interface CustomerDashboardProps {
   initialUser?: {
@@ -85,23 +89,22 @@ export default function CustomerDashboardMobile({
   const [isEditingAddress, setIsEditingAddress] = useState<boolean>(false);
   const [tempAddress, setTempAddress] = useState<string>(address);
 
-  // Digital Badge & Identity states - strictly FCI prefix
-  const getFormattedCustomerId = () => {
-    const rawId = initialUser.customerId;
-    if (rawId && typeof rawId === "string") {
-      if (rawId.toUpperCase().startsWith("GD")) {
-        return "FCI" + rawId.substring(2);
-      }
-      if (!rawId.toUpperCase().startsWith("FCI")) {
-        return "FCI" + rawId;
-      }
-      return rawId;
-    }
-    const cleanId = (initialUser.phone || initialUser.email || "782").replace(/[^a-zA-Z0-9]/g, "");
-    return `FCI${cleanId.substring(0, 3).toUpperCase() || "782"}`;
-  };
+  // Digital Badge & Identity states - strictly CFI prefix
+  const customerId = normalizeMemberId(
+    initialUser.customerId,
+    initialUser.uid || initialUser.id || initialUser.phone || initialUser.email
+  );
 
-  const customerId = getFormattedCustomerId();
+  // Auto-sync & migrate legacy ID in Firestore (e.g. FCIMWZ -> CFIMWZ)
+  useEffect(() => {
+    const uId = initialUser.uid || initialUser.id;
+    if (uId && initialUser.customerId) {
+      const fixedId = normalizeMemberId(initialUser.customerId, uId);
+      if (initialUser.customerId !== fixedId) {
+        setDoc(doc(db, "users", uId), { customerId: fixedId }, { merge: true }).catch(() => {});
+      }
+    }
+  }, [initialUser.uid, initialUser.id, initialUser.customerId]);
   const getSanitizedUsername = () => {
     if (initialUser.username && typeof initialUser.username === "string" && initialUser.username.trim()) {
       return initialUser.username.trim();
@@ -152,9 +155,86 @@ export default function CustomerDashboardMobile({
 
   // Stats values
   const totalOrders = initialUser.totalOrders ?? 0;
-  const walletBalance = initialUser.walletBalance ?? 0;
   const referralEarnings = initialUser.referralEarnings ?? 0;
-  const rewardPoints = initialUser.rewardPoints ?? 120;
+  // Real-time wallet balance strictly initialized to 0 if no balance yet
+  const [liveWalletBalance, setLiveWalletBalance] = useState<number>(() => {
+    return Number(initialUser.walletBalance ?? (initialUser as any).balance ?? 0);
+  });
+
+  // Real-time reward points strictly initialized to 0 if no points yet
+  const [liveRewardPoints, setLiveRewardPoints] = useState<number>(() => {
+    return initialUser.rewardPoints ?? (initialUser as any).points ?? 0;
+  });
+
+  useEffect(() => {
+    const uId = initialUser.uid || initialUser.id;
+    if (!uId) return;
+
+    // Listen to users/{userId} doc
+    const unsub = onSnapshot(doc(db, "users", uId), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const pts = data.rewardPoints ?? data.points ?? 0;
+        setLiveRewardPoints(pts);
+
+        // Fetch real-time numeric value from users/{userId}/walletBalance
+        const wb = data.walletBalance !== undefined 
+          ? Number(data.walletBalance) 
+          : data.balance !== undefined 
+          ? Number(data.balance) 
+          : 0;
+        setLiveWalletBalance(wb);
+      }
+    }, (err) => {
+      console.warn("Mobile live user listener notice:", err?.message || err);
+    });
+
+    // Also listen to wallet/{userId} doc
+    const unsubWallet = onSnapshot(doc(db, "wallet", uId), (wSnap) => {
+      if (wSnap.exists()) {
+        const wBal = wSnap.data().balance;
+        if (wBal !== undefined) {
+          setLiveWalletBalance(Number(wBal) || 0);
+        }
+      }
+    }, () => {});
+
+    return () => {
+      unsub();
+      unsubWallet();
+    };
+  }, [initialUser.uid, initialUser.id]);
+
+  useEffect(() => {
+    if (initialUser.walletBalance !== undefined || (initialUser as any).balance !== undefined) {
+      setLiveWalletBalance(Number(initialUser.walletBalance ?? (initialUser as any).balance ?? 0));
+    }
+  }, [initialUser.walletBalance, (initialUser as any).balance]);
+
+  useEffect(() => {
+    if (initialUser.rewardPoints !== undefined || (initialUser as any).points !== undefined) {
+      setLiveRewardPoints(initialUser.rewardPoints ?? (initialUser as any).points ?? 0);
+    }
+  }, [initialUser.rewardPoints, (initialUser as any).points]);
+
+  // Auto-initialize rewardPoints to 0 in Firestore if missing for user
+  useEffect(() => {
+    const uId = initialUser.uid || initialUser.id;
+    if (uId && initialUser.rewardPoints === undefined && (initialUser as any).points === undefined) {
+      setDoc(doc(db, "users", uId), { rewardPoints: 0, points: 0 }, { merge: true }).catch(() => {});
+    }
+  }, [initialUser.uid, initialUser.id, initialUser.rewardPoints]);
+
+  // Auto-initialize walletBalance to 0 in Firestore if missing for user
+  useEffect(() => {
+    const uId = initialUser.uid || initialUser.id;
+    if (uId && initialUser.walletBalance === undefined && (initialUser as any).balance === undefined) {
+      setDoc(doc(db, "users", uId), { walletBalance: 0, balance: 0 }, { merge: true }).catch(() => {});
+    }
+  }, [initialUser.uid, initialUser.id, initialUser.walletBalance]);
+
+  const walletBalance = liveWalletBalance;
+  const rewardPoints = liveRewardPoints;
 
   // Interactive UI states
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
@@ -228,70 +308,79 @@ export default function CustomerDashboardMobile({
 
     if (file.size > 10 * 1024 * 1024) {
       triggerToast("ছবির সাইজ ১০ মেগাবাইটের কম হতে হবে");
+      if (e.target) e.target.value = "";
       return;
     }
 
     setIsUploadingPhoto(true);
 
+    // 1. Immediate local preview via URL.createObjectURL for 0ms lag
+    const localPreviewUrl = URL.createObjectURL(file);
+    setPhotoURL(localPreviewUrl);
+
     try {
-      // 1. Instant client-side compression to avoid infinite loading
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const maxDim = 400;
-          let width = img.width;
-          let height = img.height;
+      // 2. Compress image for ultra-fast upload & lightweight data URL
+      const compressed = await compressImage(file, 400, 0.85);
+      const immediateDataUrl = compressed.dataUrl || localPreviewUrl;
 
-          if (width > height) {
-            if (width > maxDim) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            }
-          } else {
-            if (height > maxDim) {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
+      // Update storage and broadcast event
+      try {
+        localStorage.setItem("kb_user_photo", immediateDataUrl);
+        window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: immediateDataUrl } }));
+      } catch {}
 
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const compressedUrl = canvas.toDataURL("image/jpeg", 0.85);
+      // 3. Persist to Firestore document under photoURL, avatar, image
+      const uId = initialUser.uid || initialUser.id;
+      if (uId) {
+        await setDoc(doc(db, "users", uId), {
+          uid: uId,
+          photoURL: immediateDataUrl,
+          avatar: immediateDataUrl,
+          image: immediateDataUrl,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch(() => {});
+      }
 
-            // Immediately apply photo to UI
-            setPhotoURL(compressedUrl);
-            setIsUploadingPhoto(false);
-            try {
-              localStorage.setItem("kb_user_photo", compressedUrl);
-              window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: compressedUrl } }));
-            } catch {}
-            triggerToast("ছবি সফলভাবে আপডেট করা হয়েছে!");
+      // Notify parent if save handler is supplied
+      if (onSaveProfile) {
+        onSaveProfile({
+          displayName,
+          phone,
+          email,
+          address,
+          photoURL: immediateDataUrl
+        });
+      }
 
-            // Notify parent if save handler is supplied
-            if (onSaveProfile) {
-              onSaveProfile({
-                displayName,
-                phone,
-                email,
-                address,
-                photoURL: compressedUrl
-              });
-            }
-          }
-        };
-        img.src = event.target?.result as string;
-      };
-      reader.readAsDataURL(file);
+      // 4. In background, upload to Cloudinary / Storage / CDN
+      uploadImageWithFallback(file, {
+        folder: "profiles",
+        maxDimension: 400,
+        quality: 0.85
+      }).then(async (cdnUrl) => {
+        if (cdnUrl && !cdnUrl.startsWith("data:") && uId) {
+          setPhotoURL(cdnUrl);
+          try {
+            localStorage.setItem("kb_user_photo", cdnUrl);
+            window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: cdnUrl } }));
+          } catch {}
+          await setDoc(doc(db, "users", uId), {
+            photoURL: cdnUrl,
+            avatar: cdnUrl,
+            image: cdnUrl,
+            updatedAt: serverTimestamp()
+          }, { merge: true }).catch(() => {});
+        }
+      }).catch((cdnErr) => {
+        console.warn("Background photo CDN upload notice:", cdnErr);
+      });
+
+      triggerToast("ছবি সফলভাবে আপডেট করা হয়েছে!");
     } catch (err) {
       console.error("Photo processing error:", err);
-      setIsUploadingPhoto(false);
       triggerToast("ছবি আপলোড করতে ব্যর্থ হয়েছে।");
     } finally {
+      setIsUploadingPhoto(false);
       if (e.target) e.target.value = "";
     }
   };
@@ -539,8 +628,9 @@ export default function CustomerDashboardMobile({
           type="file"
           ref={fileInputRef}
           onChange={handlePhotoSelect}
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           className="hidden"
+          style={{ display: "none" }}
         />
 
         {/* 3. Hero Card (Profile & Digital ID Badge) */}
@@ -986,23 +1076,33 @@ export default function CustomerDashboardMobile({
               <form onSubmit={handleSaveFullProfile} className="space-y-3.5">
               {/* Avatar circle in modal */}
               <div className="flex items-center space-x-4 bg-slate-50 p-3 rounded-2xl border border-gray-100">
-                <div className="w-14 h-14 rounded-full bg-slate-200 border-2 border-white shadow-xs overflow-hidden flex items-center justify-center">
+                <div className="relative w-14 h-14 rounded-full bg-slate-200 border-2 border-white shadow-xs overflow-hidden flex items-center justify-center shrink-0">
                   {photoURL ? (
                     <img src={photoURL} alt={displayName} className="w-full h-full object-cover" />
                   ) : (
                     <User className="w-7 h-7 text-slate-400" />
+                  )}
+                  {isUploadingPhoto && (
+                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    </div>
                   )}
                 </div>
                 <div>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                    disabled={isUploadingPhoto}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                   >
-                    <Camera className="w-3.5 h-3.5" />
-                    <span>ছবি পরিবর্তন করুন</span>
+                    {isUploadingPhoto ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Camera className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isUploadingPhoto ? "আপলোড হচ্ছে..." : "ছবি পরিবর্তন করুন"}</span>
                   </button>
-                  <p className="text-[10px] text-slate-400 mt-1">সর্বোচ্চ ১০MB (JPG, PNG)</p>
+                  <p className="text-[10px] text-slate-400 mt-1">সর্বোচ্চ ১০MB (JPG, PNG, WebP)</p>
                 </div>
               </div>
 

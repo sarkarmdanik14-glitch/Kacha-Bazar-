@@ -160,6 +160,7 @@ export async function checkAndRewardReferral(referredUserId: string) {
       if (referrerUserSnap.exists()) {
         await updateDoc(referrerUserRef, {
           walletBalance: increment(19),
+          balance: increment(19),
           referralEarnings: increment(19),
           updatedAt: serverTimestamp()
         });

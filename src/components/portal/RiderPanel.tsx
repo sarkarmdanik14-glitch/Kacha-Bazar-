@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { checkAndRewardReferral } from "../../lib/referral";
+import { awardOrderRewardPoints } from "../../lib/rewardPoints";
 import { createTranslator } from "../../lib/formatUtils";
 
 interface RiderPanelProps {
@@ -231,6 +232,12 @@ export default function RiderPanel({ user, onLogout, lang, triggerToast }: Rider
       if (targetCustId) {
         await checkAndRewardReferral(targetCustId);
       }
+
+      // Real-time reward points calculation & Firestore credit for customer
+      await awardOrderRewardPoints(activeOrder.id, {
+        ...activeOrder,
+        orderStatus: "delivered"
+      });
 
       // 2. Update Rider's balance (they get the delivery fee!) and clean current order
       await updateDoc(doc(db, "riders", user.uid), {

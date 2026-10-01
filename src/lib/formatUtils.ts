@@ -65,3 +65,5 @@ export const formatTime = (totalSec: number, lang?: string): string => {
 export const formatPrice = (amount: number | string, lang: string = "bn"): string => {
   return `৳${fmtNum(amount, lang)}`;
 };
+
+export { generateMemberId, normalizeMemberId, getDigitalMembershipCardId } from "./memberIdUtils";

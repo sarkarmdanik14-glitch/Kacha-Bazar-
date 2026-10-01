@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { db, doc, setDoc, deleteDoc, serverTimestamp } from "../../lib/firebase";
 import { createTranslator } from "../../lib/formatUtils";
+import { normalizeMemberId } from "../../lib/memberIdUtils";
 
 interface AdminOrdersTabProps {
   orders: any[];
@@ -761,6 +762,18 @@ export default function AdminOrdersTab({
                                 {o.name || o.customerName || getTranslation("গেস্ট কাস্টমার", "Guest Customer")}
                               </span>
                             </div>
+
+                            {(() => {
+                              const rawCustId = o.customerId || o.userId;
+                              if (!rawCustId || rawCustId === "guest" || rawCustId === "manual_admin") return null;
+                              const matchedUser = users?.find(u => (u.uid || u.id) === rawCustId);
+                              const memberId = normalizeMemberId(matchedUser?.customerId || (rawCustId.length <= 10 ? rawCustId : null), rawCustId);
+                              return (
+                                <div className="inline-flex items-center gap-1 text-[9.5px] font-mono font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-1 py-0.2 rounded">
+                                  <span>ID: {memberId}</span>
+                                </div>
+                              );
+                            })()}
                             
                             {o.phone && (
                               <div className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50/90 border border-emerald-200/70 px-1.5 py-0.2 rounded">
