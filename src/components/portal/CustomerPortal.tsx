@@ -109,7 +109,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
   // Profile editing states
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [displayNameInput, setDisplayNameInput] = useState<string>(user?.displayName || dbUser?.displayName || "");
+  const [displayNameInput, setDisplayNameInput] = useState<string>(user?.displayName || user?.name || dbUser?.displayName || dbUser?.name || "");
   const [phoneInput, setPhoneInput] = useState<string>(user?.phone || user?.phoneNumber || dbUser?.phone || "");
   const [emailInput, setEmailInput] = useState<string>(user?.email || dbUser?.email || "");
   const [photoUrlInput, setPhotoUrlInput] = useState<string>(user?.photoURL || dbUser?.photoURL || "");
@@ -118,8 +118,9 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
   useEffect(() => {
     if (dbUser) {
-      if (dbUser.displayName) {
-        setDisplayNameInput(dbUser.displayName);
+      const currentName = dbUser.displayName || dbUser.name || dbUser.fullName;
+      if (currentName) {
+        setDisplayNameInput(currentName);
       }
       if (dbUser.phone !== undefined) {
         setPhoneInput(dbUser.phone || "");
@@ -134,7 +135,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         setPhotoUrlInput(dbUser.photoURL || "");
       }
     }
-  }, [dbUser?.displayName, dbUser?.phone, dbUser?.email, dbUser?.address, dbUser?.photoURL]);
+  }, [dbUser?.displayName, dbUser?.name, dbUser?.fullName, dbUser?.phone, dbUser?.email, dbUser?.address, dbUser?.photoURL]);
 
   // Digital ID and Membership States - Every ID strictly starts with FCI prefix
   const getFormattedCustomerId = () => {
@@ -154,7 +155,26 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   };
 
   const customerId = getFormattedCustomerId();
-  const username = dbUser?.username || (dbUser?.displayName || user?.displayName || customerId.toLowerCase()).toLowerCase().replace(/[^a-z0-9]/g, "") || customerId.toLowerCase();
+  // Primary dynamic profile name from registered user details
+  const profileName = (dbUser?.displayName || dbUser?.name || dbUser?.fullName || user?.displayName || user?.name || "মোহাম্মদ").trim();
+
+  // Automatically format and generate the username handle below it based on this name (e.g., @ followed by sanitized name)
+  const getSanitizedUsername = () => {
+    if (dbUser?.username && typeof dbUser.username === "string" && dbUser.username.trim()) {
+      return dbUser.username.trim();
+    }
+    const rawName = (dbUser?.displayName || dbUser?.name || dbUser?.fullName || user?.displayName || user?.name || "").trim();
+    if (rawName) {
+      const sanitized = rawName
+        .toLowerCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^\w\u0980-\u09FF]/gi, "");
+      if (sanitized) return sanitized;
+    }
+    return customerId.toLowerCase();
+  };
+
+  const username = getSanitizedUsername();
 
   // Dynamic verification flags - never hardcoded to true
   const isEmailVerified = Boolean(dbUser?.isEmailVerified || auth.currentUser?.emailVerified);
@@ -253,9 +273,17 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
     setIsSavingProfile(true);
     try {
+      const sanitizedHandle = trimmedName
+        .toLowerCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^\w\u0980-\u09FF]/gi, "") || customerId.toLowerCase();
+
       const updatedFields: any = {
         uid: user.uid,
         displayName: trimmedName,
+        name: trimmedName,
+        fullName: trimmedName,
+        username: sanitizedHandle,
         phone: phoneInput.trim(),
         email: emailInput.trim() || user.email || "",
         address: profileAddress.trim(),
@@ -859,7 +887,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-black text-slate-800 text-sm leading-tight truncate">
-                      {dbUser?.displayName || user?.displayName || "Allahu Akber"}
+                      {profileName}
                     </h3>
                     <p className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider truncate">
                       {dbUser?.role || user?.role || "customer"}
@@ -939,7 +967,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
               )}
             </div>
             <div className="min-w-0">
-              <h3 className="font-black text-slate-800 text-sm leading-tight truncate">{dbUser?.displayName || user?.displayName || "Allahu Akber"}</h3>
+              <h3 className="font-black text-slate-800 text-sm leading-tight truncate">{profileName}</h3>
               <p className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider truncate">{dbUser?.role || user?.role || "customer"}</p>
             </div>
           </div>
@@ -1038,7 +1066,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                 )}
               </div>
               <span className="text-xs font-bold text-slate-700 hidden sm:inline-block max-w-[120px] truncate">
-                {dbUser?.displayName || user?.displayName || "Allahu Akber"}
+                {profileName}
               </span>
             </div>
           </div>
@@ -1093,7 +1121,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center space-x-1.5 flex-wrap">
                           <h2 className="text-base sm:text-xl font-black text-white leading-tight truncate">
-                            {dbUser?.displayName || user?.displayName || "Allahu Akber"}
+                            {profileName}
                           </h2>
                           {isAccountVerified ? (
                             <button

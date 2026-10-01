@@ -16,7 +16,8 @@ import {
   query,
   where,
   getDocs,
-  signOut
+  signOut,
+  updateProfile
 } from "../../lib/firebase";
 import { User, Mail, Lock, AlertCircle, Key, LogIn, UserPlus, Gift, Sparkles, RefreshCw, Smartphone, Store } from "lucide-react";
 import { authenticatePartner } from "../../lib/partnerManager";
@@ -530,14 +531,32 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
+        const cleanFullName = (fullName || "মোহাম্মদ").trim();
+        try {
+          await updateProfile(user, { displayName: cleanFullName });
+        } catch (profileErr) {
+          console.warn("Could not set auth displayName:", profileErr);
+        }
+
         const refCode = "REF" + user.uid.substring(0, 5).toUpperCase();
+        const cleanUid = (user.uid || "").replace(/[^a-zA-Z0-9]/g, "");
+        const customerId = `FCI${cleanUid.length >= 3 ? cleanUid.substring(0, 3).toUpperCase() : "782"}`;
+        const sanitizedHandle = cleanFullName
+          .toLowerCase()
+          .replace(/\s+/g, "_")
+          .replace(/[^\w\u0980-\u09FF]/gi, "") || customerId.toLowerCase();
 
         const userData: any = {
           uid: user.uid,
           email: user.email,
-          displayName: fullName,
+          displayName: cleanFullName,
+          name: cleanFullName,
+          fullName: cleanFullName,
+          username: sanitizedHandle,
+          customerId: customerId,
           role: role,
-          phoneNumber: phone,
+          phoneNumber: phone.trim(),
+          phone: phone.trim(),
           createdAt: serverTimestamp(),
           address: getTranslation("চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর", "Chanchkoir Bazar, Gurudaspur, Natore"),
           referralCode: refCode,
@@ -864,7 +883,7 @@ export default function AuthView({ onAuthSuccess, lang, forcedRole }: AuthViewPr
                     <input
                       type="text"
                       required
-                      placeholder={getTranslation("যেমন: সিয়াম আহমেদ", "e.g., Siam Ahmed")}
+                      placeholder={getTranslation("যেমন: মোহাম্মদ", "e.g., Mohammad")}
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"

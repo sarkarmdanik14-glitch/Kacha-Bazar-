@@ -328,15 +328,25 @@ export default function PortalModal({
               if (userDocSnap.exists()) {
                 userData = userDocSnap.data();
               } else {
+                const effectiveName = user.displayName || user.email?.split("@")[0] || "মোহাম্মদ";
+                const cleanUid = (user.uid || "").replace(/[^a-zA-Z0-9]/g, "");
+                const customerId = `FCI${cleanUid.length >= 3 ? cleanUid.substring(0, 3).toUpperCase() : "782"}`;
+                const sanitizedHandle = effectiveName
+                  .toLowerCase()
+                  .replace(/\s+/g, "_")
+                  .replace(/[^\w\u0980-\u09FF]/gi, "") || customerId.toLowerCase();
+
                 userData = {
                   uid: user.uid,
                   email: user.email || "",
-                  displayName: user.displayName || user.email?.split("@")[0] || "Customer",
+                  displayName: effectiveName,
+                  name: effectiveName,
+                  username: sanitizedHandle,
                   role: "customer",
                   profileStatus: "approved",
                   createdAt: serverTimestamp(),
                   referralCode: "REF" + user.uid.substring(0, 5).toUpperCase(),
-                  customerId: "FCI" + (user.uid.replace(/[^a-zA-Z0-9]/g, "").substring(0, 3).toUpperCase() || "782")
+                  customerId: customerId
                 };
                 try {
                   await setDoc(doc(db, "users", user.uid), userData, { merge: true });
@@ -358,7 +368,8 @@ export default function PortalModal({
             const fallbackUser = {
               uid: user.uid,
               email: user.email,
-              displayName: user.displayName || user.email?.split("@")[0] || "Customer",
+              displayName: user.displayName || user.email?.split("@")[0] || "মোহাম্মদ",
+              name: user.displayName || user.email?.split("@")[0] || "মোহাম্মদ",
               role: "customer",
               profileStatus: "approved"
             };

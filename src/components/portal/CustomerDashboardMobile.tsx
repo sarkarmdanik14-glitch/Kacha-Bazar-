@@ -77,7 +77,7 @@ export default function CustomerDashboardMobile({
   const [activeTab, setActiveTab] = useState<string>("dashboard");
 
   // Profile data states
-  const [displayName, setDisplayName] = useState<string>(initialUser.displayName || "Allahu Akber");
+  const [displayName, setDisplayName] = useState<string>(initialUser.displayName || initialUser.name || initialUser.fullName || "মোহাম্মদ");
   const [phone, setPhone] = useState<string>(initialUser.phone || "01700-000000");
   const [email, setEmail] = useState<string>(initialUser.email || "user@kanchabazar.com");
   const [photoURL, setPhotoURL] = useState<string>(initialUser.photoURL || "");
@@ -102,7 +102,21 @@ export default function CustomerDashboardMobile({
   };
 
   const customerId = getFormattedCustomerId();
-  const username = initialUser.username || (initialUser.displayName ? initialUser.displayName.toLowerCase().replace(/[^a-z0-9]/g, "") : customerId.toLowerCase());
+  const getSanitizedUsername = () => {
+    if (initialUser.username && typeof initialUser.username === "string" && initialUser.username.trim()) {
+      return initialUser.username.trim();
+    }
+    const rawName = (displayName || initialUser.displayName || initialUser.name || initialUser.fullName || "").trim();
+    if (rawName) {
+      const sanitized = rawName
+        .toLowerCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^\w\u0980-\u09FF]/gi, "");
+      if (sanitized) return sanitized;
+    }
+    return customerId.toLowerCase();
+  };
+  const username = getSanitizedUsername();
   const isEmailVerified = Boolean(initialUser.isEmailVerified);
   const isPhoneVerified = Boolean(initialUser.isPhoneVerified);
   const isVerified = Boolean((isEmailVerified && isPhoneVerified) || (initialUser.isVerified && isEmailVerified && isPhoneVerified));

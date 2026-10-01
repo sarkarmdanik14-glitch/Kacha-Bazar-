@@ -444,7 +444,7 @@ export default function CheckoutModal({
                         <input
                           type="text"
                           required
-                          placeholder={getTranslation("যেমন: সিয়াম আহমেদ", "e.g., Siam Ahmed")}
+                          placeholder={getTranslation("যেমন: মোহাম্মদ", "e.g., Mohammad")}
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
@@ -927,7 +927,7 @@ export default function CheckoutModal({
                   <input
                     type="text"
                     required
-                    placeholder={getTranslation("যেমন: সিয়াম আহমেদ", "e.g., Siam Ahmed")}
+                    placeholder={getTranslation("যেমন: মোহাম্মদ", "e.g., Mohammad")}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
