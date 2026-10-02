@@ -41,6 +41,7 @@ import type { ConfirmationResult } from "firebase/auth";
 import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from "../../lib/memberIdUtils";
 import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
 import { apiClient } from "../../lib/apiClient";
+import RewardRedemptionView from "./RewardRedemptionView";
 
 export interface CustomerDashboardProps {
   initialUser?: {
@@ -426,88 +427,25 @@ export default function CustomerDashboardMobile({
 
     setIsSendingPhoneOtp(true);
     try {
-      // 1. Reset any previous verifier instance
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {}
-        window.recaptchaVerifier = undefined;
-      }
-      if ((window as any).mobilePhoneVerifyRecaptchaVerifier) {
-        try {
-          (window as any).mobilePhoneVerifyRecaptchaVerifier.clear();
-        } catch (e) {}
-        (window as any).mobilePhoneVerifyRecaptchaVerifier = null;
-      }
-
-      // 2. Ensure target element exists for invisible binding
-      let targetButton = document.getElementById("mobile-phone-verify-button");
-      if (!targetButton) {
-        const fallbackContainer = document.createElement("div");
-        fallbackContainer.id = "mobile-phone-verify-button";
-        fallbackContainer.style.display = "none";
-        document.body.appendChild(fallbackContainer);
-      }
-
-      // 3. Configure invisible RecaptchaVerifier
-      const appVerifier = new RecaptchaVerifier(auth, "mobile-phone-verify-button", {
-        size: "invisible",
-        callback: () => {
-          // reCAPTCHA solved silently in the background
-        },
-        "expired-callback": () => {
-          if (window.recaptchaVerifier) {
-            try {
-              window.recaptchaVerifier.clear();
-            } catch (e) {}
-            window.recaptchaVerifier = undefined;
-          }
-          triggerToast("ক্যাপচা মেয়াদ উত্তীর্ণ হয়েছে। অনুগ্রহ করে আবার ওটিপি পাঠান।");
-        }
+      const uId = initialUser.uid || initialUser.id;
+      const res = await apiClient.post<any>("/api/auth/phone/send-verification-otp", {
+        phone: rawPhone,
+        userId: uId
       });
-      window.recaptchaVerifier = appVerifier;
-      (window as any).mobilePhoneVerifyRecaptchaVerifier = appVerifier;
 
-      // 4. Trigger signInWithPhoneNumber silently in the background
-      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-      setPhoneConfirmationResult(confirmation);
-      setPhoneOtpSent(true);
-      setPhoneOtpCooldown(60);
-      triggerToast(`${rawPhone} নম্বরে একটি ওটিপি কোড পাঠানো হয়েছে।`);
+      if (res?.success) {
+        setPhoneOtpSent(true);
+        setPhoneOtpCooldown(60);
+        triggerToast(`${rawPhone} নম্বরে একটি ওটিপি কোড পাঠানো হয়েছে।`);
+      } else {
+        throw new Error(res?.error || "ওটিপি পাঠাতে সমস্যা হয়েছে।");
+      }
     } catch (err: any) {
-      console.error("Mobile Firebase Phone Auth error:", err);
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {}
-        window.recaptchaVerifier = undefined;
-      }
-      if ((window as any).mobilePhoneVerifyRecaptchaVerifier) {
-        try {
-          (window as any).mobilePhoneVerifyRecaptchaVerifier.clear();
-        } catch (e) {}
-        (window as any).mobilePhoneVerifyRecaptchaVerifier = null;
-      }
-
+      console.warn("Mobile notice sending phone OTP:", err?.message || err);
       let errorMsg = "এসএমএস ওটিপি পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।";
-
-      if (err?.code === "auth/unauthorized-domain" || err?.message?.includes("unauthorized-domain")) {
-        const domain = typeof window !== "undefined" ? window.location.hostname : "localhost";
-        errorMsg = `ডোমেইনটি অনুমোদিত নয় (${domain})। Firebase Console → Authentication → Settings → Authorized domains-এ যোগ করুন।`;
-      } else if (err?.code === "auth/quota-exceeded" || err?.message?.includes("quota")) {
-        errorMsg = "এসএমএস কোটার দৈনিক লিমিট শেষ হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।";
-      } else if (err?.code === "auth/invalid-phone-number") {
-        errorMsg = "মোবাইল নম্বরটি সঠিক নয়। অনুগ্রহ করে সঠিক ১১ ডিজিটের নম্বর দিন (যেমন: 017XXXXXXXX)।";
-      } else if (err?.code === "auth/too-many-requests") {
-        errorMsg = "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
-      } else if (err?.code === "auth/captcha-check-failed") {
-        errorMsg = "reCAPTCHA ভেরিফিকেশন সম্পন্ন হতে পারেনি। অনুগ্রহ করে আবার চেষ্টা করুন।";
-      } else if (err?.code === "auth/network-request-failed") {
-        errorMsg = "নেটওয়ার্ক সংযোগ ত্রুটি। ইন্টারনেট সংযোগ পরীক্ষা করুন।";
-      } else if (err?.message) {
-        errorMsg = `এসএমএস পাঠাতে ব্যর্থ: ${err.message}`;
+      if (err?.message) {
+        errorMsg = err.message;
       }
-
       triggerToast(errorMsg);
     } finally {
       setIsSendingPhoneOtp(false);
@@ -521,17 +459,26 @@ export default function CustomerDashboardMobile({
       return;
     }
 
-    if (!phoneConfirmationResult) {
-      triggerToast("অনুগ্রহ করে প্রথমে মোবাইলে ওটিপি কোড পাঠান।");
-      return;
-    }
-
     setIsVerifyingPhone(true);
     try {
-      await phoneConfirmationResult.confirm(code);
+      const uId = initialUser.uid || initialUser.id;
+      const res = await apiClient.post<any>("/api/auth/phone/verify-otp", {
+        phone: phone,
+        code: code,
+        userId: uId
+      });
+
+      if (!res?.success) {
+        throw new Error(res?.error || "ভুল ওটিপি কোড।");
+      }
+
+      if (phoneConfirmationResult) {
+        try {
+          await phoneConfirmationResult.confirm(code);
+        } catch (e) {}
+      }
 
       setPhoneVerifiedLocal(true);
-      const uId = initialUser.uid || initialUser.id;
       if (uId) {
         await setDoc(doc(db, "users", uId), {
           isPhoneVerified: true,
@@ -545,14 +492,14 @@ export default function CustomerDashboardMobile({
       setPhoneConfirmationResult(null);
       triggerToast("অভিনন্দন! ফোন নাম্বার সফলভাবে ভেরিফাই করা হয়েছে! ✓");
     } catch (err: any) {
-      console.error("Mobile error confirming phone OTP:", err);
+      console.warn("Mobile notice verifying phone OTP:", err?.message || err);
       let errorMsg = "ভুল OTP কোড! অনুগ্রহ করে আবার চেষ্টা করুন।";
       if (err?.code === "auth/invalid-verification-code") {
         errorMsg = "ভুল ওটিপি কোড! অনুগ্রহ করে যাচাই করে আবার লিখুন।";
       } else if (err?.code === "auth/code-expired") {
         errorMsg = "ওটিপি কোডের মেয়াদ উত্তীর্ণ হয়ে গেছে।";
       } else if (err?.message) {
-        errorMsg = `যাচাইকরণ ব্যর্থ: ${err.message}`;
+        errorMsg = err.message;
       }
       triggerToast(errorMsg);
     } finally {
@@ -934,6 +881,7 @@ export default function CustomerDashboardMobile({
                 {[
                   { id: "dashboard", labelBn: "ড্যাশবোর্ড", icon: <User className="w-4 h-4" /> },
                   { id: "orders", labelBn: "অর্ডার হিস্ট্রি / ট্র্যাকিং", icon: <ShoppingBag className="w-4 h-4" /> },
+                  { id: "rewards", labelBn: "রিওয়ার্ড পয়েন্ট", icon: <Award className="w-4 h-4" /> },
                   { id: "wishlist", labelBn: "উইশলিস্ট", icon: <Heart className="w-4 h-4" /> },
                   { id: "address", labelBn: "ডেলিভারি ঠিকানা", icon: <MapPin className="w-4 h-4" /> },
                   { id: "wallet", labelBn: "আমার ওয়ালেট", icon: <CreditCard className="w-4 h-4" /> },
@@ -1057,16 +1005,31 @@ export default function CustomerDashboardMobile({
       </header>
 
       {/* Main Container */}
-      <main className="max-w-md mx-auto px-4 pt-4 sm:pt-6 space-y-4 sm:space-y-5">
-        {/* Hidden File Input for Avatar Change */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handlePhotoSelect}
-          accept="image/jpeg,image/png,image/webp"
-          className="hidden"
-          style={{ display: "none" }}
-        />
+      <main className="max-w-md sm:max-w-2xl mx-auto px-4 pt-4 sm:pt-6 space-y-4 sm:space-y-5">
+        {activeTab === "rewards" ? (
+          <RewardRedemptionView
+            user={{
+              ...initialUser,
+              uid: initialUser.uid || initialUser.id,
+              phone: phone || initialUser.phone,
+              address: address || initialUser.address
+            }}
+            currentPoints={rewardPoints}
+            onPointsUpdated={(newPts) => setLiveRewardPoints(newPts)}
+            onBack={() => setActiveTab("dashboard")}
+            triggerToast={(bn) => triggerToast(bn)}
+          />
+        ) : (
+          <>
+            {/* Hidden File Input for Avatar Change */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handlePhotoSelect}
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              style={{ display: "none" }}
+            />
 
         {/* 3. Hero Card (Profile & Digital ID Badge) */}
         <div className="relative bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-emerald-700/30 overflow-hidden">
@@ -1267,14 +1230,23 @@ export default function CustomerDashboardMobile({
 
             {/* Card 4: রিওয়ার্ড পয়েন্ট */}
             <div
-              onClick={() => triggerToast(`আপনার বর্তমান রিওয়ার্ড পয়েন্ট: ${rewardPoints}`)}
-              className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-purple-200 transition cursor-pointer"
+              onClick={() => setActiveTab("rewards")}
+              className="bg-white border border-gray-100 hover:border-purple-300 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group transform hover:-translate-y-0.5"
             >
-              <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold mb-2">
-                <Award className="w-5 h-5" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold group-hover:bg-purple-600 group-hover:text-white transition-colors duration-200">
+                  <Award className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100 flex items-center gap-1">
+                  <Gift className="w-3 h-3 text-purple-500" />
+                  <span>উপহার নিন</span>
+                </span>
               </div>
               <p className="text-[11px] font-bold text-slate-400">রিওয়ার্ড পয়েন্ট</p>
-              <h4 className="text-lg font-black text-slate-900 mt-0.5">{rewardPoints} pts</h4>
+              <h4 className="text-lg font-black text-slate-900 mt-0.5 flex items-baseline gap-1">
+                <span>{rewardPoints}</span>
+                <span className="text-xs text-purple-600 font-bold">pts</span>
+              </h4>
             </div>
           </div>
         </div>
@@ -1365,6 +1337,8 @@ export default function CustomerDashboardMobile({
             <span>লগআউট</span>
           </button>
         </div>
+          </>
+        )}
       </main>
 
       {/* QR Code Modal */}

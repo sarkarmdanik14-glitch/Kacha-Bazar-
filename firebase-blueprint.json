@@ -530,6 +530,27 @@
         "createdAt": "timestamp",
         "updatedAt": "timestamp"
       }
+    },
+    {
+      "name": "reward_claims",
+      "description": "Customer reward points gift redemption requests and dispatch tracking",
+      "fields": {
+        "id": "string",
+        "userId": "string",
+        "userName": "string",
+        "customerPhone": "string",
+        "deliveryAddress": "string",
+        "notes": "string",
+        "giftId": "string",
+        "giftNameBn": "string",
+        "giftNameEn": "string",
+        "giftImage": "string",
+        "pointsDeducted": "number",
+        "marketValueTaka": "number",
+        "status": "string",
+        "createdAt": "timestamp",
+        "claimDate": "string"
+      }
     }
   ]
 }

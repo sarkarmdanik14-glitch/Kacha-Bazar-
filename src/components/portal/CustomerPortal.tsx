@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import OrderMemoModal from "./OrderMemoModal";
+import RewardRedemptionView from "./RewardRedemptionView";
 import { createTranslator } from "../../lib/formatUtils";
 import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from "../../lib/memberIdUtils";
 import { checkAndUpgradePremiumMembership } from "../../lib/membership";
@@ -50,12 +51,12 @@ interface CustomerPortalProps {
   onLogout: () => void;
   lang: "bn" | "en";
   triggerToast: (bn: string, en: string) => void;
-  initialTab?: "dashboard" | "orders" | "wallet" | "referral" | "notifications";
+  initialTab?: "dashboard" | "orders" | "wallet" | "referral" | "notifications" | "rewards";
   onClose?: () => void;
 }
 
 export default function CustomerPortal({ user, onLogout, lang, triggerToast, initialTab, onClose }: CustomerPortalProps) {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "orders" | "wallet" | "referral" | "notifications">(initialTab || "dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "orders" | "wallet" | "referral" | "notifications" | "rewards">(initialTab || "dashboard");
   const [showMembershipModal, setShowMembershipModal] = useState<boolean>(false);
   const [showAddressModal, setShowAddressModal] = useState<boolean>(false);
   const [showWishlistModal, setShowWishlistModal] = useState<boolean>(false);
@@ -63,6 +64,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   const customerNavItems = [
     { id: "dashboard", labelBn: "ড্যাশবোর্ড", labelEn: "Dashboard", icon: <User className="w-4 h-4" /> },
     { id: "orders", labelBn: "অর্ডার হিস্ট্রি / ট্র্যাকিং", labelEn: "Order History / Tracking", icon: <ShoppingBag className="w-4 h-4" /> },
+    { id: "rewards", labelBn: "রিওয়ার্ড পয়েন্ট", labelEn: "Reward Points", icon: <Award className="w-4 h-4" /> },
     { id: "wishlist", labelBn: "উইশলিস্ট", labelEn: "Wishlist", icon: <Heart className="w-4 h-4" /> },
     { id: "address", labelBn: "ডেলিভারি ঠিকানা", labelEn: "Delivery Address", icon: <MapPin className="w-4 h-4" /> },
     { id: "wallet", labelBn: "আমার ওয়ালেট", labelEn: "My Wallet", icon: <CreditCard className="w-4 h-4" /> },
@@ -1061,101 +1063,30 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
     setIsSendingPhoneOtp(true);
     try {
-      // 1. Reset any previous verifier instance to prevent reCAPTCHA rendering conflicts
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {}
-        window.recaptchaVerifier = undefined;
-      }
-      if ((window as any).phoneVerifyRecaptchaVerifier) {
-        try {
-          (window as any).phoneVerifyRecaptchaVerifier.clear();
-        } catch (e) {}
-        (window as any).phoneVerifyRecaptchaVerifier = null;
-      }
-
-      // 2. Ensure target element exists for invisible binding
-      let targetButton = document.getElementById("phone-verify-button");
-      if (!targetButton) {
-        const fallbackContainer = document.createElement("div");
-        fallbackContainer.id = "phone-verify-button";
-        fallbackContainer.style.display = "none";
-        document.body.appendChild(fallbackContainer);
-      }
-
-      // 3. Configure invisible RecaptchaVerifier
-      const appVerifier = new RecaptchaVerifier(auth, "phone-verify-button", {
-        size: "invisible",
-        callback: () => {
-          // reCAPTCHA solved silently in the background
-        },
-        "expired-callback": () => {
-          if (window.recaptchaVerifier) {
-            try {
-              window.recaptchaVerifier.clear();
-            } catch (e) {}
-            window.recaptchaVerifier = undefined;
-          }
-          triggerToast(
-            "ক্যাপচা মেয়াদ উত্তীর্ণ হয়েছে। আবার চেষ্টা করুন।",
-            "reCAPTCHA token expired. Please click Send OTP again."
-          );
-        }
+      const uId = user?.uid || auth.currentUser?.uid;
+      const res = await apiClient.post<any>("/api/auth/phone/send-verification-otp", {
+        phone: rawPhone,
+        userId: uId
       });
-      window.recaptchaVerifier = appVerifier;
-      (window as any).phoneVerifyRecaptchaVerifier = appVerifier;
 
-      // 4. Trigger signInWithPhoneNumber silently in background
-      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-      setPhoneConfirmationResult(confirmation);
-      setPhoneOtpSent(true);
-      setPhoneOtpCooldown(60);
-      triggerToast(
-        `${rawPhone} নম্বরে একটি ওটিপি কোড পাঠানো হয়েছে। অনুগ্রহ করে কোডটি লিখুন।`,
-        `An SMS verification OTP has been sent to ${rawPhone}. Please enter it below.`
-      );
+      if (res?.success) {
+        setPhoneOtpSent(true);
+        setPhoneOtpCooldown(60);
+        triggerToast(
+          `${rawPhone} নম্বরে একটি ওটিপি কোড পাঠানো হয়েছে। অনুগ্রহ করে কোডটি লিখুন।`,
+          `An SMS verification OTP has been sent to ${rawPhone}. Please enter it below.`
+        );
+      } else {
+        throw new Error(res?.error || "ওটিপি পাঠাতে সমস্যা হয়েছে।");
+      }
     } catch (err: any) {
-      console.error("Firebase Phone Auth error:", err);
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {}
-        window.recaptchaVerifier = undefined;
-      }
-      if ((window as any).phoneVerifyRecaptchaVerifier) {
-        try {
-          (window as any).phoneVerifyRecaptchaVerifier.clear();
-        } catch (e) {}
-        (window as any).phoneVerifyRecaptchaVerifier = null;
-      }
-
+      console.warn("Notice sending phone OTP:", err?.message || err);
       let errorMsgBn = "এসএমএস ওটিপি পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।";
       let errorMsgEn = "Failed to send SMS OTP. Please try again.";
 
-      if (err?.code === "auth/unauthorized-domain" || err?.message?.includes("unauthorized-domain")) {
-        const domain = typeof window !== "undefined" ? window.location.hostname : "localhost";
-        errorMsgBn = `ডোমেইনটি অনুমোদিত নয় (${domain})। Firebase Console → Authentication → Settings → Authorized domains-এ যোগ করুন।`;
-        errorMsgEn = `Domain is not authorized (${domain}). Please add it in Firebase Console Authorized Domains.`;
-      } else if (err?.code === "auth/quota-exceeded" || err?.message?.includes("quota")) {
-        errorMsgBn = "এসএমএস কোটার দৈনিক লিমিট শেষ হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
-        errorMsgEn = "SMS quota exceeded for today. Please try again later.";
-      } else if (err?.code === "auth/invalid-phone-number") {
-        errorMsgBn = "মোবাইল নম্বরটি সঠিক নয়। অনুগ্রহ করে সঠিক ১১ ডিজিটের নম্বর দিন (যেমন: 017XXXXXXXX)।";
-        errorMsgEn = "Invalid phone number format. Please provide a valid 11-digit mobile number.";
-      } else if (err?.code === "auth/too-many-requests") {
-        errorMsgBn = "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
-        errorMsgEn = "Too many requests. Please wait a moment and try again.";
-      } else if (err?.code === "auth/captcha-check-failed") {
-        errorMsgBn = "reCAPTCHA ভেরিফিকেশন সম্পন্ন হতে পারেনি। অনুগ্রহ করে আবার চেষ্টা করুন।";
-        errorMsgEn = "reCAPTCHA verification failed. Please try again.";
-      } else if (err?.code === "auth/network-request-failed") {
-        errorMsgBn = "নেটওয়ার্ক সংযোগ ত্রুটি। অনুগ্রহ করে আপনার ইন্টারনেট সংযোগ পরীক্ষা করুন।";
-        errorMsgEn = "Network error. Please check your internet connection.";
-      } else if (err?.message) {
-        errorMsgBn = `এসএমএস পাঠাতে ব্যর্থ: ${err.message}`;
+      if (err?.message) {
+        errorMsgBn = err.message;
       }
-
       triggerToast(errorMsgBn, errorMsgEn);
     } finally {
       setIsSendingPhoneOtp(false);
@@ -1172,22 +1103,31 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       return;
     }
 
-    if (!phoneConfirmationResult) {
-      triggerToast(
-        "অনুগ্রহ করে প্রথমে মোবাইলে ওটিপি কোড পাঠান।",
-        "Please request an SMS verification OTP first."
-      );
-      return;
-    }
-
     setIsVerifyingPhone(true);
     try {
-      await phoneConfirmationResult.confirm(code);
+      const uId = user?.uid || auth.currentUser?.uid;
+      const targetPhone = (phoneInput || dbUser?.phone || user?.phone || user?.phoneNumber || "").trim();
+
+      // Verify via server OTP verification endpoint
+      const res = await apiClient.post<any>("/api/auth/phone/verify-otp", {
+        phone: targetPhone,
+        code: code,
+        userId: uId
+      });
+
+      if (!res?.success) {
+        throw new Error(res?.error || "ভুল ওটিপি কোড।");
+      }
+
+      if (phoneConfirmationResult) {
+        try {
+          await phoneConfirmationResult.confirm(code);
+        } catch (e) {
+          // If Firebase confirmation fails or isn't used, server-side verification already succeeded
+        }
+      }
 
       const willBeFullyVerified = isEmailVerified;
-      const targetPhone = (phoneInput || dbUser?.phone || user?.phone || user?.phoneNumber || "").trim();
-      const uId = user?.uid || auth.currentUser?.uid;
-
       if (uId) {
         await setDoc(doc(db, "users", uId), {
           uid: uId,
@@ -1218,7 +1158,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         await checkAndRewardReferral(uId);
       }
     } catch (err: any) {
-      console.error("Error verifying phone OTP:", err);
+      console.warn("Notice verifying phone OTP:", err?.message || err);
       let errorMsgBn = "ভুল OTP কোড! আবার চেষ্টা করুন।";
       let errorMsgEn = "Invalid OTP code. Please try again.";
 
@@ -1229,7 +1169,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         errorMsgBn = "ওটিপি কোডের মেয়াদ উত্তীর্ণ হয়ে গেছে। অনুগ্রহ করে পুনরায় নতুন কোড পাঠান।";
         errorMsgEn = "Verification code has expired. Please send a new code.";
       } else if (err?.message) {
-        errorMsgBn = `যাচাইকরণ ব্যর্থ: ${err.message}`;
+        errorMsgBn = `${err.message}`;
       }
 
       triggerToast(errorMsgBn, errorMsgEn);
@@ -1734,17 +1674,24 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
                       {/* Card 4: রিওয়ার্ড পয়েন্ট */}
                       <div 
-                        onClick={() => triggerToast(`আপনার বর্তমান পয়েন্ট: ${rewardPoints}`, `Current reward points: ${rewardPoints}`)}
-                        className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-purple-200 transition cursor-pointer"
+                        onClick={() => setActiveTab("rewards")}
+                        className="bg-white border border-gray-100 hover:border-purple-300 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group transform hover:-translate-y-0.5"
                       >
-                        <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold mb-2">
-                          <Award className="w-5 h-5" />
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold group-hover:bg-purple-600 group-hover:text-white transition-colors duration-200">
+                            <Award className="w-5 h-5" />
+                          </div>
+                          <span className="text-[10px] font-black text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100 flex items-center gap-1">
+                            <Gift className="w-3 h-3 text-purple-500" />
+                            <span>{getTranslation("উপহার নিন", "Claim Gift")}</span>
+                          </span>
                         </div>
                         <p className="text-[11px] font-bold text-slate-400">
                           {getTranslation("রিওয়ার্ড পয়েন্ট", "Reward Points")}
                         </p>
-                        <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">
-                          {rewardPoints} pts
+                        <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5 flex items-baseline gap-1">
+                          <span>{rewardPoints}</span>
+                          <span className="text-xs text-purple-600 font-bold">pts</span>
                         </h4>
                       </div>
                     </div>
@@ -2340,6 +2287,18 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                   </div>
                 )}
               </div>
+            )}
+
+            {/* TAB: REWARDS (IN-PAGE FULL DASHBOARD VIEW) */}
+            {activeTab === "rewards" && (
+              <RewardRedemptionView
+                user={dbUser || user}
+                currentPoints={rewardPoints}
+                onPointsUpdated={(newPts) => setDbUser((prev: any) => prev ? { ...prev, rewardPoints: newPts, points: newPts } : prev)}
+                onBack={() => setActiveTab("dashboard")}
+                lang={lang}
+                triggerToast={triggerToast}
+              />
             )}
           </>
         )}

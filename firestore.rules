@@ -267,6 +267,19 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Reward Claims & Redemptions - Users can claim gifts, view their own claims. Admin & Staff can manage.
+    match /reward_claims/{claimId} {
+      allow read: if isAdmin() || isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin() || isStaff();
+    }
+
+    match /redemptions/{claimId} {
+      allow read: if isAdmin() || isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin() || isStaff();
+    }
+
     // Reviews - Publicly viewable, authenticated users create their own reviews, Admin manages all
     match /reviews/{reviewId} {
       allow read: if true;
