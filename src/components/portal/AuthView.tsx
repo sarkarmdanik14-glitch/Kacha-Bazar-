@@ -130,17 +130,59 @@ export default function AuthView({
     setError("");
     setSuccessMsg("");
 
-    try {
-      // 1. Try Firebase Auth client sendPasswordResetEmail if identifier is an email
-      if (ident.includes("@")) {
-        try {
-          await sendPasswordResetEmail(auth, ident);
-        } catch (fbErr: any) {
-          console.warn("Client sendPasswordResetEmail notice:", fbErr?.message);
+    const isEmail = ident.includes("@") && ident.includes(".");
+    const cleanDigits = ident.replace(/[^\d]/g, "");
+    const isPhone = !isEmail && (cleanDigits.length >= 10 || ident.startsWith("+88") || ident.startsWith("01"));
+
+    // If user inputs a phone number without an active SMS API gateway configured
+    if (isPhone) {
+      setLoading(false);
+      setError(getTranslation(
+        "বর্তমানে মোবাইল এসএমএস সার্ভিস রক্ষণাবেক্ষণে রয়েছে, অনুগ্রহ করে ইমেইলের মাধ্যমে পাসওয়ার্ড রিসেট করুন।",
+        "Mobile SMS service is currently undergoing maintenance. Please reset your password using your registered Email."
+      ));
+      return;
+    }
+
+    // When user inputs an email, ensure standard Firebase Auth reset dispatch is invoked cleanly from client SDK
+    let emailDispatched = false;
+    if (isEmail || ident.includes("@")) {
+      try {
+        await sendPasswordResetEmail(auth, ident);
+        emailDispatched = true;
+        setSuccessMsg(getTranslation(
+          "আপনার ইমেইলে পাসওয়ার্ড রিসেট নির্দেশিকা পাঠানো হয়েছে।",
+          "Password reset instructions have been sent to your email."
+        ));
+      } catch (fbErr: any) {
+        console.warn("Client sendPasswordResetEmail error:", fbErr?.code || fbErr?.message);
+        if (fbErr?.code === "auth/user-not-found") {
+          setError(getTranslation(
+            "এই ইমেইল ঠিকানায় কোনো অ্যাকাউন্ট খুঁজে পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইমেইল দিন।",
+            "No account found matching this email address. Please check and try again."
+          ));
+          setLoading(false);
+          return;
+        } else if (fbErr?.code === "auth/invalid-email") {
+          setError(getTranslation(
+            "অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা প্রদান করুন।",
+            "Please enter a valid email address."
+          ));
+          setLoading(false);
+          return;
+        } else if (fbErr?.code === "auth/too-many-requests") {
+          setError(getTranslation(
+            "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।",
+            "Too many requests. Please wait a moment before trying again."
+          ));
+          setLoading(false);
+          return;
         }
       }
+    }
 
-      // 2. Call backend send-code API
+    // Optional custom OTP code via backend API in safe try/catch
+    try {
       const res = await apiClient.post("/api/auth/forgot-password/send-code", {
         identifier: ident
       });
@@ -150,12 +192,27 @@ export default function AuthView({
         setForgotMaskedTarget(res.maskedTarget || ident);
         setForgotStep("verify");
         setForgotTimer(60);
-        setSuccessMsg(res.messageBn || getTranslation("ভেরিফিকেশন কোড সফলভাবে পাঠানো হয়েছে।", "Verification code sent successfully."));
-      } else {
-        throw new Error(res?.error || res?.message || getTranslation("কোড পাঠাতে সমস্যা হয়েছে।", "Failed to send code."));
+        setSuccessMsg(res.messageBn || getTranslation(
+          "আপনার ইমেইলে পাসওয়ার্ড রিসেট নির্দেশিকা পাঠানো হয়েছে।",
+          "Password reset instructions have been sent to your email."
+        ));
+      } else if (!emailDispatched) {
+        throw new Error(res?.error || res?.message || "Failed to send code");
       }
-    } catch (err: any) {
-      setError(err?.message || getTranslation("কোড পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।", "Failed to send code. Please try again."));
+    } catch (apiErr: any) {
+      console.warn("Backend send-code notice (fell back to standard Firebase Auth):", apiErr?.message);
+      // If email was already cleanly sent via Firebase SDK, keep success message and never throw 405 error
+      if (emailDispatched) {
+        setSuccessMsg(getTranslation(
+          "আপনার ইমেইলে পাসওয়ার্ড রিসেট নির্দেশিকা পাঠানো হয়েছে।",
+          "Password reset instructions have been sent to your email."
+        ));
+      } else {
+        setError(apiErr?.message || getTranslation(
+          "পাসওয়ার্ড রিসেট করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
+          "Failed to process password reset. Please try again."
+        ));
+      }
     } finally {
       setLoading(false);
     }
@@ -1015,9 +1072,17 @@ export default function AuthView({
         )}
 
         {successMsg && forgotStep !== "success" && (
-          <div className="mb-4 bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs rounded-xl p-3 flex items-start space-x-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
-            <span>{successMsg}</span>
+          <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-2xl p-4 flex items-start space-x-3 shadow-xs animate-in fade-in duration-200">
+            <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-emerald-600" />
+            <div className="space-y-1 flex-1">
+              <p className="font-bold text-emerald-950">{successMsg}</p>
+              <p className="text-[11px] text-emerald-800/90 leading-relaxed">
+                {getTranslation(
+                  "অনুগ্রহ করে আপনার ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন এবং প্রেরিত লিংকে ক্লিক করে নতুন পাসওয়ার্ড দিন।",
+                  "Please check your inbox or spam folder and click the link to reset your password."
+                )}
+              </p>
+            </div>
           </div>
         )}
 
@@ -1033,9 +1098,12 @@ export default function AuthView({
                 <input
                   type="text"
                   required
-                  placeholder={getTranslation("যেমন: user@example.com বা 017XXXXXXXX", "e.g. user@example.com or 017XXXXXXXX")}
+                  placeholder={getTranslation("যেমন: user@example.com", "e.g. user@example.com")}
                   value={forgotIdentifier}
-                  onChange={(e) => setForgotIdentifier(e.target.value)}
+                  onChange={(e) => {
+                    setForgotIdentifier(e.target.value);
+                    if (error) setError("");
+                  }}
                   className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
                 />
               </div>
@@ -1049,15 +1117,34 @@ export default function AuthView({
               {loading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>{getTranslation("কোড পাঠানো হচ্ছে...", "Sending Code...")}</span>
+                  <span>{getTranslation("রিসেট নির্দেশিকা পাঠানো হচ্ছে...", "Sending Instructions...")}</span>
                 </>
               ) : (
                 <>
                   <Key className="w-4 h-4" />
-                  <span>{getTranslation("ভেরিফিকেশন কোড পাঠান", "Send Verification Code")}</span>
+                  <span>{getTranslation("পাসওয়ার্ড রিসেট লিংক পাঠান", "Send Password Reset Link")}</span>
                 </>
               )}
             </button>
+
+            {successMsg && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotPassword(false);
+                    setIsLogin(true);
+                    setForgotStep("request");
+                    setError("");
+                    setSuccessMsg("");
+                  }}
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-2xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer"
+                >
+                  <LogIn className="w-4 h-4 text-emerald-600" />
+                  <span>{getTranslation("লগইন পেজে যান", "Return to Login")}</span>
+                </button>
+              </div>
+            )}
           </form>
         )}
 

@@ -58,6 +58,17 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json({ limit: "15mb" }));
 app.use("/uploads", express.static(path.resolve(process.cwd(), "public", "uploads")));
 
+// Universal CORS & Preflight OPTIONS Handler
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-session-id, X-Requested-With, Accept");
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  next();
+});
+
 // Security Headers Middleware (allowing normal AI Studio preview iframe embedding)
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -2452,10 +2463,9 @@ app.post("/api/auth/phone/send-verification-otp", rateLimiter(30, 60000), async 
 
     return res.json({
       success: true,
-      message: "আপনার মোবাইলে ভেরিফিকেশন ওটিপি পাঠানো হয়েছে।",
-      messageBn: "আপনার মোবাইলে ভেরিফিকেশন ওটিপি পাঠানো হয়েছে।",
-      messageEn: "Verification OTP code sent successfully.",
-      demoCode: code
+      message: "আপনার নম্বরে ওটিপি পাঠানো হয়েছে। অনুগ্রহ করে ইনবক্স চেক করুন।",
+      messageBn: "আপনার নম্বরে ওটিপি পাঠানো হয়েছে। অনুগ্রহ করে ইনবক্স চেক করুন।",
+      messageEn: "An OTP has been sent to your number. Please check your inbox."
     });
   } catch (err: any) {
     console.warn("Send phone OTP error:", err?.message || err);

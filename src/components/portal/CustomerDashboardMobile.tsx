@@ -436,7 +436,7 @@ export default function CustomerDashboardMobile({
       if (res?.success) {
         setPhoneOtpSent(true);
         setPhoneOtpCooldown(60);
-        triggerToast(`${rawPhone} নম্বরে একটি ওটিপি কোড পাঠানো হয়েছে।`);
+        triggerToast("আপনার নম্বরে ওটিপি পাঠানো হয়েছে। অনুগ্রহ করে ইনবক্স চেক করুন।");
       } else {
         throw new Error(res?.error || "ওটিপি পাঠাতে সমস্যা হয়েছে।");
       }

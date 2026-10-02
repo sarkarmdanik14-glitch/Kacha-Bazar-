@@ -1073,8 +1073,8 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         setPhoneOtpSent(true);
         setPhoneOtpCooldown(60);
         triggerToast(
-          `${rawPhone} নম্বরে একটি ওটিপি কোড পাঠানো হয়েছে। অনুগ্রহ করে কোডটি লিখুন।`,
-          `An SMS verification OTP has been sent to ${rawPhone}. Please enter it below.`
+          "আপনার নম্বরে ওটিপি পাঠানো হয়েছে। অনুগ্রহ করে ইনবক্স চেক করুন।",
+          "An OTP has been sent to your number. Please check your inbox."
         );
       } else {
         throw new Error(res?.error || "ওটিপি পাঠাতে সমস্যা হয়েছে।");
