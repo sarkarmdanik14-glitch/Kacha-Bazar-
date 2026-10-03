@@ -42,6 +42,7 @@ import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from 
 import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
 import { apiClient } from "../../lib/apiClient";
 import RewardRedemptionView from "./RewardRedemptionView";
+import { APP_LOGO_URL } from "../../constants/branding";
 
 export interface CustomerDashboardProps {
   initialUser?: {
@@ -849,9 +850,29 @@ export default function CustomerDashboardMobile({
           {/* Drawer Menu Panel */}
           <aside className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col justify-between z-10 animate-in slide-in-from-left duration-300">
             <div className="flex flex-col flex-1 min-h-0">
-              {/* Drawer Top Header */}
-              <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-slate-50/70">
-                <div className="flex items-center space-x-3">
+              {/* Drawer Top Header: Brand Logo & User Profile Info */}
+              <div className="p-4 border-b border-gray-100 bg-slate-50/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <img 
+                      src={APP_LOGO_URL} 
+                      alt="কাঁচা বাজার" 
+                      className="h-8 w-auto object-contain rounded-xl border border-emerald-100 bg-white p-0.5 shadow-2xs shrink-0" 
+                    />
+                    <span className="text-sm font-black text-emerald-800">কাঁচা বাজার</span>
+                  </div>
+                  {/* Close Button (X) */}
+                  <button
+                    type="button"
+                    onClick={() => setIsMenuOpen(false)}
+                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition cursor-pointer"
+                    aria-label="Close menu"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="flex items-center space-x-3 pt-2 border-t border-slate-200/60">
                   <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-sm overflow-hidden border border-emerald-300">
                     {photoURL ? (
                       <img src={photoURL} alt={displayName} className="w-full h-full object-cover" />
@@ -864,16 +885,6 @@ export default function CustomerDashboardMobile({
                     <p className="text-[10px] text-emerald-600 font-bold tracking-tight">@{username}</p>
                   </div>
                 </div>
-
-                {/* Close Button (X) */}
-                <button
-                  type="button"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition cursor-pointer"
-                  aria-label="Close menu"
-                >
-                  <X className="w-5 h-5" />
-                </button>
               </div>
 
               {/* Navigation Links */}
@@ -951,16 +962,22 @@ export default function CustomerDashboardMobile({
 
       {/* 2. Top Header (Mobile View) */}
       <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-4 sm:px-6 py-3 flex items-center justify-between shadow-xs">
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2.5">
           {/* Hamburger Menu Icon */}
           <button
             type="button"
             onClick={() => setIsMenuOpen(true)}
-            className="p-2 -ml-1 text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+            className="p-1.5 -ml-1 text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
             aria-label="Open menu"
           >
             <Menu className="w-5 h-5 text-slate-800" />
           </button>
+
+          <img 
+            src={APP_LOGO_URL} 
+            alt="কাঁচা বাজার" 
+            className="h-8 w-auto max-w-[36px] object-contain rounded-xl border border-emerald-100 bg-white p-0.5 shadow-2xs shrink-0" 
+          />
 
           {/* App Title */}
           <div>

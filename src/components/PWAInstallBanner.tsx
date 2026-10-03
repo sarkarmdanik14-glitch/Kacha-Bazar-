@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   Zap
 } from "lucide-react";
-import logoImg from "../assets/images/logo_1783882658678.jpg";
+import { APP_LOGO_URL } from "../constants/branding";
 import { 
   isPWAInstalled, 
   getClientPlatform, 
@@ -222,9 +222,9 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
             <div className="relative mx-auto w-20 h-20 pt-1">
               <div className="absolute inset-0 bg-emerald-500/20 rounded-2xl blur-lg animate-pulse"></div>
               <img 
-                src={logoImg} 
-                alt="কাচা বাজার App Icon" 
-                className="relative w-20 h-20 rounded-2xl object-cover shadow-lg border-2 border-emerald-500 mx-auto"
+                src={APP_LOGO_URL} 
+                alt="কাঁচা বাজার" 
+                className="relative w-20 h-20 rounded-2xl object-contain bg-white p-1 shadow-lg border-2 border-emerald-500 mx-auto"
               />
               <span className="absolute -bottom-1 -right-1 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full border border-white shadow-xs">
                 PWA
@@ -311,9 +311,9 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
             {/* App Icon */}
             <div className="relative shrink-0">
               <img 
-                src={logoImg} 
-                alt="কাচা বাজার Logo" 
-                className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl object-cover border border-emerald-100 shadow-2xs"
+                src={APP_LOGO_URL} 
+                alt="কাঁচা বাজার" 
+                className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl object-contain bg-white p-0.5 border border-emerald-100 shadow-2xs"
               />
               <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-[8px] text-white font-bold">
                 ★

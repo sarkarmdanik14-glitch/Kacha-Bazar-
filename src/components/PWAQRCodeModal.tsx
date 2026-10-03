@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import QRCode from "qrcode";
 import { QrCode, Download, Copy, Check, X, Smartphone, Globe, ExternalLink, Printer, Sparkles, Share2 } from "lucide-react";
-import logoImg from "../assets/images/logo_1783882658678.jpg";
+import { APP_LOGO_URL } from "../constants/branding";
 
 interface PWAQRCodeModalProps {
   isOpen: boolean;
@@ -113,9 +113,9 @@ export const PWAQRCodeModal: React.FC<PWAQRCodeModalProps> = ({ isOpen, onClose,
             {/* Top Brand Banner */}
             <div className="flex items-center space-x-2 mb-3">
               <img 
-                src={logoImg} 
-                alt="Logo" 
-                className="w-7 h-7 rounded-full border border-emerald-300 object-cover"
+                src={APP_LOGO_URL} 
+                alt="কাঁচা বাজার" 
+                className="w-7 h-7 rounded-full border border-emerald-300 object-contain bg-white p-0.5"
               />
               <span className="text-emerald-800 font-black text-sm tracking-tight">
                 {lang === "bn" ? "কাচা বাজার অনলাইন সুপারশপ" : "Kacha Bazar Online Super Shop"}
@@ -146,9 +146,9 @@ export const PWAQRCodeModal: React.FC<PWAQRCodeModalProps> = ({ isOpen, onClose,
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white p-0.5 shadow-md border border-emerald-400 flex items-center justify-center">
                       <img 
-                        src={logoImg} 
-                        alt="Brand Icon" 
-                        className="w-full h-full rounded-full object-cover"
+                        src={APP_LOGO_URL} 
+                        alt="কাঁচা বাজার" 
+                        className="w-full h-full rounded-full object-contain p-0.5"
                       />
                     </div>
                   </div>

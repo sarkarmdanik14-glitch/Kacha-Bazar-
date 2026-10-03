@@ -6,7 +6,7 @@ import {
   Megaphone, AlertCircle, Eye, RotateCcw, Save, Bell
 } from "lucide-react";
 import QRCode from "qrcode";
-import logoImg from "../../assets/images/logo_1783882658678.jpg";
+import { APP_LOGO_URL } from "../../constants/branding";
 import { db, doc, setDoc, deleteDoc, collection, serverTimestamp, onSnapshot } from "../../lib/firebase";
 import { DeliveryZone, DEFAULT_DELIVERY_ZONES, DEFAULT_STORE_LOCATION } from "../../lib/delivery";
 import { LiveNoticeConfig, DEFAULT_LIVE_NOTICE } from "../../types";
@@ -1561,8 +1561,8 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
             <div className="lg:col-span-5 bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col items-center text-center space-y-4">
               <div className="w-full bg-gradient-to-b from-emerald-50 to-slate-50 border-2 border-emerald-200 rounded-2xl p-5 shadow-inner flex flex-col items-center">
                 <div className="flex items-center space-x-2 mb-3">
-                  <img src={logoImg} alt="Logo" className="w-7 h-7 rounded-full border border-emerald-300 object-cover" />
-                  <span className="text-emerald-800 font-black text-sm">কাচা বাজার অনলাইন শপ</span>
+                  <img src={APP_LOGO_URL} alt="কাঁচা বাজার" className="w-7 h-7 rounded-full border border-emerald-300 object-contain bg-white p-0.5" />
+                  <span className="text-emerald-800 font-black text-sm">কাঁচা বাজার অনলাইন শপ</span>
                 </div>
                 
                 <div className="p-3 bg-white rounded-2xl shadow-md border border-slate-100 relative">
@@ -1575,7 +1575,7 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
                       <img src={adminQrDataUrl} alt="PWA QR Code" className="w-48 h-48 sm:w-52 sm:h-52 object-contain rounded-lg" />
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <div className="w-10 h-10 rounded-full bg-white p-0.5 shadow border border-emerald-500 flex items-center justify-center">
-                          <img src={logoImg} alt="Logo" className="w-full h-full rounded-full object-cover" />
+                          <img src={APP_LOGO_URL} alt="কাঁচা বাজার" className="w-full h-full rounded-full object-contain p-0.5" />
                         </div>
                       </div>
                     </div>

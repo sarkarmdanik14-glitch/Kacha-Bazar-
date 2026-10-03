@@ -9,7 +9,7 @@ import { printOrderMemo } from "../../lib/printUtils";
 import { db, doc, getDoc } from "../../lib/firebase";
 import { fetchStaffMembers } from "../../lib/staffManager";
 import { StaffMember } from "../../types";
-import defaultLogoImg from "../../assets/images/logo_1783882658678.jpg";
+import { APP_LOGO_URL as defaultLogoImg } from "../../constants/branding";
 import { apiClient } from "../../lib/apiClient";
 import { createTranslator } from "../../lib/formatUtils";
 

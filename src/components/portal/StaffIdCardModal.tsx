@@ -12,7 +12,7 @@ import {
 } from "../../lib/staffManager";
 import { apiClient } from "../../lib/apiClient";
 import { imageToDataUrl } from "../../lib/pdfUtils";
-import logoImg from "../../assets/images/logo_1783882658678.jpg";
+import { APP_LOGO_URL as logoImg } from "../../constants/branding";
 import { 
   X, Printer, Download, RefreshCw, Edit3, Check, Eye, 
   Phone, Calendar, Droplet, MapPin, AlertCircle, Sparkles, 

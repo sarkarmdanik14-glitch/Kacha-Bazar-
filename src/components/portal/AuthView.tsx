@@ -25,6 +25,7 @@ import { authenticatePartner } from "../../lib/partnerManager";
 import { apiClient } from "../../lib/apiClient";
 import { createTranslator } from "../../lib/formatUtils";
 import { generateMemberId } from "../../lib/memberIdUtils";
+import { APP_LOGO_URL } from "../../constants/branding";
 const loginPartnerWithCredentials = authenticatePartner;
 
 interface AuthViewProps {
@@ -1050,9 +1051,11 @@ export default function AuthView({
         </div>
 
         <div className="text-center mb-5">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2.5 border border-emerald-100">
-            <Key className="w-6 h-6" />
-          </div>
+          <img 
+            src={APP_LOGO_URL} 
+            alt="কাঁচা বাজার" 
+            className="h-12 w-auto max-w-[64px] object-contain rounded-2xl mx-auto mb-2.5 border border-emerald-100 bg-white p-1 shadow-xs" 
+          />
           <h2 className="text-xl font-black text-slate-800 tracking-tight">
             {getTranslation("পাসওয়ার্ড রিসেট", "Reset Password")}
           </h2>
@@ -1337,9 +1340,11 @@ export default function AuthView({
       <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600"></div>
 
       <div className="text-center mb-6">
-        <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3 border border-emerald-100">
-          <Key className="w-6 h-6 animate-pulse" />
-        </div>
+        <img 
+          src={APP_LOGO_URL} 
+          alt="কাঁচা বাজার" 
+          className="h-12 w-auto max-w-[64px] object-contain rounded-2xl mx-auto mb-3 border border-emerald-100 bg-white p-1 shadow-xs" 
+        />
         <h2 className="text-xl font-black text-slate-800 tracking-tight">
           {role === "admin" 
             ? getTranslation("এডমিন পোর্টাল লগইন", "Admin Portal Login")

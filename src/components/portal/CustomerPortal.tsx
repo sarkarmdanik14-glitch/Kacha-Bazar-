@@ -44,6 +44,7 @@ import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from 
 import { checkAndUpgradePremiumMembership } from "../../lib/membership";
 import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
 import { apiClient } from "../../lib/apiClient";
+import { APP_LOGO_URL } from "../../constants/branding";
 
 
 interface CustomerPortalProps {
@@ -1246,9 +1247,29 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
           {/* Off-canvas Slide-out Menu Panel */}
           <aside className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col justify-between z-10 animate-slideRight">
             <div className="flex flex-col flex-1 min-h-0">
-              {/* Drawer Top Header: User Profile Info & Close (X) Button */}
-              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-100 shrink-0 bg-slate-50/50">
-                <div className="flex items-center space-x-3 min-w-0">
+              {/* Drawer Top Header: Brand Logo & User Profile Info */}
+              <div className="p-4 sm:p-5 border-b border-gray-100 shrink-0 bg-slate-50/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <img 
+                      src={APP_LOGO_URL} 
+                      alt="কাঁচা বাজার" 
+                      className="h-8 w-auto object-contain rounded-xl border border-emerald-100 bg-white p-0.5 shadow-2xs shrink-0" 
+                    />
+                    <span className="text-sm font-black text-emerald-800">কাঁচা বাজার</span>
+                  </div>
+                  {/* Close Button (X) */}
+                  <button
+                    type="button"
+                    onClick={() => setIsMenuOpen(false)}
+                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition cursor-pointer shrink-0"
+                    aria-label="Close menu"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="flex items-center space-x-3 min-w-0 pt-2 border-t border-slate-200/60">
                   <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold overflow-hidden border border-emerald-200 shrink-0">
                     {photoUrlInput || dbUser?.photoURL || user?.photoURL ? (
                       <img 
@@ -1269,16 +1290,6 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                     </p>
                   </div>
                 </div>
-
-                {/* Close Button (X) */}
-                <button
-                  type="button"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition cursor-pointer shrink-0 ml-2"
-                  aria-label="Close menu"
-                >
-                  <X className="w-5 h-5" />
-                </button>
               </div>
 
               {/* Navigation Items */}
@@ -1328,6 +1339,19 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       {/* Desktop Sidebar Navigation */}
       <aside className="hidden md:flex md:w-64 lg:w-72 bg-white border-r border-gray-100 p-4 sm:p-5 shrink-0 flex-col justify-between h-full z-10">
         <div className="flex flex-col flex-1 min-h-0">
+          {/* Brand Logo & Portal Branding */}
+          <div className="flex items-center space-x-2.5 pb-3 mb-3 border-b border-gray-100 shrink-0">
+            <img 
+              src={APP_LOGO_URL} 
+              alt="কাঁচা বাজার" 
+              className="h-9 w-auto max-w-[42px] object-contain rounded-xl border border-emerald-100 bg-white p-0.5 shadow-2xs shrink-0" 
+            />
+            <div className="min-w-0">
+              <span className="text-sm font-black text-emerald-800 block truncate">কাঁচা বাজার</span>
+              <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">কাস্টমার পোর্টাল</span>
+            </div>
+          </div>
+
           {/* Customer Avatar & Profile info */}
           <div className="flex items-center space-x-3 pb-4 mb-3 border-b border-gray-100 shrink-0">
             <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold overflow-hidden border border-slate-200 shrink-0">
@@ -1395,6 +1419,12 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             >
               <Menu className="w-5 h-5 text-slate-800" />
             </button>
+            
+            <img 
+              src={APP_LOGO_URL} 
+              alt="কাঁচা বাজার" 
+              className="h-8 sm:h-9 w-auto max-w-[40px] object-contain rounded-xl border border-emerald-100 bg-white p-0.5 shadow-2xs shrink-0" 
+            />
             
             <div>
               <h2 className="text-base sm:text-lg font-black text-slate-900 leading-tight">

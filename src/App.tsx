@@ -48,7 +48,7 @@ import makkahImg from "./assets/images/makkah.jpg";
 import madinaImg from "./assets/images/madina_dome_1784201787764.jpg";
 import bismillahImg from "./assets/images/bismillah_glow_1784201804085.jpg";
 import kalemaImg from "./assets/images/kalema_calligraphy_1784201818922.jpg";
-import logoImg from "./assets/images/logo_1783882658678.jpg";
+import { APP_LOGO_URL } from "./constants/branding";
 import founderImg from "./assets/images/founder_md_anik_1784735314684.jpg";
 import chairmanImg from "./assets/images/chairman_hosne_ara_1784735275933.jpg";
 import viceChairmanImg from "./assets/images/vice_chairman_abu_hanif_1784735297437.jpg";
@@ -1896,14 +1896,12 @@ export default function App() {
             onClick={handleBackToHome}
             className="flex items-center space-x-1 sm:space-x-2 min-w-0 shrink cursor-pointer group"
           >
-            {logoImg ? (
-              <img 
-                src={logoImg} 
-                alt="Kacha Bazar Logo" 
-                className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 object-contain rounded-full border border-emerald-100 bg-white shadow-md shadow-emerald-50 shrink-0 group-hover:scale-105 transition"
-                referrerPolicy="no-referrer"
-              />
-            ) : null}
+            <img 
+              src={APP_LOGO_URL} 
+              alt="কাঁচা বাজার" 
+              className="h-9 sm:h-11 md:h-12 w-auto max-w-[48px] object-contain rounded-xl border border-emerald-100 bg-white p-0.5 shadow-md shadow-emerald-50 shrink-0 group-hover:scale-105 transition"
+              referrerPolicy="no-referrer"
+            />
             <div className="min-w-0">
               <h1 className="text-xs sm:text-lg md:text-xl font-black text-emerald-700 tracking-tight leading-none truncate group-hover:text-emerald-800 transition">
                 {lang === "bn" ? "কাঁচা বাজার (মেগা বাজার)" : "Kacha Bazar (Mega Bazar)"}
@@ -3187,14 +3185,12 @@ export default function App() {
           {/* Leftmost Kacha Bazar Branding Area */}
           <div className="md:col-span-5 lg:col-span-5 space-y-1">
             <div className="flex items-center space-x-1.5 text-white">
-              {logoImg ? (
-                <img 
-                  src={logoImg} 
-                  alt="Kacha Bazar Logo" 
-                  className="w-5 h-5 sm:w-6 sm:h-6 object-contain rounded-full border border-slate-700 bg-white"
-                  referrerPolicy="no-referrer"
-                />
-              ) : null}
+              <img 
+                src={APP_LOGO_URL} 
+                alt="কাঁচা বাজার" 
+                className="h-6 sm:h-7 w-auto object-contain rounded-lg border border-slate-700 bg-white p-0.5"
+                referrerPolicy="no-referrer"
+              />
               <span className="text-sm sm:text-base font-black tracking-tight">{lang === "bn" ? "কাচা বাজার" : "Kacha Bazar"}</span>
             </div>
             <p className="leading-snug text-slate-400 text-[9.5px] sm:text-[10.5px] line-clamp-2">
@@ -4245,14 +4241,12 @@ export default function App() {
             {/* Header */}
             <div className="flex-shrink-0 p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center space-x-3">
-                {logoImg ? (
-                  <img 
-                    src={logoImg} 
-                    alt="Kacha Bazar Logo" 
-                    className="w-10 h-10 object-contain rounded-full border border-emerald-100 bg-white"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : null}
+                <img 
+                  src={APP_LOGO_URL} 
+                  alt="কাঁচা বাজার" 
+                  className="h-10 sm:h-12 w-auto object-contain rounded-xl border border-emerald-100 bg-white p-0.5"
+                  referrerPolicy="no-referrer"
+                />
                 <div>
                   <h3 className="text-base font-black text-slate-800">
                     {lang === "bn" ? "আমাদের সম্পর্কে" : "About Us"}
