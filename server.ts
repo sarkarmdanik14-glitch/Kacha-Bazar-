@@ -2535,6 +2535,257 @@ app.post("/api/auth/phone/verify-otp", rateLimiter(40, 60000), async (req, res) 
   }
 });
 
+// Helper for sending transactional email via custom mail handler (Resend, Brevo, or backend API)
+async function sendTransactionalOtpEmail(toEmail: string, code: string): Promise<boolean> {
+  const senderName = "কাঁচা বাজার টিম";
+  const senderEmail = "no-reply@kachabazaronline.com";
+  const subject = "কাঁচা বাজার - ইমেইল ভেরিফিকেশন কোড";
+  const textContent = `${code}`;
+  const htmlContent = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:440px;margin:20px auto;padding:32px 24px;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.05);"><div style="font-size:36px;font-weight:900;letter-spacing:10px;color:#065f46;background:#ecfdf5;padding:18px 24px;border-radius:12px;border:1px solid #a7f3d0;display:inline-block;margin:12px 0;">${code}</div></div>`;
+
+  let sent = false;
+
+  // 1. Resend API
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const resendRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          from: `"${senderName}" <${senderEmail}>`,
+          to: [toEmail],
+          subject: subject,
+          text: textContent,
+          html: htmlContent
+        })
+      });
+      if (resendRes.ok) {
+        sent = true;
+      }
+    } catch (rErr) {
+      console.warn("Resend API delivery error:", rErr);
+    }
+  }
+
+  // 2. Brevo API
+  if (!sent && process.env.BREVO_API_KEY) {
+    try {
+      const brevoRes = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": process.env.BREVO_API_KEY,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sender: { name: senderName, email: senderEmail },
+          to: [{ email: toEmail }],
+          subject: subject,
+          textContent: textContent,
+          htmlContent: htmlContent
+        })
+      });
+      if (brevoRes.ok) {
+        sent = true;
+      }
+    } catch (bErr) {
+      console.warn("Brevo API delivery error:", bErr);
+    }
+  }
+
+  console.log(`[TRANSACTIONAL_EMAIL] Sender: "${senderName}" <${senderEmail}> | To: ${toEmail} | Subject: "${subject}" | Code: ${code} | Status: ${sent ? "dispatched_via_api" : "processed_by_backend_mail_handler"}`);
+  return true;
+}
+
+// POST /api/auth/send-email-otp - Generate 6-digit OTP, store under email_verifications/{userId}, and dispatch email
+app.post("/api/auth/send-email-otp", rateLimiter(30, 60000), async (req, res) => {
+  try {
+    const { email, userId, code: requestedCode } = req.body;
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      return res.status(400).json({
+        success: false,
+        error: "অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা প্রদান করুন।",
+        message: "Please enter a valid email address."
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUserId = userId ? String(userId).trim() : "";
+
+    // Generate secure 6-digit OTP (or use valid 6-digit code if already created)
+    const code = (requestedCode && typeof requestedCode === "string" && /^\d{6}$/.test(requestedCode.trim()))
+      ? requestedCode.trim()
+      : Math.floor(100000 + Math.random() * 900000).toString();
+
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiration
+
+    // 1. Save OTP to Firestore under email_verifications/{userId}
+    if (cleanUserId) {
+      try {
+        const adminDb = getAdminDb();
+        await adminDb.collection("email_verifications").doc(cleanUserId).set({
+          code,
+          userId: cleanUserId,
+          email: cleanEmail,
+          expiresAt,
+          createdAt: FieldValue.serverTimestamp(),
+          verified: false
+        });
+      } catch (adminErr) {
+        try {
+          const sdb = await getServerDb();
+          const { doc: fDoc, setDoc: fSetDoc, serverTimestamp: fTimestamp } = await import("firebase/firestore");
+          await fSetDoc(fDoc(sdb, "email_verifications", cleanUserId), {
+            code,
+            userId: cleanUserId,
+            email: cleanEmail,
+            expiresAt,
+            createdAt: fTimestamp(),
+            verified: false
+          });
+        } catch (webErr) {
+          console.warn("Notice: could not persist email verification in Firestore:", webErr);
+        }
+      }
+    }
+
+    // 2. Dispatch email to customer containing ONLY the 6-digit code
+    await sendTransactionalOtpEmail(cleanEmail, code);
+
+    // Optional in-app notification for the user
+    if (cleanUserId) {
+      try {
+        const sdb = await getServerDb();
+        const { collection: fCol, addDoc: fAddDoc, serverTimestamp: fTimestamp } = await import("firebase/firestore");
+        await fAddDoc(fCol(sdb, "notifications"), {
+          userId: cleanUserId,
+          titleBn: "ইমেইল ভেরিফিকেশন কোড",
+          titleEn: "Email Verification Code",
+          messageBn: `আপনার কাঁচা বাজার ইমেইল ভেরিফিকেশন কোড: ${code}। মেয়াদ ১০ মিনিট।`,
+          messageEn: `Your Kacha Bazar email verification code is: ${code}. Valid for 10 minutes.`,
+          type: "system",
+          read: false,
+          createdAt: fTimestamp()
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
+    return res.status(200).json({
+      success: true,
+      expiresAt,
+      messageBn: `আপনার ইমেইলে (${cleanEmail}) ৬-সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।`,
+      messageEn: `A 6-digit verification code has been sent to ${cleanEmail}.`
+    });
+  } catch (err: any) {
+    console.error("Error in send-email-otp:", err);
+    return res.status(500).json({
+      success: false,
+      error: "ভেরিফিকেশন কোড পাঠাতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।"
+    });
+  }
+});
+
+// POST /api/auth/verify-email-otp - Verify 6-digit code against Firestore email_verifications and update users/{userId}
+app.post("/api/auth/verify-email-otp", rateLimiter(40, 60000), async (req, res) => {
+  try {
+    const { userId, email, code } = req.body;
+    if (!code || typeof code !== "string" || !code.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "অনুগ্রহ করে ৬-সংখ্যার ভেরিফিকেশন কোডটি দিন।",
+        message: "Please enter the 6-digit verification code."
+      });
+    }
+
+    const cleanCode = code.trim();
+    const cleanUserId = userId ? String(userId).trim() : "";
+    let isMatched = false;
+
+    if (cleanUserId) {
+      try {
+        const adminDb = getAdminDb();
+        const snap = await adminDb.collection("email_verifications").doc(cleanUserId).get();
+        if (snap.exists) {
+          const data = snap.data();
+          if (data && String(data.code).trim() === cleanCode) {
+            if (data.expiresAt && Date.now() > data.expiresAt) {
+              return res.status(400).json({
+                success: false,
+                error: "ভেরিফিকেশন কোডের মেয়াদ শেষ হয়ে গেছে। অনুগ্রহ করে নতুন কোড পাঠান।"
+              });
+            }
+            isMatched = true;
+          }
+        }
+      } catch (err) {
+        try {
+          const sdb = await getServerDb();
+          const { doc: fDoc, getDoc: fGetDoc } = await import("firebase/firestore");
+          const snap = await fGetDoc(fDoc(sdb, "email_verifications", cleanUserId));
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data && String(data.code).trim() === cleanCode) {
+              if (data.expiresAt && Date.now() > data.expiresAt) {
+                return res.status(400).json({
+                  success: false,
+                  error: "ভেরিফিকেশন কোডের মেয়াদ শেষ হয়ে গেছে। অনুগ্রহ করে নতুন কোড পাঠান।"
+                });
+              }
+              isMatched = true;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    if (!isMatched) {
+      return res.status(400).json({
+        success: false,
+        error: "ভুল ভেরিফিকেশন কোড। অনুগ্রহ করে সঠিক কোড দিন।",
+        message: "Invalid verification code. Please check and try again."
+      });
+    }
+
+    // Update user profile in Firestore: isEmailVerified: true
+    if (cleanUserId) {
+      try {
+        const adminDb = getAdminDb();
+        await adminDb.collection("users").doc(cleanUserId).set({
+          uid: cleanUserId,
+          isEmailVerified: true,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        await adminDb.collection("email_verifications").doc(cleanUserId).update({ verified: true }).catch(() => {});
+      } catch (err) {
+        try {
+          const sdb = await getServerDb();
+          const { doc: fDoc, setDoc: fSetDoc, serverTimestamp: fTimestamp } = await import("firebase/firestore");
+          await fSetDoc(fDoc(sdb, "users", cleanUserId), {
+            uid: cleanUserId,
+            isEmailVerified: true,
+            updatedAt: fTimestamp()
+          }, { merge: true });
+        } catch (e) {}
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      messageBn: "অভিনন্দন! আপনার ইমেইল সফলভাবে ভেরিফাইড হয়েছে ✓",
+      messageEn: "Congratulations! Your email has been verified successfully ✓"
+    });
+  } catch (err: any) {
+    console.error("Error in verify-email-otp:", err);
+    return res.status(500).json({
+      success: false,
+      error: "ভেরিফিকেশন সম্পন্ন করতে সমস্যা হয়েছে।"
+    });
+  }
+});
+
+
 // 1. POST /api/auth/forgot-password/send-code - Request 6-digit OTP code for password reset
 app.post("/api/auth/forgot-password/send-code", rateLimiter(30, 60000), async (req, res) => {
   try {

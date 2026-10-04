@@ -119,7 +119,9 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
   // Profile editing states
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [displayNameInput, setDisplayNameInput] = useState<string>(user?.displayName || user?.name || dbUser?.displayName || dbUser?.name || "");
+  const [displayNameInput, setDisplayNameInput] = useState<string>(
+    user?.fullName || user?.displayName || user?.name || dbUser?.fullName || dbUser?.displayName || dbUser?.name || ""
+  );
   const [phoneInput, setPhoneInput] = useState<string>(user?.phone || user?.phoneNumber || dbUser?.phone || "");
   const [emailInput, setEmailInput] = useState<string>(user?.email || dbUser?.email || "");
   const [photoUrlInput, setPhotoUrlInput] = useState<string>(user?.photoURL || dbUser?.photoURL || "");
@@ -128,7 +130,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
   useEffect(() => {
     if (dbUser) {
-      const currentName = dbUser.displayName || dbUser.name || dbUser.fullName;
+      const currentName = dbUser.fullName || dbUser.displayName || dbUser.name || user?.fullName || user?.displayName;
       if (currentName) {
         setDisplayNameInput(currentName);
       }
@@ -145,7 +147,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         setPhotoUrlInput(dbUser.photoURL || "");
       }
     }
-  }, [dbUser?.displayName, dbUser?.name, dbUser?.fullName, dbUser?.phone, dbUser?.email, dbUser?.address, dbUser?.photoURL]);
+  }, [dbUser?.fullName, dbUser?.displayName, dbUser?.name, dbUser?.phone, dbUser?.email, dbUser?.address, dbUser?.photoURL]);
 
   // Digital ID and Membership States - Every ID strictly starts with CFI prefix
   const customerId = normalizeMemberId(dbUser?.customerId, user?.uid);
@@ -161,15 +163,32 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       }
     }
   }, [user?.uid, dbUser?.customerId]);
-  // Primary dynamic profile name from registered user details
-  const profileName = (dbUser?.displayName || dbUser?.name || dbUser?.fullName || user?.displayName || user?.name || "মোহাম্মদ").trim();
+
+  // Prioritize displaying the full name: userData?.fullName || userData?.displayName || user?.displayName || 'গ্রাহক'
+  const profileName = (
+    dbUser?.fullName || 
+    dbUser?.displayName || 
+    dbUser?.name || 
+    user?.fullName || 
+    user?.displayName || 
+    user?.name || 
+    "গ্রাহক"
+  ).trim();
 
   // Automatically format and generate the username handle below it based on this name (e.g., @ followed by sanitized name)
   const getSanitizedUsername = () => {
     if (dbUser?.username && typeof dbUser.username === "string" && dbUser.username.trim()) {
       return dbUser.username.trim();
     }
-    const rawName = (dbUser?.displayName || dbUser?.name || dbUser?.fullName || user?.displayName || user?.name || "").trim();
+    const rawName = (
+      dbUser?.fullName || 
+      dbUser?.displayName || 
+      dbUser?.name || 
+      user?.fullName || 
+      user?.displayName || 
+      user?.name || 
+      ""
+    ).trim();
     if (rawName) {
       const sanitized = rawName
         .toLowerCase()
@@ -239,11 +258,13 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
   const membershipTier = isPremiumQualified ? "✨ প্রিমিয়াম মেম্বার" : "সাধারণ মেম্বার";
 
-  // Real Firebase Auth Email Verification State
+  // Custom 6-digit OTP Email Verification State
   const [showProfileSettingsModal, setShowProfileSettingsModal] = useState<boolean>(false);
   const [isSendingVerificationEmail, setIsSendingVerificationEmail] = useState<boolean>(false);
   const [verificationEmailSent, setVerificationEmailSent] = useState<boolean>(false);
   const [isCheckingEmailStatus, setIsCheckingEmailStatus] = useState<boolean>(false);
+  const [emailOtpInput, setEmailOtpInput] = useState<string>("");
+  const [isVerifyingEmailOtp, setIsVerifyingEmailOtp] = useState<boolean>(false);
   const [emailVerificationCooldown, setEmailVerificationCooldown] = useState<number>(0);
 
   // Email verification cooldown timer
@@ -503,7 +524,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   useEffect(() => {
     const payload = JSON.stringify({
       id: customerId,
-      name: dbUser?.displayName || user?.displayName || "Customer",
+      name: profileName || "Customer",
       user: username,
       tier: membershipTier,
       verified: isAccountVerified,
@@ -516,7 +537,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     })
       .then(url => setQrCodeDataUrl(url))
       .catch(err => console.warn("QR generation error:", err));
-  }, [customerId, username, dbUser?.displayName, user?.displayName, membershipTier, isAccountVerified]);
+  }, [customerId, username, profileName, membershipTier, isAccountVerified]);
 
   const handleSaveProfile = async () => {
     const trimmedName = displayNameInput.trim();
@@ -741,6 +762,10 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         if (docSnap.exists()) {
           const udata = docSnap.data();
           setDbUser(udata);
+          const liveName = udata.fullName || udata.displayName || udata.name;
+          if (liveName) {
+            setDisplayNameInput(liveName);
+          }
           // Real-time synchronization of wallet balance directly from users/{userId}/walletBalance
           if (udata.walletBalance !== undefined) {
             setWalletBalance(Number(udata.walletBalance) || 0);
@@ -941,7 +966,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   };
 
   const handleSendEmailVerification = async () => {
-    const targetEmail = (emailInput || dbUser?.email || user?.email || auth.currentUser?.email || "").trim();
+    const targetEmail = (emailInput || dbUser?.email || user?.email || auth.currentUser?.email || "").trim().toLowerCase();
     if (!targetEmail || !targetEmail.includes("@")) {
       triggerToast(
         "অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা প্রদান করুন।",
@@ -950,33 +975,75 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       return;
     }
 
-    if (!auth.currentUser) {
+    const uId = user?.uid || auth.currentUser?.uid;
+    if (!uId) {
       triggerToast(
-        "ভেরিফিকেশন ইমেইল পাঠাতে আপনার লগইন সেশন সক্রিয় থাকতে হবে।",
-        "Active login session required to send verification email."
+        "ভেরিফিকেশন কোড পাঠাতে আপনার লগইন সেশন সক্রিয় থাকতে হবে।",
+        "Active login session required to send verification code."
       );
       return;
     }
 
     setIsSendingVerificationEmail(true);
     try {
-      await sendEmailVerification(auth.currentUser);
+      // 1. Generate secure 6-digit OTP code
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+      // 2. Save under Firestore email_verifications/{userId}
+      await setDoc(doc(db, "email_verifications", uId), {
+        code,
+        userId: uId,
+        email: targetEmail,
+        expiresAt,
+        createdAt: serverTimestamp(),
+        verified: false
+      }, { merge: true });
+
+      // 3. Dispatch transactional email via custom mail handler on backend (Resend, Brevo, or backend API)
+      // Sender: "কাঁচা বাজার টিম" <no-reply@kachabazaronline.com>
+      // Subject: "কাঁচা বাজার - ইমেইল ভেরিফিকেশন কোড"
+      try {
+        await fetch("/api/auth/send-email-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: uId, email: targetEmail, code })
+        });
+      } catch (apiErr) {
+        console.warn("Notice: could not dispatch via backend mail API:", apiErr);
+      }
+
       setVerificationEmailSent(true);
       setEmailVerificationCooldown(60);
+      setEmailOtpInput("");
       triggerToast(
-        "আপনার ইমেইলে একটি ভেরিফিকেশন লিংক পাঠানো হয়েছে। অনুগ্রহ করে ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।",
-        "A verification link has been sent to your email. Please check your inbox or spam folder."
+        `আপনার ইমেইলে (${targetEmail}) একটি ৬-সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে। ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।`,
+        `A 6-digit verification code has been sent to ${targetEmail}. Please check your inbox or spam folder.`
       );
     } catch (err: any) {
-      console.error("Firebase sendEmailVerification error:", err);
-      let errorMsgBn = "ভেরিফিকেশন ইমেইল পাঠাতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।";
-      let errorMsgEn = "Failed to send verification email. Please try again.";
+      console.error("sendEmailVerification error:", err);
+      let errorMsgBn = "ভেরিফিকেশন কোড পাঠাতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।";
+      let errorMsgEn = "Failed to send verification code. Please try again.";
 
-      if (err?.code === "auth/too-many-requests") {
-        errorMsgBn = "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
-        errorMsgEn = "Too many requests. Please wait a moment before trying again.";
-      } else if (err?.message) {
-        errorMsgBn = `ভেরিফিকেশন ইমেইল পাঠাতে ব্যর্থ: ${err.message}`;
+      if (err?.code === "permission-denied") {
+        try {
+          const res = await fetch("/api/auth/send-email-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: uId, email: targetEmail })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setVerificationEmailSent(true);
+            setEmailVerificationCooldown(60);
+            setEmailOtpInput("");
+            triggerToast(
+              `আপনার ইমেইলে (${targetEmail}) একটি ৬-সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।`,
+              `A 6-digit verification code has been sent to ${targetEmail}.`
+            );
+            return;
+          }
+        } catch (fbErr) {}
       }
 
       triggerToast(errorMsgBn, errorMsgEn);
@@ -985,8 +1052,18 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     }
   };
 
-  const handleCheckEmailVerificationStatus = async () => {
-    if (!auth.currentUser) {
+  const handleVerifyEmailOtp = async () => {
+    const cleanCode = emailOtpInput.trim();
+    if (!cleanCode || cleanCode.length !== 6) {
+      triggerToast(
+        "অনুগ্রহ করে ৬-সংখ্যার ভেরিফিকেশন কোডটি দিন।",
+        "Please enter the 6-digit verification code."
+      );
+      return;
+    }
+
+    const uId = user?.uid || auth.currentUser?.uid;
+    if (!uId) {
       triggerToast(
         "লগইন সেশন পাওয়া যায়নি। অনুগ্রহ করে পুনরায় লগইন করুন।",
         "No active session found. Please re-login."
@@ -994,49 +1071,98 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       return;
     }
 
-    setIsCheckingEmailStatus(true);
+    const targetEmail = (emailInput || dbUser?.email || user?.email || auth.currentUser?.email || "").trim().toLowerCase();
+
+    setIsVerifyingEmailOtp(true);
     try {
-      await auth.currentUser.reload();
-      if (auth.currentUser.emailVerified) {
-        const willBeFullyVerified = isPhoneVerified;
-        const uId = user?.uid || auth.currentUser.uid;
-        await setDoc(doc(db, "users", uId), {
-          uid: uId,
-          isEmailVerified: true,
-          ...(willBeFullyVerified ? { isVerified: true } : {}),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
+      let isMatched = false;
 
-        setDbUser((prev: any) => ({
-          ...prev,
-          isEmailVerified: true,
-          ...(willBeFullyVerified ? { isVerified: true } : {})
-        }));
-
-        setVerificationEmailSent(false);
-        triggerToast(
-          "অভিনন্দন! আপনার ইমেইল সফলভাবে ভেরিফাইড হয়েছে ✓",
-          "Congratulations! Your email has been verified successfully ✓"
-        );
-
-        if (willBeFullyVerified) {
-          const { checkAndRewardReferral } = await import("../../lib/referral");
-          await checkAndRewardReferral(uId);
+      // 1. Verify code against Firestore email_verifications/{userId}
+      try {
+        const snap = await getDoc(doc(db, "email_verifications", uId));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && String(data.code).trim() === cleanCode) {
+            if (data.expiresAt && Date.now() > data.expiresAt) {
+              triggerToast(
+                "ভেরিফিকেশন কোডের মেয়াদ শেষ হয়ে গেছে। অনুগ্রহ করে আবার নতুন কোড পাঠান।",
+                "Verification code has expired. Please request a new code."
+              );
+              setIsVerifyingEmailOtp(false);
+              return;
+            }
+            isMatched = true;
+          }
         }
-      } else {
+      } catch (fErr) {
+        console.warn("Direct Firestore verification notice:", fErr);
+      }
+
+      // 2. Fallback to backend verification endpoint if direct check didn't match or had permission lag
+      if (!isMatched) {
+        try {
+          const res = await fetch("/api/auth/verify-email-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: uId, email: targetEmail, code: cleanCode })
+          });
+          const resData = await res.json();
+          if (resData.success) {
+            isMatched = true;
+          }
+        } catch (bErr) {}
+      }
+
+      if (!isMatched) {
         triggerToast(
-          "ইমেইল এখনো ভেরিফাই করা হয়নি। অনুগ্রহ করে ইনবক্সের লিংকে ক্লিক করার পর আবার চেক করুন।",
-          "Email is not verified yet. Please click the link in your email, then check status again."
+          "ভুল ভেরিফিকেশন কোড! অনুগ্রহ করে সঠিক ৬-সংখ্যার কোডটি প্রবেশ করান।",
+          "Invalid verification code! Please enter the correct 6-digit code."
         );
+        setIsVerifyingEmailOtp(false);
+        return;
+      }
+
+      // 3. If matched, update user profile in Firestore: isEmailVerified: true
+      const willBeFullyVerified = isPhoneVerified;
+      await setDoc(doc(db, "users", uId), {
+        uid: uId,
+        isEmailVerified: true,
+        ...(willBeFullyVerified ? { isVerified: true } : {}),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      // Mark verification record completed
+      try {
+        await setDoc(doc(db, "email_verifications", uId), { verified: true }, { merge: true });
+      } catch (e) {}
+
+      // Update badge status to "ভেরিফাইড ✓"
+      setDbUser((prev: any) => ({
+        ...prev,
+        isEmailVerified: true,
+        ...(willBeFullyVerified ? { isVerified: true } : {})
+      }));
+
+      setVerificationEmailSent(false);
+      setEmailOtpInput("");
+
+      triggerToast(
+        "অভিনন্দন! আপনার ইমেইল সফলভাবে ভেরিফাইড হয়েছে ✓",
+        "Congratulations! Your email has been verified successfully ✓"
+      );
+
+      if (willBeFullyVerified) {
+        const { checkAndRewardReferral } = await import("../../lib/referral");
+        await checkAndRewardReferral(uId);
       }
     } catch (err: any) {
-      console.error("Email reload status error:", err);
+      console.error("handleVerifyEmailOtp error:", err);
       triggerToast(
-        "স্ট্যাটাস চেক করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
-        "Failed to check email verification status. Please try again."
+        "কোড যাচাই করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
+        "Failed to verify code. Please try again."
       );
     } finally {
-      setIsCheckingEmailStatus(false);
+      setIsVerifyingEmailOtp(false);
     }
   };
 
@@ -2065,7 +2191,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                   <div className="mt-8 flex justify-between text-[11px] text-emerald-200">
                     <div>
                       <span>CARD HOLDER</span>
-                      <p className="font-bold text-white uppercase mt-0.5">{user.displayName}</p>
+                      <p className="font-bold text-white uppercase mt-0.5">{profileName}</p>
                     </div>
                     <div className="text-right">
                       <span>WALLET ID</span>
@@ -3052,15 +3178,15 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                 {!isEmailVerified && (
                   <div className="pt-2.5 border-t border-slate-200/60 space-y-3">
                     {!verificationEmailSent ? (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200/80">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200/80">
                         <div className="space-y-0.5">
                           <p className="text-xs font-bold text-slate-800">
-                            {getTranslation("অফিসিয়াল ইমেইল ভেরিফিকেশন লিংক", "Official Email Verification Link")}
+                            {getTranslation("৬-সংখ্যার ইমেইল ভেরিফিকেশন ওটিপি", "6-Digit Email Verification OTP")}
                           </p>
                           <p className="text-[11px] text-slate-500">
                             {getTranslation(
-                              "Firebase Auth-এর মাধ্যমে আপনার ঠিকানায় নিরাপদ যাচাইকরণ লিংক পাঠানো হবে।",
-                              "A secure verification link will be sent to your address via Firebase Auth."
+                              "আপনার ইমেইল ঠিকানায় কাঁচা বাজার টিম থেকে একটি ৬-সংখ্যার ওটিপি কোড পাঠানো হবে।",
+                              "A secure 6-digit verification code will be sent to your email from Kacha Bazar Team."
                             )}
                           </p>
                         </div>
@@ -3078,49 +3204,73 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                           ) : (
                             <>
                               <Mail className="w-3.5 h-3.5" />
-                              <span>{getTranslation("ভেরিফিকেশন লিংক পাঠান", "Send Verification Link")}</span>
+                              <span>{getTranslation("ভেরিফিকেশন কোড পাঠান", "Send Verification Code")}</span>
                             </>
                           )}
                         </button>
                       </div>
                     ) : (
-                      <div className="space-y-3 bg-emerald-50/70 p-3.5 rounded-xl border border-emerald-200/80 animate-in fade-in duration-200">
+                      <div className="space-y-3.5 bg-emerald-50/70 p-4 rounded-xl border border-emerald-200/80 animate-in fade-in duration-200">
                         <div className="flex items-start space-x-2.5">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                           <div className="space-y-1">
                             <p className="text-xs font-bold text-emerald-950">
-                              {getTranslation("ভেরিফিকেশন ইমেইল পাঠানো হয়েছে!", "Verification Email Sent!")}
+                              {getTranslation("ভেরিফিকেশন কোড পাঠানো হয়েছে!", "Verification Code Sent!")}
                             </p>
                             <p className="text-[11px] text-emerald-900/80 leading-relaxed">
                               {getTranslation(
-                                `আপনার ${emailInput || dbUser?.email || user?.email || ""} ইনবক্স বা স্প্যাম ফোল্ডার চেক করে প্রেরিত ভেরিফিকেশন লিংকে ক্লিক করুন। এরপর নিচের বাটনে ক্লিক করে ভেরিফিকেশন স্ট্যাটাস আপডেট করুন।`,
-                                `Please check the inbox or spam folder of ${emailInput || dbUser?.email || user?.email || ""} and click the verification link. Then click the button below to update your verification status.`
+                                `আপনার ${emailInput || dbUser?.email || user?.email || ""} ঠিকানায় প্রেরিত ৬-সংখ্যার কোডটি প্রবেশ করিয়ে যাচাই সম্পন্ন করুন।`,
+                                `Please enter the 6-digit code sent to ${emailInput || dbUser?.email || user?.email || ""} to complete verification.`
                               )}
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-emerald-200/60">
-                          <button
-                            type="button"
-                            onClick={handleCheckEmailVerificationStatus}
-                            disabled={isCheckingEmailStatus}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
-                          >
-                            <RefreshCw className={`w-3.5 h-3.5 ${isCheckingEmailStatus ? "animate-spin" : ""}`} />
-                            <span>{getTranslation("ভেরিফিকেশন চেক করুন", "Check Status")}</span>
-                          </button>
+                        <div className="pt-2 border-t border-emerald-200/60 space-y-2">
+                          <label className="block text-[11px] font-bold text-slate-700">
+                            {getTranslation("৬-ডিজিটের ভেরিফিকেশন কোড:", "6-Digit Verification Code:")}
+                          </label>
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={6}
+                              value={emailOtpInput}
+                              onChange={(e) => setEmailOtpInput(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
+                              placeholder="যেমন: 123456"
+                              className="w-full sm:w-44 px-3 py-2 bg-white border border-emerald-300 rounded-xl text-center font-mono text-base font-bold tracking-widest text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleVerifyEmailOtp}
+                              disabled={isVerifyingEmailOtp || emailOtpInput.trim().length !== 6}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                            >
+                              {isVerifyingEmailOtp ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>{getTranslation("যাচাই করা হচ্ছে...", "Verifying...")}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>{getTranslation("যাচাই সম্পন্ন করুন", "Complete Verification")}</span>
+                                </>
+                              )}
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={handleSendEmailVerification}
-                            disabled={isSendingVerificationEmail || emailVerificationCooldown > 0}
-                            className="px-3 py-2 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
-                          >
-                            {emailVerificationCooldown > 0
-                              ? getTranslation(`পুনরায় পাঠান (${emailVerificationCooldown} সে.)`, `Resend (${emailVerificationCooldown}s)`)
-                              : getTranslation("পুনরায় লিংক পাঠান", "Resend Link")}
-                          </button>
+                            <button
+                              type="button"
+                              onClick={handleSendEmailVerification}
+                              disabled={isSendingVerificationEmail || emailVerificationCooldown > 0}
+                              className="px-3 py-2 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50 text-center"
+                            >
+                              {emailVerificationCooldown > 0
+                                ? getTranslation(`পুনরায় পাঠান (${emailVerificationCooldown} সে.)`, `Resend (${emailVerificationCooldown}s)`)
+                                : getTranslation("পুনরায় কোড পাঠান", "Resend Code")}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}

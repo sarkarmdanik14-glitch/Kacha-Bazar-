@@ -36,7 +36,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import QRCode from "qrcode";
-import { db, doc, setDoc, serverTimestamp, onSnapshot, auth, sendEmailVerification, RecaptchaVerifier, signInWithPhoneNumber } from "../../lib/firebase";
+import { db, doc, getDoc, setDoc, serverTimestamp, onSnapshot, auth, RecaptchaVerifier, signInWithPhoneNumber, updateProfile } from "../../lib/firebase";
 import type { ConfirmationResult } from "firebase/auth";
 import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from "../../lib/memberIdUtils";
 import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
@@ -68,10 +68,13 @@ export interface CustomerDashboardProps {
   onLogout?: () => void;
   onSaveProfile?: (updatedData: {
     displayName: string;
+    fullName?: string;
+    name?: string;
     phone: string;
     email: string;
     address: string;
     photoURL: string;
+    [key: string]: any;
   }) => Promise<void> | void;
   onNavigateTab?: (tabId: string) => void;
   onAddressUpdate?: (newAddress: string) => Promise<void> | void;
@@ -88,8 +91,10 @@ export default function CustomerDashboardMobile({
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>("dashboard");
 
-  // Profile data states
-  const [displayName, setDisplayName] = useState<string>(initialUser.displayName || initialUser.name || initialUser.fullName || "মোহাম্মদ");
+  // Profile data states - Prioritize displaying full name
+  const [displayName, setDisplayName] = useState<string>(() => {
+    return (initialUser.fullName || initialUser.displayName || initialUser.name || "গ্রাহক").trim();
+  });
   const [phone, setPhone] = useState<string>(initialUser.phone || "01700-000000");
   const [email, setEmail] = useState<string>(initialUser.email || "user@kanchabazar.com");
   const [photoURL, setPhotoURL] = useState<string>(initialUser.photoURL || "");
@@ -113,11 +118,12 @@ export default function CustomerDashboardMobile({
       }
     }
   }, [initialUser.uid, initialUser.id, initialUser.customerId]);
+
   const getSanitizedUsername = () => {
     if (initialUser.username && typeof initialUser.username === "string" && initialUser.username.trim()) {
       return initialUser.username.trim();
     }
-    const rawName = (displayName || initialUser.displayName || initialUser.name || initialUser.fullName || "").trim();
+    const rawName = (displayName || initialUser.fullName || initialUser.displayName || initialUser.name || "").trim();
     if (rawName) {
       const sanitized = rawName
         .toLowerCase()
@@ -192,6 +198,16 @@ export default function CustomerDashboardMobile({
           ? Number(data.balance) 
           : 0;
         setLiveWalletBalance(wb);
+
+        // Real-time synchronization of customer full name & details
+        const liveName = (data.fullName || data.displayName || data.name || "").trim();
+        if (liveName) {
+          setDisplayName(liveName);
+        }
+        if (data.phone) setPhone(data.phone);
+        if (data.email) setEmail(data.email);
+        if (data.address) setAddress(data.address);
+        if (data.photoURL !== undefined) setPhotoURL(data.photoURL || "");
       }
     }, (err) => {
       console.warn("Mobile live user listener notice:", err?.message || err);
@@ -224,6 +240,17 @@ export default function CustomerDashboardMobile({
       setLiveRewardPoints(initialUser.rewardPoints ?? (initialUser as any).points ?? 0);
     }
   }, [initialUser.rewardPoints, (initialUser as any).points]);
+
+  useEffect(() => {
+    const nextName = (initialUser.fullName || initialUser.displayName || initialUser.name || "").trim();
+    if (nextName) {
+      setDisplayName(nextName);
+    }
+    if (initialUser.phone) setPhone(initialUser.phone);
+    if (initialUser.email) setEmail(initialUser.email);
+    if (initialUser.address) setAddress(initialUser.address);
+    if (initialUser.photoURL !== undefined) setPhotoURL(initialUser.photoURL || "");
+  }, [initialUser.fullName, initialUser.displayName, initialUser.name, initialUser.phone, initialUser.email, initialUser.address, initialUser.photoURL]);
 
   // Auto-initialize rewardPoints to 0 in Firestore if missing for user
   useEffect(() => {
@@ -279,10 +306,12 @@ export default function CustomerDashboardMobile({
   const [emailVerifiedLocal, setEmailVerifiedLocal] = useState<boolean>(isEmailVerified);
   const [phoneVerifiedLocal, setPhoneVerifiedLocal] = useState<boolean>(isPhoneVerified);
 
-  // Real Firebase Auth Email Verification State
+  // Custom 6-digit OTP Email Verification State
   const [isSendingVerificationEmail, setIsSendingVerificationEmail] = useState<boolean>(false);
   const [verificationEmailSent, setVerificationEmailSent] = useState<boolean>(false);
   const [isCheckingEmailStatus, setIsCheckingEmailStatus] = useState<boolean>(false);
+  const [emailOtpInput, setEmailOtpInput] = useState<string>("");
+  const [isVerifyingEmailOtp, setIsVerifyingEmailOtp] = useState<boolean>(false);
   const [emailVerificationCooldown, setEmailVerificationCooldown] = useState<number>(0);
 
   // Phone OTP verification states (Firebase Phone Auth signInWithPhoneNumber)
@@ -345,30 +374,70 @@ export default function CustomerDashboardMobile({
   }, [initialUser.uid, initialUser.id, emailVerifiedLocal, phoneVerifiedLocal, showProfileEditModal]);
 
   const handleSendEmailVerification = async () => {
-    const targetEmail = (email || initialUser?.email || auth.currentUser?.email || "").trim();
+    const targetEmail = (email || initialUser?.email || auth.currentUser?.email || "").trim().toLowerCase();
     if (!targetEmail || !targetEmail.includes("@")) {
       triggerToast("অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা প্রদান করুন।");
       return;
     }
 
-    if (!auth.currentUser) {
-      triggerToast("ভেরিফিকেশন ইমেইল পাঠাতে লগইন সেশন আবশ্যক।");
+    const uId = initialUser.uid || initialUser.id || auth.currentUser?.uid;
+    if (!uId) {
+      triggerToast("ভেরিফিকেশন কোড পাঠাতে লগইন সেশন আবশ্যক।");
       return;
     }
 
     setIsSendingVerificationEmail(true);
     try {
-      await sendEmailVerification(auth.currentUser);
+      // 1. Generate secure 6-digit OTP code
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+      // 2. Save under Firestore email_verifications/{userId}
+      await setDoc(doc(db, "email_verifications", uId), {
+        code,
+        userId: uId,
+        email: targetEmail,
+        expiresAt,
+        createdAt: serverTimestamp(),
+        verified: false
+      }, { merge: true });
+
+      // 3. Dispatch transactional email via custom mail handler on backend (Resend, Brevo, or backend API)
+      // Sender: "কাঁচা বাজার টিম" <no-reply@kachabazaronline.com>
+      // Subject: "কাঁচা বাজার - ইমেইল ভেরিফিকেশন কোড"
+      try {
+        await fetch("/api/auth/send-email-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: uId, email: targetEmail, code })
+        });
+      } catch (apiErr) {
+        console.warn("Notice: backend email dispatch failed:", apiErr);
+      }
+
       setVerificationEmailSent(true);
       setEmailVerificationCooldown(60);
-      triggerToast("আপনার ইমেইলে একটি ভেরিফিকেশন লিংক পাঠানো হয়েছে। অনুগ্রহ করে ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।");
+      setEmailOtpInput("");
+      triggerToast(`আপনার ইমেইলে (${targetEmail}) একটি ৬-সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।`);
     } catch (err: any) {
       console.error("Mobile sendEmailVerification error:", err);
-      let errorMsg = "ভেরিফিকেশন ইমেইল পাঠাতে সমস্যা হয়েছে।";
-      if (err?.code === "auth/too-many-requests") {
-        errorMsg = "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
-      } else if (err?.message) {
-        errorMsg = `ভেরিফিকেশন ইমেইল পাঠাতে ব্যর্থ: ${err.message}`;
+      let errorMsg = "ভেরিফিকেশন কোড পাঠাতে সমস্যা হয়েছে।";
+      if (err?.code === "permission-denied") {
+        try {
+          const res = await fetch("/api/auth/send-email-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: uId, email: targetEmail })
+          });
+          const data = await res.json();
+          if (data.success) {
+            setVerificationEmailSent(true);
+            setEmailVerificationCooldown(60);
+            setEmailOtpInput("");
+            triggerToast(`আপনার ইমেইলে (${targetEmail}) একটি ৬-সংখ্যার ভেরিফিকেশন কোড পাঠানো হয়েছে।`);
+            return;
+          }
+        } catch (fbErr) {}
       }
       triggerToast(errorMsg);
     } finally {
@@ -376,35 +445,86 @@ export default function CustomerDashboardMobile({
     }
   };
 
-  const handleCheckEmailVerificationStatus = async () => {
-    if (!auth.currentUser) {
+  const handleVerifyEmailOtp = async () => {
+    const cleanCode = emailOtpInput.trim();
+    if (!cleanCode || cleanCode.length !== 6) {
+      triggerToast("অনুগ্রহ করে ৬-সংখ্যার ভেরিফিকেশন কোডটি দিন।");
+      return;
+    }
+
+    const uId = initialUser.uid || initialUser.id || auth.currentUser?.uid;
+    if (!uId) {
       triggerToast("লগইন সেশন পাওয়া যায়নি। অনুগ্রহ করে পুনরায় লগইন করুন।");
       return;
     }
 
-    setIsCheckingEmailStatus(true);
+    const targetEmail = (email || initialUser?.email || auth.currentUser?.email || "").trim().toLowerCase();
+
+    setIsVerifyingEmailOtp(true);
     try {
-      await auth.currentUser.reload();
-      if (auth.currentUser.emailVerified) {
-        setEmailVerifiedLocal(true);
-        const uId = initialUser.uid || initialUser.id;
-        if (uId) {
-          await setDoc(doc(db, "users", uId), {
-            isEmailVerified: true,
-            ...(phoneVerifiedLocal ? { isVerified: true } : {}),
-            updatedAt: serverTimestamp()
-          }, { merge: true });
+      let isMatched = false;
+
+      // 1. Verify code against Firestore email_verifications/{userId}
+      try {
+        const snap = await getDoc(doc(db, "email_verifications", uId));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && String(data.code).trim() === cleanCode) {
+            if (data.expiresAt && Date.now() > data.expiresAt) {
+              triggerToast("ভেরিফিকেশন কোডের মেয়াদ শেষ হয়ে গেছে। অনুগ্রহ করে আবার নতুন কোড পাঠান।");
+              setIsVerifyingEmailOtp(false);
+              return;
+            }
+            isMatched = true;
+          }
         }
-        setVerificationEmailSent(false);
-        triggerToast("অভিনন্দন! আপনার ইমেইল সফলভাবে ভেরিফাইড হয়েছে ✓");
-      } else {
-        triggerToast("ইমেইল এখনো ভেরিফাই করা হয়নি। অনুগ্রহ করে ইনবক্সের লিংকে ক্লিক করার পর আবার চেক করুন।");
+      } catch (fErr) {
+        console.warn("Direct Firestore mobile verification notice:", fErr);
       }
+
+      // 2. Fallback to server endpoint
+      if (!isMatched) {
+        try {
+          const res = await fetch("/api/auth/verify-email-otp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: uId, email: targetEmail, code: cleanCode })
+          });
+          const resData = await res.json();
+          if (resData.success) {
+            isMatched = true;
+          }
+        } catch (bErr) {}
+      }
+
+      if (!isMatched) {
+        triggerToast("ভুল ভেরিফিকেশন কোড! অনুগ্রহ করে সঠিক ৬-সংখ্যার কোড লিখুন।");
+        setIsVerifyingEmailOtp(false);
+        return;
+      }
+
+      // 3. If matched, update user profile in Firestore: isEmailVerified: true
+      await setDoc(doc(db, "users", uId), {
+        uid: uId,
+        isEmailVerified: true,
+        ...(phoneVerifiedLocal ? { isVerified: true } : {}),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      try {
+        await setDoc(doc(db, "email_verifications", uId), { verified: true }, { merge: true });
+      } catch (e) {}
+
+      setEmailVerifiedLocal(true);
+      setVerificationEmailSent(false);
+      setEmailOtpInput("");
+
+      triggerToast("অভিনন্দন! আপনার ইমেইল সফলভাবে ভেরিফাইড হয়েছে ✓");
     } catch (err: any) {
-      console.error("Mobile email reload status error:", err);
-      triggerToast("স্ট্যাটাস চেক করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
+      console.error("handleVerifyEmailOtp error:", err);
+      triggerToast("কোড যাচাই করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
     } finally {
-      setIsCheckingEmailStatus(false);
+      setIsVerifyingEmailOtp(false);
     }
   };
 
@@ -802,9 +922,32 @@ export default function CustomerDashboardMobile({
 
     setIsSaving(true);
     try {
+      const trimmed = displayName.trim();
+      const uId = initialUser.uid || initialUser.id;
+      if (uId) {
+        await setDoc(doc(db, "users", uId), {
+          displayName: trimmed,
+          fullName: trimmed,
+          name: trimmed,
+          phone: phone.trim(),
+          email: email.trim(),
+          address: address.trim(),
+          photoURL: photoURL || "",
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        if (auth.currentUser) {
+          await updateProfile(auth.currentUser, {
+            displayName: trimmed,
+            photoURL: photoURL || ""
+          }).catch(() => {});
+        }
+      }
+
       if (onSaveProfile) {
         await onSaveProfile({
-          displayName: displayName.trim(),
+          displayName: trimmed,
+          fullName: trimmed,
+          name: trimmed,
           phone: phone.trim(),
           email: email.trim(),
           address: address.trim(),
@@ -1669,7 +1812,7 @@ export default function CustomerDashboardMobile({
                     {!verificationEmailSent ? (
                       <div className="space-y-2">
                         <p className="text-[10px] text-slate-500 leading-tight">
-                          Firebase Auth-এর মাধ্যমে আপনার ইমেইলে নিরাপদ যাচাইকরণ লিংক পাঠানো হবে।
+                          আপনার ইমেইল ঠিকানায় কাঁচা বাজার টিম থেকে একটি ৬-সংখ্যার ওটিপি কোড পাঠানো হবে।
                         </p>
                         <button
                           type="button"
@@ -1685,46 +1828,67 @@ export default function CustomerDashboardMobile({
                           ) : (
                             <>
                               <Mail className="w-3.5 h-3.5" />
-                              <span>ভেরিফিকেশন লিংক পাঠান</span>
+                              <span>ভেরিফিকেশন কোড পাঠান</span>
                             </>
                           )}
                         </button>
                       </div>
                     ) : (
-                      <div className="space-y-2 bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200 animate-in fade-in duration-200">
+                      <div className="space-y-2.5 bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 animate-in fade-in duration-200">
                         <div className="flex items-start space-x-2">
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                           <div className="space-y-0.5">
                             <p className="text-[11px] font-bold text-emerald-950">
-                              ভেরিফিকেশন ইমেইল পাঠানো হয়েছে!
+                              ভেরিফিকেশন কোড পাঠানো হয়েছে!
                             </p>
                             <p className="text-[10px] text-emerald-900/80 leading-relaxed">
-                              ইনবক্স বা স্প্যাম ফোল্ডারে পাঠানো লিংকে ক্লিক করুন। এরপর নিচের বাটনে ক্লিক করে স্ট্যাটাস চেক করুন।
+                              {email || ""} ঠিকানায় প্রেরিত ৬-সংখ্যার কোডটি প্রবেশ করিয়ে যাচাই সম্পন্ন করুন।
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 pt-1 border-t border-emerald-200/60">
-                          <button
-                            type="button"
-                            onClick={handleCheckEmailVerificationStatus}
-                            disabled={isCheckingEmailStatus}
-                            className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1 cursor-pointer disabled:opacity-50 shadow-xs"
-                          >
-                            <RefreshCw className={`w-3 h-3 ${isCheckingEmailStatus ? "animate-spin" : ""}`} />
-                            <span>ভেরিফিকেশন চেক করুন</span>
-                          </button>
+                        <div className="pt-1.5 border-t border-emerald-200/60 space-y-2">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={6}
+                            value={emailOtpInput}
+                            onChange={(e) => setEmailOtpInput(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
+                            placeholder="৬-সংখ্যার কোড (যেমন: 123456)"
+                            className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl text-center font-mono text-sm font-bold tracking-widest text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                          />
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={handleVerifyEmailOtp}
+                              disabled={isVerifyingEmailOtp || emailOtpInput.trim().length !== 6}
+                              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1 cursor-pointer disabled:opacity-50 shadow-xs"
+                            >
+                              {isVerifyingEmailOtp ? (
+                                <>
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                  <span>যাচাই করা হচ্ছে...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>যাচাই সম্পন্ন করুন</span>
+                                </>
+                              )}
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={handleSendEmailVerification}
-                            disabled={isSendingVerificationEmail || emailVerificationCooldown > 0}
-                            className="px-2.5 py-1.5 bg-white text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-bold transition cursor-pointer disabled:opacity-50"
-                          >
-                            {emailVerificationCooldown > 0
-                              ? `${emailVerificationCooldown} সে.`
-                              : "পুনরায় পাঠান"}
-                          </button>
+                            <button
+                              type="button"
+                              onClick={handleSendEmailVerification}
+                              disabled={isSendingVerificationEmail || emailVerificationCooldown > 0}
+                              className="px-3 py-2 bg-white text-emerald-800 border border-emerald-300 rounded-xl text-[10px] font-bold transition cursor-pointer disabled:opacity-50 shrink-0"
+                            >
+                              {emailVerificationCooldown > 0
+                                ? `${emailVerificationCooldown} সে.`
+                                : "পুনরায় পাঠান"}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}

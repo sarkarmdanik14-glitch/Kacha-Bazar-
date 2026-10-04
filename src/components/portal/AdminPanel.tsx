@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { checkAndRewardReferral } from "../../lib/referral";
 import { awardOrderRewardPoints } from "../../lib/rewardPoints";
-import { mergeCategoryCards, shouldKeepProductGroceryFiltered } from "../../lib/categoryUtils";
+import { mergeCategoryCards, shouldKeepProductGroceryFiltered, isCategoryMatch } from "../../lib/categoryUtils";
 import { ALL_PRODUCTS, CATEGORIES, GROCERY_PRODUCTS_RAW } from "../../data";
 import { resolveAuthenticProductImage } from "../../lib/masterImageRegistry";
 
@@ -270,12 +270,21 @@ export default function AdminPanel({
             prods.push(prodItem);
           });
 
-          // Only if Firestore returned 0 products (e.g. offline), fallback to static defaults
-          if (prods.length === 0) {
-            for (const gp of GROCERY_PRODUCTS_RAW) {
-              if (!savedDeleted.has(gp.id) && shouldKeepProductGroceryFiltered(gp)) {
-                prods.push(gp);
-              }
+          // Ensure all grocery products are present with strict deduplication
+          const existingIds = new Set(prods.map(p => p.id));
+          const existingGroceryKeys = new Set(
+            prods
+              .filter(p => isCategoryMatch(p.category || (p as any).categoryId, "groceries"))
+              .map(p => `${(p.nameBn || "").trim().toLowerCase()}::${((p.unitBn || (p as any).unit || "") as string).trim().toLowerCase()}`)
+          );
+
+          for (const gp of GROCERY_PRODUCTS_RAW) {
+            const key = `${gp.nameBn.trim().toLowerCase()}::${(gp.unitBn || "").trim().toLowerCase()}`;
+            const isDupe = existingIds.has(gp.id) || existingGroceryKeys.has(key);
+            if (!isDupe && !savedDeleted.has(gp.id) && shouldKeepProductGroceryFiltered(gp)) {
+              prods.push(gp);
+              existingIds.add(gp.id);
+              existingGroceryKeys.add(key);
             }
           }
 

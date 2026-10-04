@@ -803,10 +803,13 @@ export default function AuthView({
           userData = userDocSnap.data();
           userRole = userData.role || role;
         } else {
+          const resolvedName = user.displayName || "গ্রাহক";
           userData = {
             uid: user.uid,
             email: user.email,
-            displayName: user.displayName || email.split("@")[0],
+            displayName: resolvedName,
+            fullName: resolvedName,
+            name: resolvedName,
             role: userRole,
             createdAt: serverTimestamp(),
             address: getTranslation("চাঁচকৈড় বাজার, নাটোর", "Chanchkoir Bazar, Natore"),
@@ -818,41 +821,50 @@ export default function AuthView({
         onAuthSuccess(userData, userRole);
       } else {
         // Sign up
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const trimmedFullName = (fullName || "").trim();
+        if (!trimmedFullName) {
+          setError(getTranslation("অনুগ্রহ করে আপনার সম্পূর্ণ নাম লিখুন।", "Please enter your full name."));
+          setLoading(false);
+          return;
+        }
+
+        const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
         const user = userCredential.user;
 
-        const cleanFullName = (fullName || "মোহাম্মদ").trim();
+        // 1. Immediately after createUserWithEmailAndPassword succeeds:
+        // Call Firebase Auth's updateProfile(res.user, { displayName: fullName.trim() })
         try {
-          await updateProfile(user, { displayName: cleanFullName });
+          await updateProfile(user, { displayName: trimmedFullName });
         } catch (profileErr) {
           console.warn("Could not set auth displayName:", profileErr);
         }
 
         const refCode = "REF" + user.uid.substring(0, 5).toUpperCase();
         const customerId = generateMemberId(user.uid);
-        const sanitizedHandle = cleanFullName
+        const sanitizedHandle = trimmedFullName
           .toLowerCase()
           .replace(/\s+/g, "_")
           .replace(/[^\w\u0980-\u09FF]/gi, "") || customerId.toLowerCase();
 
+        // 2. Save user profile to Firestore users/{uid} document with exact required fields:
         const userData: any = {
           uid: user.uid,
-          email: user.email,
-          displayName: cleanFullName,
-          name: cleanFullName,
-          fullName: cleanFullName,
-          username: sanitizedHandle,
-          customerId: customerId,
-          role: role,
-          phoneNumber: phone.trim(),
+          displayName: trimmedFullName,
+          fullName: trimmedFullName,
+          name: trimmedFullName,
           phone: phone.trim(),
-          createdAt: serverTimestamp(),
-          address: getTranslation("চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর", "Chanchkoir Bazar, Gurudaspur, Natore"),
-          referralCode: refCode,
-          balance: 0,
+          phoneNumber: phone.trim(),
+          email: email.trim(),
           walletBalance: 0,
           rewardPoints: 0,
+          balance: 0,
           points: 0,
+          role: role || "customer",
+          createdAt: serverTimestamp(),
+          username: sanitizedHandle,
+          customerId: customerId,
+          address: getTranslation("চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর", "Chanchkoir Bazar, Gurudaspur, Natore"),
+          referralCode: refCode,
           status: (role === "seller" || role === "rider") ? "pending" : "approved",
           ...(role === "seller" ? { sellerStatus: "pending" } : {}),
           ...(role === "rider" ? { riderStatus: "pending" } : {})
@@ -977,7 +989,9 @@ export default function AuthView({
         userData = {
           uid: user.uid,
           email: user.email,
-          displayName: user.displayName || user.email?.split("@")[0] || "User",
+          displayName: user.displayName || "গ্রাহক",
+          fullName: user.displayName || "গ্রাহক",
+          name: user.displayName || "গ্রাহক",
           customerId: customerId,
           role: userRole,
           createdAt: serverTimestamp(),

@@ -341,7 +341,7 @@ export default function PortalModal({
                   });
                 }
               } else {
-                const effectiveName = user.displayName || user.email?.split("@")[0] || "মোহাম্মদ";
+                const effectiveName = user.displayName || "গ্রাহক";
                 const customerId = generateMemberId(user.uid);
                 const sanitizedHandle = effectiveName
                   .toLowerCase()
@@ -352,6 +352,7 @@ export default function PortalModal({
                   uid: user.uid,
                   email: user.email || "",
                   displayName: effectiveName,
+                  fullName: effectiveName,
                   name: effectiveName,
                   username: sanitizedHandle,
                   role: "customer",
@@ -377,11 +378,13 @@ export default function PortalModal({
             console.warn("Portal fetch user role notice:", err?.message || err);
           }
           if (user) {
+            const fallbackName = user.displayName || "গ্রাহক";
             const fallbackUser = {
               uid: user.uid,
               email: user.email,
-              displayName: user.displayName || user.email?.split("@")[0] || "মোহাম্মদ",
-              name: user.displayName || user.email?.split("@")[0] || "মোহাম্মদ",
+              displayName: fallbackName,
+              fullName: fallbackName,
+              name: fallbackName,
               role: "customer",
               profileStatus: "approved"
             };

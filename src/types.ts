@@ -29,6 +29,7 @@ export interface Product {
   originalPrice?: number;
   unitBn: string;
   unitEn: string;
+  unit?: string;
   category: string;
   image: string;
   imageUrl?: string;

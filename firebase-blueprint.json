@@ -551,6 +551,18 @@
         "createdAt": "timestamp",
         "claimDate": "string"
       }
+    },
+    {
+      "name": "email_verifications",
+      "description": "Secure 6-digit email verification OTP codes with expiration timestamp",
+      "fields": {
+        "code": "string",
+        "userId": "string",
+        "email": "string",
+        "expiresAt": "number",
+        "createdAt": "timestamp",
+        "verified": "boolean"
+      }
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { Category, Product, PromoBanner, Recipe, Review } from "./types";
 import { COSMETICS_PRODUCTS_RAW } from "./lib/cosmeticsData";
+import { NEW_GROCERY_PRODUCTS_RAW } from "./lib/newGroceryProducts";
 
 export const CATEGORIES: Category[] = [
   { id: "all", nameBn: "সকল পণ্য", nameEn: "All Products", iconName: "LayoutGrid", colorClass: "from-emerald-500 to-teal-600", borderColor: "border-emerald-200", displayOrder: 0 },
@@ -930,7 +931,7 @@ export const GROCERY_PRODUCTS_RAW: Product[] = [
     unitEn: "1 packet",
     category: "groceries",
     categoryId: "groceries",
-    subcategory: "রেডি মসলা ও বেকিং আইটেম",
+    subcategory: "রেডি মসলা ও বেকিং উপাদান",
     image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80",
     inStock: true,
     stock: 100,
@@ -951,7 +952,7 @@ export const GROCERY_PRODUCTS_RAW: Product[] = [
     unitEn: "1 packet",
     category: "groceries",
     categoryId: "groceries",
-    subcategory: "রেডি মসলা ও বেকিং আইটেম",
+    subcategory: "রেডি মসলা ও বেকিং উপাদান",
     image: "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=500&q=80",
     inStock: true,
     stock: 100,
@@ -972,7 +973,7 @@ export const GROCERY_PRODUCTS_RAW: Product[] = [
     unitEn: "1 packet",
     category: "groceries",
     categoryId: "groceries",
-    subcategory: "রেডি মসলা ও বেকিং আইটেম",
+    subcategory: "রেডি মসলা ও বেকিং উপাদান",
     image: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=500&q=80",
     inStock: true,
     stock: 100,
@@ -1014,7 +1015,7 @@ export const GROCERY_PRODUCTS_RAW: Product[] = [
     unitEn: "1 packet",
     category: "groceries",
     categoryId: "groceries",
-    subcategory: "রেডি মসলা ও বেকিং আইটেম",
+    subcategory: "রেডি মসলা ও বেকিং উপাদান",
     image: "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=500&q=80",
     inStock: true,
     stock: 100,
@@ -1088,7 +1089,8 @@ export const GROCERY_PRODUCTS_RAW: Product[] = [
     descriptionBn: "শাহী রান্নার স্বাদ বাড়াতে রাঁধুনী গরম মসলার স্পেশাল প্যাক।",
     descriptionEn: "Radhuni garam masala aromatic ground spices packet.",
     displayOrder: 51
-  }
+  },
+  ...NEW_GROCERY_PRODUCTS_RAW
 ];
 
 export const RESTAURANT_PRODUCTS_RAW: Product[] = [
@@ -1464,12 +1466,12 @@ export const RESTAURANT_MENU_SECTIONS: string[] = [
   "পানীয়, জুস ও মিষ্টি"
 ];
 export const GROCERY_SECTIONS: string[] = [
-  "তেল, চিনি, লবণ ও গুড়",
-  "মসলাপাতি — আস্ত ও গুঁড়ো",
   "চাল ও খাদ্যশস্য",
   "ডাল ও ছোলা",
+  "তেল, চিনি, লবণ ও গুড়",
   "আটা, ময়দা ও সুজি",
-  "রেডি মসলা ও বেকিং আইটেম",
+  "মসলাপাতি — আস্ত ও গুঁড়ো",
+  "রেডি মসলা ও বেকিং উপাদান",
   "মসলা ও রান্নার তেল"
 ];
 export const isRiceOrGrainProduct = (_prod?: any): boolean => false;
@@ -1482,7 +1484,11 @@ export const getResolvedGrocerySubcategory = (
   _category?: string
 ): string => {
   if (subcategory && subcategory.trim() && subcategory !== "General" && subcategory !== "all") {
-    return subcategory.trim();
+    const s = subcategory.trim();
+    if (s === "রেডি মসলা ও বেকিং আইটেম" || s === "রেডি মসলা ও বেকিং উপাদান") {
+      return "রেডি মসলা ও বেকিং উপাদান";
+    }
+    return s;
   }
   const bn = (nameBn || "").toLowerCase();
   const en = (nameEn || "").toLowerCase();
@@ -1498,13 +1504,13 @@ export const getResolvedGrocerySubcategory = (
   if (bn.includes("আটা") || bn.includes("ময়দা") || bn.includes("সুজি") || bn.includes("সেমাই") || en.includes("flour") || en.includes("maida") || en.includes("suji") || en.includes("semai")) {
     return "আটা, ময়দা ও সুজি";
   }
-  if (bn.includes("মিক্স") || bn.includes("বেকিং") || en.includes("baking") || en.includes("mix") || bn.includes("কোকো") || bn.includes("ভ্যানিলা") || bn.includes("কাস্টার্ড")) {
-    return "রেডি মসলা ও বেকিং আইটেম";
+  if (bn.includes("মিক্স") || bn.includes("বেকিং") || en.includes("baking") || en.includes("mix") || bn.includes("কোকো") || bn.includes("ভ্যানিলা") || bn.includes("কাস্টার্ড") || bn.includes("ঘি") || bn.includes("বাটার") || bn.includes("ডালডা") || bn.includes("ভিনেগার") || bn.includes("ইস্ট") || bn.includes("কর্নফ্লাওয়ার")) {
+    return "রেডি মসলা ও বেকিং উপাদান";
   }
   if (bn.includes("মসলা") || en.includes("spice") || bn.includes("মরিচ") || bn.includes("হলুদ") || bn.includes("জিরা") || bn.includes("ধনিয়া") || bn.includes("দারুচিনি") || bn.includes("দারচিনি") || bn.includes("এলাচ") || bn.includes("লবঙ্গ") || bn.includes("গোলমরিচ") || bn.includes("গোল মরিচ") || bn.includes("তেজপাতা") || bn.includes("মেথি") || bn.includes("মৌরি") || bn.includes("জয়ফল") || bn.includes("জয়ত্রী") || bn.includes("সাদা ফল")) {
     return "মসলাপাতি — আস্ত ও গুঁড়ো";
   }
-  return subcategory || "মসলা ও রান্নার তেল";
+  return subcategory || "তেল, চিনি, লবণ ও গুড়";
 };
 export const getResolvedGroceryDisplayOrder = (
   id?: string, 

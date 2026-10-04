@@ -532,7 +532,8 @@ export default function App() {
                 await setDoc(doc(db, "users", user.uid), {
                   uid: user.uid,
                   email: user.email || "",
-                  displayName: user.displayName || user.email?.split("@")[0] || "Customer",
+                  displayName: user.displayName || "গ্রাহক",
+                  fullName: user.displayName || "গ্রাহক",
                   role: "customer",
                   createdAt: serverTimestamp(),
                   referralCode: "REF" + user.uid.substring(0, 5).toUpperCase()
@@ -652,10 +653,21 @@ export default function App() {
     }
   }, [cart, loggedInUser]);
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState<boolean>(true);
+  const [products, setProducts] = useState<Product[]>(() => ALL_PRODUCTS);
+  const [loadingProducts, setLoadingProducts] = useState<boolean>(false);
+  const [categories, setCategories] = useState<Category[]>(() => {
+    const allCat: Category = {
+      id: "all",
+      nameBn: "সকল পণ্য",
+      nameEn: "All Products",
+      iconName: "LayoutGrid",
+      colorClass: "from-emerald-500 to-teal-600",
+      borderColor: "border-emerald-200",
+      displayOrder: 0
+    };
+    return [allCat, ...CATEGORIES];
+  });
+  const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
   const [loadingBanners, setLoadingBanners] = useState<boolean>(true);
@@ -796,17 +808,23 @@ export default function App() {
           items.push(mapped);
         });
 
-        // Only if Firestore is completely empty or offline, fallback to static defaults
-        if (items.length === 0) {
-          for (const gp of GROCERY_PRODUCTS_RAW) {
-            if (!savedDeleted.has(gp.id) && shouldKeepProductGroceryFiltered(gp)) {
-              items.push(gp);
-            }
+        // Ensure all grocery products are present with strict deduplication
+        const existingIds = new Set(items.map(p => p.id));
+        const existingGroceryKeys = new Set(
+          items
+            .filter(p => isCategoryMatch(p.category || (p as any).categoryId, "groceries"))
+            .map(p => `${(p.nameBn || "").trim().toLowerCase()}::${((p.unitBn || (p as any).unit || "") as string).trim().toLowerCase()}`)
+        );
+
+        for (const gp of GROCERY_PRODUCTS_RAW) {
+          const key = `${gp.nameBn.trim().toLowerCase()}::${(gp.unitBn || "").trim().toLowerCase()}`;
+          const isDupe = existingIds.has(gp.id) || existingGroceryKeys.has(key);
+          if (!isDupe && !savedDeleted.has(gp.id) && shouldKeepProductGroceryFiltered(gp)) {
+            items.push(gp);
+            existingIds.add(gp.id);
+            existingGroceryKeys.add(key);
           }
         }
-
-        // Ensure all new cosmetics products are present in items list
-        const existingIds = new Set(items.map(p => p.id));
         for (const cp of COSMETICS_PRODUCTS_RAW) {
           if (!existingIds.has(cp.id) && !savedDeleted.has(cp.id)) {
             items.push(cp);

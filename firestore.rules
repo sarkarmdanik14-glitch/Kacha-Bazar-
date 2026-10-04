@@ -172,6 +172,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Email Verifications (6-digit OTP codes)
+    match /email_verifications/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      allow read, write: if isAdmin() || isStaff();
+    }
+
     // Carts (Cloud-synced user carts) - Users access ONLY their own cart
     match /carts/{cartId} {
       allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == cartId);
@@ -489,3 +495,5 @@ service cloud.firestore {
     }
   }
 }
+
+
