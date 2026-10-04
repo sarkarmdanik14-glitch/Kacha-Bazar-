@@ -13,7 +13,7 @@ import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, Subcategory, CartItem, Review, ProductOption } from "./types";
-import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_PRODUCTS_RAW, CONFECTIONERY_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
+import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_PRODUCTS_RAW, CONFECTIONERY_PRODUCTS_RAW, MOBILE_ZONE_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
 import { resolveProductDisplayUnit } from "./lib/productWeightUtils";
 import { subscribeToAllSubcategories } from "./lib/subcategoryService";
 import { 
@@ -837,6 +837,14 @@ export default function App() {
           if (!existingIds.has(conf.id) && !savedDeleted.has(conf.id)) {
             items.push(conf);
             existingIds.add(conf.id);
+          }
+        }
+
+        // Ensure all mobile zone products are present in items list
+        for (const mob of MOBILE_ZONE_PRODUCTS_RAW) {
+          if (!existingIds.has(mob.id) && !savedDeleted.has(mob.id)) {
+            items.push(mob);
+            existingIds.add(mob.id);
           }
         }
 
@@ -2486,6 +2494,20 @@ export default function App() {
                       (prodSub && prodSub === matchedSubObj.nameBn.toLowerCase().trim()) ||
                       (prodSub && matchedSubObj.nameEn && prodSub === matchedSubObj.nameEn.toLowerCase().trim())
                     ));
+
+                  if (!matchesSubcategory && isMobileZoneCat) {
+                    const isRedmiTarget = targetSub.includes("redmi") || targetSub.includes("xiaomi") || targetSub.includes("রেডমি");
+                    const isRedmiProd = prodSub.includes("redmi") || prodSub.includes("xiaomi") || prodSub.includes("রেডমি") || prodSubId.includes("redmi") || (product.brand && product.brand.toLowerCase().includes("xiaomi"));
+                    if (isRedmiTarget && isRedmiProd) {
+                      matchesSubcategory = true;
+                    }
+
+                    const isGdlTarget = targetSub.includes("gdl") || targetSub.includes("grameen") || targetSub.includes("গ্রামীণ");
+                    const isGdlProd = prodSub.includes("gdl") || prodSub.includes("grameen") || prodSub.includes("গ্রামীণ") || prodSubId.includes("gdl") || (product.brand && product.brand.toLowerCase().includes("gdl"));
+                    if (isGdlTarget && isGdlProd) {
+                      matchesSubcategory = true;
+                    }
+                  }
                 }
               }
 
@@ -2518,7 +2540,7 @@ export default function App() {
               ];
               subcategories = ["all", ...orderedSubs];
             } else if (isMobileZoneCat) {
-              const MOBILE_ORDERED_SUBS = ["vivo", "redmi", "infinix"];
+              const MOBILE_ORDERED_SUBS = ["vivo", "redmi", "oppo", "tecno", "itel", "gdl", "infinix"];
               const existingSubs = Array.from(new Set(allCatProducts.map(p => (p.subcategory || "").toLowerCase()).filter(Boolean))) as string[];
               const orderedSubs = [
                 ...MOBILE_ORDERED_SUBS.filter(s => existingSubs.includes(s)),
@@ -2557,7 +2579,7 @@ export default function App() {
             // Mobile Zone brand header helper
             const getMobileBrandHeader = (brandKey: string) => {
               const k = (brandKey || "").toLowerCase();
-              if (k === "vivo") {
+              if (k === "vivo" || k.includes("vivo") || k.includes("ভিভো")) {
                 return {
                   title: lang === "bn" ? "Vivo (ভিভো) অফিসিয়াল স্মার্টফোন" : "Vivo Official Smartphones",
                   tagline: lang === "bn" ? "অরা লাইট ক্যামেরা • স্লিম ডিজাইন • লং লাস্টিং ব্যাটারি" : "Aura Light Portrait • Ultra Slim • Long Battery",
@@ -2566,21 +2588,57 @@ export default function App() {
                   warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
                 };
               }
-              if (k === "redmi") {
+              if (k === "redmi" || k.includes("redmi") || k.includes("xiaomi") || k.includes("রেডমি") || k.includes("শাওমি")) {
                 return {
-                  title: lang === "bn" ? "Redmi (রেডমি / শাওমি) অফিসিয়াল স্মার্টফোন" : "Redmi / Xiaomi Official Smartphones",
+                  title: lang === "bn" ? "Redmi / Xiaomi (রেডমি / শাওমি) অফিসিয়াল স্মার্টফোন" : "Redmi / Xiaomi Official Smartphones",
                   tagline: lang === "bn" ? "টার্বো চার্জিং • হাই-রেজোলিউশন ক্যামেরা • পাওয়ারফুল প্রসেসর" : "Turbo Fast Charging • Ultra Clear Camera • Power Engine",
                   pill: "REDMI",
                   pillBg: "bg-orange-600 text-white",
                   warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
                 };
               }
-              if (k === "infinix") {
+              if (k === "oppo" || k.includes("oppo") || k.includes("অপ্পো")) {
+                return {
+                  title: lang === "bn" ? "OPPO (অপ্পো) অফিসিয়াল স্মার্টফোন" : "OPPO Official Smartphones",
+                  tagline: lang === "bn" ? "সুপারভুক ফ্ল্যাশ চার্জ • আল্ট্রা ক্লিয়ার ক্যামেরা • গ্লো ডিজাইন" : "SUPERVOOC Charge • Ultra Clear Camera • Glow Design",
+                  pill: "OPPO",
+                  pillBg: "bg-emerald-600 text-white",
+                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                };
+              }
+              if (k === "tecno" || k.includes("tecno") || k.includes("টেকনো")) {
+                return {
+                  title: lang === "bn" ? "TECNO (টেকনো) স্মার্টফোন ও ট্যাবলেট" : "TECNO Official Smartphones & Tablets",
+                  tagline: lang === "bn" ? "ক্যামন ও স্পার্ক সিরিজ • পাওয়ারফুল প্রসেসর • বিগ ডিসপ্লে" : "Camon & Spark Series • Powerful Processor • Big Screen",
+                  pill: "TECNO",
+                  pillBg: "bg-sky-600 text-white",
+                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                };
+              }
+              if (k === "itel" || k.includes("itel") || k.includes("আইটেল")) {
+                return {
+                  title: lang === "bn" ? "itel (আইটেল) স্মার্টফোন ও ফিচার ফোন" : "itel Smartphones & Feature Phones",
+                  tagline: lang === "bn" ? "সেরা দামে সেরা ফোন • লং ব্যাটারি লাইফ • নির্ভরযোগ্য কোয়ালিটি" : "Best Budget Phones • Long Battery Life • Reliable Quality",
+                  pill: "itel",
+                  pillBg: "bg-red-600 text-white",
+                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                };
+              }
+              if (k === "gdl" || k.includes("gdl") || k.includes("grameen") || k.includes("গ্রামীণ")) {
+                return {
+                  title: lang === "bn" ? "Grameen Distribution / GDL মোবাইল" : "Grameen Distribution / GDL Phones",
+                  tagline: lang === "bn" ? "গ্রামীণ ডিস্ট্রিবিউশন অফিসিয়াল ফিচার ও স্মার্টফোন" : "Grameen Distribution Official Phones",
+                  pill: "GDL",
+                  pillBg: "bg-purple-600 text-white",
+                  warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
+                };
+              }
+              if (k === "infinix" || k.includes("infinix") || k.includes("ইনফিনিক্স")) {
                 return {
                   title: lang === "bn" ? "Infinix (ইনফিনিক্স) স্মার্টফোন ও ট্যাবলেট" : "Infinix Official Smartphones & Tablets",
                   tagline: lang === "bn" ? "বিগ ডিসপ্লে • গেমিং পাওয়ার • বাজেট ফ্রেন্ডলি ফাস্ট চার্জিং" : "Huge Display • Extreme Gaming • Rapid Charge",
                   pill: "Infinix",
-                  pillBg: "bg-emerald-600 text-white",
+                  pillBg: "bg-teal-600 text-white",
                   warranty: lang === "bn" ? "১ বছরের ব্র্যান্ড ওয়ারেন্টি" : "1-Year Official Warranty"
                 };
               }
@@ -2615,6 +2673,13 @@ export default function App() {
                   }
                   if (isMobileZoneCat) {
                     if ((p.subcategory || "").toLowerCase().trim() === secKey) return true;
+                    const isRedmiSec = secKey.includes("redmi") || secKey.includes("xiaomi") || secKey.includes("রেডমি");
+                    const isRedmiProd = (p.subcategory || "").toLowerCase().includes("redmi") || (p.subcategory || "").toLowerCase().includes("xiaomi") || (p.subcategory || "").toLowerCase().includes("রেডমি") || (p.brand && p.brand.toLowerCase().includes("xiaomi"));
+                    if (isRedmiSec && isRedmiProd) return true;
+
+                    const isGdlSec = secKey.includes("gdl") || secKey.includes("grameen") || secKey.includes("গ্রামীণ");
+                    const isGdlProd = (p.subcategory || "").toLowerCase().includes("gdl") || (p.subcategory || "").toLowerCase().includes("grameen") || (p.subcategory || "").toLowerCase().includes("গ্রামীণ") || (p.brand && p.brand.toLowerCase().includes("gdl"));
+                    if (isGdlSec && isGdlProd) return true;
                   }
                   if ((p.subcategory || "").toLowerCase().trim() === secKey) return true;
                   if (matchedDbSub && (p.subcategoryId === matchedDbSub.id || (p.subcategory && p.subcategory.toLowerCase().trim() === matchedDbSub.nameBn.toLowerCase().trim()))) {
@@ -2780,13 +2845,27 @@ export default function App() {
                           label = VEHICLE_SUBCAT_LABELS[sub][lang];
                         }
                       } else if (isMobileZoneCat) {
+                        const lowSub = sub.toLowerCase();
                         const MOBILE_SUBCAT_LABELS: Record<string, { bn: string; en: string }> = {
                           vivo: { bn: "🔵 Vivo (ভিভো)", en: "🔵 Vivo" },
-                          redmi: { bn: "🟠 Redmi (রেডমি)", en: "🟠 Redmi" },
-                          infinix: { bn: "🟢 Infinix (ইনফিনিক্স)", en: "🟢 Infinix" }
+                          "vivo (ভিভো)": { bn: "🔵 Vivo (ভিভো)", en: "🔵 Vivo" },
+                          redmi: { bn: "🟠 Redmi / Xiaomi (রেডমি)", en: "🟠 Redmi / Xiaomi" },
+                          "redmi / xiaomi (রেডমি)": { bn: "🟠 Redmi / Xiaomi (রেডমি)", en: "🟠 Redmi / Xiaomi" },
+                          "redmi / xiaomi": { bn: "🟠 Redmi / Xiaomi (রেডমি)", en: "🟠 Redmi / Xiaomi" },
+                          oppo: { bn: "🟢 OPPO (অপ্পো)", en: "🟢 OPPO" },
+                          "oppo (অপ্পো)": { bn: "🟢 OPPO (অপ্পো)", en: "🟢 OPPO" },
+                          tecno: { bn: "🔵 TECNO (টেকনো)", en: "🔵 TECNO" },
+                          "tecno (টেকনো)": { bn: "🔵 TECNO (টেকনো)", en: "🔵 TECNO" },
+                          itel: { bn: "🔴 itel (আইটেল)", en: "🔴 itel" },
+                          "itel (আইটেল)": { bn: "🔴 itel (আইটেল)", en: "🔴 itel" },
+                          gdl: { bn: "🟣 GDL / Grameen (গ্রামীণ)", en: "🟣 GDL / Grameen" },
+                          "gdl / grameen (গ্রামীণ)": { bn: "🟣 GDL / Grameen (গ্রামীণ)", en: "🟣 GDL / Grameen" },
+                          "gdl / grameen": { bn: "🟣 GDL / Grameen (গ্রামীণ)", en: "🟣 GDL / Grameen" },
+                          infinix: { bn: "🟢 Infinix (ইনফিনিক্স)", en: "🟢 Infinix" },
+                          "infinix (ইনফিনিক্স)": { bn: "🟢 Infinix (ইনফিনিক্স)", en: "🟢 Infinix" }
                         };
-                        if (MOBILE_SUBCAT_LABELS[sub.toLowerCase()]) {
-                          label = MOBILE_SUBCAT_LABELS[sub.toLowerCase()][lang];
+                        if (MOBILE_SUBCAT_LABELS[lowSub]) {
+                          label = MOBILE_SUBCAT_LABELS[lowSub][lang];
                         }
                       }
                       return (

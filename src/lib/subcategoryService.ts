@@ -106,7 +106,16 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
   { categoryId: "snacks-biscuits", nameBn: "কেক, চকলেট ও মিষ্টি কনফেকশনারি", nameEn: "Cakes, Chocolates & Sweets", order: 6, isActive: true },
   { categoryId: "snacks-biscuits", nameBn: "বিস্কুট ও কুকিজ", nameEn: "Biscuits & Cookies", order: 7, isActive: true },
   { categoryId: "snacks-biscuits", nameBn: "চকলেট ও ক্যান্ডি", nameEn: "Chocolates & Candies", order: 8, isActive: true },
-  { categoryId: "snacks-biscuits", nameBn: "কেক, বান ও পাউরুটি", nameEn: "Cakes, Buns & Bread", order: 9, isActive: true }
+  { categoryId: "snacks-biscuits", nameBn: "কেক, বান ও পাউরুটি", nameEn: "Cakes, Buns & Bread", order: 9, isActive: true },
+
+  // 13. Mobile Zone (মোবাইল জোন)
+  { categoryId: "mobile-zone", nameBn: "Vivo (ভিভো)", nameEn: "Vivo", order: 1, isActive: true },
+  { categoryId: "mobile-zone", nameBn: "Redmi / Xiaomi (রেডমি)", nameEn: "Redmi / Xiaomi", order: 2, isActive: true },
+  { categoryId: "mobile-zone", nameBn: "OPPO (অপ্পো)", nameEn: "OPPO", order: 3, isActive: true },
+  { categoryId: "mobile-zone", nameBn: "TECNO (টেকনো)", nameEn: "TECNO", order: 4, isActive: true },
+  { categoryId: "mobile-zone", nameBn: "itel (আইটেল)", nameEn: "itel", order: 5, isActive: true },
+  { categoryId: "mobile-zone", nameBn: "GDL / Grameen (গ্রামীণ)", nameEn: "GDL / Grameen", order: 6, isActive: true },
+  { categoryId: "mobile-zone", nameBn: "Infinix (ইনফিনিক্স)", nameEn: "Infinix", order: 7, isActive: true }
 ];
 
 /**

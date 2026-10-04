@@ -1449,11 +1449,13 @@ export const RESTAURANT_PRODUCTS_RAW: Product[] = [
 
 export { COSMETICS_PRODUCTS_RAW } from "./lib/cosmeticsData";
 export { CONFECTIONERY_PRODUCTS_RAW, CONFECTIONERY_SNACKS_RAW } from "./lib/confectioneryData";
+export { MOBILE_ZONE_PRODUCTS_RAW } from "./lib/mobileProductsData";
 
 import { CONFECTIONERY_PRODUCTS_RAW } from "./lib/confectioneryData";
+import { MOBILE_ZONE_PRODUCTS_RAW } from "./lib/mobileProductsData";
 
-export const PRODUCTS: Product[] = [...GROCERY_PRODUCTS_RAW, ...COSMETICS_PRODUCTS_RAW, ...RESTAURANT_PRODUCTS_RAW, ...CONFECTIONERY_PRODUCTS_RAW];
-export const ALL_PRODUCTS: Product[] = [...GROCERY_PRODUCTS_RAW, ...COSMETICS_PRODUCTS_RAW, ...RESTAURANT_PRODUCTS_RAW, ...CONFECTIONERY_PRODUCTS_RAW];
+export const PRODUCTS: Product[] = [...GROCERY_PRODUCTS_RAW, ...COSMETICS_PRODUCTS_RAW, ...RESTAURANT_PRODUCTS_RAW, ...CONFECTIONERY_PRODUCTS_RAW, ...MOBILE_ZONE_PRODUCTS_RAW];
+export const ALL_PRODUCTS: Product[] = [...GROCERY_PRODUCTS_RAW, ...COSMETICS_PRODUCTS_RAW, ...RESTAURANT_PRODUCTS_RAW, ...CONFECTIONERY_PRODUCTS_RAW, ...MOBILE_ZONE_PRODUCTS_RAW];
 export const RESTAURANT_MENU_SECTIONS: string[] = [
   "বিরিয়ানি, পোলাও ও রাইস",
   "বার্গার, স্যান্ডউইচ ও শাওয়ার্মা",
