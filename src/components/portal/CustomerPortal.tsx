@@ -34,7 +34,7 @@ import {
   Smartphone, Bell, Eye, EyeOff, LogOut, ChevronRight, Printer,
   Camera, Trash2, Save, Edit3, Lock, Mail, Phone, ShieldCheck,
   Menu, X, Sparkles, QrCode, Award, Heart, Settings, Edit2, Check,
-  Crown, Percent, Zap, CheckCircle2, AlertCircle, Key, Ticket
+  Crown, Percent, Zap, CheckCircle2, AlertCircle, Key, Ticket, ArrowLeft
 } from "lucide-react";
 import QRCode from "qrcode";
 import OrderMemoModal from "./OrderMemoModal";
@@ -1941,6 +1941,21 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             {/* TAB: ORDERS & DETAILED TRACKING */}
             {activeTab === "orders" && (
               <div className="space-y-4">
+                {/* View Navigation Top Bar */}
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("dashboard");
+                      setSelectedOrder(null);
+                    }}
+                    className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 text-xs font-bold shadow-xs transition cursor-pointer group active:scale-95"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-emerald-600 group-hover:-translate-x-0.5 transition-transform" />
+                    <span>{getTranslation("← ড্যাশবোর্ডে ফিরুন", "← Back to Dashboard")}</span>
+                  </button>
+                </div>
+
                 {!selectedOrder ? (
                   <>
                     <h2 className="text-lg font-black text-slate-800 mb-2">
@@ -2184,6 +2199,18 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             {/* TAB: WALLET */}
             {activeTab === "wallet" && (
               <div className="space-y-6">
+                {/* View Navigation Top Bar */}
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("dashboard")}
+                    className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 text-xs font-bold shadow-xs transition cursor-pointer group active:scale-95"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-emerald-600 group-hover:-translate-x-0.5 transition-transform" />
+                    <span>{getTranslation("← ড্যাশবোর্ডে ফিরুন", "← Back to Dashboard")}</span>
+                  </button>
+                </div>
+
                 {/* Credit wallet card */}
                 <div className="bg-gradient-to-br from-emerald-700 via-emerald-800 to-teal-800 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
                   <div className="absolute right-0 bottom-0 opacity-10 translate-x-8 translate-y-8 rotate-12">
@@ -2257,6 +2284,18 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             {/* TAB: REFERRAL */}
             {activeTab === "referral" && (
               <div className="space-y-6 pb-16 sm:pb-4">
+                {/* View Navigation Top Bar */}
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("dashboard")}
+                    className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 text-xs font-bold shadow-xs transition cursor-pointer group active:scale-95"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-emerald-600 group-hover:-translate-x-0.5 transition-transform" />
+                    <span>{getTranslation("← ড্যাশবোর্ডে ফিরুন", "← Back to Dashboard")}</span>
+                  </button>
+                </div>
+
                 {/* 1. Top Hero Section (Moomoo Fintech Style) */}
                 <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-950 via-teal-900 to-slate-900 text-white p-6 sm:p-8 shadow-xl border border-emerald-500/30">
                   {/* Ambient decorative glow orbs */}
@@ -2551,6 +2590,18 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             {/* TAB: NOTIFICATIONS */}
             {activeTab === "notifications" && (
               <div className="space-y-4">
+                {/* View Navigation Top Bar */}
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("dashboard")}
+                    className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 text-xs font-bold shadow-xs transition cursor-pointer group active:scale-95"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-emerald-600 group-hover:-translate-x-0.5 transition-transform" />
+                    <span>{getTranslation("← ড্যাশবোর্ডে ফিরুন", "← Back to Dashboard")}</span>
+                  </button>
+                </div>
+
                 <h2 className="text-lg font-black text-slate-800 mb-2">
                   {getTranslation("ইন-অ্যাপ নোটিফিকেশনস", "Your System Notifications")}
                 </h2>
