@@ -98,9 +98,15 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
   { categoryId: "frozen", nameBn: "অন্যান্য ড্রাই ফুড", nameEn: "Other Dry Food", order: 7, isActive: true },
 
   // 12. Confectionery (কনফেকশনারি)
-  { categoryId: "snacks-biscuits", nameBn: "চকলেট ও ক্যান্ডি", nameEn: "Chocolates & Candies", order: 1, isActive: true },
-  { categoryId: "snacks-biscuits", nameBn: "বিস্কুট ও কুকিজ", nameEn: "Biscuits & Cookies", order: 2, isActive: true },
-  { categoryId: "snacks-biscuits", nameBn: "কেক, বান ও পাউরুটি", nameEn: "Cakes, Buns & Bread", order: 3, isActive: true }
+  { categoryId: "snacks-biscuits", nameBn: "চিপস ও পপকর্ন", nameEn: "Chips & Popcorn", order: 1, isActive: true },
+  { categoryId: "snacks-biscuits", nameBn: "বাদাম, ডাল ও চানাচুর", nameEn: "Nuts, Pulses & Chanachur", order: 2, isActive: true },
+  { categoryId: "snacks-biscuits", nameBn: "আইসক্রিম ও ডেইরি ডিলাইট", nameEn: "Ice Cream & Dairy Delight", order: 3, isActive: true },
+  { categoryId: "snacks-biscuits", nameBn: "পানীয়, জুস ও বেভারেজ", nameEn: "Beverages, Juice & Drinks", order: 4, isActive: true },
+  { categoryId: "snacks-biscuits", nameBn: "চা, কফি ও হেলথ ড্রিংকস", nameEn: "Tea, Coffee & Health Drinks", order: 5, isActive: true },
+  { categoryId: "snacks-biscuits", nameBn: "কেক, চকলেট ও মিষ্টি কনফেকশনারি", nameEn: "Cakes, Chocolates & Sweets", order: 6, isActive: true },
+  { categoryId: "snacks-biscuits", nameBn: "বিস্কুট ও কুকিজ", nameEn: "Biscuits & Cookies", order: 7, isActive: true },
+  { categoryId: "snacks-biscuits", nameBn: "চকলেট ও ক্যান্ডি", nameEn: "Chocolates & Candies", order: 8, isActive: true },
+  { categoryId: "snacks-biscuits", nameBn: "কেক, বান ও পাউরুটি", nameEn: "Cakes, Buns & Bread", order: 9, isActive: true }
 ];
 
 /**
@@ -120,8 +126,12 @@ export async function getSubcategoriesForCategory(categoryId: string): Promise<S
     (
       categoryId === "confectionery" ||
       categoryId === "confectionary" ||
+      categoryId === "confectionery-snacks" ||
+      categoryId === "snacks-biscuits" ||
+      categoryId === "snacks" ||
       categoryId === "bakery" ||
       categoryId === "কনফেকশনারি" ||
+      categoryId === "কনফেকশনারি ও স্ন্যাকস" ||
       categoryId === "কনফেকশনারী"
     ) ? "snacks-biscuits" : categoryId
   );

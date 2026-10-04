@@ -2453,7 +2453,7 @@ export default function App() {
 
             // Filter subcategories for the selected category from Firestore (sorted by order asc)
             const matchingDbSubs = dbSubcategories
-              .filter(s => s.categoryId === selectedCategory && !s.isDeleted)
+              .filter(s => (s.categoryId === selectedCategory || isCategoryMatch(s.categoryId, selectedCategory)) && !s.isDeleted)
               .sort((a, b) => (a.order || 0) - (b.order || 0));
 
             // Filter products

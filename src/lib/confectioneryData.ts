@@ -115,7 +115,7 @@ export const CONFECTIONERY_ITEMS_SEED: ConfectioneryItemSeed[] = [
   { name: "সাদা পাউরুটি", nameBn: "সাদা পাউরুটি", nameEn: "White Sliced Bread", subCategory: "কেক, বান ও পাউরুটি", unit: "১ প্যাকেট", price: 100, brand: "কাচা বাজার কনফেকশনারি", image: "https://images.unsplash.com/photo-1586444248902-2f64eddc13df?w=500&auto=format&fit=crop&q=80" }
 ];
 
-export const CONFECTIONERY_PRODUCTS_RAW: Product[] = CONFECTIONERY_ITEMS_SEED.map((item, idx) => {
+export const CONFECTIONERY_LEGACY_RAW: Product[] = CONFECTIONERY_ITEMS_SEED.map((item, idx) => {
   const numId = String(idx + 1).padStart(2, "0");
   const id = `conf_${numId}`;
   const subId = item.subCategory === "চকলেট ও ক্যান্ডি" 
@@ -160,3 +160,13 @@ export const CONFECTIONERY_PRODUCTS_RAW: Product[] = CONFECTIONERY_ITEMS_SEED.ma
     order: idx + 1
   };
 });
+
+import { CONFECTIONERY_SNACKS_RAW, CONFECTIONERY_SNACKS_ITEMS, CONFECTIONERY_SNACKS_SUBCATEGORIES } from "./confectionerySnacksData";
+
+export { CONFECTIONERY_SNACKS_RAW, CONFECTIONERY_SNACKS_ITEMS, CONFECTIONERY_SNACKS_SUBCATEGORIES };
+
+export const CONFECTIONERY_PRODUCTS_RAW: Product[] = [
+  ...CONFECTIONERY_SNACKS_RAW,
+  ...CONFECTIONERY_LEGACY_RAW
+];
+

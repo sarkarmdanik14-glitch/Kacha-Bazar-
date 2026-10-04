@@ -1448,7 +1448,7 @@ export const RESTAURANT_PRODUCTS_RAW: Product[] = [
 ];
 
 export { COSMETICS_PRODUCTS_RAW } from "./lib/cosmeticsData";
-export { CONFECTIONERY_PRODUCTS_RAW } from "./lib/confectioneryData";
+export { CONFECTIONERY_PRODUCTS_RAW, CONFECTIONERY_SNACKS_RAW } from "./lib/confectioneryData";
 
 import { CONFECTIONERY_PRODUCTS_RAW } from "./lib/confectioneryData";
 

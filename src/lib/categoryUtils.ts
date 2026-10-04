@@ -251,9 +251,32 @@ export function isCategoryMatch(
     );
   }
 
-  // If filtering by the merged confectionery category (combining snacks-biscuits and beverages)
-  if (sCat === "snacks-biscuits" || sCat === "confectionery" || sCat === "beverages" || sCat === "drinks") {
-    return pCat === "snacks-biscuits" || pCat === "confectionery" || pCat === "beverages" || pCat === "drinks";
+  // If filtering by the merged confectionery category (combining snacks-biscuits, confectionery-snacks, snacks, and beverages)
+  const isConfectioneryFilter = 
+    sCat === "confectionery-snacks" ||
+    sCat === "snacks-biscuits" || 
+    sCat === "confectionery" || 
+    sCat === "snacks" || 
+    sCat === "beverages" || 
+    sCat === "drinks" ||
+    sCat === "কনফেকশনারি ও স্ন্যাকস" ||
+    sCat === "কনফেকশনারি" ||
+    sCat.includes("কনফেকশনারি") ||
+    sCat.includes("স্ন্যাকস");
+
+  if (isConfectioneryFilter) {
+    return (
+      pCat === "confectionery-snacks" ||
+      pCat === "snacks-biscuits" || 
+      pCat === "confectionery" || 
+      pCat === "snacks" || 
+      pCat === "beverages" || 
+      pCat === "drinks" ||
+      pCat === "কনফেকশনারি ও স্ন্যাকস" ||
+      pCat === "কনফেকশনারি" ||
+      pCat.includes("কনফেকশনারি") ||
+      pCat.includes("স্ন্যাকস")
+    );
   }
 
   // If filtering by restaurant category (supports bakery-sweets, restaurant, bakery, রেস্টুরেন্ট, রেস্তোরাঁ)
@@ -392,7 +415,18 @@ export function normalizeCategoryId(catId: string | undefined | null): string {
   ) {
     return "groceries";
   }
-  if (lower === "beverages" || lower === "confectionery" || lower === "drinks") {
+  if (
+    lower === "beverages" || 
+    lower === "confectionery" || 
+    lower === "confectionery-snacks" || 
+    lower === "snacks-biscuits" || 
+    lower === "snacks" || 
+    lower === "drinks" || 
+    lower === "কনফেকশনারি" || 
+    lower === "কনফেকশনারি ও স্ন্যাকস" ||
+    lower.includes("কনফেকশনারি") ||
+    lower.includes("স্ন্যাকস")
+  ) {
     return "snacks-biscuits";
   }
   if (lower === "restaurant" || lower === "bakery" || lower === "রেস্টুরেন্ট" || lower === "রেস্তোরাঁ" || lower.includes("রেস্টুরেন্ট")) {
@@ -537,7 +571,7 @@ export function mergeCategoryCards(categories: any[]): any[] {
     }
 
     // 2. Confectionery + Beverages -> Merge into ONE card "কনফেকশনারি" at serial #5
-    if (cat.id === "snacks-biscuits" || cat.id === "beverages" || cat.id === "confectionery" || cat.id === "drinks") {
+    if (cat.id === "snacks-biscuits" || cat.id === "beverages" || cat.id === "confectionery" || cat.id === "confectionery-snacks" || cat.id === "drinks") {
       if (!confectioneryAdded) {
         const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
         result.push({
