@@ -1353,59 +1353,78 @@ export default function CustomerDashboardMobile({
             {/* Card 1: মোট অর্ডার */}
             <div
               onClick={() => onNavigateTab && onNavigateTab("orders")}
-              className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-emerald-200 transition cursor-pointer"
+              className="relative overflow-hidden bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-white border border-emerald-200/60 rounded-2xl p-4 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all duration-200 cursor-pointer group active:scale-95 transform hover:-translate-y-0.5"
             >
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold mb-2">
-                <ShoppingBag className="w-5 h-5" />
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold shadow-md shadow-emerald-500/25 group-hover:scale-105 transition-transform duration-200">
+                  <ShoppingBag className="w-5 h-5" />
+                </div>
               </div>
-              <p className="text-[11px] font-bold text-slate-400">মোট অর্ডার</p>
-              <h4 className="text-lg font-black text-slate-900 mt-0.5">{totalOrders} টি</h4>
+              <p className="text-xs font-semibold text-slate-500">মোট অর্ডার</p>
+              <h4 className="text-xl font-black text-slate-800 tracking-tight mt-1 flex items-baseline">
+                <span>{totalOrders}</span>
+                <span className="text-xs font-bold text-emerald-700 ml-1.5 bg-emerald-100/70 px-2 py-0.5 rounded-lg border border-emerald-200/60">
+                  টি
+                </span>
+              </h4>
             </div>
 
             {/* Card 2: ওয়ালেট ব্যালেন্স */}
             <div
               onClick={() => onNavigateTab && onNavigateTab("wallet")}
-              className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-teal-200 transition cursor-pointer"
+              className="relative overflow-hidden bg-gradient-to-br from-teal-500/10 via-teal-500/5 to-white border border-teal-200/60 rounded-2xl p-4 shadow-xs hover:shadow-md hover:border-teal-300 transition-all duration-200 cursor-pointer group active:scale-95 transform hover:-translate-y-0.5"
             >
-              <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold mb-2">
-                <CreditCard className="w-5 h-5" />
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-teal-600 to-cyan-500 text-white flex items-center justify-center font-bold shadow-md shadow-teal-500/25 group-hover:scale-105 transition-transform duration-200">
+                  <CreditCard className="w-5 h-5" />
+                </div>
               </div>
-              <p className="text-[11px] font-bold text-slate-400">ওয়ালেট ব্যালেন্স</p>
-              <h4 className="text-lg font-black text-slate-900 mt-0.5">৳{walletBalance}</h4>
+              <p className="text-xs font-semibold text-slate-500">ওয়ালেট ব্যালেন্স</p>
+              <h4 className="text-xl font-black text-slate-800 tracking-tight mt-1 flex items-baseline">
+                <span className="text-base font-bold text-teal-600 mr-0.5">৳</span>
+                <span>{walletBalance}</span>
+              </h4>
             </div>
 
             {/* Card 3: 🎉 রেফার করে জিতুন ৳১৯! */}
             <div
               onClick={() => onNavigateTab && onNavigateTab("referral")}
-              className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-amber-200 transition cursor-pointer"
+              className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-white border border-amber-200/60 rounded-2xl p-4 shadow-xs hover:shadow-md hover:border-amber-300 transition-all duration-200 cursor-pointer group active:scale-95 transform hover:-translate-y-0.5"
             >
-              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold mb-2">
-                <Gift className="w-5 h-5" />
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold shadow-md shadow-amber-500/25 group-hover:scale-105 transition-transform duration-200">
+                  <Gift className="w-5 h-5" />
+                </div>
               </div>
-              <p className="text-[11px] font-bold text-slate-500 truncate" title="🎉 রেফার করে জিতুন ৳১৯!">
+              <p className="text-xs font-semibold text-slate-500 truncate" title="🎉 রেফার করে জিতুন ৳১৯!">
                 🎉 রেফার করে জিতুন ৳১৯!
               </p>
-              <h4 className="text-lg font-black text-slate-900 mt-0.5">৳{referralEarnings}</h4>
+              <h4 className="text-xl font-black text-slate-800 tracking-tight mt-1 flex items-baseline">
+                <span className="text-base font-bold text-amber-600 mr-0.5">৳</span>
+                <span>{referralEarnings}</span>
+              </h4>
             </div>
 
             {/* Card 4: রিওয়ার্ড পয়েন্ট */}
             <div
               onClick={() => setActiveTab("rewards")}
-              className="bg-white border border-gray-100 hover:border-purple-300 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group transform hover:-translate-y-0.5"
+              className="relative overflow-hidden bg-gradient-to-br from-purple-500/10 via-pink-500/5 to-white border border-purple-200/60 rounded-2xl p-4 shadow-xs hover:shadow-md hover:border-purple-300 transition-all duration-200 cursor-pointer group active:scale-95 transform hover:-translate-y-0.5"
             >
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold group-hover:bg-purple-600 group-hover:text-white transition-colors duration-200">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center font-bold shadow-md shadow-purple-500/25 group-hover:scale-105 transition-transform duration-200">
                   <Award className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100 flex items-center gap-1">
-                  <Gift className="w-3 h-3 text-purple-500" />
+                <span className="text-[10px] font-black text-purple-700 bg-gradient-to-r from-purple-50 to-pink-50 px-2.5 py-1 rounded-full border border-purple-200/80 shadow-xs flex items-center gap-1 group-hover:border-purple-300 transition-colors">
+                  <Gift className="w-3 h-3 text-purple-600" />
                   <span>উপহার নিন</span>
                 </span>
               </div>
-              <p className="text-[11px] font-bold text-slate-400">রিওয়ার্ড পয়েন্ট</p>
-              <h4 className="text-lg font-black text-slate-900 mt-0.5 flex items-baseline gap-1">
+              <p className="text-xs font-semibold text-slate-500">রিওয়ার্ড পয়েন্ট</p>
+              <h4 className="text-xl font-black text-slate-800 tracking-tight mt-1 flex items-baseline">
                 <span>{rewardPoints}</span>
-                <span className="text-xs text-purple-600 font-bold">pts</span>
+                <span className="text-xs font-bold text-purple-700 ml-1.5 bg-purple-100/70 px-2 py-0.5 rounded-lg border border-purple-200/60">
+                  pts
+                </span>
               </h4>
             </div>
           </div>

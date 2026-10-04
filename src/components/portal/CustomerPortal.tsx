@@ -34,7 +34,7 @@ import {
   Smartphone, Bell, Eye, EyeOff, LogOut, ChevronRight, Printer,
   Camera, Trash2, Save, Edit3, Lock, Mail, Phone, ShieldCheck,
   Menu, X, Sparkles, QrCode, Award, Heart, Settings, Edit2, Check,
-  Crown, Percent, Zap, CheckCircle2, AlertCircle, Key
+  Crown, Percent, Zap, CheckCircle2, AlertCircle, Key, Ticket
 } from "lucide-react";
 import QRCode from "qrcode";
 import OrderMemoModal from "./OrderMemoModal";
@@ -1783,71 +1783,84 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                           setActiveTab("orders");
                           setSelectedOrder(null);
                         }}
-                        className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-emerald-200 transition cursor-pointer"
+                        className="relative overflow-hidden bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-white border border-emerald-200/60 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all duration-200 cursor-pointer group active:scale-95 transform hover:-translate-y-0.5"
                       >
-                        <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold mb-2">
-                          <ShoppingBag className="w-5 h-5" />
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold shadow-md shadow-emerald-500/25 group-hover:scale-105 transition-transform duration-200">
+                            <ShoppingBag className="w-5 h-5" />
+                          </div>
                         </div>
-                        <p className="text-[11px] font-bold text-slate-400">
+                        <p className="text-xs font-semibold text-slate-500">
                           {getTranslation("মোট অর্ডার", "Total Orders")}
                         </p>
-                        <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">
-                          {orders.length} {getTranslation("টি", "orders")}
+                        <h4 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight mt-1 flex items-baseline">
+                          <span>{orders.length}</span>
+                          <span className="text-xs font-bold text-emerald-700 ml-1.5 bg-emerald-100/70 px-2 py-0.5 rounded-lg border border-emerald-200/60">
+                            {getTranslation("টি", "orders")}
+                          </span>
                         </h4>
                       </div>
 
                       {/* Card 2: ওয়ালেট ব্যালেন্স */}
                       <div 
                         onClick={() => setActiveTab("wallet")}
-                        className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-teal-200 transition cursor-pointer"
+                        className="relative overflow-hidden bg-gradient-to-br from-teal-500/10 via-teal-500/5 to-white border border-teal-200/60 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:border-teal-300 transition-all duration-200 cursor-pointer group active:scale-95 transform hover:-translate-y-0.5"
                       >
-                        <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold mb-2">
-                          <CreditCard className="w-5 h-5" />
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-teal-600 to-cyan-500 text-white flex items-center justify-center font-bold shadow-md shadow-teal-500/25 group-hover:scale-105 transition-transform duration-200">
+                            <CreditCard className="w-5 h-5" />
+                          </div>
                         </div>
-                        <p className="text-[11px] font-bold text-slate-400">
+                        <p className="text-xs font-semibold text-slate-500">
                           {getTranslation("ওয়ালেট ব্যালেন্স", "Wallet Balance")}
                         </p>
-                        <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">
-                          ৳{realTimeWalletBalance}
+                        <h4 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight mt-1 flex items-baseline">
+                          <span className="text-base sm:text-lg font-bold text-teal-600 mr-0.5">৳</span>
+                          <span>{realTimeWalletBalance}</span>
                         </h4>
                       </div>
 
                       {/* Card 3: 🎉 রেফার করে জিতুন ৳১৯! */}
                       <div 
                         onClick={() => setActiveTab("referral")}
-                        className="bg-white border border-gray-100 rounded-2xl p-4 shadow-xs hover:border-amber-200 transition cursor-pointer"
+                        className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-white border border-amber-200/60 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:border-amber-300 transition-all duration-200 cursor-pointer group active:scale-95 transform hover:-translate-y-0.5"
                       >
-                        <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold mb-2">
-                          <Gift className="w-5 h-5" />
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold shadow-md shadow-amber-500/25 group-hover:scale-105 transition-transform duration-200">
+                            <Gift className="w-5 h-5" />
+                          </div>
                         </div>
-                        <p className="text-[11px] font-bold text-slate-500 truncate" title={getTranslation("🎉 রেফার করে জিতুন ৳১৯!", "🎉 Refer & Earn ৳19!")}>
+                        <p className="text-xs font-semibold text-slate-500 truncate" title={getTranslation("🎉 রেফার করে জিতুন ৳১৯!", "🎉 Refer & Earn ৳19!")}>
                           {getTranslation("🎉 রেফার করে জিতুন ৳১৯!", "🎉 Refer & Earn ৳19!")}
                         </p>
-                        <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5">
-                          ৳{referralStats.earnings || 0}
+                        <h4 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight mt-1 flex items-baseline">
+                          <span className="text-base sm:text-lg font-bold text-amber-600 mr-0.5">৳</span>
+                          <span>{referralStats.earnings || 0}</span>
                         </h4>
                       </div>
 
                       {/* Card 4: রিওয়ার্ড পয়েন্ট */}
                       <div 
                         onClick={() => setActiveTab("rewards")}
-                        className="bg-white border border-gray-100 hover:border-purple-300 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group transform hover:-translate-y-0.5"
+                        className="relative overflow-hidden bg-gradient-to-br from-purple-500/10 via-pink-500/5 to-white border border-purple-200/60 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:border-purple-300 transition-all duration-200 cursor-pointer group active:scale-95 transform hover:-translate-y-0.5"
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold group-hover:bg-purple-600 group-hover:text-white transition-colors duration-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center font-bold shadow-md shadow-purple-500/25 group-hover:scale-105 transition-transform duration-200">
                             <Award className="w-5 h-5" />
                           </div>
-                          <span className="text-[10px] font-black text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100 flex items-center gap-1">
-                            <Gift className="w-3 h-3 text-purple-500" />
+                          <span className="text-[10px] font-black text-purple-700 bg-gradient-to-r from-purple-50 to-pink-50 px-2.5 py-1 rounded-full border border-purple-200/80 shadow-xs flex items-center gap-1 group-hover:border-purple-300 transition-colors">
+                            <Gift className="w-3 h-3 text-purple-600" />
                             <span>{getTranslation("উপহার নিন", "Claim Gift")}</span>
                           </span>
                         </div>
-                        <p className="text-[11px] font-bold text-slate-400">
+                        <p className="text-xs font-semibold text-slate-500">
                           {getTranslation("রিওয়ার্ড পয়েন্ট", "Reward Points")}
                         </p>
-                        <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-0.5 flex items-baseline gap-1">
+                        <h4 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight mt-1 flex items-baseline">
                           <span>{rewardPoints}</span>
-                          <span className="text-xs text-purple-600 font-bold">pts</span>
+                          <span className="text-xs font-bold text-purple-700 ml-1.5 bg-purple-100/70 px-2 py-0.5 rounded-lg border border-purple-200/60">
+                            pts
+                          </span>
                         </h4>
                       </div>
                     </div>
@@ -2243,65 +2256,132 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
             {/* TAB: REFERRAL */}
             {activeTab === "referral" && (
-              <div className="space-y-6">
-                <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm text-center space-y-5">
-                  <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-100">
-                    <Gift className="w-8 h-8 animate-bounce" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-black text-slate-800">
-                      {getTranslation("🎉 রেফার করে জিতুন ৳১৯!", "🎉 Refer & Earn ৳19 Wallet Credit!")}
-                    </h2>
-                    <p className="text-xs text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">
-                      {getTranslation(
-                        "বন্ধুকে রেফার করুন! আপনার বন্ধু রেফারেল কোড ব্যবহার করে সাইন আপ করে মোট কমপক্ষে ৳৩০০ টাকার সফল (Delivered) অর্ডার সম্পন্ন করলে আপনি আপনার Wallet-এ ৳১৯ বোনাস পাবেন।",
-                        "Refer friends! When your friend signs up using your referral code and successfully completes delivered orders totaling at least ৳300, you will receive a ৳19 bonus in your Wallet."
-                      )}
-                    </p>
-                  </div>
+              <div className="space-y-6 pb-16 sm:pb-4">
+                {/* 1. Top Hero Section (Moomoo Fintech Style) */}
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-950 via-teal-900 to-slate-900 text-white p-6 sm:p-8 shadow-xl border border-emerald-500/30">
+                  {/* Ambient decorative glow orbs */}
+                  <div className="absolute -top-12 -right-12 w-48 h-48 bg-amber-500/25 rounded-full blur-3xl pointer-events-none" />
+                  <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-emerald-500/25 rounded-full blur-3xl pointer-events-none" />
 
-                  {/* Referral Code & Referral Link Boxes */}
-                  <div className="max-w-md mx-auto space-y-3">
-                    {/* Referral Code Box */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider text-left">
-                          {getTranslation("আপনার কোড", "Your Referral Code")}
-                        </p>
-                        <span className="text-lg font-mono font-black text-slate-800 tracking-wider">
-                          {getReferralCode()}
-                        </span>
-                      </div>
-                      <button
-                        onClick={copyReferralCode}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1.5 shadow-sm"
-                        title={getTranslation("কোড কপি করুন", "Copy Code")}
-                      >
-                        <Clipboard className="w-4 h-4" />
-                        <span>{getTranslation("কোড কপি", "Copy Code")}</span>
-                      </button>
+                  <div className="relative z-10 text-center space-y-3.5">
+                    <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold shadow-inner">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                      <span>{getTranslation("এক্সক্লুসিভ রিওয়ার্ড প্রোগ্রাম", "Exclusive Referral Program")}</span>
                     </div>
 
-                    {/* Referral Link Box */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left space-y-2">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        {getTranslation("আপনার রেফারেল লিংক", "Your Referral Link")}
+                    <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
+                      {getTranslation("🎉 রেফার করে জিতুন ৳১৯!", "🎉 Refer & Earn ৳19 Bonus!")}
+                    </h2>
+
+                    <p className="text-xs sm:text-sm text-slate-200 max-w-lg mx-auto leading-relaxed font-medium">
+                      {getTranslation(
+                        "বন্ধুকে রেফার করুন! বন্ধু কমপক্ষে ৩০০ টাকার সফল অর্ডার সম্পন্ন করলে আপনি পাবেন ৳১৯ বোনাস।",
+                        "Refer friends! When your friend signs up and completes a successful delivered order of at least ৳300, you will get ৳19 bonus."
+                      )}
+                    </p>
+
+                    {/* Referral stats */}
+                    <div className="grid grid-cols-2 gap-3 pt-3 max-w-md mx-auto">
+                      <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-3.5 text-center shadow-inner">
+                        <p className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">
+                          {getTranslation("মোট রেফারেল", "Total Invited")}
+                        </p>
+                        <h4 className="text-xl sm:text-2xl font-black text-white mt-1">{referralStats.count}</h4>
+                      </div>
+                      <div className="bg-white/10 backdrop-blur-md border border-amber-400/40 rounded-2xl p-3.5 text-center shadow-inner">
+                        <p className="text-[10px] text-amber-200 font-bold uppercase tracking-wider">
+                          {getTranslation("মোট বোনাস অর্জিত", "Total Bonus Earned")}
+                        </p>
+                        <h4 className="text-xl sm:text-2xl font-black text-amber-300 mt-1">৳{referralStats.earnings}</h4>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Voucher / Coupon Card Section (Inspired by Moomoo rewards) */}
+                <div className="relative overflow-hidden bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-3xl p-5 text-white shadow-lg border border-amber-300/40">
+                  {/* Left & Right realistic perforated voucher notches */}
+                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-slate-50 rounded-full shadow-inner border-r border-amber-400/40" />
+                  <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-slate-50 rounded-full shadow-inner border-l border-amber-400/40" />
+
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-3 sm:px-4">
+                    <div className="flex items-center gap-3.5 text-left w-full sm:w-auto">
+                      <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shrink-0 shadow-inner">
+                        <Ticket className="w-8 h-8 text-white drop-shadow" />
+                      </div>
+                      <div>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/25 text-[10px] font-bold text-amber-100 uppercase tracking-wide">
+                          <Sparkles className="w-3 h-3 text-amber-200" />
+                          {getTranslation("স্পেশাল অফার ভাউচার", "Special Offer Voucher")}
+                        </span>
+                        <h3 className="text-2xl sm:text-3xl font-black text-white mt-0.5 tracking-tight drop-shadow-sm">
+                          {getTranslation("৳১৯ ওয়ালেট বোনাস", "৳19 Wallet Bonus")}
+                        </h3>
+                        <p className="text-xs text-amber-100 font-medium">
+                          {getTranslation("বন্ধুর ১ম সফল (Delivered) অর্ডারে প্রযোজ্য", "Unlocked on friend's first delivered order")}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-2 border-t sm:border-t-0 sm:border-l border-dashed border-white/40 pt-3 sm:pt-0 sm:pl-5">
+                      <div className="text-left sm:text-right">
+                        <p className="text-[10px] text-amber-100 uppercase font-bold tracking-wider">
+                          {getTranslation("ন্যূনতম অর্ডার", "Min. Order Value")}
+                        </p>
+                        <p className="text-base font-black text-white font-mono">৳৩০০</p>
+                      </div>
+                      <span className="px-3 py-1 rounded-xl bg-white text-orange-600 font-black text-xs shadow-md shrink-0">
+                        {getTranslation("ইনস্ট্যান্ট ক্রেডিট", "Instant Credit")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Referral Code & Link Box */}
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
+                  {/* Referral Code Box */}
+                  <div className="bg-gradient-to-r from-amber-50/70 via-orange-50/40 to-slate-50 border-2 border-amber-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-center sm:text-left">
+                      <p className="text-[11px] text-amber-800 font-bold uppercase tracking-wider flex items-center justify-center sm:justify-start gap-1">
+                        <Gift className="w-3.5 h-3.5 text-amber-600" />
+                        {getTranslation("আপনার রেফারেল কোড", "Your Referral Code")}
                       </p>
-                      <div className="flex items-center space-x-2">
-                        <div className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-700 truncate shadow-inner select-all">
-                          {getReferralLink()}
-                        </div>
+                      <span className="text-2xl font-mono font-black text-slate-900 tracking-widest block mt-0.5">
+                        {getReferralCode()}
+                      </span>
+                    </div>
+                    <button
+                      onClick={copyReferralCode}
+                      className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 px-5 py-2.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center justify-center space-x-2 shadow-md hover:shadow-lg"
+                      title={getTranslation("কোড কপি করুন", "Copy Code")}
+                    >
+                      <Clipboard className="w-4 h-4" />
+                      <span>{getTranslation("কোড কপি", "Copy Code")}</span>
+                    </button>
+                  </div>
+
+                  {/* Referral Link Box */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left space-y-2">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
+                      <Share2 className="w-3 h-3 text-slate-400" />
+                      {getTranslation("আপনার রেফারেল লিংক", "Your Referral Link")}
+                    </p>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <div className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-700 truncate shadow-inner select-all">
+                        {getReferralLink()}
+                      </div>
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={copyReferralLink}
-                          className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 shadow-sm flex items-center space-x-1.5"
+                          className="flex-1 sm:flex-none bg-slate-800 hover:bg-slate-900 active:scale-95 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 shadow-sm flex items-center justify-center space-x-1.5"
                           title={getTranslation("লিংক কপি করুন", "Copy Link")}
                         >
                           <Clipboard className="w-4 h-4" />
-                          <span className="hidden sm:inline">{getTranslation("লিংক কপি", "Copy Link")}</span>
+                          <span>{getTranslation("লিংক কপি", "Copy Link")}</span>
                         </button>
                         <button
                           onClick={handleShareLink}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 shadow-sm flex items-center space-x-1.5"
+                          className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 shadow-sm flex items-center justify-center space-x-1.5"
                           title={getTranslation("শেয়ার করুন", "Share Link")}
                         >
                           <Share2 className="w-4 h-4" />
@@ -2310,93 +2390,159 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  {/* Referral Rules & Conditions List */}
-                  <div className="max-w-md mx-auto text-left bg-slate-50 border border-slate-150 rounded-2xl p-5 mt-4 space-y-3">
-                    <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider border-b border-slate-200 pb-2">
-                      {getTranslation("রেফারেল নিয়মাবলী ও শর্তাদি", "Referral Rules & Conditions")}
+                {/* 4. 3-Step Guide (৩টি সহজ ধাপে বোনাস পান) */}
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
+                  <div className="text-center space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                      {getTranslation("সহজ ও দ্রুত", "Simple & Fast")}
+                    </span>
+                    <h3 className="text-base sm:text-lg font-black text-slate-900">
+                      {getTranslation("৩টি সহজ ধাপে বোনাস পান", "Get Bonus in 3 Easy Steps")}
                     </h3>
-                    <ul className="space-y-2 text-xs text-slate-600">
-                      <li className="flex items-start gap-2">
-                        <span className="text-emerald-500 font-bold">•</span>
-                        <span>
-                          {getTranslation(
-                            "বন্ধুকে অবশ্যই আপনার রেফারেল কোড ব্যবহার করে সাইন আপ করতে হবে।",
-                            "Friend must sign up using your referral code."
-                          )}
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-emerald-500 font-bold">•</span>
-                        <span>
-                          {getTranslation(
-                            "বন্ধুকে কমপক্ষে ৳৩০০ টাকার সফল (Delivered) অর্ডার সম্পন্ন করতে হবে।",
-                            "Friend must complete a successful (Delivered) order of at least ৳300."
-                          )}
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-emerald-500 font-bold">•</span>
-                        <span>
-                          {getTranslation(
-                            "সফলভাবে অর্ডার সম্পন্ন (Delivered) হওয়ার সাথে সাথে রেফারারের ওয়ালেটে ৳১৯ বোনাস জমা হয়ে যাবে।",
-                            "As soon as the order is Delivered, ৳19 bonus will be credited immediately to the referrer's wallet."
-                          )}
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-emerald-500 font-bold">•</span>
-                        <span>
-                          {getTranslation(
-                            "প্রতিটি আমন্ত্রিত বা রেফারড ইউজারের জন্য কেবল একবার রিওয়ার্ড প্রযোজ্য।",
-                            "Reward applies only once per invited or referred user."
-                          )}
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-rose-500 font-bold">•</span>
-                        <span>
-                          {getTranslation(
-                            "নিজের রেফারেল নিজে নেওয়া গ্রহণযোগ্য বা অনুমতিপ্রাপ্ত নয়।",
-                            "Self-referral is strictly not allowed or permitted."
-                          )}
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-rose-500 font-bold">•</span>
-                        <span>
-                          {getTranslation(
-                            "ডুপ্লিকেট বা ফেক অ্যাকাউন্ট তৈরি করে বোনাস নেওয়া নিষিদ্ধ।",
-                            "Creating duplicate or fake accounts to earn bonus is strictly prohibited."
-                          )}
-                        </span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-rose-500 font-bold">•</span>
-                        <span>
-                          {getTranslation(
-                            "বাতিলকৃত বা রিফান্ড হওয়া অর্ডারসমূহ বোনাসের জন্য বিবেচিত হবে না।",
-                            "Cancelled or refunded orders will not be considered for bonus."
-                          )}
-                        </span>
-                      </li>
-                    </ul>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                    {/* Step 1 */}
+                    <div className="relative bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 flex flex-col items-center text-center space-y-2 group hover:border-emerald-300 transition">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white font-black flex items-center justify-center shadow-md text-base">
+                        ১
+                      </div>
+                      <h4 className="text-xs font-black text-slate-800">
+                        {getTranslation("ইনভাইট পাঠান", "Share Invite")}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        {getTranslation(
+                          "আপনার লিংক বা কোডটি বন্ধুদের সাথে শেয়ার করুন।",
+                          "Share your referral code or link with friends."
+                        )}
+                      </p>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="relative bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 flex flex-col items-center text-center space-y-2 group hover:border-emerald-300 transition">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 font-black flex items-center justify-center shadow-md text-base">
+                        ২
+                      </div>
+                      <h4 className="text-xs font-black text-slate-800">
+                        {getTranslation("বন্ধু অর্ডার করবে", "Friend Places Order")}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        {getTranslation(
+                          "বন্ধু কোড দিয়ে সাইন-আপ করে ন্যূনতম ৩০০ টাকার অর্ডার ডেলিভারি নেবে।",
+                          "Friend signs up with code and receives delivery of at least ৳300 order."
+                        )}
+                      </p>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div className="relative bg-slate-50/80 border border-slate-200/70 rounded-2xl p-4 flex flex-col items-center text-center space-y-2 group hover:border-emerald-300 transition">
+                      <div className="w-10 h-10 rounded-2xl bg-orange-600 text-white font-black flex items-center justify-center shadow-md text-base">
+                        ৩
+                      </div>
+                      <h4 className="text-xs font-black text-slate-800">
+                        {getTranslation("বোনাস বুঝে নিন", "Receive Bonus")}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        {getTranslation(
+                          "সফল ডেলিভারির সাথে সাথে আপনার ওয়ালেটে ৳১৯ বোনাস পেয়ে যান।",
+                          "Get instant ৳19 reward deposited right into your wallet."
+                        )}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Referral stats */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white border border-slate-100 rounded-2xl p-5 text-center shadow-sm">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                      {getTranslation("মোট রেফারেল", "Total Invited")}
-                    </p>
-                    <h4 className="text-2xl font-black text-slate-800 mt-1">{referralStats.count}</h4>
-                  </div>
-                  <div className="bg-white border border-slate-100 rounded-2xl p-5 text-center shadow-sm">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                      {getTranslation("মোট বোনাস অর্জিত", "Total Bonus Earned")}
-                    </p>
-                    <h4 className="text-2xl font-black text-emerald-700 mt-1">৳{referralStats.earnings}</h4>
+                {/* 5. Terms & Conditions Card */}
+                <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 sm:p-6 text-left space-y-3 shadow-xs">
+                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider border-b border-slate-200 pb-2.5 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>{getTranslation("রেফারেল নিয়মাবলী ও শর্তাদি", "Referral Rules & Conditions")}</span>
+                  </h3>
+                  <ul className="space-y-2 text-xs text-slate-600">
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-500 font-bold">•</span>
+                      <span>
+                        {getTranslation(
+                          "বন্ধুকে অবশ্যই আপনার রেফারেল কোড ব্যবহার করে সাইন আপ করতে হবে।",
+                          "Friend must sign up using your referral code."
+                        )}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-500 font-bold">•</span>
+                      <span>
+                        {getTranslation(
+                          "বন্ধুকে কমপক্ষে ৩০০ টাকার সফল (Delivered) অর্ডার সম্পন্ন করতে হবে।",
+                          "Friend must complete a successful (Delivered) order of at least ৳300."
+                        )}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-500 font-bold">•</span>
+                      <span>
+                        {getTranslation(
+                          "সফলভাবে অর্ডার সম্পন্ন হওয়ার সাথে সাথে রেফারের ওয়ালেটে ৳১৯ বোনাস জমা হবে।",
+                          "As soon as the order is Delivered, ৳19 bonus will be credited immediately to the referrer's wallet."
+                        )}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-500 font-bold">•</span>
+                      <span>
+                        {getTranslation(
+                          "প্রতিটি আমন্ত্রিত বা রেফার্ড ইউজারের জন্য কেবল একবার রিওয়ার্ড প্রযোজ্য।",
+                          "Reward applies only once per invited or referred user."
+                        )}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-rose-500 font-bold">•</span>
+                      <span>
+                        {getTranslation(
+                          "নিজের রেফারেল নিজে নেওয়া গ্রহণযোগ্য বা অনুমতিপ্রাপ্ত নয়।",
+                          "Self-referral is strictly not allowed or permitted."
+                        )}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-rose-500 font-bold">•</span>
+                      <span>
+                        {getTranslation(
+                          "ডুপ্লিকেট বা ফেক অ্যাকাউন্ট তৈরি করে বোনাস নেওয়া নিষিদ্ধ।",
+                          "Creating duplicate or fake accounts to earn bonus is strictly prohibited."
+                        )}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-rose-500 font-bold">•</span>
+                      <span>
+                        {getTranslation(
+                          "বাতিলকৃত বা রিফান্ড হওয়া অর্ডারসমূহ বোনাসের জন্য বিবেচিত হবে না।",
+                          "Cancelled or refunded orders will not be considered for bonus."
+                        )}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* 6. Bottom Sticky Action Bar (For quick access on mobile) */}
+                <div className="sticky bottom-3 z-30 sm:hidden">
+                  <div className="bg-slate-900/95 backdrop-blur-md text-white border border-slate-800 rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3">
+                    <div className="text-left pl-1">
+                      <p className="text-[10px] text-amber-300 font-bold uppercase tracking-wider">
+                        {getTranslation("রেফারেল বোনাস", "Referral Bonus")}
+                      </p>
+                      <span className="text-sm font-black text-white">{getTranslation("৳১৯ ক্যাশব্যাক", "৳19 Cashback")}</span>
+                    </div>
+                    <button
+                      onClick={handleShareLink}
+                      className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 active:scale-95 text-white font-black text-xs px-4 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>{getTranslation("এখনই ইনভাইট করুন", "Invite Now")}</span>
+                    </button>
                   </div>
                 </div>
               </div>
