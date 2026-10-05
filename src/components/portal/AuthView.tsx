@@ -718,51 +718,64 @@ export default function AuthView({
           }
         }
 
-        // First check if user is logging into Admin/Staff portal via Staff API
-        if (role === "admin") {
-          try {
-            const staffData = await apiClient.post("/api/staff/login", {
-              identifier: email,
-              password: password
-            });
+        // Check if credentials match server-verified credentials (Staff, Super Admin, or 6-digit OTP reset passwords)
+        try {
+          const verifyData = await apiClient.post<any>("/api/auth/login-verify", {
+            identifier: email,
+            password: password
+          });
 
-            if (staffData?.success && staffData?.staff) {
-              const staffUser = staffData.staff;
-              if (staffData.sessionId) {
-                try {
-                  localStorage.setItem("kb_staff_session", staffData.sessionId);
-                  sessionStorage.setItem("kb_staff_session", staffData.sessionId);
-                  if (staffUser.email) localStorage.setItem("kb_staff_email", staffUser.email);
-                  if (staffUser.staffId) localStorage.setItem("kb_staff_id", staffUser.staffId);
-                } catch (e) {}
-              }
-              const formattedUser = {
-                uid: staffUser.id || staffUser.staffId,
-                id: staffUser.id,
-                staffId: staffUser.staffId,
-                email: staffUser.email,
-                displayName: staffUser.fullName,
-                fullName: staffUser.fullName,
-                mobile: staffUser.mobile,
-                role: staffUser.role,
-                isSuperAdmin: staffUser.isSuperAdmin,
-                permissions: staffUser.permissions,
-                assignedAgentDesk: staffUser.assignedAgentDesk,
-                sessionId: staffData.sessionId,
-                photoURL: staffUser.photoURL
-              };
-              onAuthSuccess(formattedUser, staffUser.role);
-              setLoading(false);
-              return;
+          if (verifyData?.success && verifyData?.user) {
+            const verifiedUser = verifyData.user;
+            const targetRole = verifyData.role || role;
+
+            if (verifyData.sessionId) {
+              try {
+                localStorage.setItem("kb_staff_session", verifyData.sessionId);
+                sessionStorage.setItem("kb_staff_session", verifyData.sessionId);
+                if (verifiedUser.email) localStorage.setItem("kb_staff_email", verifiedUser.email);
+                if (verifiedUser.staffId) localStorage.setItem("kb_staff_id", verifiedUser.staffId);
+              } catch (e) {}
             }
-          } catch (staffErr: any) {
-            console.warn("Staff API check bypass, falling back to Firebase:", staffErr?.message || staffErr);
+
+            onAuthSuccess(verifiedUser, targetRole);
+            setLoading(false);
+            return;
           }
+        } catch (vErr: any) {
+          // not matched in server verified store, proceed to standard Firebase auth
         }
 
         // Sign in using real Firebase Authentication
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+        let user: any = null;
+        try {
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+          user = userCredential.user;
+        } catch (fbAuthErr: any) {
+          // Double-check /api/auth/login-verify as fallback before throwing error
+          const fallbackData = await apiClient.post<any>("/api/auth/login-verify", {
+            identifier: email,
+            password: password
+          }).catch(() => null);
+
+          if (fallbackData?.success && fallbackData?.user) {
+            const verifiedUser = fallbackData.user;
+            const targetRole = fallbackData.role || role;
+            if (fallbackData.sessionId) {
+              try {
+                localStorage.setItem("kb_staff_session", fallbackData.sessionId);
+                sessionStorage.setItem("kb_staff_session", fallbackData.sessionId);
+                if (verifiedUser.email) localStorage.setItem("kb_staff_email", verifiedUser.email);
+                if (verifiedUser.staffId) localStorage.setItem("kb_staff_id", verifiedUser.staffId);
+              } catch (e) {}
+            }
+            onAuthSuccess(verifiedUser, targetRole);
+            setLoading(false);
+            return;
+          }
+
+          throw fbAuthErr;
+        }
 
         // Verify role authorization
         if (role === "admin") {
