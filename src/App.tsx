@@ -13,7 +13,7 @@ import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, Subcategory, CartItem, Review, ProductOption } from "./types";
-import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_PRODUCTS_RAW, CONFECTIONERY_PRODUCTS_RAW, MOBILE_ZONE_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
+import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_PRODUCTS_RAW, CONFECTIONERY_PRODUCTS_RAW, MOBILE_ZONE_PRODUCTS_RAW, PHARMACY_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
 import { resolveProductDisplayUnit } from "./lib/productWeightUtils";
 import { subscribeToAllSubcategories } from "./lib/subcategoryService";
 import { 
@@ -27,7 +27,7 @@ import PortalModal from "./components/portal/PortalModal";
 import CheckoutModal from "./components/CheckoutModal";
 import CustomerLiveChat from "./components/CustomerLiveChat";
 import CustomerVoiceCallModal from "./components/CustomerVoiceCallModal";
-import { seedDatabase, db, collection, onSnapshot, auth, onAuthStateChanged, doc, getDoc, setDoc, query, where, limit, orderBy, or, addDoc, deleteDoc, serverTimestamp } from "./lib/firebase";
+import { seedDatabase, db, collection, onSnapshot, auth, onAuthStateChanged, doc, getDoc, getDocs, setDoc, query, where, limit, orderBy, or, addDoc, deleteDoc, serverTimestamp } from "./lib/firebase";
 import { calculateDeliveryFeeFromSettings } from "./lib/delivery";
 import { visitorTracker } from "./lib/visitorTracker";
 import { initVoiceWelcome } from "./lib/voiceWelcome";
@@ -750,6 +750,67 @@ export default function App() {
     };
 
     syncCosmeticsToFirestore();
+
+    const syncPharmacyToFirestore = async () => {
+      const syncKey = "kb_pharmacy_pdf_replaced_v3";
+      if (localStorage.getItem(syncKey)) return;
+
+      try {
+        localStorage.setItem(syncKey, "true");
+        // 1. Remove all old legacy products in pharmacy, baby-care, and medicine categories
+        const oldQuery = query(collection(db, "products"), where("category", "in", ["pharmacy", "baby-care", "medicine"]));
+        const oldSnap = await getDocs(oldQuery);
+        const newPhIds = new Set(PHARMACY_PRODUCTS_RAW.map(p => p.id));
+        
+        for (const docSnap of oldSnap.docs) {
+          if (!newPhIds.has(docSnap.id)) {
+            await deleteDoc(doc(db, "products", docSnap.id)).catch(() => {
+              setDoc(doc(db, "products", docSnap.id), { isDeleted: true, status: "deleted", isAvailable: false }, { merge: true }).catch(() => {});
+            });
+          }
+        }
+
+        // 2. Delete legacy bc1..bc60 if any exist
+        for (let i = 1; i <= 60; i++) {
+          const bcRef = doc(db, "products", `bc${i}`);
+          deleteDoc(bcRef).catch(() => {});
+        }
+
+        // 3. Upsert all 132 fresh medicine products from PDF into Firestore with price 0
+        for (const ph of PHARMACY_PRODUCTS_RAW) {
+          const prodRef = doc(db, "products", ph.id);
+          await setDoc(prodRef, {
+            ...ph,
+            price: 0,
+            isDeleted: false,
+            deleted: false,
+            status: "active",
+            isAvailable: true,
+            inStock: true,
+            stock: 100,
+            updatedAt: serverTimestamp()
+          }, { merge: true }).catch((err) => console.warn(`Notice upserting ${ph.id}:`, err));
+        }
+
+        // 4. Ensure pharmacy category document is active in Firestore
+        await setDoc(doc(db, "categories", "pharmacy"), {
+          id: "pharmacy",
+          nameBn: "ফার্মেসি",
+          nameEn: "Pharmacy",
+          iconName: "Pill",
+          colorClass: "bg-teal-50 text-teal-700 hover:bg-teal-100",
+          borderColor: "border-teal-100",
+          displayOrder: 12,
+          order: 12,
+          isAvailable: true
+        }, { merge: true }).catch(() => {});
+
+      } catch (e) {
+        console.warn("Notice syncing fresh pharmacy products to Firestore:", e);
+      }
+    };
+
+    syncPharmacyToFirestore();
   }, []);
 
   // Real-time synchronization of products, categories, reviews, banners, and home config from Firestore
@@ -800,6 +861,15 @@ export default function App() {
             return;
           }
 
+          // Completely remove ALL old/legacy products under "ফার্মেসি" except new 132 items (ph1..ph132)
+          const isLegacyPharmacy = 
+            (data.category === "pharmacy" || data.category === "baby-care" || data.category === "medicine" || (data as any).categoryId === "pharmacy") &&
+            !/^ph\d+$/i.test(doc.id);
+
+          if (isLegacyPharmacy) {
+            return;
+          }
+
           const mapped = mapDocToProduct(doc.id, data);
           if (!shouldKeepProductGroceryFiltered(mapped)) {
             return;
@@ -845,6 +915,14 @@ export default function App() {
           if (!existingIds.has(mob.id) && !savedDeleted.has(mob.id)) {
             items.push(mob);
             existingIds.add(mob.id);
+          }
+        }
+
+        // Ensure all 132 pharmacy products from official PDF are present in items list
+        for (const ph of PHARMACY_PRODUCTS_RAW) {
+          if (!existingIds.has(ph.id) && !savedDeleted.has(ph.id)) {
+            items.push(ph);
+            existingIds.add(ph.id);
           }
         }
 

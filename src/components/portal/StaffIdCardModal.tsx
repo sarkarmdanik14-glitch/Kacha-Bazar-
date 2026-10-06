@@ -17,7 +17,7 @@ import {
   X, Printer, Download, RefreshCw, Edit3, Check, Eye, 
   Phone, Calendar, Droplet, MapPin, AlertCircle, Sparkles, 
   QrCode as QrIcon, CheckCircle2, Lock, Copy, Building2, User,
-  Shield, CheckCircle, Award, Upload, Camera, Loader2
+  Shield, CheckCircle, Award, Upload, Camera, Loader2, PenTool
 } from "lucide-react";
 import QRCode from "qrcode";
 import jsPDF from "jspdf";
@@ -127,6 +127,9 @@ export default function StaffIdCardModal({
   const [generatingPdf, setGeneratingPdf] = useState<boolean>(false);
   const [printing, setPrinting] = useState<boolean>(false);
 
+  // Digital Signature vs Manual Pen Sign clearance
+  const [includeDigitalSignature, setIncludeDigitalSignature] = useState<boolean>(true);
+
   // Responsive ID Card preview scaling for laptops & desktops (prevents cutoff while keeping physical CR80 size intact)
   const [scaleMode, setScaleMode] = useState<"auto" | "75" | "80" | "100">("auto");
   const [autoScale, setAutoScale] = useState<number>(0.78);
@@ -157,8 +160,8 @@ export default function StaffIdCardModal({
       const targetWScale = activeSide === "dual" ? (availW - 40) / 612 : (availW - 40) / 310;
 
       const fitted = Math.min(targetHScale, targetWScale);
-      // Clamped between 0.65 and 0.85 for pristine laptop & desktop readability without cutoff
-      const clamped = Math.min(0.85, Math.max(0.65, Math.round(fitted * 100) / 100));
+      // Clamped between 0.75 and 0.95 for pristine laptop & desktop readability without cutoff
+      const clamped = Math.min(0.95, Math.max(0.75, Math.round(fitted * 100) / 100));
       setAutoScale(clamped);
     };
 
@@ -294,31 +297,31 @@ export default function StaffIdCardModal({
     }
   }, [activeStaff?.photoURL]);
 
-  // Dynamic font sizing and line wrapping for staff full name so long names are never cut off
+  // Dynamic font sizing and line wrapping for staff full name so long names are bold, prominent, and legible
   const getStaffNameClasses = (name: string) => {
     const len = (name || "").trim().length;
-    if (len <= 15) return "text-[16px] leading-tight";
-    if (len <= 22) return "text-[13.5px] leading-snug";
-    if (len <= 30) return "text-[11.5px] leading-snug";
-    if (len <= 38) return "text-[10px] leading-tight";
-    return "text-[9px] leading-tight";
+    if (len <= 15) return "text-[18px] leading-tight font-black";
+    if (len <= 22) return "text-[15.5px] leading-snug font-black";
+    if (len <= 30) return "text-[13.5px] leading-snug font-extrabold";
+    if (len <= 38) return "text-[12px] leading-tight font-bold";
+    return "text-[11px] leading-tight font-bold";
   };
 
-  // Dynamic font sizing for designation so long positions are never cut off
+  // Dynamic font sizing for designation so long positions are clearly readable
   const getDesignationClasses = (desig: string) => {
     const len = (desig || "").trim().length;
-    if (len <= 20) return "text-[11px] leading-tight";
-    if (len <= 30) return "text-[9.5px] leading-tight";
-    return "text-[8.5px] leading-tight";
+    if (len <= 20) return "text-[12px] leading-tight";
+    if (len <= 30) return "text-[11px] leading-tight";
+    return "text-[10px] leading-tight";
   };
 
-  // Dynamic font sizing for email so complete email address is always visible
+  // Dynamic font sizing for email so complete email address is always visible and clear
   const getStaffEmailClasses = (email: string) => {
     const len = (email || "").trim().length;
-    if (len <= 18) return "text-[9.5px]";
-    if (len <= 24) return "text-[8.5px]";
-    if (len <= 30) return "text-[7.8px]";
-    return "text-[7.2px]";
+    if (len <= 18) return "text-[11.5px]";
+    if (len <= 24) return "text-[10.5px]";
+    if (len <= 30) return "text-[9.5px]";
+    return "text-[9px]";
   };
 
   // Check if current card is the first staff ID card only
@@ -602,19 +605,21 @@ export default function StaffIdCardModal({
       // Brief pause to ensure DOM renders unscaled at 100% natural resolution
       await new Promise((resolve) => setTimeout(resolve, 80));
 
-      // Capture high-resolution images of both cards at ~343 DPI for fast, crisp print quality
+      // Capture high-resolution images of both cards at ~480 DPI for razor-sharp, crisp print quality
       const frontCanvas = await html2canvas(frontCardRef.current, {
-        scale: 2.5,
+        scale: 3.5,
         useCORS: true,
         allowTaint: true,
-        backgroundColor: "#ffffff"
+        backgroundColor: "#ffffff",
+        logging: false
       });
 
       const backCanvas = await html2canvas(backCardRef.current, {
-        scale: 2.5,
+        scale: 3.5,
         useCORS: true,
         allowTaint: true,
-        backgroundColor: "#ffffff"
+        backgroundColor: "#ffffff",
+        logging: false
       });
 
       const frontImgData = frontCanvas.toDataURL("image/png", 1.0);
@@ -880,20 +885,22 @@ export default function StaffIdCardModal({
       const cardWidthMm = 53.98;
       const cardHeightMm = 85.60;
 
-      // Render Front Canvas at high-resolution (~343 DPI) for fast generation and crisp print
+      // Render Front Canvas at ultra-high-resolution (~480 DPI) for razor-sharp PDF print
       const frontCanvas = await html2canvas(frontCardRef.current, {
-        scale: 2.5,
+        scale: 3.5,
         useCORS: true,
         allowTaint: true,
-        backgroundColor: "#ffffff"
+        backgroundColor: "#ffffff",
+        logging: false
       });
 
-      // Render Back Canvas at high-resolution (~343 DPI)
+      // Render Back Canvas at ultra-high-resolution (~480 DPI)
       const backCanvas = await html2canvas(backCardRef.current, {
-        scale: 2.5,
+        scale: 3.5,
         useCORS: true,
         allowTaint: true,
-        backgroundColor: "#ffffff"
+        backgroundColor: "#ffffff",
+        logging: false
       });
 
       const frontImgData = frontCanvas.toDataURL("image/png", 1.0);
@@ -955,8 +962,8 @@ export default function StaffIdCardModal({
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(8.5);
         pdf.setTextColor(71, 85, 105);
-        pdf.text("FRONT SIDE (সম্মুখভাগ)", startX + cardWidthMm / 2, startY - 4, { align: "center" });
-        pdf.text("BACK SIDE (পেছনের ভাগ)", startX + cardWidthMm + gap + cardWidthMm / 2, startY - 4, { align: "center" });
+        pdf.text("FRONT SIDE (OFFICIAL PASS)", startX + cardWidthMm / 2, startY - 4, { align: "center" });
+        pdf.text("BACK SIDE (TERMS & VERIFY)", startX + cardWidthMm + gap + cardWidthMm / 2, startY - 4, { align: "center" });
 
         // Front Card Image at exact 53.98 x 85.60 mm
         pdf.addImage(frontImgData, "PNG", startX, startY, cardWidthMm, cardHeightMm, undefined, "FAST");
@@ -992,14 +999,14 @@ export default function StaffIdCardModal({
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(8.5);
         pdf.setTextColor(5, 104, 57);
-        pdf.text("প্রিন্ট ও কাটিং নির্দেশিকা (Printing & Cutting Guidelines):", startX, instructY + 7);
+        pdf.text("Printing & Cutting Guidelines:", startX, instructY + 7);
 
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(7.5);
         pdf.setTextColor(71, 85, 105);
-        pdf.text("1. A4 পেপারে প্রিন্ট করার সময় প্রিন্টার সেটিংসে অবশ্যই 'Actual Size' বা 100% স্কেল নির্বাচন করুন ('Fit to Page' দিবেন না)।", startX, instructY + 14);
-        pdf.text("2. ড্যাশযুক্ত বর্ডার লাইন (Cut Marks) অনুযায়ী সাবধানে কেটে স্ট্যান্ডার্ড ৫৪ × ৮৬ মিমি পিভিসি পাউচ বা লেমিনেশন করুন।", startX, instructY + 20);
-        pdf.text("3. কার্ড দুটির প্রস্থ ৫৩.৯৮ মিমি এবং উচ্চতা ৮৫.৬০ মিমি (আন্তর্জাতিক স্ট্যান্ডার্ড CR80 সাইজ)।", startX, instructY + 26);
+        pdf.text("1. Print setting: Select 'Actual Size' or 100% scale in printer dialog (Do NOT use 'Fit to Page').", startX, instructY + 14);
+        pdf.text("2. Cut along the dashed boundary lines and insert into CR80 (54 x 86 mm) PVC pouch or laminate.", startX, instructY + 20);
+        pdf.text("3. Exact physical card size is 53.98 mm x 85.60 mm (International Standard CR80 ID Card).", startX, instructY + 26);
         pdf.text("4. Verify online: https://kachabazar.com/verify?id=" + encodeURIComponent(activeStaff.staffId), startX, instructY + 32);
 
         // Page 2 & Page 3: Direct CR80 single card pages for direct PVC plastic card printers
@@ -1222,6 +1229,28 @@ export default function StaffIdCardModal({
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>{getTranslation("রিপ্রিন্ট (Reprint)", "Reprint")}</span>
+            </button>
+
+            {/* Signature Mode Toggle (Digital Sign vs Manual Pen Space) */}
+            <button
+              type="button"
+              onClick={() => setIncludeDigitalSignature(!includeDigitalSignature)}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-black shadow-xs transition border cursor-pointer ${
+                includeDigitalSignature
+                  ? "bg-emerald-950/90 text-emerald-300 border-emerald-600 hover:bg-emerald-900"
+                  : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750"
+              }`}
+              title={getTranslation(
+                "ডিজিটাল স্বাক্ষর বা কলমে স্বাক্ষরের স্পেস পরিবর্তন করুন",
+                "Toggle digital signature vs manual pen signature space"
+              )}
+            >
+              <PenTool className="w-3.5 h-3.5 text-emerald-400" />
+              <span>
+                {includeDigitalSignature
+                  ? getTranslation("ডিজিটাল স্বাক্ষর: চালু", "Digital Sign: ON")
+                  : getTranslation("কলমে স্বাক্ষর (ফাঁকা স্পেস)", "Manual Pen Sign Space")}
+              </span>
             </button>
           </div>
         </div>
@@ -1520,7 +1549,7 @@ export default function StaffIdCardModal({
                         <h4 className="font-extrabold text-[14px] tracking-wide drop-shadow-xs">
                           {getTranslation("কাঁচা বাজার", "Kacha Bazar")}
                         </h4>
-                        <p className="text-[7.5px] font-semibold text-emerald-100 tracking-wider">
+                        <p className="text-[8.5px] font-semibold text-emerald-100 tracking-wider">
                           {getTranslation("অনলাইন গ্রোসারি ও পিওর ফুডস", "Online Grocery & Pure Foods")}
                         </p>
                       </div>
@@ -1528,7 +1557,7 @@ export default function StaffIdCardModal({
 
                     {/* Circular Staff Photo Container (Perfect Circle) */}
                     <div className="relative z-10 mx-auto mt-0.5 flex flex-col items-center">
-                      <div className="relative w-[114px] h-[114px] rounded-full bg-white p-1 shadow-xl ring-2 ring-[#056839]/40 border-[3px] border-white flex items-center justify-center">
+                      <div className="relative w-[102px] h-[102px] rounded-full bg-white p-1 shadow-xl ring-2 ring-[#056839]/40 border-[3px] border-white flex items-center justify-center">
                         <div className="w-full h-full rounded-full overflow-hidden bg-slate-100 flex items-center justify-center relative border border-emerald-600/30">
                           {(photoDataUrl || activeStaff.photoURL) ? (
                             <img
@@ -1551,51 +1580,53 @@ export default function StaffIdCardModal({
                     </div>
 
                     {/* Staff Name & Position - Dynamic Font Sizing & Wrapping (Never Cut Off) */}
-                    <div className="relative z-10 text-center px-3 mt-0.5 min-h-[38px] flex flex-col justify-center">
+                    <div className="relative z-10 text-center px-3 mt-1 min-h-[38px] flex flex-col justify-center items-center">
                       <h3 
                         className={`font-black text-[#056839] uppercase tracking-wide break-words line-clamp-2 px-1 ${getStaffNameClasses(activeStaff.fullName)}`}
                         title={activeStaff.fullName}
                       >
                         {activeStaff.fullName}
                       </h3>
-                      <p 
-                        className={`font-bold text-slate-800 tracking-tight mt-0.5 break-words line-clamp-1 ${getDesignationClasses(displayDesignation)}`}
-                        title={displayDesignation}
-                      >
-                        {displayDesignation}
-                      </p>
+                      <div className="mt-0.5">
+                        <span 
+                          className={`font-black text-[#056839] tracking-wider uppercase bg-emerald-50 border border-emerald-300/80 px-3 py-0.5 rounded-full inline-block shadow-2xs ${getDesignationClasses(displayDesignation)}`}
+                          title={displayDesignation}
+                        >
+                          {displayDesignation}
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Key-Value Details Block - Complete Information & Fully Legible Email - Moved slightly upward for Authorized Signature */}
-                    <div className="relative z-10 px-5 py-0.5 -mt-3.5 mb-1.5 w-full">
-                      <div className="space-y-1 text-[9.5px] font-mono">
+                    {/* Key-Value Details Block - High-Legibility & Crystal Clear Font Sizes */}
+                    <div className="relative z-10 px-4 py-0.5 mt-0.5 mb-1 w-full">
+                      <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl px-2.5 py-1.5 space-y-1 text-[11.5px] font-sans shadow-2xs">
                         {/* ID Row */}
                         <div className="flex items-center text-left">
-                          <span className="w-[58px] font-black text-[#056839] shrink-0">ID</span>
-                          <span className="font-bold text-[#056839] w-[10px] shrink-0 text-center">:</span>
-                          <span className="font-black text-slate-900 tracking-wide pl-1">{activeStaff.staffId}</span>
+                          <span className="w-[66px] font-black text-[#056839] text-[11.5px] uppercase tracking-wide shrink-0">ID</span>
+                          <span className="font-black text-[#056839] w-[10px] shrink-0 text-center">:</span>
+                          <span className="font-black text-slate-950 font-mono tracking-wider pl-1.5 text-[12.5px]">{activeStaff.staffId}</span>
                         </div>
 
                         {/* JOIN DATE Row */}
                         <div className="flex items-center text-left">
-                          <span className="w-[58px] font-black text-[#056839] shrink-0 text-[8.5px] whitespace-nowrap">JOIN DATE</span>
+                          <span className="w-[66px] font-bold text-[#056839] text-[10.5px] uppercase tracking-tight shrink-0 whitespace-nowrap">JOIN DATE</span>
                           <span className="font-bold text-[#056839] w-[10px] shrink-0 text-center">:</span>
-                          <span className="font-bold text-slate-800 tracking-wide pl-1">{OFFICIAL_STAFF_CARD_JOIN_DATE}</span>
+                          <span className="font-bold text-slate-900 tracking-wide pl-1.5 text-[11.5px]">{OFFICIAL_STAFF_CARD_JOIN_DATE}</span>
                         </div>
 
                         {/* Phone Row */}
                         <div className="flex items-center text-left">
-                          <span className="w-[58px] font-black text-[#056839] shrink-0">PHONE</span>
+                          <span className="w-[66px] font-bold text-[#056839] text-[10.5px] uppercase tracking-wide shrink-0">PHONE</span>
                           <span className="font-bold text-[#056839] w-[10px] shrink-0 text-center">:</span>
-                          <span className="font-bold text-slate-900 tracking-wide pl-1">{activeStaff.mobile || "01719-469714"}</span>
+                          <span className="font-bold text-slate-950 font-mono tracking-wide pl-1.5 text-[11.5px]">{activeStaff.mobile || "01719-469714"}</span>
                         </div>
 
                         {/* Email Row - Dynamic Font Size & Wrapping, Complete Email Always Visible */}
                         <div className="flex items-start text-left">
-                          <span className="w-[58px] font-black text-[#056839] shrink-0 pt-0.5">EMAIL</span>
+                          <span className="w-[66px] font-bold text-[#056839] text-[10.5px] uppercase tracking-wide shrink-0 pt-0.5">EMAIL</span>
                           <span className="font-bold text-[#056839] w-[10px] shrink-0 text-center pt-0.5">:</span>
                           <span 
-                            className={`font-semibold text-slate-800 pl-1 leading-tight break-all ${getStaffEmailClasses(activeStaff.email || "support@kachabazar.com")}`} 
+                            className={`font-semibold text-slate-900 pl-1.5 leading-tight break-all ${getStaffEmailClasses(activeStaff.email || "support@kachabazar.com")}`} 
                             title={activeStaff.email || "support@kachabazar.com"}
                           >
                             {activeStaff.email || "support@kachabazar.com"}
@@ -1604,19 +1635,42 @@ export default function StaffIdCardModal({
                       </div>
                     </div>
 
-                    {/* Bottom Authorized Signature Section */}
-                    <div className="relative z-10 px-5 pb-3 pt-1 text-center">
-                      <div className="flex flex-col items-center justify-center">
-                        <div className="w-16 border-t border-[#056839]/60 mb-0.5" />
-                        <div className="text-[5.5px] font-bold text-slate-500 tracking-wider uppercase leading-tight">
-                          {authorizedSigner.title}
-                        </div>
-                        <div className="text-[6.5px] font-black text-[#056839] tracking-wider uppercase leading-tight">
-                          {authorizedSigner.name}
-                        </div>
-                        <div className="text-[5px] font-bold text-slate-500 tracking-wide uppercase leading-tight">
-                          {authorizedSigner.designation}
-                        </div>
+                    {/* Bottom Authorized Signature Section - Dedicated Spacious Signing Zone */}
+                    <div className="relative z-10 px-5 pb-2.5 pt-0.5 text-center w-full flex flex-col items-center mt-auto">
+                      {/* Spacious Signature Area: 34px Height for Pen Signing or Digital Autograph */}
+                      <div className="h-[34px] w-full flex items-end justify-center pb-0.5 relative">
+                        {includeDigitalSignature ? (
+                          <div className="flex flex-col items-center justify-end select-none">
+                            <svg className="w-24 h-6 text-[#056839]" viewBox="0 0 120 32" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M10 24 C12 15, 16 5, 24 7 C28 8, 26 20, 30 18 C34 16, 40 10, 44 14 C48 18, 50 22, 54 16 C58 10, 62 12, 68 16 C74 20, 80 13, 86 12 C92 11, 100 20, 110 10" />
+                              <path d="M16 21 Q55 24 106 15" strokeWidth="1.6" />
+                            </svg>
+                            <span className="text-[6.5px] font-serif italic text-emerald-800 -mt-1 font-bold tracking-wide">
+                              {authorizedSigner.name === "MD ABU HANIF SARKAR" ? "Abu Hanif Sarkar" : "Md Anik Sarkar"}
+                            </span>
+                          </div>
+                        ) : (
+                          /* Dedicated Blank Space for Manual Pen Signature */
+                          <div className="w-full flex items-center justify-center">
+                            <span className="text-[7.5px] text-slate-300 font-semibold tracking-wider uppercase border border-dashed border-slate-200 px-3 py-0.5 rounded-md select-none">
+                              (এখানে স্বাক্ষর করুন / Sign Here)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Signature Underline */}
+                      <div className="w-24 border-t-2 border-[#056839]/80 mb-1" />
+
+                      {/* Signer Info */}
+                      <div className="text-[7.5px] font-bold text-slate-500 tracking-wider uppercase leading-tight">
+                        {authorizedSigner.title}
+                      </div>
+                      <div className="text-[9.5px] font-black text-[#056839] tracking-wider uppercase leading-tight mt-0.5">
+                        {authorizedSigner.name}
+                      </div>
+                      <div className="text-[7px] font-bold text-slate-600 tracking-wide uppercase leading-tight mt-0.5">
+                        {authorizedSigner.designation}
                       </div>
                     </div>
                   </div>
@@ -1667,7 +1721,7 @@ export default function StaffIdCardModal({
                   >
                     {/* Top Header: Centered Logo + Company + Tagline + Security Badge */}
                     <div className="pt-3 pb-1.5 px-4 flex flex-col items-center text-center">
-                      <div className="w-9 h-9 rounded-2xl bg-white p-1 flex items-center justify-center shadow-md border-2 border-[#056839] shrink-0 overflow-hidden mb-1 ring-2 ring-emerald-100">
+                      <div className="w-10 h-10 rounded-2xl bg-white p-1 flex items-center justify-center shadow-md border-2 border-[#056839] shrink-0 overflow-hidden mb-1 ring-2 ring-emerald-100">
                         <img 
                           src={logoDataUrl || activeLogo} 
                           alt="Kacha Bazar Logo" 
@@ -1675,29 +1729,29 @@ export default function StaffIdCardModal({
                           crossOrigin="anonymous"
                         />
                       </div>
-                      <h4 className="font-black text-[13px] text-[#056839] tracking-wide leading-tight">
+                      <h4 className="font-black text-[15px] text-[#056839] tracking-wide leading-tight">
                         {getTranslation("কাঁচা বাজার", "Kacha Bazar")}
                       </h4>
-                      <p className="text-[7.5px] font-semibold text-slate-500 tracking-wider">
+                      <p className="text-[9px] font-semibold text-slate-600 tracking-wider mt-0.5">
                         {getTranslation("অনলাইন গ্রোসারি ও পিওর ফুডস", "Online Grocery & Pure Foods")}
                       </p>
-                      <div className="mt-1 px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-200 flex items-center gap-1">
+                      <div className="mt-1 px-3 py-0.5 bg-emerald-50 rounded-full border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                        <span className="text-[7px] font-black text-[#056839] uppercase tracking-wider">
+                        <span className="text-[8.5px] font-black text-[#056839] uppercase tracking-wider">
                           OFFICIAL STAFF IDENTITY PASS
                         </span>
                       </div>
                     </div>
 
-                    {/* Terms & Conditions Block - Balanced, Neat, No Empty Space */}
+                    {/* Terms & Conditions Block - Balanced, Neat, Legible */}
                     <div className="px-4 text-left">
-                      <div className="flex items-center justify-between mb-1.5 border-b border-emerald-100 pb-1">
-                        <h5 className="font-black text-[9px] text-[#056839] uppercase tracking-wide leading-none">
+                      <div className="flex items-center justify-between mb-1.5 border-b border-emerald-200 pb-1">
+                        <h5 className="font-black text-[10.5px] text-[#056839] uppercase tracking-wide leading-none">
                           Terms and conditions (শর্তাবলী)
                         </h5>
-                        <span className="text-[7px] font-bold text-slate-400 font-mono">NON-TRANSFERABLE</span>
+                        <span className="text-[8px] font-bold text-slate-500 font-mono">NON-TRANSFERABLE</span>
                       </div>
-                      <div className="space-y-1.5 text-[7.5px] text-slate-700 leading-tight">
+                      <div className="space-y-1.5 text-[9px] text-slate-800 leading-snug font-medium">
                         <div className="flex items-start space-x-1.5">
                           <span className="w-2 h-2 rounded-full bg-[#056839] shrink-0 mt-0.5" />
                           <p>Employees are required to wear or display this card at all times while on duty.</p>
@@ -1716,24 +1770,24 @@ export default function StaffIdCardModal({
                     {/* QR Code in crisp white box with Verification Tag - Moved Above the Red Horizontal Line */}
                     <div className="px-4 pb-2 pt-1 flex justify-end items-end w-full mt-auto">
                       <div className="flex flex-col items-center">
-                        <div className="bg-white p-1 rounded-lg shadow-sm border border-emerald-300 ring-2 ring-emerald-600/20 shrink-0">
+                        <div className="bg-white p-1 rounded-xl shadow-md border-2 border-emerald-300 ring-2 ring-emerald-600/20 shrink-0">
                           {loadingQr ? (
-                            <div className="w-[52px] h-[52px] flex items-center justify-center">
-                              <RefreshCw className="w-3.5 h-3.5 text-emerald-800 animate-spin" />
+                            <div className="w-[56px] h-[56px] flex items-center justify-center">
+                              <RefreshCw className="w-4 h-4 text-emerald-800 animate-spin" />
                             </div>
                           ) : qrCodeUrl ? (
                             <img
                               src={qrCodeUrl}
                               alt="Staff Verification QR"
-                              className="w-[52px] h-[52px] object-contain rounded"
+                              className="w-[56px] h-[56px] object-contain rounded"
                             />
                           ) : (
-                            <div className="w-[52px] h-[52px] bg-slate-100 flex items-center justify-center text-slate-400">
-                              <QrIcon className="w-5 h-5" />
+                            <div className="w-[56px] h-[56px] bg-slate-100 flex items-center justify-center text-slate-400">
+                              <QrIcon className="w-6 h-6" />
                             </div>
                           )}
                         </div>
-                        <span className="text-[6.5px] font-mono font-black text-[#056839] uppercase tracking-wider mt-1 drop-shadow-xs">
+                        <span className="text-[8.5px] font-mono font-black text-[#056839] uppercase tracking-wider mt-1 drop-shadow-xs">
                           SCAN TO VERIFY
                         </span>
                       </div>
@@ -1742,26 +1796,26 @@ export default function StaffIdCardModal({
                     {/* Bottom Section: Red Horizontal Line + Straight Level Green Info Block */}
                     <div className="w-full shrink-0">
                       {/* Red Accent Horizontal Line */}
-                      <div className="w-full h-[2.5px] bg-[#dc2626]" />
+                      <div className="w-full h-[3px] bg-[#dc2626]" />
 
                       {/* Straight Level Green Area with Verification & Staff Details */}
                       <div className="w-full bg-[#056839] px-4 py-2.5">
-                        <div className="text-white text-[7.5px] space-y-1 font-mono font-bold leading-tight drop-shadow-xs">
-                          <div className="flex items-center space-x-1">
-                            <span className="text-emerald-200 w-16 shrink-0">Staff ID</span>
-                            <span>: {activeStaff.staffId}</span>
+                        <div className="text-white text-[10px] space-y-1.5 font-mono leading-tight drop-shadow-xs">
+                          <div className="flex items-center space-x-1.5">
+                            <span className="text-emerald-200 w-20 shrink-0 font-bold text-[10px]">Staff ID</span>
+                            <span className="text-white font-black text-[11px]">: {activeStaff.staffId}</span>
                           </div>
-                          <div className="flex items-center space-x-1">
-                            <span className="text-emerald-200 w-16 shrink-0">Blood Group</span>
-                            <span className="text-amber-300">: {displayBloodGroup}</span>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="text-emerald-200 w-20 shrink-0 font-bold text-[10px]">Blood Group</span>
+                            <span className="text-amber-300 font-black text-[11px]">: {displayBloodGroup}</span>
                           </div>
-                          <div className="flex items-center space-x-1">
-                            <span className="text-emerald-200 w-16 shrink-0">Issue Date</span>
-                            <span>: {OFFICIAL_STAFF_CARD_ISSUE_DATE}</span>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="text-emerald-200 w-20 shrink-0 font-semibold text-[9.5px]">Issue Date</span>
+                            <span className="text-emerald-50 font-bold text-[10px]">: {OFFICIAL_STAFF_CARD_ISSUE_DATE}</span>
                           </div>
-                          <div className="flex items-center space-x-1">
-                            <span className="text-emerald-200 w-16 shrink-0">Valid Thru</span>
-                            <span>: {OFFICIAL_STAFF_CARD_VALID_THRU}</span>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="text-emerald-200 w-20 shrink-0 font-semibold text-[9.5px]">Valid Thru</span>
+                            <span className="text-emerald-50 font-bold text-[10px]">: {OFFICIAL_STAFF_CARD_VALID_THRU}</span>
                           </div>
                         </div>
                       </div>

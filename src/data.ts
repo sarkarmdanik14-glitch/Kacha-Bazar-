@@ -1450,12 +1450,14 @@ export const RESTAURANT_PRODUCTS_RAW: Product[] = [
 export { COSMETICS_PRODUCTS_RAW } from "./lib/cosmeticsData";
 export { CONFECTIONERY_PRODUCTS_RAW, CONFECTIONERY_SNACKS_RAW } from "./lib/confectioneryData";
 export { MOBILE_ZONE_PRODUCTS_RAW } from "./lib/mobileProductsData";
+export { PHARMACY_PRODUCTS_RAW } from "./lib/pharmacyData";
 
 import { CONFECTIONERY_PRODUCTS_RAW } from "./lib/confectioneryData";
 import { MOBILE_ZONE_PRODUCTS_RAW } from "./lib/mobileProductsData";
+import { PHARMACY_PRODUCTS_RAW } from "./lib/pharmacyData";
 
-export const PRODUCTS: Product[] = [...GROCERY_PRODUCTS_RAW, ...COSMETICS_PRODUCTS_RAW, ...RESTAURANT_PRODUCTS_RAW, ...CONFECTIONERY_PRODUCTS_RAW, ...MOBILE_ZONE_PRODUCTS_RAW];
-export const ALL_PRODUCTS: Product[] = [...GROCERY_PRODUCTS_RAW, ...COSMETICS_PRODUCTS_RAW, ...RESTAURANT_PRODUCTS_RAW, ...CONFECTIONERY_PRODUCTS_RAW, ...MOBILE_ZONE_PRODUCTS_RAW];
+export const PRODUCTS: Product[] = [...GROCERY_PRODUCTS_RAW, ...COSMETICS_PRODUCTS_RAW, ...RESTAURANT_PRODUCTS_RAW, ...CONFECTIONERY_PRODUCTS_RAW, ...MOBILE_ZONE_PRODUCTS_RAW, ...PHARMACY_PRODUCTS_RAW];
+export const ALL_PRODUCTS: Product[] = [...GROCERY_PRODUCTS_RAW, ...COSMETICS_PRODUCTS_RAW, ...RESTAURANT_PRODUCTS_RAW, ...CONFECTIONERY_PRODUCTS_RAW, ...MOBILE_ZONE_PRODUCTS_RAW, ...PHARMACY_PRODUCTS_RAW];
 export const RESTAURANT_MENU_SECTIONS: string[] = [
   "বিরিয়ানি, পোলাও ও রাইস",
   "বার্গার, স্যান্ডউইচ ও শাওয়ার্মা",
@@ -1530,7 +1532,6 @@ export const getResolvedGroceryDisplayOrder = (
 export const GROCERY_SUBCATEGORY_MAP: Record<string, string> = {};
 export const GROCERY_ORDER_MAP: Record<string, number> = {};
 export const DRY_FOOD_RAW: any[] = [];
-export const PHARMACY_PRODUCTS_RAW: any[] = [];
 
 export const PROMO_BANNERS: PromoBanner[] = [
   {
