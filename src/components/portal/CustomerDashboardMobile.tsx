@@ -33,7 +33,9 @@ import {
   Lock,
   Key,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  ShoppingCart,
+  ArrowRight
 } from "lucide-react";
 import QRCode from "qrcode";
 import { db, doc, getDoc, setDoc, serverTimestamp, onSnapshot, auth, RecaptchaVerifier, signInWithPhoneNumber, updateProfile } from "../../lib/firebase";
@@ -134,6 +136,46 @@ export default function CustomerDashboardMobile({
     return customerId.toLowerCase();
   };
   const username = getSanitizedUsername();
+  // Cart synchronization state from localStorage
+  const [cart, setCart] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem("kb_cart");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    const handleCartSync = () => {
+      try {
+        const saved = localStorage.getItem("kb_cart");
+        setCart(saved ? JSON.parse(saved) : []);
+      } catch {
+        setCart([]);
+      }
+    };
+    window.addEventListener("storage", handleCartSync);
+    window.addEventListener("kb_cart_updated", handleCartSync);
+    return () => {
+      window.removeEventListener("storage", handleCartSync);
+      window.removeEventListener("kb_cart_updated", handleCartSync);
+    };
+  }, []);
+
+  const cartTotalQty = useMemo(() => {
+    return cart.reduce((total, item) => total + (item.quantity || 1), 0);
+  }, [cart]);
+
+  const cartSubtotal = useMemo(() => {
+    return cart.reduce((total, item) => {
+      const price = item.selectedOption?.price !== undefined 
+        ? item.selectedOption.price 
+        : (item.product?.price || 0);
+      return total + price * (item.quantity || 1);
+    }, 0);
+  }, [cart]);
+
   const isEmailVerified = Boolean(initialUser.isEmailVerified);
   const isPhoneVerified = Boolean(initialUser.isPhoneVerified);
   const isVerified = Boolean((isEmailVerified && isPhoneVerified) || (initialUser.isVerified && isEmailVerified && isPhoneVerified));
@@ -1430,71 +1472,144 @@ export default function CustomerDashboardMobile({
           </div>
         </div>
 
-        {/* Recent Orders Section (সাম্প্রতিক অর্ডারসমূহ) */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-black text-sm text-slate-800">
-              সাম্প্রতিক অর্ডারসমূহ
-            </h3>
-            <button 
-              type="button"
-              onClick={() => {
-                setActiveTab("orders");
-                if (onNavigateTab) onNavigateTab("orders");
-              }}
-              className="text-emerald-600 text-xs font-bold hover:underline cursor-pointer"
+        {/* My Shopping Cart Section (আমার শপিং কার্ট) - Replaces Recent Orders */}
+        <div className="bg-white border border-emerald-100/90 hover:border-emerald-200 rounded-2xl p-5 shadow-xs space-y-4 transition-all">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                <ShoppingCart className="w-4.5 h-4.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center space-x-2">
+                  <h3 className="font-black text-sm text-slate-800 truncate">
+                    আমার শপিং কার্ট
+                  </h3>
+                  {cart.length > 0 && (
+                    <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2 py-0.5 rounded-full shrink-0">
+                      {cartTotalQty} টি পণ্য
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 font-medium truncate">
+                  {cart.length > 0 ? "কার্টে যুক্ত পণ্যসমূহের তালিকা" : "পছন্দমতো পণ্য যোগ করে কেনাকাটা শুরু করুন"}
+                </p>
+              </div>
+            </div>
+            {cart.length > 0 && (
+              <button 
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("kb_open_cart"))}
+                className="text-emerald-600 text-xs font-bold hover:text-emerald-700 flex items-center space-x-1 cursor-pointer bg-emerald-50/80 hover:bg-emerald-100/80 px-2.5 py-1.5 rounded-xl transition shrink-0"
+              >
+                <span>কার্ট দেখুন</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {cart.length === 0 ? (
+            <div 
+              onClick={() => window.dispatchEvent(new CustomEvent("kb_open_cart"))}
+              className="text-center py-6 px-4 bg-slate-50/70 border border-dashed border-slate-200 rounded-xl cursor-pointer hover:bg-emerald-50/30 hover:border-emerald-200 transition group"
             >
-              সব দেখুন
-            </button>
-          </div>
-
-          <div className="divide-y divide-slate-100">
-            <div className="py-3 flex items-center justify-between text-xs">
-              <div>
-                <span className="font-black text-slate-800">#KB-8921</span>
-                <p className="text-[10px] text-slate-400 mt-0.5">আজ • ১২:৩০ PM</p>
+              <div className="w-11 h-11 mx-auto mb-2 rounded-2xl bg-emerald-100/60 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <ShoppingCart className="w-5 h-5 text-emerald-600" />
               </div>
-              <div className="flex items-center space-x-3">
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                  চলমান
-                </span>
-                <span className="font-black text-slate-800">৳৪৫০</span>
+              <p className="text-xs font-bold text-slate-600">
+                আপনার শপিং কার্ট খালি!
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                কাঁচা বাজার থেকে তাজা পণ্যগুলো কার্টে যুক্ত করুন
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div 
+                onClick={() => window.dispatchEvent(new CustomEvent("kb_open_cart"))}
+                className="divide-y divide-slate-100 max-h-60 overflow-y-auto pr-1 cursor-pointer group"
+                title="কার্ট দেখতে ক্লিক করুন"
+              >
+                {cart.map((item, idx) => {
+                  const itemPrice = item.selectedOption?.price !== undefined 
+                    ? item.selectedOption.price 
+                    : (item.product?.price || 0);
+                  const itemTotal = itemPrice * (item.quantity || 1);
+                  const productName = item.product?.nameBn || item.product?.nameEn || "পণ্য";
+                  const unitLabel = item.selectedOption 
+                    ? `${item.selectedOption.value} ${item.selectedOption.unit}` 
+                    : item.product?.unitBn;
+
+                  return (
+                    <div key={`cart_mb_${item.product?.id || idx}_${idx}`} className="py-2.5 flex items-center justify-between text-xs hover:bg-slate-50/80 px-2 rounded-xl transition">
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/80 overflow-hidden shrink-0 flex items-center justify-center">
+                          {item.product?.image ? (
+                            <img 
+                              src={item.product.image} 
+                              alt={productName} 
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <ShoppingCart className="w-4 h-4 text-slate-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-800 text-xs truncate max-w-[150px]">
+                            {productName}
+                          </p>
+                          <div className="flex items-center space-x-1.5 text-[10px] text-slate-400 mt-0.5">
+                            {unitLabel && (
+                              <span className="bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium">
+                                {unitLabel}
+                              </span>
+                            )}
+                            <span>•</span>
+                            <span className="font-semibold text-emerald-600">
+                              {item.quantity} টি
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-black text-slate-800 text-xs">
+                          ৳{itemTotal}
+                        </p>
+                        {item.quantity > 1 && (
+                          <p className="text-[10px] text-slate-400">
+                            ৳{itemPrice} / টি
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Summary & Checkout Action */}
+              <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                    মোট বিল
+                  </span>
+                  <span className="font-black text-sm text-slate-800">
+                    ৳{cartSubtotal}
+                  </span>
+                </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setActiveTab("orders");
-                    if (onNavigateTab) onNavigateTab("orders");
-                  }}
-                  className="p-1 text-slate-400 hover:text-emerald-600 transition cursor-pointer"
+                  onClick={() => window.dispatchEvent(new CustomEvent("kb_open_cart"))}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-xs hover:shadow-md cursor-pointer shrink-0"
                 >
-                  <Eye className="w-4 h-4" />
+                  <ShoppingCart className="w-3.5 h-3.5" />
+                  <span>কার্ট ও চেকআউট</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
-
-            <div className="py-3 flex items-center justify-between text-xs">
-              <div>
-                <span className="font-black text-slate-800">#KB-8430</span>
-                <p className="text-[10px] text-slate-400 mt-0.5">গতকাল • ৫:১৫ PM</p>
-              </div>
-              <div className="flex items-center space-x-3">
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  ডেলিভার্ড
-                </span>
-                <span className="font-black text-slate-800">৳৭৮০</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab("orders");
-                    if (onNavigateTab) onNavigateTab("orders");
-                  }}
-                  className="p-1 text-slate-400 hover:text-emerald-600 transition cursor-pointer"
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Account Logout Block */}

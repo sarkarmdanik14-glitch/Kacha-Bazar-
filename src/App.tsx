@@ -1221,7 +1221,17 @@ export default function App() {
   // Sync cart and wishlist to localStorage
   useEffect(() => {
     localStorage.setItem("kb_cart", JSON.stringify(cart));
+    window.dispatchEvent(new CustomEvent("kb_cart_updated"));
   }, [cart]);
+
+  useEffect(() => {
+    const handleOpenCartFromAnywhere = () => {
+      setShowPortalModal(false);
+      setShowCart(true);
+    };
+    window.addEventListener("kb_open_cart", handleOpenCartFromAnywhere);
+    return () => window.removeEventListener("kb_open_cart", handleOpenCartFromAnywhere);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("kb_wishlist", JSON.stringify(wishlist));
@@ -4389,6 +4399,10 @@ export default function App() {
           banners={banners}
           globalSettings={globalSettings}
           onProductSaved={handleProductSavedInApp}
+          onOpenCart={() => {
+            setShowPortalModal(false);
+            setShowCart(true);
+          }}
         />
       )}
 

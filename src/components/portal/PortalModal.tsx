@@ -26,6 +26,7 @@ interface PortalModalProps {
   banners?: any[];
   globalSettings?: any;
   onProductSaved?: (product: any) => void;
+  onOpenCart?: () => void;
 }
 
 export default function PortalModal({ 
@@ -40,7 +41,8 @@ export default function PortalModal({
   categories,
   banners,
   globalSettings,
-  onProductSaved
+  onProductSaved,
+  onOpenCart
 }: PortalModalProps) {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [currentPartner, setCurrentPartner] = useState<PartnerShop | null>(null);
@@ -565,7 +567,7 @@ export default function PortalModal({
                       )
                     )}
                     {activePortalTab === "customer" && (
-                      <CustomerPortal user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} initialTab={initialTab} onClose={onClose} />
+                      <CustomerPortal user={currentUser} onLogout={handleLogout} lang={lang} triggerToast={triggerToast} initialTab={initialTab} onClose={onClose} onOpenCart={onOpenCart} />
                     )}
                   </div>
                 )}
