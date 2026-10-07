@@ -185,6 +185,11 @@ export const CATEGORY_SERIAL_MAP: Record<string, number> = {
   "buysell": 14,
   "pet-care": 15,
   "pet-food-care": 16,
+  "event-management": 16,
+  "event": 16,
+  "events": 16,
+  "ইভেন্ট ম্যানেজমেন্ট": 16,
+  "ইভেন্ট": 16,
   "vehicles": 17,
   "transport": 17,
   "car-rental": 17,
@@ -363,6 +368,27 @@ export function isCategoryMatch(
     return pCat === "pan-supari" || pCat === "pan" || pCat === "supari";
   }
 
+  // If filtering by event-management / pet-food-care
+  if (
+    sCat === "pet-food-care" ||
+    sCat === "event-management" ||
+    sCat === "event" ||
+    sCat === "events" ||
+    sCat === "ইভেন্ট ম্যানেজমেন্ট" ||
+    sCat === "ইভেন্ট" ||
+    sCat.includes("ইভেন্ট")
+  ) {
+    return (
+      pCat === "pet-food-care" ||
+      pCat === "event-management" ||
+      pCat === "event" ||
+      pCat === "events" ||
+      pCat === "ইভেন্ট ম্যানেজমেন্ট" ||
+      pCat === "ইভেন্ট" ||
+      pCat.includes("ইভেন্ট")
+    );
+  }
+
   return pCat === sCat;
 }
 
@@ -458,6 +484,16 @@ export function normalizeCategoryId(catId: string | undefined | null): string {
   }
   if (lower === "cosmetics" || lower === "personal-care" || lower === "beauty" || lower === "beauty-cosmetics" || lower.includes("কসমেটিকস")) {
     return "cosmetics";
+  }
+  if (
+    lower === "event-management" || 
+    lower === "event" || 
+    lower === "events" || 
+    lower === "ইভেন্ট ম্যানেজমেন্ট" || 
+    lower === "ইভেন্ট" ||
+    lower.includes("ইভেন্ট")
+  ) {
+    return "pet-food-care";
   }
   return catId;
 }

@@ -115,7 +115,113 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
   { categoryId: "mobile-zone", nameBn: "TECNO (টেকনো)", nameEn: "TECNO", order: 4, isActive: true },
   { categoryId: "mobile-zone", nameBn: "itel (আইটেল)", nameEn: "itel", order: 5, isActive: true },
   { categoryId: "mobile-zone", nameBn: "GDL / Grameen (গ্রামীণ)", nameEn: "GDL / Grameen", order: 6, isActive: true },
-  { categoryId: "mobile-zone", nameBn: "Infinix (ইনফিনিক্স)", nameEn: "Infinix", order: 7, isActive: true }
+  { categoryId: "mobile-zone", nameBn: "Infinix (ইনফিনিক্স)", nameEn: "Infinix", order: 7, isActive: true },
+
+  // 14. Event Management (ইভেন্ট ম্যানেজমেন্ট)
+  { 
+    categoryId: "pet-food-care", 
+    categorySlug: "event-management",
+    nameBn: "মঞ্চ সাজানো", 
+    nameEn: "Stage Decoration", 
+    slug: "stage-decoration",
+    descriptionBn: "বিয়ে, হলুদ ও জন্মদিনের প্রফেশনাল স্টেজ ডিজাইন।",
+    descriptionEn: "Professional stage design for weddings, holud, and birthdays.",
+    description: "বিয়ে, হলুদ ও জন্মদিনের প্রফেশনাল স্টেজ ডিজাইন।",
+    order: 1, 
+    isActive: true,
+    iconName: "Sparkles"
+  },
+  { 
+    categoryId: "pet-food-care", 
+    categorySlug: "event-management",
+    nameBn: "প্রবেশদ্বার ও আলোকসজ্জা", 
+    nameEn: "Gate & Lighting", 
+    slug: "gate-lighting",
+    descriptionBn: "ওয়েলকাম গেট এবং আধুনিক লাইটিং সেটআপ।",
+    descriptionEn: "Welcome gate and modern lighting setup.",
+    description: "ওয়েলকাম গেট এবং আধুনিক লাইটিং সেটআপ।",
+    order: 2, 
+    isActive: true,
+    iconName: "Lamp"
+  },
+  { 
+    categoryId: "pet-food-care", 
+    categorySlug: "event-management",
+    nameBn: "বাসর ঘর ডেকোরেশন", 
+    nameEn: "Bridal Room Decor", 
+    slug: "bridal-room-decor",
+    descriptionBn: "ফুল ও রোমান্টিক লাইটিং দিয়ে বাসর ঘর সাজানো।",
+    descriptionEn: "Decorating bridal room with flowers and romantic lighting.",
+    description: "ফুল ও রোমান্টিক লাইটিং দিয়ে বাসর ঘর সাজানো।",
+    order: 3, 
+    isActive: true,
+    iconName: "Heart"
+  },
+  { 
+    categoryId: "pet-food-care", 
+    categorySlug: "event-management",
+    nameBn: "বরের গাড়ি সাজানো", 
+    nameEn: "Wedding Car Decor", 
+    slug: "wedding-car-decor",
+    descriptionBn: "তাজা ফুল দিয়ে প্রিমিয়াম কার ডেকোরেশন।",
+    descriptionEn: "Premium wedding car decoration with fresh flowers.",
+    description: "তাজা ফুল দিয়ে প্রিমিয়াম কার ডেকোরেশন।",
+    order: 4, 
+    isActive: true,
+    iconName: "Car"
+  },
+  { 
+    categoryId: "pet-food-care", 
+    categorySlug: "event-management",
+    nameBn: "ফটোগ্রাফি ও সিনেমাটোগ্রাফি", 
+    nameEn: "Photo & Cinematography", 
+    slug: "photo-cinematography",
+    descriptionBn: "স্মরণীয় মুহূর্তের প্রফেশনাল ফটো ও ভিডিওগ্রাফি।",
+    descriptionEn: "Professional photography and cinematography for memorable moments.",
+    description: "স্মরণীয় মুহূর্তের প্রফেশনাল ফটো ও ভিডিওগ্রাফি।",
+    order: 5, 
+    isActive: true,
+    iconName: "Camera"
+  },
+  { 
+    categoryId: "pet-food-care", 
+    categorySlug: "event-management",
+    nameBn: "সাউন্ড ও ডিজে", 
+    nameEn: "Sound & DJ System", 
+    slug: "sound-dj-system",
+    descriptionBn: "হাই-কোয়ালিটি সাউন্ড এবং হলুদের ডিজে নাইট।",
+    descriptionEn: "High-quality sound system and DJ night for haldi/events.",
+    description: "হাই-কোয়ালিটি সাউন্ড এবং হলুদের ডিজে নাইট।",
+    order: 6, 
+    isActive: true,
+    iconName: "Volume2"
+  },
+  { 
+    categoryId: "pet-food-care", 
+    categorySlug: "event-management",
+    nameBn: "ক্যাটারিং ও ফুড সার্ভিস", 
+    nameEn: "Catering Service", 
+    slug: "catering-service",
+    descriptionBn: "সুস্বাদু খাবার রান্না ও মেহমানদারি ব্যবস্থাপনা।",
+    descriptionEn: "Delicious cuisine cooking and complete guest catering management.",
+    description: "সুস্বাদু খাবার রান্না ও মেহমানদারি ব্যবস্থাপনা।",
+    order: 7, 
+    isActive: true,
+    iconName: "UtensilsCrossed"
+  },
+  { 
+    categoryId: "pet-food-care", 
+    categorySlug: "event-management",
+    nameBn: "রেন্ট-এ-কার", 
+    nameEn: "Car Rental", 
+    slug: "car-rental",
+    descriptionBn: "বর-কনে ও বরযাত্রীদের জন্য নিরাপদ গাড়ি সার্ভিস।",
+    descriptionEn: "Safe and reliable car rental service for bride, groom, and guests.",
+    description: "বর-কনে ও বরযাত্রীদের জন্য নিরাপদ গাড়ি সার্ভিস।",
+    order: 8, 
+    isActive: true,
+    iconName: "Car"
+  }
 ];
 
 /**
@@ -142,7 +248,16 @@ export async function getSubcategoriesForCategory(categoryId: string): Promise<S
       categoryId === "কনফেকশনারি" ||
       categoryId === "কনফেকশনারি ও স্ন্যাকস" ||
       categoryId === "কনফেকশনারী"
-    ) ? "snacks-biscuits" : categoryId
+    ) ? "snacks-biscuits" : (
+      (
+        categoryId === "event-management" ||
+        categoryId === "event" ||
+        categoryId === "events" ||
+        categoryId === "ইভেন্ট ম্যানেজমেন্ট" ||
+        categoryId === "ইভেন্ট" ||
+        categoryId === "pet-food-care"
+      ) ? "pet-food-care" : categoryId
+    )
   );
   try {
     const q = query(
@@ -260,8 +375,13 @@ export async function saveSubcategory(
   const payload: Subcategory = {
     id,
     categoryId: subcategory.categoryId,
+    categorySlug: subcategory.categorySlug || (subcategory.categoryId === "pet-food-care" ? "event-management" : subcategory.categoryId),
     nameBn: subcategory.nameBn.trim(),
     nameEn: (subcategory.nameEn || subcategory.nameBn).trim(),
+    slug: subcategory.slug || "",
+    descriptionBn: subcategory.descriptionBn || subcategory.description || "",
+    descriptionEn: subcategory.descriptionEn || "",
+    description: subcategory.description || subcategory.descriptionBn || "",
     order: typeof subcategory.order === "number" ? subcategory.order : 1,
     iconName: subcategory.iconName || "Layers",
     image: subcategory.image || "",
@@ -318,3 +438,67 @@ export async function bootstrapInitialSubcategoriesIfNeeded(): Promise<number> {
     return 0;
   }
 }
+
+/**
+ * Seeds or updates the 8 official Event Management subcategories in Firestore.
+ */
+export async function bootstrapEventManagementSubcategories(): Promise<number> {
+  try {
+    const eventSubs = DEFAULT_SUBCATEGORIES.filter(s => s.categoryId === "pet-food-care");
+    let count = 0;
+    for (const sub of eventSubs) {
+      const slug = (sub as any).slug || sub.nameEn.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      const id = `sub_event_${sub.order}_${slug.replace(/-/g, "_")}`;
+      await setDoc(doc(db, "subcategories", id), {
+        id,
+        ...sub,
+        isDeleted: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      count++;
+    }
+
+    // Also update categories/pet-food-care with subcategories array & proper metadata
+    await setDoc(doc(db, "categories", "pet-food-care"), {
+      nameBn: "ইভেন্ট ম্যানেজমেন্ট",
+      nameEn: "Event Management",
+      slug: "event-management",
+      categorySlug: "event-management",
+      order: 16,
+      displayOrder: 16,
+      subcategories: eventSubs.map(s => ({
+        nameBn: s.nameBn,
+        nameEn: s.nameEn,
+        slug: (s as any).slug,
+        description: (s as any).description,
+        order: s.order
+      })),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    // Also create/update categories/event-management alias document
+    await setDoc(doc(db, "categories", "event-management"), {
+      nameBn: "ইভেন্ট ম্যানেজমেন্ট",
+      nameEn: "Event Management",
+      slug: "event-management",
+      targetCategoryId: "pet-food-care",
+      order: 16,
+      displayOrder: 16,
+      subcategories: eventSubs.map(s => ({
+        nameBn: s.nameBn,
+        nameEn: s.nameEn,
+        slug: (s as any).slug,
+        description: (s as any).description,
+        order: s.order
+      })),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    return count;
+  } catch (err) {
+    console.warn("Notice bootstrapping event management subcategories:", err);
+    return 0;
+  }
+}
+

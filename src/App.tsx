@@ -15,7 +15,7 @@ import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, Subcategory, CartItem, Review, ProductOption } from "./types";
 import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_PRODUCTS_RAW, CONFECTIONERY_PRODUCTS_RAW, MOBILE_ZONE_PRODUCTS_RAW, PHARMACY_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
 import { resolveProductDisplayUnit } from "./lib/productWeightUtils";
-import { subscribeToAllSubcategories } from "./lib/subcategoryService";
+import { subscribeToAllSubcategories, bootstrapEventManagementSubcategories } from "./lib/subcategoryService";
 import { 
   RESTAURANT_SUBCATEGORIES, 
   RESTAURANT_SUBCATEGORY_NAMES_BN, 
@@ -813,6 +813,18 @@ export default function App() {
     syncPharmacyToFirestore();
   }, []);
 
+  // One-time automatic sync to seed/update official Event Management subcategories in Firestore
+  useEffect(() => {
+    const syncEventSubcategories = async () => {
+      try {
+        await bootstrapEventManagementSubcategories();
+      } catch (err) {
+        console.warn("Notice syncing event subcategories:", err);
+      }
+    };
+    syncEventSubcategories();
+  }, []);
+
   // Real-time synchronization of products, categories, reviews, banners, and home config from Firestore
   useEffect(() => {
     const productsQuery = collection(db, "products");
@@ -1058,6 +1070,9 @@ export default function App() {
           "buysell": 14,
           "pet-care": 15,
           "pet-food-care": 16,
+          "event-management": 16,
+          "event": 16,
+          "events": 16,
           "vehicles": 17,
           "transport": 17,
           "car-rental": 17,
@@ -2545,11 +2560,12 @@ export default function App() {
             const isGroceryCat = isCategoryMatch(selectedCategory, "groceries");
             const isVehicleCat = isCategoryMatch(selectedCategory, "vehicles");
             const isMobileZoneCat = isCategoryMatch(selectedCategory, "mobile-zone");
+            const isEventCat = isCategoryMatch(selectedCategory, "pet-food-care");
             const isSectionedCategory = isRestaurantCat || isGroceryCat || isMobileZoneCat;
 
             // Filter subcategories for the selected category from Firestore (sorted by order asc)
             const matchingDbSubs = dbSubcategories
-              .filter(s => (s.categoryId === selectedCategory || isCategoryMatch(s.categoryId, selectedCategory)) && !s.isDeleted)
+              .filter(s => (s.categoryId === selectedCategory || s.categoryId === resolvedCatId || isCategoryMatch(s.categoryId, selectedCategory) || (isEventCat && (s.categoryId === "pet-food-care" || s.categoryId === "event-management"))) && !s.isDeleted)
               .sort((a, b) => (a.order || 0) - (b.order || 0));
 
             // Filter products
@@ -2881,6 +2897,50 @@ export default function App() {
                   </div>
                 )}
 
+                {/* Event Management & Celebration Services Notice Banner */}
+                {isEventCat && (
+                  <div className="mb-4 p-3.5 sm:p-4 bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-orange-500/10 border border-orange-200/90 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 text-white flex items-center justify-center shrink-0 shadow-sm shadow-orange-500/25">
+                        <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-xs sm:text-sm font-black text-slate-800 leading-snug tracking-wide">
+                            {lang === "bn" ? "ইভেন্ট ম্যানেজমেন্ট ও অনুষ্ঠান সেবা (২৪/৭ চালু)" : "Event Management & Celebration Services (24/7 Available)"}
+                          </h4>
+                          <span className="bg-amber-100 text-amber-800 border border-amber-300 text-[9px] sm:text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                            {lang === "bn" ? "★ প্রফেশনাল আয়োজন" : "★ Professional Events"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] sm:text-xs text-slate-600 leading-snug mt-0.5">
+                          {lang === "bn" 
+                            ? "মঞ্চ সাজানো, প্রবেশদ্বার ও আলোকসজ্জা, বাসর ঘর, বরের গাড়ি, ফটোগ্রাফি ও সিনেমাটোগ্রাফি, সাউন্ড-ডিজে, ক্যাটারিং ও রেন্ট-এ-কার সার্ভিস। দূরত্ব, বাজেট ও প্যাকেজ অনুযায়ী আলোচনা সাপেক্ষে বুকিং।" 
+                            : "Stage Decoration, Gate & Lighting, Bridal Room, Wedding Car, Photography, Sound & DJ, Catering & Car Rental. Custom package bookings."}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                      <a 
+                        href="tel:+8801615581975"
+                        className="flex-1 sm:flex-none px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      >
+                        <PhoneCall className="w-3.5 h-3.5" />
+                        <span>{lang === "bn" ? "কল করুন" : "Call Now"}</span>
+                      </a>
+                      <a 
+                        href={`https://wa.me/8801615581975?text=${encodeURIComponent("আসসালামু আলাইকুম, আমি ইভেন্ট ম্যানেজমেন্ট সার্ভিসের প্যাকেজ ও বুকিং সম্পর্কে বিস্তারিত জানতে চাই।")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-1 sm:flex-none px-3.5 py-2 bg-[#25D366] hover:bg-[#20bd5a] text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>WhatsApp</span>
+                      </a>
+                    </div>
+                  </div>
+                )}
+
                 {/* Filtering, Subcategory, & Sorting Bar */}
                 <div className="flex flex-col lg:flex-row gap-3 justify-between items-start lg:items-center">
                   <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none max-w-full snap-x">
@@ -2898,11 +2958,21 @@ export default function App() {
                     {subcategories.map((sub: string) => {
                       let label = sub === "all" 
                         ? (lang === "bn" 
-                            ? (isVehicleCat ? "সব যানবাহন" : isMobileZoneCat ? "সব ব্র্যান্ড" : isRestaurantCat ? "সব মেনু" : "সব পণ্য") 
-                            : (isVehicleCat ? "All Vehicles" : isMobileZoneCat ? "All Brands" : isRestaurantCat ? "All Menu" : "All Products")) 
+                            ? (isVehicleCat ? "সব যানবাহন" : isMobileZoneCat ? "সব ব্র্যান্ড" : isRestaurantCat ? "সব মেনু" : isEventCat ? "সব ইভেন্ট সার্ভিস" : "সব পণ্য") 
+                            : (isVehicleCat ? "All Vehicles" : isMobileZoneCat ? "All Brands" : isRestaurantCat ? "All Menu" : isEventCat ? "All Event Services" : "All Products")) 
                         : sub;
                       let iconEmoji = "";
                       let count = 0;
+
+                      if (isEventCat && sub !== "all") {
+                        const eventSubObj = matchingDbSubs.find(
+                          s => s.nameBn.toLowerCase().trim() === sub.toLowerCase().trim() ||
+                               (s.nameEn && s.nameEn.toLowerCase().trim() === sub.toLowerCase().trim())
+                        );
+                        if (eventSubObj && eventSubObj.nameEn) {
+                          label = lang === "bn" ? `${eventSubObj.nameBn} (${eventSubObj.nameEn})` : eventSubObj.nameEn;
+                        }
+                      }
 
                       if (isRestaurantCat) {
                         if (sub === "all") {
@@ -3011,6 +3081,40 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+
+                {/* Event Management Active Subcategory Description Highlight */}
+                {isEventCat && selectedSubcategory !== "all" && (() => {
+                  const eventSubObj = matchingDbSubs.find(
+                    s => s.nameBn.toLowerCase().trim() === selectedSubcategory.toLowerCase().trim() ||
+                         (s.nameEn && s.nameEn.toLowerCase().trim() === selectedSubcategory.toLowerCase().trim()) ||
+                         (s.slug && s.slug.toLowerCase().trim() === selectedSubcategory.toLowerCase().trim())
+                  );
+                  if (eventSubObj && (eventSubObj.descriptionBn || eventSubObj.description)) {
+                    return (
+                      <div className="bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-white border border-orange-200/90 rounded-2xl p-4 sm:p-5 shadow-xs mb-5 flex items-start gap-3.5 mt-2">
+                        <div className="w-10 h-10 rounded-2xl bg-orange-500 text-white flex items-center justify-center font-bold shadow-md shadow-orange-500/20 shrink-0">
+                          <Sparkles className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-black text-sm sm:text-base text-slate-800">
+                              {eventSubObj.nameBn}
+                            </h4>
+                            {eventSubObj.nameEn && (
+                              <span className="text-xs font-bold text-orange-600 bg-orange-100/70 px-2 py-0.5 rounded-lg border border-orange-200/60">
+                                {eventSubObj.nameEn}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1 leading-relaxed">
+                            {lang === "bn" ? (eventSubObj.descriptionBn || eventSubObj.description) : (eventSubObj.descriptionEn || eventSubObj.description)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {/* Loading Skeleton */}
                 {loadingProducts && (

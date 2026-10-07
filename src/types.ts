@@ -84,6 +84,11 @@ export interface Subcategory {
   nameEn: string;
   categoryId: string;
   order: number;
+  slug?: string;
+  descriptionBn?: string;
+  descriptionEn?: string;
+  description?: string;
+  categorySlug?: string;
   iconName?: string;
   image?: string;
   imageUrl?: string;

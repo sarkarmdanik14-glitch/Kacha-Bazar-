@@ -15,7 +15,8 @@ export const CATEGORIES: Category[] = [
   { id: "frozen", nameBn: "ড্রাই ফুড", nameEn: "Dry Food", iconName: "Package", colorClass: "bg-amber-50 text-amber-700", borderColor: "border-amber-100", displayOrder: 9 },
   { id: "cosmetics", nameBn: "কসমেটিকস ও বিউটি কর্নার", nameEn: "Cosmetics & Beauty Corner", iconName: "Sparkles", colorClass: "bg-pink-50 text-pink-700", borderColor: "border-pink-100", displayOrder: 10 },
   { id: "pharmacy", nameBn: "ফার্মেসি", nameEn: "Pharmacy", iconName: "Pill", colorClass: "bg-teal-50 text-teal-800", borderColor: "border-teal-100", displayOrder: 12 },
-  { id: "offers", nameBn: "অফার ও ডিল", nameEn: "Offers & Deals", iconName: "Tag", colorClass: "bg-purple-50 text-purple-800", borderColor: "border-purple-100", displayOrder: 13 }
+  { id: "offers", nameBn: "অফার ও ডিল", nameEn: "Offers & Deals", iconName: "Tag", colorClass: "bg-purple-50 text-purple-800", borderColor: "border-purple-100", displayOrder: 13 },
+  { id: "pet-food-care", nameBn: "ইভেন্ট ম্যানেজমেন্ট", nameEn: "Event Management", iconName: "Sparkles", colorClass: "bg-orange-50 text-orange-700", borderColor: "border-orange-100", displayOrder: 16 }
 ];
 
 export const GROCERY_PRODUCTS_RAW: Product[] = [

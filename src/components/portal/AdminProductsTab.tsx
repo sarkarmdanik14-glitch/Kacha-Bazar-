@@ -13,7 +13,8 @@ import {
   updateSubcategoryOrder, 
   saveSubcategory, 
   softDeleteSubcategory, 
-  bootstrapInitialSubcategoriesIfNeeded 
+  bootstrapInitialSubcategoriesIfNeeded,
+  bootstrapEventManagementSubcategories
 } from "../../lib/subcategoryService";
 import DeleteProductConfirmModal from "./DeleteProductConfirmModal";
 import { isCategoryMatch, normalizeCategoryId, shouldKeepProductGroceryFiltered } from "../../lib/categoryUtils";
@@ -2667,10 +2668,11 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                   <button
                     type="button"
                     onClick={async () => {
+                      await bootstrapEventManagementSubcategories();
                       const count = await bootstrapInitialSubcategoriesIfNeeded();
                       triggerToast(
-                        `ডিফল্ট সাবক্যাটাগরি সিঙ্ক্রোনাইজেশন সম্পন্ন! (${count}টি সাবক্যাটাগরি)`,
-                        `Default subcategories synced! (${count} items)`
+                        `ডিফল্ট ও ইভেন্ট সাবক্যাটাগরি সিঙ্ক্রোনাইজেশন সম্পন্ন!`,
+                        `Default & Event subcategories synced!`
                       );
                     }}
                     className="p-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl transition cursor-pointer"
