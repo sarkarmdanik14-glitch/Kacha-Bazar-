@@ -159,11 +159,11 @@ export default function AdminProductsTab({ products, categories, orders = [], us
   useEffect(() => {
     if (!user) return;
     const hasSyncedKey = "kacha_bazar_cat_reorder_restaurant3_confectionery5_v1";
-    if (sessionStorage.getItem(hasSyncedKey)) return;
+    if (localStorage.getItem(hasSyncedKey)) return;
 
     const performDryFoodSync = async () => {
       try {
-        sessionStorage.setItem(hasSyncedKey, "true");
+        localStorage.setItem(hasSyncedKey, "true");
         // 1. Update/set category documents in Firestore for Restaurant (#3) and Confectionery (#5)
         await setDoc(doc(db, "categories", "frozen"), {
           id: "frozen",
@@ -307,19 +307,8 @@ export default function AdminProductsTab({ products, categories, orders = [], us
             await setDoc(oldRef, { isDeleted: true, status: "inactive" }, { merge: true }).catch(() => {});
           }
         }
-
-        // Write/sync all 30 Pharmacy medicine products to Firestore
-        for (const prod of PHARMACY_PRODUCTS_RAW) {
-          const prodRef = doc(db, "products", prod.id);
-          await setDoc(prodRef, {
-            ...prod,
-            isDeleted: false,
-            status: "active",
-            isAvailable: true
-          }, { merge: true });
-        }
       } catch (e) {
-        console.warn("Dry food, pharmacy and grocery sync notice:", e);
+        console.warn("Dry food and grocery sync notice:", e);
       }
     };
 

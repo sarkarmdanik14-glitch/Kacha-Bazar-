@@ -776,20 +776,22 @@ export default function App() {
           deleteDoc(bcRef).catch(() => {});
         }
 
-        // 3. Upsert all 132 fresh medicine products from PDF into Firestore with price 0
+        // 3. Upsert fresh medicine products ONLY if they don't exist yet, NEVER overwriting existing prices
         for (const ph of PHARMACY_PRODUCTS_RAW) {
           const prodRef = doc(db, "products", ph.id);
-          await setDoc(prodRef, {
-            ...ph,
-            price: 0,
-            isDeleted: false,
-            deleted: false,
-            status: "active",
-            isAvailable: true,
-            inStock: true,
-            stock: 100,
-            updatedAt: serverTimestamp()
-          }, { merge: true }).catch((err) => console.warn(`Notice upserting ${ph.id}:`, err));
+          const existingSnap = await getDoc(prodRef).catch(() => null);
+          if (!existingSnap || !existingSnap.exists()) {
+            await setDoc(prodRef, {
+              ...ph,
+              isDeleted: false,
+              deleted: false,
+              status: "active",
+              isAvailable: true,
+              inStock: true,
+              stock: 100,
+              updatedAt: serverTimestamp()
+            }, { merge: true }).catch((err) => console.warn(`Notice upserting ${ph.id}:`, err));
+          }
         }
 
         // 4. Ensure pharmacy category document is active in Firestore
