@@ -126,6 +126,25 @@ export const COSMETICS_CATEGORY: Category = {
 };
 
 /**
+ * Event Management Category Definition
+ * Stage Decoration, Gate & Lighting, Bridal Room, Wedding Car, Photography, Sound & DJ, Catering, Car Rental
+ * Serial #16 in the category list.
+ */
+export const EVENT_MANAGEMENT_CATEGORY: Category = {
+  id: "pet-food-care",
+  nameBn: "ইভেন্ট ম্যানেজমেন্ট",
+  nameEn: "Event Management",
+  iconName: "Sparkles",
+  colorClass: "bg-orange-50 text-orange-700 hover:bg-orange-100",
+  borderColor: "border-orange-100",
+  displayOrder: 16,
+  order: 16,
+  image: "https://res.cloudinary.com/upvkzb3p/image/upload/v1790502262/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg",
+  imageUrl: "https://res.cloudinary.com/upvkzb3p/image/upload/v1790502262/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg",
+  isAvailable: true
+};
+
+/**
  * Standard category order map ensuring:
  * 1: vegetables (তাজা শাকসবজি)
  * 2: groceries (মুদি পণ্য)
@@ -518,6 +537,7 @@ export function mergeCategoryCards(categories: any[]): any[] {
   let vehiclesAdded = false;
   let mobileZoneAdded = false;
   let cosmeticsAdded = false;
+  let eventManagementAdded = false;
 
   for (const cat of categories) {
     if (!cat || !cat.id) continue;
@@ -579,6 +599,46 @@ export function mergeCategoryCards(categories: any[]): any[] {
           isAvailable: true
         });
         vehiclesAdded = true;
+      }
+      continue;
+    }
+
+    // 0.2 Event Management -> Ensure single card with ID "pet-food-care" and preserved Event image
+    if (
+      cat.id === "pet-food-care" || 
+      cat.id === "event-management" || 
+      cat.id === "event" || 
+      cat.id === "events" ||
+      cat.nameBn === "ইভেন্ট ম্যানেজমেন্ট" ||
+      (cat.nameEn && cat.nameEn.toLowerCase() === "event management")
+    ) {
+      if (!eventManagementAdded) {
+        const existingEventCatWithImg = categories.find(
+          c => (c.id === "pet-food-care" || c.id === "event-management" || c.nameBn === "ইভেন্ট ম্যানেজমেন্ট") &&
+               Boolean((c.image || c.imageUrl || c.banner || c.bannerUrl || "").trim())
+        );
+        const resolvedEventImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim() ||
+          (existingEventCatWithImg?.image || existingEventCatWithImg?.imageUrl || existingEventCatWithImg?.banner || existingEventCatWithImg?.bannerUrl || "").trim() ||
+          EVENT_MANAGEMENT_CATEGORY.image;
+
+        result.push({
+          ...EVENT_MANAGEMENT_CATEGORY,
+          ...cat,
+          id: "pet-food-care",
+          nameBn: "ইভেন্ট ম্যানেজমেন্ট",
+          nameEn: "Event Management",
+          iconName: "Sparkles",
+          image: resolvedEventImg,
+          imageUrl: resolvedEventImg,
+          banner: resolvedEventImg,
+          bannerUrl: resolvedEventImg,
+          colorClass: cat.colorClass || "bg-orange-50 text-orange-700 hover:bg-orange-100",
+          borderColor: cat.borderColor || "border-orange-100",
+          displayOrder: 16,
+          order: 16,
+          isAvailable: true
+        });
+        eventManagementAdded = true;
       }
       continue;
     }
@@ -799,6 +859,11 @@ export function mergeCategoryCards(categories: any[]): any[] {
   // If mobile-zone wasn't added yet, insert it
   if (!mobileZoneAdded) {
     result.push({ ...MOBILE_ZONE_CATEGORY });
+  }
+
+  // If event-management wasn't added yet, insert it
+  if (!eventManagementAdded) {
+    result.push({ ...EVENT_MANAGEMENT_CATEGORY });
   }
 
   // Deduplicate by ID and name to strictly ensure no duplicate cards (e.g. duplicate "মোবাইল জোন") exist

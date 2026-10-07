@@ -459,12 +459,19 @@ export async function bootstrapEventManagementSubcategories(): Promise<number> {
       count++;
     }
 
+    const EVENT_IMAGE = "https://res.cloudinary.com/upvkzb3p/image/upload/v1790502262/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg";
+
     // Also update categories/pet-food-care with subcategories array & proper metadata
     await setDoc(doc(db, "categories", "pet-food-care"), {
       nameBn: "ইভেন্ট ম্যানেজমেন্ট",
       nameEn: "Event Management",
       slug: "event-management",
       categorySlug: "event-management",
+      iconName: "Sparkles",
+      image: EVENT_IMAGE,
+      imageUrl: EVENT_IMAGE,
+      banner: EVENT_IMAGE,
+      bannerUrl: EVENT_IMAGE,
       order: 16,
       displayOrder: 16,
       subcategories: eventSubs.map(s => ({
@@ -483,6 +490,11 @@ export async function bootstrapEventManagementSubcategories(): Promise<number> {
       nameEn: "Event Management",
       slug: "event-management",
       targetCategoryId: "pet-food-care",
+      iconName: "Sparkles",
+      image: EVENT_IMAGE,
+      imageUrl: EVENT_IMAGE,
+      banner: EVENT_IMAGE,
+      bannerUrl: EVENT_IMAGE,
       order: 16,
       displayOrder: 16,
       subcategories: eventSubs.map(s => ({
