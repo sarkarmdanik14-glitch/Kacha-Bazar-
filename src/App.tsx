@@ -752,7 +752,7 @@ export default function App() {
     syncCosmeticsToFirestore();
 
     const syncPharmacyToFirestore = async () => {
-      const syncKey = "kb_pharmacy_pdf_replaced_v3";
+      const syncKey = "kb_pharmacy_popular_added_v6";
       if (localStorage.getItem(syncKey)) return;
 
       try {

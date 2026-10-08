@@ -52,6 +52,28 @@ export const resolveProductUnit = (
   const rawBn = (product.unitBn || "").trim();
   const rawEn = (product.unitEn || "").trim();
 
+  // 0. Pharmacy medicine unit normalization:
+  // Convert any "১ পাতা / প্যাক", "পাতা / প্যাক", or strip medicines into "১ পিস" / "1 pc"
+  const isPharmacyProduct = 
+    product.category === "pharmacy" || 
+    (product as any).categoryId === "pharmacy" || 
+    (Boolean(product.id) && String(product.id).startsWith("ph"));
+
+  if (
+    rawBn.includes("পাতা / প্যাক") || 
+    rawBn.includes("পাতা/প্যাক") || 
+    (isPharmacyProduct && (rawBn.includes("পাতা") || rawBn === "১ পাতা / প্যাক" || rawBn === "1 pack"))
+  ) {
+    if (rawBn.includes("বোতল")) {
+      return { unitBn: "১ বোতল", unitEn: "1 bottle" };
+    }
+    return { unitBn: "১ পিস", unitEn: "1 pc" };
+  }
+
+  if (rawBn === "পিস" || rawEn === "pc" || rawEn === "1 pc") {
+    return { unitBn: "১ পিস", unitEn: "1 pc" };
+  }
+
   // 0. Ensure fresh grocery products (gr1 to gr51) use their exact requested units
   if (product.id && /^gr\d+$/.test(product.id)) {
     if (rawBn) {
