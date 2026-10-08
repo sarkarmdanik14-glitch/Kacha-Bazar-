@@ -471,8 +471,87 @@ export function getAppropriateMedicineImage(name: string, idx: number): string {
   return MEDICINE_IMAGES[idx % MEDICINE_IMAGES.length];
 }
 
+export function getResolvedPharmacySubcategory(product: any): string {
+  if (!product) return "ঔষধ ও প্রেসক্রিপশন আইটেম";
+  const rawSub = product.subcategory || product.subCategory || "";
+  if (
+    rawSub && 
+    rawSub !== "ঔষধ ও প্রেসক্রিপশন আইটেম" && 
+    rawSub !== "pharmacy" && 
+    rawSub !== "all"
+  ) {
+    return rawSub;
+  }
+
+  const name = `${product.nameBn || ""} ${product.nameEn || ""} ${product.name || ""}`.toLowerCase();
+  
+  // 1. Gastric & Acidity
+  if (
+    name.includes("sergel") || name.includes("seclo") || name.includes("pantoblock") || 
+    name.includes("pantonix") || name.includes("losectil") || name.includes("nexum") || 
+    name.includes("finix") || name.includes("gaviscon") || name.includes("antacid") || 
+    name.includes("entacyd") || name.includes("famotack") || name.includes("glysup") ||
+    name.includes("supp") || name.includes("ispergud") || name.includes("omeprazole") ||
+    name.includes("esomeprazole") || name.includes("rabeprazole") || name.includes("pantoprazole")
+  ) {
+    return "গ্যাস্ট্রিক ও অ্যাসিডিটি";
+  }
+
+  // 2. Cold, Cough & Antihistamine
+  if (
+    name.includes("alcet") || name.includes("fexo") || name.includes("alatrol") || 
+    name.includes("bilashin") || name.includes("montene") || name.includes("monas") || 
+    name.includes("kast") || name.includes("adrylex") || name.includes("tusca") || 
+    name.includes("tofen") || name.includes("dexlag") || name.includes("rupadin") ||
+    name.includes("syp") || name.includes("syrup") || name.includes("cetirizine") || 
+    name.includes("fexofenadine")
+  ) {
+    return "সর্দি, কাশি ও অ্যান্টিহিস্টামিন";
+  }
+
+  // 3. Fever & Pain Relief
+  if (
+    name.includes("napa") || name.includes("ace") || name.includes("renova") || 
+    name.includes("fast") || name.includes("dolo") || name.includes("paracetamol") || 
+    name.includes("ibuprofen") || name.includes("ketorolac") || name.includes("torax") ||
+    name.includes("clotenac") || name.includes("flexi") || name.includes("xalcort") ||
+    name.includes("spasverin") || name.includes("lyric") || name.includes("clonatril") ||
+    name.includes("sizonil") || name.includes("epitra")
+  ) {
+    return "জ্বর ও ব্যথানাশক";
+  }
+
+  // 4. Saline, Vitamins & Nutrition
+  if (
+    name.includes("saline") || name.includes("orsaline") || name.includes("renovit") || 
+    name.includes("rocal") || name.includes("santogen") || name.includes("d-balance") || 
+    name.includes("sixvit") || name.includes("simpli") || name.includes("vita") || 
+    name.includes("zinc") || name.includes("calcium") || name.includes("feza") ||
+    name.includes("feoza") || name.includes("k-one")
+  ) {
+    return "স্যালাইন, ভিটামিন ও পুষ্টি";
+  }
+
+  // 5. First Aid, Antiseptic, Antibiotic & Creams
+  if (
+    name.includes("crm") || name.includes("cream") || name.includes("oint") || 
+    name.includes("gel") || name.includes("bactrocin") || name.includes("betameson") || 
+    name.includes("fungidal") || name.includes("afun") || name.includes("halonate") ||
+    name.includes("savlon") || name.includes("cefotil") || name.includes("ceftron") || 
+    name.includes("furotil") || name.includes("rozith") || name.includes("starcef") || 
+    name.includes("traxef") || name.includes("zerotil") || name.includes("candiril") ||
+    name.includes("nft") || name.includes("almex") || name.includes("inj") ||
+    name.includes("eye drop") || name.includes("drop")
+  ) {
+    return "ফার্স্ট এইড ও ব্যান্ডেজ";
+  }
+
+  return "ঔষধ ও প্রেসক্রিপশন আইটেম";
+}
+
 export const PHARMACY_PRODUCTS_RAW: Product[] = RAW_MEDICINE_ITEMS.map((item, idx) => {
   const price = (item as any).price ?? OFFICIAL_MEDICINE_PRICES[item.id] ?? 0;
+  const resolvedSub = getResolvedPharmacySubcategory(item);
   return {
     id: item.id,
     name: item.name,
@@ -485,7 +564,7 @@ export const PHARMACY_PRODUCTS_RAW: Product[] = RAW_MEDICINE_ITEMS.map((item, id
     unit: item.unitBn,
     category: "pharmacy",
     categoryId: "pharmacy",
-    subcategory: "ঔষধ ও প্রেসক্রিপশন আইটেম",
+    subcategory: resolvedSub,
     image: getAppropriateMedicineImage(item.name, idx),
     imageUrl: getAppropriateMedicineImage(item.name, idx),
     inStock: true,

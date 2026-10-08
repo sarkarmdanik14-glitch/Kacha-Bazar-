@@ -1,5 +1,6 @@
 import { Product, ProductOption } from "../types";
 import { GROCERY_SUBCATEGORY_MAP, GROCERY_ORDER_MAP, getResolvedGrocerySubcategory, getResolvedGroceryDisplayOrder } from "../data";
+import { getResolvedPharmacySubcategory } from "./pharmacyData";
 import { resolveAuthenticProductImage } from "./masterImageRegistry";
 
 import { toBnNum, toEnNum } from "./formatUtils";
@@ -270,9 +271,12 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     (typeof data.category === "string" && (data.category.includes("মসলা") || data.category.includes("রান্নার তেল") || data.category.includes("মুদি")));
   const resolvedCategory = isSpicesOrStaples ? "groceries" : (data.category || (docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") ? "groceries" : "others"));
   const isGrocery = resolvedCategory === "groceries" || docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") || (data.id && (data.id.startsWith("st") || data.id.startsWith("sp") || data.id.startsWith("gr")));
+  const isPharmacy = resolvedCategory === "pharmacy" || docId.startsWith("ph") || (data.id && data.id.startsWith("ph"));
   const rawSubVal = data.subcategory || data.subCategory;
   const resolvedSubcategory = isGrocery
     ? getResolvedGrocerySubcategory(data.id || docId, data.nameBn, data.nameEn, rawSubVal, resolvedCategory)
+    : isPharmacy
+    ? getResolvedPharmacySubcategory({ id: data.id || docId, nameBn: data.nameBn, nameEn: data.nameEn, name: data.name, subcategory: rawSubVal })
     : (rawSubVal || "General");
 
   const parseNumOrder = (val: any): number | undefined => {

@@ -363,8 +363,20 @@ export function isCategoryMatch(
   }
 
   // If filtering by pharmacy or legacy baby-care
-  if (sCat === "pharmacy" || sCat === "baby-care" || sCat === "medicine") {
-    return pCat === "pharmacy" || pCat === "baby-care" || pCat === "medicine";
+  if (
+    sCat === "pharmacy" || 
+    sCat === "baby-care" || 
+    sCat === "medicine" || 
+    sCat === "ফার্মেসি" || 
+    sCat.includes("ফার্মেসি")
+  ) {
+    return (
+      pCat === "pharmacy" || 
+      pCat === "baby-care" || 
+      pCat === "medicine" || 
+      pCat === "ফার্মেসি" || 
+      pCat.includes("ফার্মেসি")
+    );
   }
 
   // If filtering by buy-sell or organic-herbal

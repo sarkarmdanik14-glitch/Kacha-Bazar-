@@ -76,6 +76,7 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
   { categoryId: "pharmacy", nameBn: "সর্দি, কাশি ও অ্যান্টিহিস্টামিন", nameEn: "Cold & Cough", order: 3, isActive: true },
   { categoryId: "pharmacy", nameBn: "স্যালাইন, ভিটামিন ও পুষ্টি", nameEn: "Saline & Vitamins", order: 4, isActive: true },
   { categoryId: "pharmacy", nameBn: "ফার্স্ট এইড ও ব্যান্ডেজ", nameEn: "First Aid & Antiseptics", order: 5, isActive: true },
+  { categoryId: "pharmacy", nameBn: "ঔষধ ও প্রেসক্রিপশন আইটেম", nameEn: "Prescription Medicines", order: 6, isActive: true },
 
   // 9. Pet Care / Shutki (শুঁটকি মাছ)
   { categoryId: "pet-care", nameBn: "টাকি ও চিলা মাছের শুঁটকি", nameEn: "Taki & Chila Shutki", order: 1, isActive: true },

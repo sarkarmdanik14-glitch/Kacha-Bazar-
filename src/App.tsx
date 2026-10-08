@@ -13,7 +13,7 @@ import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, Subcategory, CartItem, Review, ProductOption } from "./types";
-import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_PRODUCTS_RAW, CONFECTIONERY_PRODUCTS_RAW, MOBILE_ZONE_PRODUCTS_RAW, PHARMACY_PRODUCTS_RAW, OFFICIAL_MEDICINE_PRICES, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
+import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_PRODUCTS_RAW, CONFECTIONERY_PRODUCTS_RAW, MOBILE_ZONE_PRODUCTS_RAW, PHARMACY_PRODUCTS_RAW, OFFICIAL_MEDICINE_PRICES, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory, getResolvedPharmacySubcategory } from "./data";
 import { resolveProductDisplayUnit } from "./lib/productWeightUtils";
 import { subscribeToAllSubcategories, bootstrapEventManagementSubcategories } from "./lib/subcategoryService";
 import { 
@@ -2688,6 +2688,7 @@ export default function App() {
             const isVehicleCat = isCategoryMatch(selectedCategory, "vehicles");
             const isMobileZoneCat = isCategoryMatch(selectedCategory, "mobile-zone");
             const isEventCat = isCategoryMatch(selectedCategory, "pet-food-care");
+            const isPharmacyCat = isCategoryMatch(selectedCategory, "pharmacy");
             const isSectionedCategory = isRestaurantCat || isGroceryCat || isMobileZoneCat;
 
             // Filter subcategories for the selected category from Firestore (sorted by order asc)
@@ -2710,6 +2711,8 @@ export default function App() {
                   const prodSubId = (product.subcategoryId || "").toLowerCase().trim();
                   const effectiveSub = (isGroceryCat 
                     ? getResolvedGrocerySubcategory(product.id, product.nameBn, product.nameEn, product.subcategory, product.category)
+                    : isPharmacyCat
+                    ? getResolvedPharmacySubcategory(product)
                     : (product.subcategory || "")).toLowerCase().trim();
 
                   const matchedSubObj = matchingDbSubs.find(
@@ -2723,7 +2726,8 @@ export default function App() {
                     Boolean(matchedSubObj && (
                       product.subcategoryId === matchedSubObj.id || 
                       (prodSub && prodSub === matchedSubObj.nameBn.toLowerCase().trim()) ||
-                      (prodSub && matchedSubObj.nameEn && prodSub === matchedSubObj.nameEn.toLowerCase().trim())
+                      (prodSub && matchedSubObj.nameEn && prodSub === matchedSubObj.nameEn.toLowerCase().trim()) ||
+                      (effectiveSub && effectiveSub === matchedSubObj.nameBn.toLowerCase().trim())
                     ));
 
                   if (!matchesSubcategory && isMobileZoneCat) {
@@ -2752,6 +2756,16 @@ export default function App() {
             let subcategories: string[] = [];
             if (isRestaurantCat) {
               subcategories = ["all", ...RESTAURANT_SUBCATEGORY_NAMES_BN];
+            } else if (isPharmacyCat) {
+              const PHARMACY_ORDERED_SUBS = [
+                "জ্বর ও ব্যথানাশক",
+                "গ্যাস্ট্রিক ও অ্যাসিডিটি",
+                "সর্দি, কাশি ও অ্যান্টিহিস্টামিন",
+                "স্যালাইন, ভিটামিন ও পুষ্টি",
+                "ফার্স্ট এইড ও ব্যান্ডেজ",
+                "ঔষধ ও প্রেসক্রিপশন আইটেম"
+              ];
+              subcategories = ["all", ...PHARMACY_ORDERED_SUBS];
             } else if (matchingDbSubs.length > 0) {
               const dynamicSubs = matchingDbSubs.map(s => s.nameBn);
               subcategories = ["all", ...dynamicSubs];
