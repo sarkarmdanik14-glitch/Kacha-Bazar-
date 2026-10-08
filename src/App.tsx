@@ -13,7 +13,7 @@ import OrderMemoModal from "./components/portal/OrderMemoModal";
 import { downloadMemoPDF } from "./lib/pdfUtils";
 import { printOrderMemo } from "./lib/printUtils";
 import { Product, Category, Subcategory, CartItem, Review, ProductOption } from "./types";
-import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_PRODUCTS_RAW, CONFECTIONERY_PRODUCTS_RAW, MOBILE_ZONE_PRODUCTS_RAW, PHARMACY_PRODUCTS_RAW, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
+import { CATEGORIES, ALL_PRODUCTS, GROCERY_PRODUCTS_RAW, COSMETICS_PRODUCTS_RAW, RESTAURANT_PRODUCTS_RAW, CONFECTIONERY_PRODUCTS_RAW, MOBILE_ZONE_PRODUCTS_RAW, PHARMACY_PRODUCTS_RAW, OFFICIAL_MEDICINE_PRICES, RESTAURANT_MENU_SECTIONS, GROCERY_SECTIONS, isRiceOrGrainProduct, isDalOrPulseProduct, getResolvedGrocerySubcategory } from "./data";
 import { resolveProductDisplayUnit } from "./lib/productWeightUtils";
 import { subscribeToAllSubcategories, bootstrapEventManagementSubcategories } from "./lib/subcategoryService";
 import { 
@@ -75,6 +75,7 @@ export default function App() {
   const [popularLimit, setPopularLimit] = useState<number>(8);
   const [newArrivalsLimit, setNewArrivalsLimit] = useState<number>(8);
   const [bestSellersLimit, setBestSellersLimit] = useState<number>(8);
+  const [specialForYouLimit, setSpecialForYouLimit] = useState<number>(8);
   const [categoryLimit, setCategoryLimit] = useState<number>(8);
   const [showFlashSaleOnly, setShowFlashSaleOnly] = useState<boolean>(false);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>("all");
@@ -690,6 +691,7 @@ export default function App() {
     additionalMembers: []
   });
   const [homeConfig, setHomeConfig] = useState<any>(null);
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Record<string, boolean>>({});
 
   const availableProducts = useMemo(() => {
     const filtered = products
@@ -697,6 +699,118 @@ export default function App() {
       .filter(p => shouldKeepProductGroceryFiltered(p));
     return filtered.sort((a, b) => sortByDefaultOrder(a, b));
   }, [products]);
+
+  // Memoized list of active categories for homepage showcase
+  const homeCategoryList = useMemo(() => {
+    return categories.filter(c => {
+      if (!c || !c.id || c.id === "all" || c.id === "buy-sell") return false;
+      if (c.isAvailable === false || (c as any).disabled === true) return false;
+      if ((homeConfig?.categoryConfig?.hiddenCategoryIds || []).includes(c.id)) return false;
+      return true;
+    });
+  }, [categories, homeConfig]);
+
+  // Pre-grouped products map for each category ensuring instant homepage performance
+  const categoryProductsMap = useMemo(() => {
+    const map: Record<string, Product[]> = {};
+    for (const cat of homeCategoryList) {
+      const list = availableProducts.filter(p => isCategoryMatch(p.category || (p as any).categoryId, cat.id));
+      list.sort((a, b) => {
+        if (a.isAvailable !== b.isAvailable) return a.isAvailable ? -1 : 1;
+        if (a.inStock !== b.inStock) return a.inStock ? -1 : 1;
+        return (b.rating || 0) - (a.rating || 0);
+      });
+      map[cat.id] = list;
+    }
+    return map;
+  }, [homeCategoryList, availableProducts]);
+
+  // Detector for mobile phone products
+  const isMobileProduct = (p: Product): boolean => {
+    if (!p) return false;
+    const cat = (p.category || (p as any).categoryId || "").toLowerCase().trim();
+    const id = (p.id || "").toLowerCase().trim();
+    const nameBn = (p.nameBn || "").toLowerCase();
+    const nameEn = (p.nameEn || "").toLowerCase();
+    return (
+      isCategoryMatch(cat, "mobile-zone") ||
+      cat === "mobile-zone" ||
+      cat.includes("মোবাইল") ||
+      cat.includes("mobile") ||
+      id.startsWith("mob_") ||
+      id.startsWith("mobile_") ||
+      nameBn.includes("ইনফিনিক্স") ||
+      nameBn.includes("স্মার্টফোন") ||
+      nameBn.includes("মোবাইল") ||
+      nameBn.includes("স্যামসাং") ||
+      nameBn.includes("শাওমি") ||
+      nameBn.includes("রিয়েলমি") ||
+      nameBn.includes("ভিভো") ||
+      nameBn.includes("অপ্পো") ||
+      nameBn.includes("টেকনো") ||
+      nameEn.includes("smartphone") ||
+      nameEn.includes("phone") ||
+      nameEn.includes("mobile") ||
+      nameEn.includes("infinix") ||
+      nameEn.includes("samsung") ||
+      nameEn.includes("xiaomi") ||
+      nameEn.includes("realme") ||
+      nameEn.includes("vivo") ||
+      nameEn.includes("oppo") ||
+      nameEn.includes("tecno")
+    );
+  };
+
+  // Helper to cap mobile phones at max 2, avoid duplicates, and ensure rich multi-category variety
+  const getBalancedShowcaseProducts = (
+    rawItems: Product[],
+    excludeIds: Set<string> = new Set(),
+    maxMobiles: number = 2
+  ): Product[] => {
+    let mobCount = 0;
+    const catSeen = new Set<string>();
+    const primary: Product[] = [];
+    const secondary: Product[] = [];
+
+    for (const p of rawItems) {
+      if (!p || !p.id || excludeIds.has(p.id)) continue;
+
+      if (isMobileProduct(p)) {
+        if (mobCount < maxMobiles) {
+          mobCount++;
+          primary.push(p);
+        }
+        // Exclude further mobile phones completely so at most maxMobiles (2) ever appear
+        continue;
+      }
+
+      const catKey = (p.category || (p as any).categoryId || "other").toLowerCase();
+      if (!catSeen.has(catKey)) {
+        catSeen.add(catKey);
+        primary.push(p);
+      } else {
+        secondary.push(p);
+      }
+    }
+
+    return [...primary, ...secondary];
+  };
+
+  // "জনপ্রিয় ও আকর্ষণীয় পণ্য সমূহ" - maximum 2 mobile phones, rest from diverse categories
+  const popularShowcaseProducts = useMemo(() => {
+    const raw = availableProducts.filter(p => p.isPopular || (homeConfig?.featuredProducts?.popularProductIds || []).includes(p.id));
+    return getBalancedShowcaseProducts(raw, new Set(), 2);
+  }, [availableProducts, homeConfig]);
+
+  // "আপনার জন্য স্পেশাল" - completely distinct products from popular, maximum 2 mobile phones
+  const specialForYouShowcaseProducts = useMemo(() => {
+    // Collect all IDs already in popularShowcaseProducts to ensure 100% unique & different products
+    const popularIds = new Set(popularShowcaseProducts.map(p => p.id));
+    const raw = availableProducts.filter(p => !popularIds.has(p.id) && !p.isCombo && (p.rating || 0) >= 4.7);
+    // If not enough products with rating >= 4.7, allow any remaining products not in popular
+    const candidates = raw.length >= 8 ? raw : availableProducts.filter(p => !popularIds.has(p.id) && !p.isCombo);
+    return getBalancedShowcaseProducts(candidates, popularIds, 2);
+  }, [availableProducts, popularShowcaseProducts]);
 
   // Synchronous callback for immediate optimistic product creation & update across admin & customer views
   const handleProductSavedInApp = (savedProduct: any) => {
@@ -776,13 +890,21 @@ export default function App() {
           deleteDoc(bcRef).catch(() => {});
         }
 
-        // 3. Upsert fresh medicine products ONLY if they don't exist yet, NEVER overwriting existing prices
+        // 3. Upsert fresh medicine products and ensure they always have valid prices
         for (const ph of PHARMACY_PRODUCTS_RAW) {
           const prodRef = doc(db, "products", ph.id);
           const existingSnap = await getDoc(prodRef).catch(() => null);
-          if (!existingSnap || !existingSnap.exists()) {
+          const existingData = existingSnap?.exists() ? existingSnap.data() : null;
+          const currentPrice = existingData ? Number(existingData.price) : 0;
+          
+          if (!existingData || isNaN(currentPrice) || currentPrice <= 0) {
             await setDoc(prodRef, {
               ...ph,
+              price: ph.price,
+              originalPrice: ph.originalPrice || ph.price,
+              unit: ph.unitBn || "১ পিস",
+              unitBn: ph.unitBn || "১ পিস",
+              unitEn: ph.unitEn || "1 pc",
               isDeleted: false,
               deleted: false,
               status: "active",
@@ -887,6 +1009,17 @@ export default function App() {
           const mapped = mapDocToProduct(doc.id, data);
           if (!shouldKeepProductGroceryFiltered(mapped)) {
             return;
+          }
+
+          // Guarantee pharmacy items always have their official price restored if 0 or missing in Firestore
+          if (doc.id.startsWith("ph") || data.category === "pharmacy" || (data as any).categoryId === "pharmacy") {
+            const officialPrice = OFFICIAL_MEDICINE_PRICES[doc.id];
+            if (mapped.price === undefined || mapped.price === null || mapped.price <= 0) {
+              if (officialPrice && officialPrice > 0) {
+                mapped.price = officialPrice;
+                mapped.originalPrice = mapped.originalPrice && mapped.originalPrice > 0 ? mapped.originalPrice : officialPrice;
+              }
+            }
           }
 
           items.push(mapped);
@@ -2379,63 +2512,122 @@ export default function App() {
           </div>
         ) : (
           <>
-          {/* ================= 5. FEATURED PRODUCTS ================= */}
-          {homeConfig?.featuredProducts?.popularSectionVisible !== false && (
-            <ProductSection
-              title={lang === "bn" ? "জনপ্রিয় ও আকর্ষণীয় পণ্য" : "Featured Products"}
-              subtitle={lang === "bn" ? "আমাদের সেরা এবং অত্যন্ত জনপ্রিয় পণ্যসমূহ" : "Our handpicked premium products for you"}
-              accentColorClass="bg-emerald-600"
-              products={availableProducts.filter(p => p.isPopular || (homeConfig?.featuredProducts?.popularProductIds || []).includes(p.id))}
-              loading={loadingProducts}
-              limit={popularLimit}
-              onToggleLimit={() => setPopularLimit(prev => prev === 8 ? 50 : 8)}
-              lang={lang}
-              fmtNum={fmtNum}
-              wishlist={wishlist}
-              toggleWishlist={toggleWishlist}
-              cart={cart}
-              addToCart={addToCart}
-              updateCartQuantity={updateCartQuantity}
-              removeFromCart={removeFromCart}
-              handleBuyNow={handleBuyNow}
-              openQuickView={openQuickView}
-              handleProductImgError={handleProductImgError}
-            />
-          )}
+          {/* ================= 1. HOMEPAGE CATEGORY SHOWCASES (প্রতিটি ক্যাটাগরি থেকে মিনিমাম ৩টি পণ্য) ================= */}
+          <section className="max-w-7xl mx-auto px-2 sm:px-4 mt-6 sm:mt-8 space-y-6 sm:space-y-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-6 bg-emerald-600 rounded-full inline-block"></span>
+                  <h3 className="text-lg md:text-xl font-black text-slate-800 tracking-tight">
+                    {lang === "bn" ? "ক্যাটাগরিভিত্তিক পণ্য সম্ভার" : "Explore Products by Category"}
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5 ml-4.5">
+                  {lang === "bn" 
+                    ? "প্রতিটি ক্যাটাগরির সেরা ও আকর্ষণীয় পণ্যসমূহ — এক ক্লিকেই অর্ডার করুন" 
+                    : "Top handpicked products across every category — order in one click"}
+                </p>
+              </div>
+            </div>
 
-          {/* ================= 7. NEW ARRIVALS ================= */}
-          {homeConfig?.featuredProducts?.newArrivalSectionVisible !== false && (
-            <ProductSection
-              title={lang === "bn" ? "নতুন সংগৃহীত পণ্যসমূহ" : "New Arrivals"}
-              subtitle={lang === "bn" ? "সরাসরি মাঠ থেকে আসা একদম সতেজ নতুন পণ্যসমূহ" : "Freshly harvested organic items added recently"}
-              accentColorClass="bg-emerald-500"
-              products={availableProducts.filter(p => p.isNewArrival)}
-              loading={loadingProducts}
-              limit={newArrivalsLimit}
-              onToggleLimit={() => setNewArrivalsLimit(prev => prev === 8 ? 50 : 8)}
-              lang={lang}
-              fmtNum={fmtNum}
-              wishlist={wishlist}
-              toggleWishlist={toggleWishlist}
-              cart={cart}
-              addToCart={addToCart}
-              updateCartQuantity={updateCartQuantity}
-              removeFromCart={removeFromCart}
-              handleBuyNow={handleBuyNow}
-              openQuickView={openQuickView}
-              handleProductImgError={handleProductImgError}
-            />
-          )}
+            {homeCategoryList.map((cat) => {
+              const prods = categoryProductsMap[cat.id] || [];
+              if (prods.length === 0) return null;
 
-          {/* ================= 8. BEST SELLERS ================= */}
+              const isExpanded = !!expandedCategoryIds[cat.id];
+              // Show minimum 3 on mobile (4 on desktop) when collapsed, 12 when expanded
+              const displayItems = isExpanded ? prods.slice(0, 12) : prods.slice(0, 4);
+
+              return (
+                <div key={cat.id} className="bg-slate-50/60 rounded-2xl p-2.5 sm:p-4 border border-slate-200/70 shadow-2xs">
+                  {/* Category Header */}
+                  <div className="flex items-center justify-between mb-3 sm:mb-4 bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/80 shadow-xs">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${cat.colorClass || "bg-emerald-50 text-emerald-600"}`}>
+                        {(cat as any).image || (cat as any).imageUrl ? (
+                          <img 
+                            src={optimizeProductImageUrl((cat as any).image || (cat as any).imageUrl, 80)} 
+                            alt={cat.nameEn}
+                            className="w-full h-full object-cover rounded-xl"
+                            loading="lazy"
+                          />
+                        ) : (
+                          renderCatIcon(cat.iconName)
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-xs sm:text-base font-black text-slate-800 leading-tight truncate">
+                            {lang === "bn" ? cat.nameBn : cat.nameEn}
+                          </h4>
+                          <span className="text-[9.5px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100/80">
+                            {fmtNum(prods.length)} {lang === "bn" ? "টি পণ্য" : "items"}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-medium hidden sm:block truncate">
+                          {lang === "bn" ? `${cat.nameBn} কালেকশন` : `${cat.nameEn} Collection`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                      {prods.length > 3 && (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedCategoryIds(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))}
+                          className="text-[11px] sm:text-xs text-slate-600 hover:text-emerald-700 font-bold px-2 py-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                        >
+                          {isExpanded 
+                            ? (lang === "bn" ? "কম দেখুন" : "See Less") 
+                            : (lang === "bn" ? "আরও দেখুন" : "See More")}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => navigateToCategory(cat.id)}
+                        className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] sm:text-xs rounded-xl flex items-center gap-1 transition shadow-xs cursor-pointer"
+                      >
+                        <span>{lang === "bn" ? "সবগুলো দেখুন" : "View All"}</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Product Grid: Minimum 3 products guaranteed */}
+                  <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                    {displayItems.map((product, idx) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        lang={lang}
+                        fmtNum={fmtNum}
+                        wishlist={wishlist}
+                        toggleWishlist={toggleWishlist}
+                        cart={cart}
+                        addToCart={addToCart}
+                        updateCartQuantity={updateCartQuantity}
+                        removeFromCart={removeFromCart}
+                        handleBuyNow={handleBuyNow}
+                        openQuickView={openQuickView}
+                        handleProductImgError={handleProductImgError}
+                        className={!isExpanded && idx === 3 ? "hidden md:block" : ""}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+
+          {/* ================= 2. POPULAR & ATTRACTIVE PRODUCTS (জনপ্রিয় ও আকর্ষণীয় পণ্য সমূহ - একদম শেষে) ================= */}
           <ProductSection
-            title={lang === "bn" ? "সর্বোচ্চ বিক্রিত পণ্যসমূহ" : "Best Sellers"}
-            subtitle={lang === "bn" ? "গ্রাহকদের সর্বোচ্চ পছন্দের তালিকায় থাকা পণ্যসমূহ" : "Our most popular and highest-selling groceries"}
-            accentColorClass="bg-amber-500"
-            products={availableProducts.filter(p => p.isBestSelling)}
+            title={lang === "bn" ? "জনপ্রিয় ও আকর্ষণীয় পণ্য সমূহ" : "Popular & Attractive Products"}
+            subtitle={lang === "bn" ? "গ্রাহকদের সবচেয়ে পছন্দের ও আকর্ষনীয় সেরা পণ্যসমূহ" : "Customer favorite and most attractive products"}
+            accentColorClass="bg-emerald-600"
+            products={popularShowcaseProducts}
             loading={loadingProducts}
-            limit={bestSellersLimit}
-            onToggleLimit={() => setBestSellersLimit(prev => prev === 8 ? 50 : 8)}
+            limit={popularLimit}
+            onToggleLimit={() => setPopularLimit(prev => prev === 8 ? 50 : 8)}
             lang={lang}
             fmtNum={fmtNum}
             wishlist={wishlist}
@@ -2449,94 +2641,27 @@ export default function App() {
             handleProductImgError={handleProductImgError}
           />
 
-          {/* ================= 9. REMAINING PRODUCT SECTIONS ================= */}
-          {/* ================= RECOMMENDED & SEASONAL SPECIAL ================= */}
-      <section className="max-w-7xl mx-auto px-2 sm:px-4 mt-8 sm:mt-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          
-          {/* Recommended For You */}
-          <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-3 sm:p-4">
-            <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 flex items-center justify-between">
-              <span>{lang === "bn" ? "আপনার জন্য স্পেশাল" : "Recommended For You"}</span>
-              <Award className="w-4 h-4 text-emerald-600 animate-pulse" />
-            </h3>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              {availableProducts.filter(p => p.rating >= 4.8 && !p.isCombo).slice(0, 3).map((product) => (
-                <div key={product.id} className="bg-white p-2 sm:p-2.5 rounded-xl border border-emerald-50/50 shadow-2xs flex flex-col justify-between group hover:shadow-md transition">
-                  <div className="w-full aspect-[4/3] overflow-hidden rounded-lg mb-1.5 bg-slate-100 relative">
-                    <img 
-                      src={optimizeProductImageUrl(product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER, 300)} 
-                      alt={lang === "bn" ? product.nameBn : product.nameEn}
-                      loading="lazy"
-                      decoding="async"
-                      width={300}
-                      height={225}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                      onError={handleProductImgError} 
-                    />
-                  </div>
-                  <h4 className="text-[10px] sm:text-xs font-bold text-slate-800 line-clamp-1">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
-                  <div className="flex justify-between items-center mt-1.5">
-                    <span className="text-[11px] sm:text-xs font-black text-emerald-600">৳{fmtNum(product.price)}</span>
-                    <button 
-                      onClick={() => addToCart(product)}
-                      className="bg-emerald-600 text-white p-1 rounded-full hover:bg-emerald-700 transition cursor-pointer"
-                      title={lang === "bn" ? "কার্টে যোগ করুন" : "Add to cart"}
-                    >
-                      <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Seasonal Collection (Himsagar Mango, Jackfruit, etc) */}
-          {homeConfig?.featuredProducts?.seasonalSectionVisible !== false && (
-          <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-3 sm:p-4">
-            <h3 className="text-sm sm:text-base font-bold text-slate-800 mb-3 flex items-center justify-between">
-              <span>
-                {lang === "bn" 
-                  ? (homeConfig?.featuredProducts?.seasonalTitleBn || "মৌসুমী তাজা ফল মেলা") 
-                  : (homeConfig?.featuredProducts?.seasonalTitleEn || "Seasonal Special Fruits")}
-              </span>
-              <Sparkles className="w-4 h-4 text-amber-500 animate-spin" />
-            </h3>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              {availableProducts.filter(p => p.isSeasonal || (homeConfig?.featuredProducts?.seasonalProductIds || []).includes(p.id)).slice(0, 3).map((product) => (
-                <div key={product.id} className="bg-white p-2 sm:p-2.5 rounded-xl border border-amber-50/50 shadow-2xs flex flex-col justify-between group hover:shadow-md transition">
-                  <div className="w-full aspect-[4/3] overflow-hidden rounded-lg mb-1.5 bg-slate-100 relative">
-                    <img 
-                      src={optimizeProductImageUrl(product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER, 300)} 
-                      alt={lang === "bn" ? product.nameBn : product.nameEn}
-                      loading="lazy"
-                      decoding="async"
-                      width={300}
-                      height={225}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                      onError={handleProductImgError} 
-                    />
-                  </div>
-                  <h4 className="text-[10px] sm:text-xs font-bold text-slate-800 line-clamp-1">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
-                  <div className="flex justify-between items-center mt-1.5">
-                    <span className="text-[11px] sm:text-xs font-black text-emerald-600">৳{fmtNum(product.price)}</span>
-                    <button 
-                      onClick={() => addToCart(product)}
-                      className="bg-amber-500 text-white p-1 rounded-full hover:bg-amber-600 transition cursor-pointer"
-                      title={lang === "bn" ? "কার্টে যোগ করুন" : "Add to cart"}
-                    >
-                      <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          )}
-
-        </div>
-      </section>
-
+          {/* ================= 3. SPECIAL FOR YOU (আপনার জন্য স্পেশাল - একদম শেষে) ================= */}
+          <ProductSection
+            title={lang === "bn" ? "আপনার জন্য স্পেশাল" : "Special For You"}
+            subtitle={lang === "bn" ? "সর্বোচ্চ রেটিং ও বিশেষ পছন্দের সেরা পণ্য সম্ভার" : "Specially handpicked top-rated products for you"}
+            accentColorClass="bg-amber-500"
+            products={specialForYouShowcaseProducts}
+            loading={loadingProducts}
+            limit={specialForYouLimit}
+            onToggleLimit={() => setSpecialForYouLimit(prev => prev === 8 ? 50 : 8)}
+            lang={lang}
+            fmtNum={fmtNum}
+            wishlist={wishlist}
+            toggleWishlist={toggleWishlist}
+            cart={cart}
+            addToCart={addToCart}
+            updateCartQuantity={updateCartQuantity}
+            removeFromCart={removeFromCart}
+            handleBuyNow={handleBuyNow}
+            openQuickView={openQuickView}
+            handleProductImgError={handleProductImgError}
+          />
           </>
         )
       ) : normalizeCategoryId(selectedCategory) === "buy-sell" ? (

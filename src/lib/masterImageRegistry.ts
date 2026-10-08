@@ -76,6 +76,17 @@ export function handleProductImgError(e: React.SyntheticEvent<HTMLImageElement, 
 export function resolveAuthenticProductImage(productId: string | undefined | null, candidateImage: string | undefined | null): string {
   const current = (candidateImage || "").trim();
 
+  // If candidate is a known dead Unsplash image, replace with a verified working fallback
+  if (
+    current.includes("photo-1576073719676-aa955fc1bda9") ||
+    current.includes("photo-1550572017-edd951aa8f72")
+  ) {
+    if (productId && (productId.startsWith("ph") || productId.startsWith("med"))) {
+      return "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=500&q=80";
+    }
+    return "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=500&q=80";
+  }
+
   // If candidate is a valid custom upload (e.g. Cloudinary, data:image, custom server/CDN), preserve untouched
   if (
     current.includes("cloudinary.com") || 

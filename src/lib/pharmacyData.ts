@@ -2,7 +2,7 @@ import { Product } from "../types";
 
 // Raw pharmacy medicine catalog based strictly on official Medicine Price Sheet (132 items)
 // No prices specified per user request
-const RAW_MEDICINE_ITEMS = [
+export const RAW_MEDICINE_ITEMS = [
   // Page 1 - Healthcare (1-21)
   { id: "ph1", name: "Alcet Tablet 5mg", brand: "Healthcare", unitBn: "১ পিস", unitEn: "1 pc" },
   { id: "ph2", name: "Candiril Capsule 150mg", brand: "Healthcare", unitBn: "১ পিস", unitEn: "1 pc" },
@@ -218,20 +218,246 @@ const RAW_MEDICINE_ITEMS = [
   { id: "ph200", name: "Xelmet 500 mg Tablet", brand: "Popular Pharma", unitBn: "১ পিস", unitEn: "1 pc", price: 672 },
 ];
 
-// Clean medical photography images matching various pharmaceutical categories
-const MEDICINE_IMAGES = [
+// Official medicine prices mapped by product ID
+export const OFFICIAL_MEDICINE_PRICES: Record<string, number> = {
+  ph1: 4.5,
+  ph2: 22,
+  ph3: 9,
+  ph4: 45,
+  ph5: 130,
+  ph6: 8,
+  ph7: 15,
+  ph8: 130,
+  ph9: 20,
+  ph10: 9,
+  ph11: 16,
+  ph12: 270,
+  ph13: 12,
+  ph14: 200,
+  ph15: 50,
+  ph16: 330,
+  ph17: 7,
+  ph18: 11,
+  ph19: 2,
+  ph20: 13,
+  ph21: 20,
+  ph22: 35,
+  ph23: 15,
+  ph24: 5,
+  ph25: 150,
+  ph26: 45,
+  ph27: 35,
+  ph28: 10,
+  ph29: 12,
+  ph30: 45,
+  ph31: 35,
+  ph32: 280,
+  ph33: 40,
+  ph34: 5,
+  ph35: 6,
+  ph36: 8,
+  ph37: 400,
+  ph38: 20,
+  ph39: 35,
+  ph40: 8,
+  ph41: 3,
+  ph42: 95,
+  ph43: 9,
+  ph44: 8,
+  ph45: 50,
+  ph46: 55,
+  ph47: 3,
+  ph48: 15,
+  ph49: 50,
+  ph50: 19,
+  ph51: 10,
+  ph52: 300,
+  ph53: 12,
+  ph54: 251,
+  ph55: 10.5,
+  ph56: 7,
+  ph57: 9,
+  ph58: 17.5,
+  ph59: 4,
+  ph60: 45,
+  ph61: 32,
+  ph62: 12,
+  ph63: 11,
+  ph64: 10,
+  ph65: 10,
+  ph66: 50,
+  ph67: 135,
+  ph68: 70,
+  ph69: 14,
+  ph70: 10,
+  ph71: 3,
+  ph72: 8,
+  ph73: 16,
+  ph74: 450,
+  ph75: 20,
+  ph76: 6,
+  ph77: 15,
+  ph78: 80,
+  ph79: 230,
+  ph80: 130,
+  ph81: 20,
+  ph82: 797,
+  ph83: 695,
+  ph84: 360,
+  ph85: 360,
+  ph86: 12,
+  ph87: 2.5,
+  ph88: 110,
+  ph89: 15,
+  ph90: 40,
+  ph91: 8,
+  ph92: 230,
+  ph93: 180,
+  ph94: 2.2,
+  ph95: 35,
+  ph96: 1.2,
+  ph97: 300,
+  ph98: 2.5,
+  ph99: 11,
+  ph100: 2,
+  ph101: 10,
+  ph102: 10,
+  ph103: 7,
+  ph104: 80,
+  ph105: 32,
+  ph106: 175,
+  ph107: 10,
+  ph108: 1,
+  ph109: 8.5,
+  ph110: 12,
+  ph111: 7,
+  ph112: 25,
+  ph113: 30,
+  ph114: 6.5,
+  ph115: 10,
+  ph116: 3,
+  ph117: 186,
+  ph118: 1.1,
+  ph119: 400,
+  ph120: 55,
+  ph121: 40,
+  ph122: 16,
+  ph123: 12,
+  ph124: 9,
+  ph125: 8,
+  ph126: 17,
+  ph127: 15,
+  ph128: 17,
+  ph129: 11,
+  ph130: 21,
+  ph131: 22,
+  ph132: 45,
+  ph133: 360,
+  ph134: 80.24,
+  ph135: 330,
+  ph136: 375,
+  ph137: 300,
+  ph138: 300,
+  ph139: 100,
+  ph140: 300,
+  ph141: 650,
+  ph142: 110,
+  ph143: 60,
+  ph144: 150.45,
+  ph145: 412.5,
+  ph146: 750,
+  ph147: 100,
+  ph148: 180,
+  ph149: 330,
+  ph150: 720,
+  ph151: 100,
+  ph152: 360,
+  ph153: 560,
+  ph154: 1100,
+  ph155: 600,
+  ph156: 802.4,
+  ph157: 241.5,
+  ph158: 510,
+  ph159: 210,
+  ph160: 270,
+  ph161: 360,
+  ph162: 600,
+  ph163: 700,
+  ph164: 900,
+  ph165: 360,
+  ph166: 510,
+  ph167: 100.3,
+  ph168: 601.8,
+  ph169: 501.5,
+  ph170: 105,
+  ph171: 500,
+  ph172: 500,
+  ph173: 420,
+  ph174: 196,
+  ph175: 364,
+  ph176: 588,
+  ph177: 600,
+  ph178: 75,
+  ph179: 100,
+  ph180: 150,
+  ph181: 200,
+  ph182: 480,
+  ph183: 130,
+  ph184: 251,
+  ph185: 630,
+  ph186: 840,
+  ph187: 320,
+  ph188: 320,
+  ph189: 490,
+  ph190: 210,
+  ph191: 300,
+  ph192: 570,
+  ph193: 600,
+  ph194: 900,
+  ph195: 200,
+  ph196: 490,
+  ph197: 840,
+  ph198: 285,
+  ph199: 336,
+  ph200: 672
+};
+
+export function getMedicineUnit(name: string, unitBn?: string, unitEn?: string): { unitBn: string; unitEn: string } {
+  if (unitBn && unitEn) {
+    return { unitBn, unitEn };
+  }
+  const lower = name.toLowerCase();
+  if (lower.includes("crm") || lower.includes("cream") || lower.includes("oint") || lower.includes("gel")) {
+    return { unitBn: unitBn || "১ টিউব", unitEn: unitEn || "1 tube" };
+  }
+  if (lower.includes("drop") || lower.includes("spray") || lower.includes("syp") || lower.includes("syrup") || lower.includes("susp") || lower.includes("soln") || lower.includes("oral sol") || lower.includes("pfs")) {
+    return { unitBn: unitBn || "১ বোতল", unitEn: unitEn || "1 bottle" };
+  }
+  if (lower.includes("inj") || lower.includes("vial")) {
+    return { unitBn: unitBn || "১ ভায়াল", unitEn: unitEn || "1 vial" };
+  }
+  if (lower.includes("cap") || lower.includes("licap") || lower.includes("cozycap")) {
+    return { unitBn: unitBn || "১ টি ক্যাপসুল", unitEn: unitEn || "1 capsule" };
+  }
+  return { unitBn: unitBn || "১ পিস", unitEn: unitEn || "1 pc" };
+}
+
+// Clean medical photography images matching various pharmaceutical categories (all verified HTTP 200)
+export const MEDICINE_IMAGES = [
   "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=500&q=80",
   "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?auto=format&fit=crop&w=500&q=80",
   "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?auto=format&fit=crop&w=500&q=80",
-  "https://images.unsplash.com/photo-1576073719676-aa955fc1bda9?auto=format&fit=crop&w=500&q=80",
-  "https://images.unsplash.com/photo-1550572017-edd951aa8f72?auto=format&fit=crop&w=500&q=80",
-  "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=500&q=80"
+  "https://images.unsplash.com/photo-1585435557343-3b092031a831?auto=format&fit=crop&w=500&q=80",
+  "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=500&q=80",
+  "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=500&q=80",
+  "https://images.unsplash.com/photo-1628771065518-0d82f1938462?auto=format&fit=crop&w=500&q=80",
+  "https://images.unsplash.com/photo-1563213126-a4273aed2016?auto=format&fit=crop&w=500&q=80"
 ];
 
-function getAppropriateMedicineImage(name: string, idx: number): string {
+export function getAppropriateMedicineImage(name: string, idx: number): string {
   const lower = name.toLowerCase();
   if (lower.includes("crm") || lower.includes("cream") || lower.includes("oint") || lower.includes("gel")) {
-    return "https://images.unsplash.com/photo-1550572017-edd951aa8f72?auto=format&fit=crop&w=500&q=80";
+    return "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=500&q=80";
   }
   if (lower.includes("drop") || lower.includes("spray") || lower.includes("syp") || lower.includes("syrup") || lower.includes("susp") || lower.includes("soln") || lower.includes("oral sol") || lower.includes("pfs")) {
     return "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=500&q=80";
@@ -245,27 +471,31 @@ function getAppropriateMedicineImage(name: string, idx: number): string {
   return MEDICINE_IMAGES[idx % MEDICINE_IMAGES.length];
 }
 
-export const PHARMACY_PRODUCTS_RAW: Product[] = RAW_MEDICINE_ITEMS.map((item, idx) => ({
-  id: item.id,
-  name: item.name,
-  nameBn: item.name,
-  nameEn: item.name,
-  price: (item as any).price ?? 0,
-  originalPrice: (item as any).price ?? 0,
-  unitBn: item.unitBn,
-  unitEn: item.unitEn,
-  unit: item.unitBn,
-  category: "pharmacy",
-  categoryId: "pharmacy",
-  subcategory: "ঔষধ ও প্রেসক্রিপশন আইটেম",
-  image: getAppropriateMedicineImage(item.name, idx),
-  inStock: true,
-  stock: 100,
-  isAvailable: true,
-  rating: 4.8,
-  reviewCount: 15,
-  brand: item.brand,
-  descriptionBn: `${item.brand} ফার্মাসিউটিক্যালসের অফিসিয়াল অনুমোদিত ঔষধ।`,
-  descriptionEn: `Official approved medicine formulation by ${item.brand}.`,
-  displayOrder: idx + 1
-}));
+export const PHARMACY_PRODUCTS_RAW: Product[] = RAW_MEDICINE_ITEMS.map((item, idx) => {
+  const price = (item as any).price ?? OFFICIAL_MEDICINE_PRICES[item.id] ?? 0;
+  return {
+    id: item.id,
+    name: item.name,
+    nameBn: item.name,
+    nameEn: item.name,
+    price: price,
+    originalPrice: (item as any).originalPrice ?? price,
+    unitBn: item.unitBn,
+    unitEn: item.unitEn,
+    unit: item.unitBn,
+    category: "pharmacy",
+    categoryId: "pharmacy",
+    subcategory: "ঔষধ ও প্রেসক্রিপশন আইটেম",
+    image: getAppropriateMedicineImage(item.name, idx),
+    imageUrl: getAppropriateMedicineImage(item.name, idx),
+    inStock: true,
+    stock: 100,
+    isAvailable: true,
+    rating: 4.8,
+    reviewCount: 15,
+    brand: item.brand,
+    descriptionBn: `${item.brand} ফার্মাসিউটিক্যালসের অফিসিয়াল অনুমোদিত ঔষধ।`,
+    descriptionEn: `Official approved medicine formulation by ${item.brand}.`,
+    displayOrder: idx + 1
+  };
+});

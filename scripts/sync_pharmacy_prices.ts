@@ -211,21 +211,28 @@ export const OFFICIAL_MEDICINE_PRICES: Record<string, number> = {
   ph200: 672
 };
 
+import { PHARMACY_PRODUCTS_RAW } from "../src/lib/pharmacyData";
+
 async function syncAllPrices() {
-  console.log("Starting batch update for 132 pharmacy product prices in Firestore...");
+  console.log("Starting batch update for 132 pharmacy product prices and units in Firestore...");
   let count = 0;
 
-  for (const [id, price] of Object.entries(OFFICIAL_MEDICINE_PRICES)) {
-    const prodRef = doc(db, "products", id);
+  for (const ph of PHARMACY_PRODUCTS_RAW) {
+    const prodRef = doc(db, "products", ph.id);
     await setDoc(prodRef, {
-      price: Number(price),
-      originalPrice: Number(price),
+      price: ph.price,
+      originalPrice: ph.originalPrice || ph.price,
+      unit: ph.unitBn,
+      unitBn: ph.unitBn,
+      unitEn: ph.unitEn,
+      isAvailable: true,
+      inStock: true,
       updatedAt: serverTimestamp()
     }, { merge: true });
     count++;
   }
 
-  console.log(`Successfully updated ${count} products in Firestore.`);
+  console.log(`Successfully updated ${count} products with prices and units in Firestore.`);
 
   // Verify
   const snap = await getDocs(collection(db, "products"));
