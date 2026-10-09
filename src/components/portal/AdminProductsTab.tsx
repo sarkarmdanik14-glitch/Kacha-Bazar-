@@ -1594,6 +1594,18 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                     {uploadingCatImage ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                     <span>{getTranslation("ছবি আপলোড", "Upload Image")}</span>
                   </button>
+
+                  {catImage && (
+                    <button 
+                      type="button" 
+                      onClick={() => setCatImage("")} 
+                      className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-3 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 cursor-pointer transition shrink-0"
+                      title={getTranslation("ছবি মুছে আইকন প্রদর্শন করুন", "Remove image & show icon")}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{getTranslation("রিমুভ", "Remove")}</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1601,9 +1613,16 @@ export default function AdminProductsTab({ products, categories, orders = [], us
               <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                 <div className="w-12 h-12 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center overflow-hidden shrink-0">
                   {catImage ? (
-                    <img src={catImage} alt={catNameEn} className="w-full h-full object-cover" />
+                    <img 
+                      src={catImage} 
+                      alt={catNameEn} 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
                   ) : (
-                    <Salad className="w-6 h-6 text-emerald-600" />
+                    renderCategoryIcon(catIcon)
                   )}
                 </div>
                 <div>
@@ -3039,13 +3058,32 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                     {uploadingModalCatImage ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                     <span>{getTranslation("আপলোড", "Upload")}</span>
                   </button>
+
+                  {modalCatImage && (
+                    <button 
+                      type="button" 
+                      onClick={() => setModalCatImage("")} 
+                      className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 px-3 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 cursor-pointer transition shrink-0"
+                      title={getTranslation("ছবি মুছে আইকন প্রদর্শন করুন", "Remove image & show icon")}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{getTranslation("রিমুভ", "Remove")}</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Preview Box */}
                 <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                   <div className="w-12 h-12 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center overflow-hidden shrink-0">
                     {modalCatImage ? (
-                      <img src={modalCatImage} alt="Preview" className="w-full h-full object-cover" />
+                      <img 
+                        src={modalCatImage} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
                     ) : (
                       renderCategoryIcon(modalCatIcon)
                     )}

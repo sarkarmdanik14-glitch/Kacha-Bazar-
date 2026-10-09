@@ -17,36 +17,58 @@ interface AdminHomePageTabProps {
 
 const DEFAULT_HERO_BANNERS = [
   {
-    id: "hero-mango-fest",
-    titleBn: "রাজশাহী ও চাঁপাইনবাবগঞ্জের আসল ফরমালিনমুক্ত ল্যাংড়া ও খীরসাপাত আম",
-    titleEn: "Fresh Formalin-Free Mangoes Direct From Rajshahi Orchards",
-    tagBn: "আমের মৌসুমী মেলা 🥭",
-    tagEn: "Seasonal Mango Fest 🥭",
-    bgGradient: "from-amber-600 via-orange-500 to-yellow-600",
-    image: "https://images.unsplash.com/photo-1553279768-865429fa0078?auto=format&fit=crop&w=800&q=80",
-    linkUrl: "",
+    id: "hero-fresh-vegetables",
+    titleBn: "১০০% ফরমালিনমুক্ত বিষমুক্ত তাজা শাকসবজি ও ফলমূল",
+    titleEn: "Fresh Chemical-Free Vegetables & Seasonal Fruits",
+    tagBn: "বাগান-টাটকা কাঁচাবাজার 🥦",
+    tagEn: "100% Organic Harvest 🥦",
+    bgGradient: "from-emerald-950 via-teal-950 to-slate-950",
+    image: "https://images.unsplash.com/photo-1610348725531-843dff563e2c?auto=format&fit=crop&w=1200&q=80",
+    linkUrl: "category:vegetables",
     isActive: true
   },
   {
     id: "hero-padma-hilsha",
-    titleBn: "পদ্মা ও মেঘনার ১০০% তাজা ডিমওয়ালা ইলিশ মাছ",
-    titleEn: "100% Fresh Padma Hilsha Direct Fish Harvest",
-    tagBn: "পদ্মার তাজা ইলিশ 🐟",
-    tagEn: "Padma River Hilsha 🐟",
-    bgGradient: "from-blue-700 via-indigo-600 to-slate-800",
-    image: "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=800&q=80",
-    linkUrl: "",
+    titleBn: "পদ্মা ও মেঘনার ১০০% তাজা ডিমওয়ালা রুপালি ইলিশ",
+    titleEn: "100% Fresh River Padma Hilsha & Fish",
+    tagBn: "পদ্মার তাজা মাছ 🐟",
+    tagEn: "River Fish Harvest 🐟",
+    bgGradient: "from-sky-950 via-blue-950 to-slate-950",
+    image: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=1200&q=80",
+    linkUrl: "category:fish",
     isActive: true
   },
   {
     id: "hero-weekly-grocery",
     titleBn: "দৈনন্দিন দরকারি অরিজিনাল মুদি পণ্য সবচেয়ে কম দামে!",
-    titleEn: "Daily Grocery Essentials Delivered in 30 Mins",
+    titleEn: "Daily Grocery & Pantry Essentials at Best Prices",
     tagBn: "সাপ্তাহিক বাজার অফার 🛒",
-    tagEn: "Weekly Grocery Offer 🛒",
-    bgGradient: "from-emerald-800 via-teal-700 to-emerald-950",
-    image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80",
-    linkUrl: "",
+    tagEn: "Weekly Pantry Deals 🛒",
+    bgGradient: "from-amber-950 via-orange-950 to-slate-950",
+    image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80",
+    linkUrl: "category:groceries",
+    isActive: true
+  },
+  {
+    id: "hero-pure-dairy",
+    titleBn: "দেশি গাভীর খাঁটি দুধ, দানাদার ঘি ও ফার্মের টাটকা ডিম",
+    titleEn: "100% Pure Organic Milk, Ghee & Fresh Eggs",
+    tagBn: "খাঁটি ডেইরি ও ডিম 🥛",
+    tagEn: "Pure Dairy & Farm Eggs 🥛",
+    bgGradient: "from-teal-950 via-cyan-950 to-slate-950",
+    image: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=1200&q=80",
+    linkUrl: "category:dairy-eggs",
+    isActive: true
+  },
+  {
+    id: "hero-pharmacy-care",
+    titleBn: "ফার্মেসি ও প্রেসক্রিপশনের প্রয়োজনীয় সব জেনুইন ওষুধ",
+    titleEn: "100% Genuine Pharmacy & Healthcare Supplies",
+    tagBn: "জরুরি স্বাস্থ্যসেবা 💊",
+    tagEn: "Express Pharmacy 💊",
+    bgGradient: "from-emerald-950 via-teal-950 to-slate-950",
+    image: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?auto=format&fit=crop&w=1200&q=80",
+    linkUrl: "category:pharmacy",
     isActive: true
   }
 ];
@@ -167,7 +189,18 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
   // Modal / Form state for Hero Banners
   const [showHeroModal, setShowHeroModal] = useState<boolean>(false);
   const [editingHero, setEditingHero] = useState<any | null>(null);
-  const [heroForm, setHeroForm] = useState({
+  const [heroForm, setHeroForm] = useState<{
+    id: string;
+    titleBn: string;
+    titleEn: string;
+    tagBn: string;
+    tagEn: string;
+    bgGradient: string;
+    image: string;
+    hideTextOverlay?: boolean;
+    linkUrl: string;
+    isActive: boolean;
+  }>({
     id: "",
     titleBn: "",
     titleEn: "",
@@ -175,6 +208,7 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
     tagEn: "",
     bgGradient: "from-emerald-800 via-teal-700 to-emerald-950",
     image: "",
+    hideTextOverlay: false,
     linkUrl: "",
     isActive: true
   });
@@ -332,6 +366,7 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
         tagEn: "SPECIAL OFFER",
         bgGradient: "from-emerald-800 via-teal-700 to-emerald-950",
         image: "",
+        hideTextOverlay: false,
         linkUrl: "",
         isActive: true
       });
@@ -602,6 +637,11 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
                           <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${hero.isActive !== false ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
                             {hero.isActive !== false ? (lang === "bn" ? "সক্রিয়" : "Active") : (lang === "bn" ? "নিষ্ক্রিয়" : "Disabled")}
                           </span>
+                          {hero.hideTextOverlay && (
+                            <span className="text-[9px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded">
+                              {lang === "bn" ? "ফুল ব্যানার গ্রাফিক্স" : "Full Graphic"}
+                            </span>
+                          )}
                           {hero.tagBn && (
                             <span className="text-[9px] bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded">
                               {lang === "bn" ? hero.tagBn : hero.tagEn}
@@ -610,7 +650,7 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
                         </div>
 
                         <h4 className="text-xs font-bold text-slate-800 truncate mt-1">
-                          {lang === "bn" ? hero.titleBn || hero.titleEn : hero.titleEn || hero.titleBn}
+                          {lang === "bn" ? hero.titleBn || hero.titleEn || "(ফুল ব্যানার ছবি)" : hero.titleEn || hero.titleBn || "(Full Banner Image)"}
                         </h4>
                         <p className="text-[10px] text-slate-400">ID: {hero.id}</p>
                       </div>
@@ -678,12 +718,16 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
               <div className="overflow-y-auto flex-1 p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Title (Bengali) *</label>
-                  <input type="text" required placeholder="যেমন: তাজা হিমসাগর আম মেলা" value={heroForm.titleBn} onChange={(e) => setHeroForm({ ...heroForm, titleBn: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white outline-none font-bold" />
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                    Title (Bengali) {heroForm.hideTextOverlay ? "(ঐচ্ছিক)" : "*"}
+                  </label>
+                  <input type="text" placeholder="যেমন: তাজা হিমসাগর আম মেলা" value={heroForm.titleBn} onChange={(e) => setHeroForm({ ...heroForm, titleBn: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white outline-none font-bold" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Title (English) *</label>
-                  <input type="text" required placeholder="e.g. Sweet Himsagar Mango Fest" value={heroForm.titleEn} onChange={(e) => setHeroForm({ ...heroForm, titleEn: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white outline-none font-bold" />
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                    Title (English) {heroForm.hideTextOverlay ? "(Optional)" : "*"}
+                  </label>
+                  <input type="text" placeholder="e.g. Sweet Himsagar Mango Fest" value={heroForm.titleEn} onChange={(e) => setHeroForm({ ...heroForm, titleEn: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white outline-none font-bold" />
                 </div>
               </div>
 
@@ -710,6 +754,23 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
                 </div>
               </div>
 
+              {/* Full Graphic Banner Toggle */}
+              <div className="flex items-center space-x-2.5 p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl">
+                <input 
+                  type="checkbox" 
+                  id="heroHideText" 
+                  checked={heroForm.hideTextOverlay === true} 
+                  onChange={(e) => setHeroForm({ ...heroForm, hideTextOverlay: e.target.checked })} 
+                  className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer w-4 h-4 shrink-0" 
+                />
+                <label htmlFor="heroHideText" className="text-xs font-bold text-emerald-950 cursor-pointer">
+                  {getTranslation(
+                    "ফুল কভার ব্যানার গ্রাফিক্স (ছবিতে কোনো টেক্সট ওভারলে ছাড়া পুরো ব্যানার জুড়ে ছবি দেখাবে)",
+                    "Full Cover Banner Graphic (Display 100% full cover photo without text overlay)"
+                  )}
+                </label>
+              </div>
+
               {/* Background Gradient */}
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Background Gradient Class</label>
@@ -718,11 +779,11 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
                   <option value="from-orange-600 via-amber-500 to-yellow-600">Mango Orange Amber</option>
                   <option value="from-indigo-700 via-blue-600 to-cyan-700">Padma Blue Hilsha</option>
                   <option value="from-rose-800 via-red-600 to-orange-600">Flash Sale Red</option>
-                  <option value="from-purple-800 via-indigo-700 to-slate-900">Luxury Purple Dark</option>
+                  <option value="from-purple-800 via-indigo-700 to-slate-950">Luxury Purple Dark</option>
                 </select>
               </div>
 
-              <div className="flex items-center space-x-2 pt-2">
+              <div className="flex items-center space-x-2 pt-1">
                 <input type="checkbox" id="heroActive" checked={heroForm.isActive !== false} onChange={(e) => setHeroForm({ ...heroForm, isActive: e.target.checked })} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
                 <label htmlFor="heroActive" className="text-xs font-bold text-slate-700 cursor-pointer">
                   {getTranslation("হিরো ব্যানার সক্রিয় রাখুন", "Enable / Activate Hero Banner")}

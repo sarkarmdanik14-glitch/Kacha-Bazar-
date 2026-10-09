@@ -38,6 +38,7 @@ export class ApiError extends Error {
 export interface ApiRequestOptions extends RequestInit {
   timeoutMs?: number;
   skipAuth?: boolean;
+  silent?: boolean;
 }
 
 /**
@@ -217,7 +218,8 @@ export async function apiRequest<T = any>(
       }
     }
 
-    if (import.meta.env?.DEV) {
+    const isAuthVerifyEndpoint = url.includes("/api/auth/login-verify") || url.includes("/api/auth/staff-verify");
+    if (import.meta.env?.DEV && !options.silent && !(isAuthVerifyEndpoint && response.status === 401)) {
       console.error(`[API Error ${response.status}] ${options.method || "GET"} ${url}:`, {
         status: response.status,
         statusText: response.statusText,

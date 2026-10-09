@@ -1749,6 +1749,48 @@ export default function App() {
       default: return <LayoutGrid className="w-5 h-5 md:w-6 md:h-6" />;
     }
   };
+
+  // Safe Category Avatar component with graceful icon fallback on error
+  const CategoryAvatar: React.FC<{ 
+    cat: any; 
+    sizeClass?: string; 
+    imgSize?: number;
+    roundedClass?: string;
+  }> = ({ 
+    cat, 
+    sizeClass = "w-11 h-11 sm:w-12 sm:h-12 md:w-13 md:h-13", 
+    imgSize = 120,
+    roundedClass = "rounded-full"
+  }) => {
+    const [hasError, setHasError] = useState(false);
+    const rawImg = (cat?.image || cat?.imageUrl || cat?.banner || cat?.bannerUrl || "").trim();
+
+    return (
+      <div 
+        className={`${sizeClass} ${roundedClass} bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden transition-transform duration-200 group-hover:scale-105`}
+        style={roundedClass === "rounded-full" ? { borderRadius: "50%" } : undefined}
+      >
+        {rawImg && !hasError ? (
+          <img
+            src={optimizeProductImageUrl(rawImg, imgSize)}
+            alt={cat?.nameEn || cat?.nameBn || "Category"}
+            className={`w-full h-full object-cover ${roundedClass}`}
+            style={{ width: "100%", height: "100%", objectFit: "cover", ...(roundedClass === "rounded-full" ? { borderRadius: "50%" } : {}) }}
+            loading="lazy"
+            decoding="async"
+            onError={() => setHasError(true)}
+          />
+        ) : (
+          <div 
+            className={`w-full h-full ${roundedClass} flex items-center justify-center text-slate-600 ${cat?.colorClass || "bg-emerald-50 text-emerald-600"}`}
+            style={{ width: "100%", height: "100%", ...(roundedClass === "rounded-full" ? { borderRadius: "50%" } : {}) }}
+          >
+            {renderCatIcon(cat?.iconName)}
+          </div>
+        )}
+      </div>
+    );
+  };
   const handleApplyCoupon = () => {
     const code = couponCode.trim().toUpperCase();
     if (code === "KACHA10") {
@@ -2414,28 +2456,7 @@ export default function App() {
                         className="group flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/60 hover:border-emerald-500/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer text-center"
                       >
                         {/* Circular Category Card (100% Round) */}
-                        <div 
-                          className="w-11 h-11 sm:w-12 sm:h-12 md:w-13 md:h-13 rounded-full bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden transition-transform duration-200 group-hover:scale-105"
-                          style={{ borderRadius: "50%" }}
-                        >
-                          {(cat as any).image || (cat as any).imageUrl ? (
-                            <img
-                              src={optimizeProductImageUrl((cat as any).image || (cat as any).imageUrl, 120)}
-                              alt={cat.nameEn}
-                              className="w-full h-full object-cover rounded-full"
-                              style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          ) : (
-                            <div 
-                              className={`w-full h-full rounded-full flex items-center justify-center text-slate-600 ${cat.colorClass || "bg-emerald-50 text-emerald-600"}`}
-                              style={{ width: "100%", height: "100%", borderRadius: "50%" }}
-                            >
-                              {renderCatIcon(cat.iconName)}
-                            </div>
-                          )}
-                        </div>
+                        <CategoryAvatar cat={cat} />
 
                         {/* Category Name - Tight, Balanced, Centered */}
                         <div className="w-full mt-1 flex items-center justify-center">
@@ -2543,18 +2564,12 @@ export default function App() {
                   {/* Category Header */}
                   <div className="flex items-center justify-between mb-3 sm:mb-4 bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/80 shadow-xs">
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                      <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 ${cat.colorClass || "bg-emerald-50 text-emerald-600"}`}>
-                        {(cat as any).image || (cat as any).imageUrl ? (
-                          <img 
-                            src={optimizeProductImageUrl((cat as any).image || (cat as any).imageUrl, 80)} 
-                            alt={cat.nameEn}
-                            className="w-full h-full object-cover rounded-xl"
-                            loading="lazy"
-                          />
-                        ) : (
-                          renderCatIcon(cat.iconName)
-                        )}
-                      </div>
+                      <CategoryAvatar 
+                        cat={cat} 
+                        sizeClass="w-8 h-8 sm:w-10 sm:h-10" 
+                        imgSize={80} 
+                        roundedClass="rounded-xl"
+                      />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="text-xs sm:text-base font-black text-slate-800 leading-tight truncate">

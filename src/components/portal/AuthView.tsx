@@ -723,7 +723,7 @@ export default function AuthView({
           const verifyData = await apiClient.post<any>("/api/auth/login-verify", {
             identifier: email,
             password: password
-          });
+          }, { silent: true });
 
           if (verifyData?.success && verifyData?.user) {
             const verifiedUser = verifyData.user;
@@ -756,7 +756,7 @@ export default function AuthView({
           const fallbackData = await apiClient.post<any>("/api/auth/login-verify", {
             identifier: email,
             password: password
-          }).catch(() => null);
+          }, { silent: true }).catch(() => null);
 
           if (fallbackData?.success && fallbackData?.user) {
             const verifiedUser = fallbackData.user;
