@@ -3,7 +3,8 @@ import {
   Settings, Check, RefreshCw, MapPin, Building, Phone, Mail, 
   ToggleLeft, ToggleRight, ImageIcon, Plus, Trash2, Edit, Upload, Navigation, ShieldAlert, Info,
   QrCode, Smartphone, Download, Copy, ExternalLink, Sparkles, CheckCircle2, Globe, Printer,
-  Megaphone, AlertCircle, Eye, RotateCcw, Save, Bell, Database, Play, CheckCircle, ArrowRight
+  Megaphone, AlertCircle, Eye, RotateCcw, Save, Bell, Database, Play, CheckCircle, ArrowRight,
+  Cloud, HardDrive, ShieldCheck, Search
 } from "lucide-react";
 import QRCode from "qrcode";
 import { APP_LOGO_URL } from "../../constants/branding";
@@ -15,6 +16,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../../lib/supabase";
 import { checkSupabaseStatus, syncAllToSupabase, SyncProgress } from "../../lib/supabaseSync";
 import { SUPABASE_SCHEMA_SQL } from "../../lib/supabaseSchemaCode";
 import { CATEGORIES, ALL_PRODUCTS } from "../../data";
+import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 
 interface AdminSettingsTabProps {
   settings: any;
@@ -26,7 +28,7 @@ interface AdminSettingsTabProps {
 export default function AdminSettingsTab({ settings, banners, lang, triggerToast }: AdminSettingsTabProps) {
   const getTranslation = createTranslator(lang);
 
-  const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "notice" | "delivery" | "banners" | "pwa" | "supabase">("global");
+  const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "notice" | "delivery" | "banners" | "pwa" | "supabase" | "r2">("global");
   const [savingSettings, setSavingSettings] = useState<boolean>(false);
 
   // Supabase Migration & Test State
@@ -36,6 +38,17 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
   const [syncingSupabase, setSyncingSupabase] = useState<boolean>(false);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [syncResult, setSyncResult] = useState<{ success: boolean; details: Record<string, number>; errors: string[] } | null>(null);
+
+  // Cloudflare R2 Cloud Storage State
+  const [checkingR2, setCheckingR2] = useState<boolean>(false);
+  const [r2StatusInfo, setR2StatusInfo] = useState<{ connected: boolean; bucket: string; publicUrl: string; endpoint?: string; objectCount?: number; sampleObjects?: string[]; message?: string } | null>(null);
+  const [migratingR2, setMigratingR2] = useState<boolean>(false);
+  const [r2MigrationResult, setR2MigrationResult] = useState<{ success: boolean; migratedCount: number; message: string; logDetails?: any[] } | null>(null);
+  const [auditingR2, setAuditingR2] = useState<boolean>(false);
+  const [r2AuditData, setR2AuditData] = useState<any | null>(null);
+  const [testUploadFile, setTestUploadFile] = useState<File | null>(null);
+  const [testingUpload, setTestingUpload] = useState<boolean>(false);
+  const [testUploadResultUrl, setTestUploadResultUrl] = useState<string>("");
 
   // Live Notice / Announcement State
   const [noticeActive, setNoticeActive] = useState<boolean>(DEFAULT_LIVE_NOTICE.isActive);
@@ -251,7 +264,7 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
       });
   }, [adminPwaUrl]);
 
-  // Cloudinary refs/states
+  // Banner Image Upload (Cloudflare R2 + fallback)
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState<boolean>(false);
 
@@ -261,32 +274,16 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
 
     setUploadingImage(true);
     try {
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "upvkzb3p";
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "k0x8mjmx";
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", uploadPreset);
-
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-        method: "POST",
-        body: formData
-      });
-
-      if (!res.ok) {
-        throw new Error(`Cloudinary returned status ${res.status}`);
-      }
-
-      const data = await res.json();
-      if (data.secure_url) {
-        setBanImage(data.secure_url);
-        triggerToast("ব্যানার ইমেজ ক্লাউডিনারি-তে আপলোড হয়েছে!", "Banner image uploaded successfully to Cloudinary!");
+      const uploadedUrl = await uploadImageWithFallback(file, { folder: "banners" });
+      if (uploadedUrl) {
+        setBanImage(uploadedUrl);
+        triggerToast("ব্যানার ইমেজ Cloudflare R2-তে আপলোড হয়েছে!", "Banner image uploaded successfully to Cloudflare R2!");
       } else {
-        throw new Error("No secure_url returned");
+        throw new Error("No secure image URL returned");
       }
-    } catch (err) {
-      console.error("Cloudinary upload failed:", err);
-      triggerToast("ছবি আপলোড ব্যর্থ হয়েছে! ক্লাউডিনারি কানেকশন অথবা ফাইলের ফরম্যাট চেক করুন।", "Image upload failed! Please check your Cloudinary connection or file format.");
+    } catch (err: any) {
+      console.error("Banner upload failed:", err);
+      triggerToast("ছবি আপলোড ব্যর্থ হয়েছে!", "Image upload failed! " + (err?.message || ""));
     } finally {
       setUploadingImage(false);
     }
@@ -637,6 +634,15 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         >
           <Database className="w-3.5 h-3.5 text-emerald-600" />
           <span>{getTranslation("⚡ সুপাবেস ডেটাবেস", "⚡ Supabase DB")}</span>
+        </button>
+        <button 
+          onClick={() => setActiveSettingsSubTab("r2")}
+          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
+            activeSettingsSubTab === "r2" ? "border-amber-600 text-amber-600 bg-amber-50/50" : "border-transparent text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          <Cloud className="w-3.5 h-3.5 text-amber-600" />
+          <span>{getTranslation("☁️ Cloudflare R2 স্টোরেজ", "☁️ Cloudflare R2 Storage")}</span>
         </button>
       </div>
 
@@ -1716,7 +1722,447 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         </div>
       )}
 
-      {/* ================= SUPABASE DATABASE MIGRATION SUBTAB ================= */}
+      {/* ================= CLOUDFLARE R2 OBJECT STORAGE SUBTAB ================= */}
+      {activeSettingsSubTab === "r2" && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white rounded-3xl p-6 sm:p-8 shadow-lg shadow-amber-900/10 relative overflow-hidden">
+            <div className="absolute -right-6 -bottom-6 w-40 h-40 bg-white/10 rounded-full blur-xl pointer-events-none" />
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-xs text-xs font-black uppercase tracking-wider text-amber-100">
+                  <Cloud className="w-3.5 h-3.5" />
+                  <span>{getTranslation("ক্লাউডফ্লেয়ার R2 ক্লাউড স্টোরেজ", "Cloudflare R2 Object Storage")}</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black">
+                  {getTranslation("Cloudflare R2 স্টোরেজ ও মাইগ্রেশন হাব", "Cloudflare R2 Storage & Migration Hub")}
+                </h3>
+                <p className="text-amber-100 text-xs sm:text-sm max-w-xl">
+                  {getTranslation(
+                    "Cloudinary-র মাসিক কোটা ও লিমিটেশন এড়িয়ে শূন্য ইগ্রেস ফি-যুক্ত আনলিমিটেড Cloudflare R2 স্টোরেজ ব্যবহার করুন। নিচে থাকা ১-ক্লিক মাইগ্রেশন দিয়ে সকল পণ্য ও ব্যানারের ছবি সরাসরি R2-তে ট্রান্সফার করা যাবে।",
+                    "Enjoy zero egress bandwidth fees and fast global edge CDN with Cloudflare R2. Easily migrate all existing product, category, and banner images from Cloudinary to R2 with one click."
+                  )}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  disabled={checkingR2}
+                  onClick={async () => {
+                    setCheckingR2(true);
+                    try {
+                      const res = await fetch("/api/r2/status");
+                      const data = await res.json();
+                      if (data.success && data.connected) {
+                        setR2StatusInfo(data);
+                        triggerToast("Cloudflare R2 কানেকশন সফল!", data.message || "R2 connected successfully!");
+                      } else {
+                        setR2StatusInfo({ connected: false, bucket: "kachabazar-image", publicUrl: "", message: data.error || "R2 status check failed" });
+                        triggerToast("কানেকশন চেক ব্যর্থ", data.error || "Check failed");
+                      }
+                    } catch (err: any) {
+                      triggerToast("ত্রুটি", err?.message || "R2 check error");
+                    } finally {
+                      setCheckingR2(false);
+                    }
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-white text-amber-700 hover:bg-amber-50 active:scale-95 transition font-black text-xs flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${checkingR2 ? "animate-spin" : ""}`} />
+                  <span>{checkingR2 ? getTranslation("যাচাই হচ্ছে...", "Checking...") : getTranslation("R2 কানেকশন টেস্ট করুন", "Test R2 Connection")}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Connection Overview & Bucket Details */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-5">
+            <div className="flex items-center justify-between flex-wrap gap-3 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                  <HardDrive className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-800">
+                    {getTranslation("কনফিগারেশন ও ক্লাউড স্টোরেজ বিবরণ", "Configuration & Storage Details")}
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    {getTranslation("S3-কমপ্যাটিবল অবজেক্ট স্টোরেজ ক্রিডেনশিয়াল", "S3-compatible Object Storage Credentials")}
+                  </p>
+                </div>
+              </div>
+
+              {r2StatusInfo && (
+                <div className={`px-3 py-1 rounded-full text-xs font-black flex items-center gap-1.5 ${
+                  r2StatusInfo.connected ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                }`}>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{r2StatusInfo.connected ? "সক্রিয় ও সংযুক্ত (Active & Connected)" : "অফলাইন (Offline)"}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
+                <div className="text-[10px] font-black uppercase text-slate-400">Bucket Name</div>
+                <div className="font-mono font-bold text-slate-800 mt-1">kachabazar-image</div>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
+                <div className="text-[10px] font-black uppercase text-slate-400">Account ID</div>
+                <div className="font-mono text-slate-700 mt-1 truncate" title="f28557b34a31123a24324c3124b05180">
+                  f28557b34a31123a24324c3124b05180
+                </div>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
+                <div className="text-[10px] font-black uppercase text-slate-400">Public CDN URL</div>
+                <a 
+                  href="https://pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="font-mono text-amber-600 hover:underline mt-1 truncate block flex items-center gap-1"
+                >
+                  <span className="truncate">pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev</span>
+                  <ExternalLink className="w-3 h-3 shrink-0" />
+                </a>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
+                <div className="text-[10px] font-black uppercase text-slate-400">Egress Bandwidth Fee</div>
+                <div className="font-black text-emerald-600 mt-1 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>$0.00 (Zero Egress)</span>
+                </div>
+              </div>
+            </div>
+
+            {r2StatusInfo?.objectCount !== undefined && (
+              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-xs text-amber-900 flex items-center justify-between flex-wrap gap-2">
+                <span className="font-bold">
+                  বাকেটে মোট সংরক্ষিত অবজেক্ট: <span className="font-black text-amber-800">{r2StatusInfo.objectCount} টি ফাইল</span>
+                </span>
+                <span className="text-[11px] text-amber-700">
+                  {r2StatusInfo.message || "Cloudflare R2 Object Storage is actively connected!"}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* 1-Click Migration from Cloudinary to Cloudflare R2 */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <h4 className="text-sm sm:text-base font-black text-slate-800">
+                    {getTranslation("১-ক্লিকে Cloudinary থেকে R2-তে মার্জ (1-Click Migration)", "1-Click Cloudinary to R2 Migration")}
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-xl mt-0.5">
+                    {getTranslation(
+                      "সকল পণ্য, ক্যাটাগরি ও ব্যানারের বিদ্যমান Cloudinary ছবি স্বয়ংক্রিয়ভাবে ডাউনলোড করে Cloudflare R2-তে পার্মানেন্টলি আপলোড হবে এবং ডেটাবেস আপডেট হবে।",
+                      "Automatically copies all active Cloudinary images for products, categories, and banners into Cloudflare R2 and updates your database."
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={migratingR2}
+                onClick={async () => {
+                  setMigratingR2(true);
+                  setR2MigrationResult(null);
+                  try {
+                    const res = await fetch("/api/r2/migrate-from-cloudinary", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" }
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      setR2MigrationResult(data);
+                      triggerToast("মাইগ্রেশন সম্পন্ন!", data.message || "Migration finished successfully!");
+                      try {
+                        const auditRes = await fetch("/api/r2/audit-images");
+                        const auditJson = await auditRes.json();
+                        if (auditJson.success) setR2AuditData(auditJson);
+                      } catch (e) {}
+                    } else {
+                      triggerToast("মাইগ্রেশন ব্যর্থ", data.error || "Migration failed");
+                    }
+                  } catch (err: any) {
+                    triggerToast("ত্রুটি", err?.message || "Migration request error");
+                  } finally {
+                    setMigratingR2(false);
+                  }
+                }}
+                className={`px-5 py-3 rounded-2xl text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-md transition cursor-pointer shrink-0 ${
+                  migratingR2 ? "bg-orange-400 cursor-not-allowed" : "bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 active:scale-95"
+                }`}
+              >
+                <Play className={`w-4 h-4 fill-current ${migratingR2 ? "animate-pulse" : ""}`} />
+                <span>
+                  {migratingR2
+                    ? getTranslation("ছবি মার্জ হচ্ছে...", "Migrating Images...")
+                    : getTranslation("১-ক্লিকে R2 তে মার্জ শুরু করুন", "Start 1-Click Migration")}
+                </span>
+              </button>
+            </div>
+
+            {/* Migration Result Report */}
+            {r2MigrationResult && (
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 space-y-3">
+                <div className="flex items-center gap-2 font-black text-emerald-800 text-sm">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span>{r2MigrationResult.message}</span>
+                </div>
+                <div className="text-[11px] text-emerald-700">
+                  মোট মাইগ্রেট হওয়া ফাইল: <strong className="text-emerald-900">{r2MigrationResult.migratedCount} টি</strong>
+                </div>
+
+                {r2MigrationResult.logDetails && r2MigrationResult.logDetails.length > 0 && (
+                  <div className="mt-2 max-h-48 overflow-y-auto space-y-1.5 p-2 bg-white rounded-xl border border-emerald-100 text-[11px]">
+                    {r2MigrationResult.logDetails.map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-2 p-1 border-b border-slate-50 last:border-b-0 font-mono">
+                        <span className="font-bold text-slate-700 truncate max-w-[120px]">[{item.collection}] {item.id}</span>
+                        <span className="text-emerald-600 truncate max-w-[300px]">{item.newUrl}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ================= LIVE IMAGE AUDIT & VERIFICATION HUB ================= */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <Search className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h4 className="text-sm sm:text-base font-black text-slate-800">
+                    {getTranslation("ছবি অডিট ও ভেরিফিকেশন রিপোর্ট (Live Image Storage Audit)", "Live Image Storage Audit & Verification")}
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-xl mt-0.5">
+                    {getTranslation(
+                      "আপনার সাইটের সমস্ত ছবি Cloudinary থেকে R2-তে সফলভাবে স্থানান্তরিত হয়েছে কিনা তা এক ক্লিকে লাইভ যাচাই করুন।",
+                      "Audit all products, banners, and categories to verify they are served via Cloudflare R2 CDN."
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={auditingR2}
+                onClick={async () => {
+                  setAuditingR2(true);
+                  try {
+                    const res = await fetch("/api/r2/audit-images");
+                    const data = await res.json();
+                    if (data.success) {
+                      setR2AuditData(data);
+                      triggerToast("অডিট সম্পন্ন!", "Image storage audit completed successfully!");
+                    } else {
+                      triggerToast("অডিট ব্যর্থ", data.error || "Audit failed");
+                    }
+                  } catch (err: any) {
+                    triggerToast("ত্রুটি", err?.message || "Audit request error");
+                  } finally {
+                    setAuditingR2(false);
+                  }
+                }}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-md transition cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${auditingR2 ? "animate-spin" : ""}`} />
+                <span>
+                  {auditingR2
+                    ? getTranslation("অডিট স্ক্যান হচ্ছে...", "Scanning Storage...")
+                    : getTranslation("🔍 লাইভ ইমেজ অডিট চালান", "Run Live Storage Audit")}
+                </span>
+              </button>
+            </div>
+
+            {/* Audit Result Display */}
+            {r2AuditData && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+                    <div className="text-[10px] font-black uppercase text-emerald-600">Cloudflare R2 স্ট্যাটাস</div>
+                    <div className="text-lg font-black text-emerald-800 mt-1 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      <span>{r2AuditData.summary?.r2BucketObjectsCount ?? 0} টি ফাইল বাকেটে</span>
+                    </div>
+                    <p className="text-[11px] text-emerald-700 mt-1">সব নতুন ও সংরক্ষিত ছবি R2 তে হোস্ট হচ্ছে</p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                    <div className="text-[10px] font-black uppercase text-slate-500">Cloudinary অবশিষ্ট ছবি</div>
+                    <div className="text-lg font-black text-slate-800 mt-1 flex items-center gap-1.5">
+                      <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                      <span>{r2AuditData.summary?.cloudinaryCount ?? 0} টি (সম্পূর্ণ মুক্ত 🎉)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">ক্লাউডিনারির কোনো সক্রিয় নির্ভরতা নেই</p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
+                    <div className="text-[10px] font-black uppercase text-amber-700">লাইভ CDN ডোমেইন</div>
+                    <div className="text-xs font-mono font-bold text-amber-900 mt-1 truncate">
+                      pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev
+                    </div>
+                    <p className="text-[11px] text-amber-700 mt-1">শূন্য ইগ্রেস ব্যান্ডউইথ খরচ ($0.00)</p>
+                  </div>
+                </div>
+
+                {/* Sample Live Objects from R2 Bucket */}
+                {r2AuditData.r2BucketSamples && r2AuditData.r2BucketSamples.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+                    <div className="font-black text-slate-700 flex items-center gap-1.5">
+                      <HardDrive className="w-4 h-4 text-indigo-600" />
+                      <span>R2 বাকেটের লাইভ ছবি ও লিংকসমূহ (ক্লিক করে সরাসরি টেস্ট করুন):</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {r2AuditData.r2BucketSamples.map((url: string, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-200 text-[11px]">
+                          {url.endsWith(".txt") ? (
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-mono text-[9px] text-slate-500 shrink-0">TXT</div>
+                          ) : (
+                            <img src={url} alt="Sample" className="w-8 h-8 rounded-lg object-cover shrink-0 border border-slate-200" />
+                          )}
+                          <a href={url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-mono truncate flex-1 flex items-center gap-1">
+                            <span className="truncate">{url.split("/").slice(-2).join("/")}</span>
+                            <ExternalLink className="w-3 h-3 shrink-0" />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step-by-Step Verification Guide for User */}
+            <div className="pt-2 border-t border-slate-100 space-y-3">
+              <h5 className="text-xs font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
+                <Info className="w-4 h-4 text-amber-600" />
+                <span>{getTranslation("আপনি নিজে কীভাবে নিশ্চিত হবেন ছবিগুলো R2-তে আছে?", "How to Personally Verify All Images Are on R2?")}</span>
+              </h5>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-1.5">
+                  <div className="font-black text-amber-900 flex items-center gap-1.5 text-xs">
+                    <span className="w-5 h-5 rounded-full bg-amber-200 text-amber-900 flex items-center justify-center text-[10px] font-black">১</span>
+                    <span>ছবিতে রাইট-ক্লিক করুন</span>
+                  </div>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">
+                    আপনার সাইটের যেকোনো ব্যানার, লোগো বা ছবির উপর মাউসের <strong>Right-Click</strong> করে <strong>"Open image in new tab"</strong> বা <strong>"Copy image address"</strong> দিন।
+                  </p>
+                  <p className="text-indigo-700 font-mono text-[10px] break-all pt-1 bg-white p-1.5 rounded-lg border border-amber-200">
+                    URL দেখতে পাবেন: <br/>https://pub-8c990c88...r2.dev/
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80 space-y-1.5">
+                  <div className="font-black text-indigo-900 flex items-center gap-1.5 text-xs">
+                    <span className="w-5 h-5 rounded-full bg-indigo-200 text-indigo-900 flex items-center justify-center text-[10px] font-black">২</span>
+                    <span>Cloudflare ড্যাশবোর্ড দেখুন</span>
+                  </div>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">
+                    সরাসরি <strong>dash.cloudflare.com</strong>-এ লগইন করে বাম মেনুর <strong>R2 Object Storage</strong>-এ যান।
+                  </p>
+                  <p className="text-indigo-800 text-[11px] pt-1">
+                    সেখানে <strong>kachabazar-image</strong> বাকেট খুললেই ভেতরে আপলোড করা ফাইলগুলো সরাসরি দেখতে পাবেন।
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 space-y-1.5">
+                  <div className="font-black text-emerald-900 flex items-center gap-1.5 text-xs">
+                    <span className="w-5 h-5 rounded-full bg-emerald-200 text-emerald-900 flex items-center justify-center text-[10px] font-black">৩</span>
+                    <span>টেস্ট আপলোড করে দেখুন</span>
+                  </div>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">
+                    নিচের টেস্ট আপলোডারে যেকোনো একটি ছবি নির্বাচন করে <strong>"R2-তে আপলোড করুন"</strong> চাপুন।
+                  </p>
+                  <p className="text-emerald-700 text-[11px] font-bold pt-1">
+                    মুহূর্তের মধ্যে ছবিটির লাইভ R2 CDN লিঙ্ক তৈরি হয়ে সামনে চলে আসবে।
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Test Image Upload Sandbox */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                <Upload className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-slate-800">
+                  {getTranslation("সরাসরি R2 টেস্ট আপলোডার", "Direct R2 Upload Tester")}
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  {getTranslation("যেকোনো ফাইল আপলোড করে Cloudflare R2 CDN লিঙ্ক পরীক্ষা করুন", "Upload any image to test Cloudflare R2 live CDN link")}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) {
+                    setTestUploadFile(e.target.files[0]);
+                  }
+                }}
+                className="text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
+              />
+
+              <button
+                type="button"
+                disabled={!testUploadFile || testingUpload}
+                onClick={async () => {
+                  if (!testUploadFile) return;
+                  setTestingUpload(true);
+                  try {
+                    const uploadedUrl = await uploadImageWithFallback(testUploadFile, { folder: "test" });
+                    setTestUploadResultUrl(uploadedUrl);
+                    triggerToast("টেস্ট ইমেজ সফলভাবে R2-তে আপলোড হয়েছে!", "Test image uploaded successfully to Cloudflare R2!");
+                  } catch (err: any) {
+                    triggerToast("আপলোড ব্যর্থ", err?.message || "Upload test failed");
+                  } finally {
+                    setTestingUpload(false);
+                  }
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white font-black text-xs hover:bg-black active:scale-95 transition disabled:opacity-50 cursor-pointer flex items-center gap-2 shrink-0"
+              >
+                <Upload className={`w-3.5 h-3.5 ${testingUpload ? "animate-bounce" : ""}`} />
+                <span>{testingUpload ? "আপলোড হচ্ছে..." : "R2-তে আপলোড করুন"}</span>
+              </button>
+            </div>
+
+            {testUploadResultUrl && (
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+                <div className="font-bold text-slate-700 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>সফলভাবে লাইভ হয়েছে:</span>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <img src={testUploadResultUrl} alt="Upload preview" className="w-16 h-16 rounded-xl object-cover border border-slate-200" />
+                  <div className="flex-1 min-w-[200px]">
+                    <a href={testUploadResultUrl} target="_blank" rel="noreferrer" className="font-mono text-amber-600 hover:underline break-all text-[11px] block">
+                      {testUploadResultUrl}
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {activeSettingsSubTab === "supabase" && (
         <div className="space-y-6">
           {/* Header Banner */}

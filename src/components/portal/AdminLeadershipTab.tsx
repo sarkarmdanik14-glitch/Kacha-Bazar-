@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { db, doc, getDoc, setDoc, onSnapshot } from "../../lib/firebase";
 import { createTranslator } from "../../lib/formatUtils";
+import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 
 import chairmanDefaultImg from "../../assets/images/chairman_hosne_ara_1784735275933.jpg";
 import viceChairmanDefaultImg from "../../assets/images/vice_chairman_abu_hanif_1784735297437.jpg";
@@ -128,26 +129,10 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
   // Product-management style image upload handler
   const processImageUpload = async (file: File): Promise<string> => {
     try {
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "upvkzb3p";
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "k0x8mjmx";
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", uploadPreset);
-
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-        method: "POST",
-        body: formData
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.secure_url) {
-          return data.secure_url;
-        }
-      }
+      const url = await uploadImageWithFallback(file, { folder: "leadership" });
+      if (url) return url;
     } catch (err) {
-      console.warn("Cloudinary upload failed, falling back to FileReader base64:", err);
+      console.warn("Upload failed, falling back to FileReader base64:", err);
     }
 
     // Fallback to FileReader Base64 string

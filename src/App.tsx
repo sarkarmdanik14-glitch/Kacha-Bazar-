@@ -657,16 +657,13 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>(() => ALL_PRODUCTS);
   const [loadingProducts, setLoadingProducts] = useState<boolean>(false);
   const [categories, setCategories] = useState<Category[]>(() => {
-    const allCat: Category = {
-      id: "all",
-      nameBn: "সকল পণ্য",
-      nameEn: "All Products",
-      iconName: "LayoutGrid",
-      colorClass: "from-emerald-500 to-teal-600",
-      borderColor: "border-emerald-200",
-      displayOrder: 0
-    };
-    return [allCat, ...CATEGORIES];
+    // Deduplicate by ID so 'all' (সকল পণ্য) or other categories never duplicate
+    const seen = new Set<string>();
+    return CATEGORIES.filter(c => {
+      if (!c?.id || seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
   });
   const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
   const [reviews, setReviews] = useState<Review[]>([]);

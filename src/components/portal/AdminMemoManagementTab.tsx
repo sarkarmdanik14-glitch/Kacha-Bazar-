@@ -13,6 +13,7 @@ import { StaffMember } from "../../types";
 import OrderMemoModal from "./OrderMemoModal";
 import { downloadMemoPDF } from "../../lib/pdfUtils";
 import { createTranslator } from "../../lib/formatUtils";
+import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 
 interface AdminMemoManagementTabProps {
   orders?: any[];
@@ -224,29 +225,10 @@ export default function AdminMemoManagementTab({
     }
 
     setUploadingState(true);
-    let uploadedUrl = "";
-
     try {
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "upvkzb3p";
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "k0x8mjmx";
-
-      if (cloudName && uploadPreset) {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", uploadPreset);
-
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-          method: "POST",
-          body: formData,
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          uploadedUrl = data.secure_url;
-        }
-      }
+      uploadedUrl = await uploadImageWithFallback(file, { folder: "signatures" });
     } catch (err) {
-      console.warn("Cloudinary upload failed, using fallback reader:", err);
+      console.warn("Upload failed, using fallback reader:", err);
     }
 
     if (!uploadedUrl) {

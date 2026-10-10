@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { db, doc, setDoc, getDoc, collection, getDocs } from "../../lib/firebase";
 import { createTranslator } from "../../lib/formatUtils";
+import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 
 interface AdminHomePageTabProps {
   products: any[];
@@ -295,28 +296,9 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
     let uploadedUrl = "";
 
     try {
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "upvkzb3p";
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "k0x8mjmx";
-
-      if (cloudName && uploadPreset) {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", uploadPreset);
-
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-          method: "POST",
-          body: formData
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.secure_url) {
-            uploadedUrl = data.secure_url;
-          }
-        }
-      }
+      uploadedUrl = await uploadImageWithFallback(file, { folder: uploadTarget || "homepage" });
     } catch (err) {
-      console.warn("Cloudinary upload failed, falling back to local reader:", err);
+      console.warn("Upload failed, falling back to local reader:", err);
     }
 
     if (!uploadedUrl) {

@@ -9,7 +9,7 @@ import { initializeApp as initAdminApp, getApps as getAdminApps } from "firebase
 import { getFirestore as getAdminFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth as getAdminAuth } from "firebase-admin/auth";
 import { initializeApp as initWebApp, getApps as getWebApps } from "firebase/app";
-import { getFirestore as getWebFirestoreSdk, doc, setDoc, addDoc, collection } from "firebase/firestore";
+import { getFirestore as getWebFirestoreSdk, doc, setDoc, addDoc, collection, getDocs, updateDoc } from "firebase/firestore";
 
 // Safely load firebase config in both bundled CJS, native ESM, and Node 22+ type stripping
 let firebaseAppletConfig: any = {};
@@ -24,6 +24,25 @@ try {
 
 // Load server environment variables from .env
 dotenv.config();
+
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+
+// Cloudflare R2 Object Storage Client Configuration
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "f28557b34a31123a24324c3124b05180";
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "5fee722d943a23b2184e7a44e72553a2";
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "5ce5e1826dd3f97f0a0c2e489c42c43713dc7ca5147b78af89e5aba7b0a6b073";
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "kachabazar-image";
+const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || "https://pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev").replace(/\/+$/, "");
+const R2_ENDPOINT = process.env.R2_ENDPOINT || `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+
+const r2Client = new S3Client({
+  region: "auto",
+  endpoint: R2_ENDPOINT,
+  credentials: {
+    accessKeyId: R2_ACCESS_KEY_ID,
+    secretAccessKey: R2_SECRET_ACCESS_KEY,
+  },
+});
 
 function getAdminDb() {
   if (!getAdminApps().length) {
@@ -50,6 +69,37 @@ function getWebFirestore() {
     app = getWebApps()[0];
   }
   return getWebFirestoreSdk(app, firebaseAppletConfig.firestoreDatabaseId || "(default)");
+}
+
+async function getCollectionDocs(colName: string): Promise<Array<{ id: string; data: any; update: (data: any) => Promise<any> }>> {
+  // First try adminDb
+  try {
+    const adminDb = getAdminDb();
+    const snap = await adminDb.collection(colName).get();
+    if (snap && snap.docs.length > 0) {
+      return snap.docs.map((d: any) => ({
+        id: d.id,
+        data: d.data(),
+        update: (u: any) => d.ref.update(u)
+      }));
+    }
+  } catch (err: any) {
+    // fallback
+  }
+
+  // Fallback to Web Firestore SDK
+  try {
+    const webDb = getWebFirestore();
+    const snap = await getDocs(collection(webDb, colName));
+    return snap.docs.map((d: any) => ({
+      id: d.id,
+      data: d.data(),
+      update: (u: any) => updateDoc(doc(webDb, colName, d.id), u)
+    }));
+  } catch (err: any) {
+    console.warn(`Firestore read notice for ${colName}:`, err?.message);
+  }
+  return [];
 }
 
 const app = express();
@@ -2161,10 +2211,10 @@ app.post("/api/admin/delete-product", rateLimiter(50, 60000), requireAdminAuth, 
   }
 });
 
-// 4.6 POST /api/upload & /api/staff/upload-photo - Handle image upload directly on server (Hardened with Auth & Magic-Byte Validation)
-const handleImageUpload = (req: express.Request, res: express.Response) => {
+// 4.6 POST /api/upload & /api/staff/upload-photo - Upload directly to Cloudflare R2 Object Storage
+const handleImageUpload = async (req: express.Request, res: express.Response) => {
   try {
-    const { dataUrl, filename } = req.body || {};
+    const { dataUrl, filename, folder } = req.body || {};
     if (!dataUrl || typeof dataUrl !== "string") {
       return res.status(400).json({ success: false, error: "Image dataUrl is required", message: "ছবির তথ্য (dataUrl) পাওয়া যায়নি।" });
     }
@@ -2201,25 +2251,521 @@ const handleImageUpload = (req: express.Request, res: express.Response) => {
       return res.status(400).json({ success: false, error: "Corrupt or invalid image binary header detected.", message: "ছবিটির ফাইল গঠন সঠিক নয়।" });
     }
 
+    const cleanFolder = (typeof folder === "string" && folder.trim()) ? folder.trim().replace(/[^a-zA-Z0-9_-]/g, "_") : "products";
     const safeName = `img_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
-    const uploadsDir = path.resolve(process.cwd(), "public", "uploads");
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+    const r2Key = `${cleanFolder}/${safeName}`;
+
+    // Upload to Cloudflare R2
+    let r2Success = false;
+    let finalUrl = "";
+
+    try {
+      await r2Client.send(new PutObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: r2Key,
+        Body: buffer,
+        ContentType: mimeType,
+      }));
+      r2Success = true;
+      finalUrl = `${R2_PUBLIC_URL}/${r2Key}`;
+      console.log(`[Cloudflare R2] Successfully uploaded: ${r2Key} -> ${finalUrl}`);
+    } catch (r2Err: any) {
+      console.warn("[Cloudflare R2] Upload warning, falling back to local storage:", r2Err?.message || r2Err);
     }
 
-    const filePath = path.join(uploadsDir, safeName);
-    fs.writeFileSync(filePath, buffer);
+    // High-resilience fallback to local uploads if R2 write encounters an issue
+    if (!r2Success) {
+      const uploadsDir = path.resolve(process.cwd(), "public", "uploads");
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const filePath = path.join(uploadsDir, safeName);
+      fs.writeFileSync(filePath, buffer);
+      finalUrl = `/uploads/${safeName}`;
+    }
 
-    const publicUrl = `/uploads/${safeName}`;
-    return res.json({ success: true, url: publicUrl, message: "ছবি সফলভাবে আপলোড করা হয়েছে।" });
+    return res.json({
+      success: true,
+      url: finalUrl,
+      r2Key: r2Success ? r2Key : null,
+      provider: r2Success ? "cloudflare_r2" : "local_storage",
+      message: "ছবি সফলভাবে আপলোড করা হয়েছে।"
+    });
   } catch (err: any) {
     console.error("Server image upload error:", err);
     return res.status(500).json({ success: false, error: err.message || "Failed to save uploaded image", message: "ছবি সংরক্ষণ করতে ত্রুটি দেখা দিয়েছে।" });
   }
 };
 
-app.post("/api/upload", rateLimiter(60, 60000), handleImageUpload);
-app.post("/api/staff/upload-photo", rateLimiter(60, 60000), requireStaffAuth, handleImageUpload);
+app.post("/api/upload", rateLimiter(120, 60000), handleImageUpload);
+app.post("/api/staff/upload-photo", rateLimiter(120, 60000), requireStaffAuth, handleImageUpload);
+
+// 4.7 GET /api/r2/status - Cloudflare R2 Health Check & Stats
+app.get("/api/r2/status", rateLimiter(30, 60000), async (_req, res) => {
+  try {
+    const listRes = await r2Client.send(new ListObjectsV2Command({
+      Bucket: R2_BUCKET_NAME,
+      MaxKeys: 10,
+    }));
+    return res.json({
+      success: true,
+      connected: true,
+      bucket: R2_BUCKET_NAME,
+      publicUrl: R2_PUBLIC_URL,
+      endpoint: R2_ENDPOINT,
+      objectCount: listRes.KeyCount || 0,
+      sampleObjects: (listRes.Contents || []).map(o => o.Key),
+      message: "Cloudflare R2 Object Storage is actively connected!"
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      connected: false,
+      bucket: R2_BUCKET_NAME,
+      error: err?.message || "Failed to connect to Cloudflare R2"
+    });
+  }
+});
+
+// 4.8 GET /api/media/:folder/:file - Media streamer proxy from R2
+app.get("/api/media/:folder/:file", async (req, res) => {
+  const { folder, file } = req.params;
+  const key = `${folder}/${file}`;
+  try {
+    const r2Obj = await r2Client.send(new GetObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: key,
+    }));
+    if (r2Obj.ContentType) {
+      res.setHeader("Content-Type", r2Obj.ContentType);
+    }
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    const stream = r2Obj.Body as any;
+    if (stream && typeof stream.pipe === "function") {
+      return stream.pipe(res);
+    }
+    const bytes = await r2Obj.Body?.transformToByteArray();
+    if (bytes) {
+      return res.send(Buffer.from(bytes));
+    }
+    return res.status(404).send("Image not found");
+  } catch (err: any) {
+    // If not found in R2, redirect to public URL or return 404
+    return res.redirect(`${R2_PUBLIC_URL}/${key}`);
+  }
+});
+
+let activeMigrationState = {
+  running: false,
+  totalItems: 0,
+  processedItems: 0,
+  migratedCount: 0,
+  currentStatus: "idle",
+  percent: 0,
+  logDetails: [] as Array<{ id: string; oldUrl: string; newUrl: string; collection: string }>,
+  startedAt: null as string | null,
+  completedAt: null as string | null,
+};
+
+// 4.9 GET /api/r2/migrate-progress - Live progress of ongoing migration
+app.get("/api/r2/migrate-progress", (req, res) => {
+  return res.json({ success: true, ...activeMigrationState });
+});
+
+// 4.10 POST /api/r2/migrate-from-cloudinary - 1-Click Migration from Cloudinary to R2
+app.post("/api/r2/migrate-from-cloudinary", async (req, res) => {
+  if (activeMigrationState.running) {
+    return res.json({
+      success: true,
+      alreadyRunning: true,
+      message: "মাইগ্রেশন ব্যাকগ্রাউন্ডে চলছে...",
+      progress: activeMigrationState
+    });
+  }
+
+  try {
+    activeMigrationState = {
+      running: true,
+      totalItems: 0,
+      processedItems: 0,
+      migratedCount: 0,
+      currentStatus: "শুরু হচ্ছে...",
+      percent: 0,
+      logDetails: [],
+      startedAt: new Date().toISOString(),
+      completedAt: null,
+    };
+
+    let migratedCount = 0;
+    const logDetails: Array<{ id: string; oldUrl: string; newUrl: string; collection: string }> = [];
+    const urlCache = new Map<string, string>();
+
+    // Helper to migrate one URL with caching
+    const migrateUrl = async (cldUrl: string, prefix = "products"): Promise<string | null> => {
+      if (!cldUrl || typeof cldUrl !== "string" || !cldUrl.includes("cloudinary.com")) return null;
+      if (urlCache.has(cldUrl)) {
+        return urlCache.get(cldUrl)!;
+      }
+      try {
+        const resp = await fetch(cldUrl);
+        if (!resp.ok) return null;
+        const cType = resp.headers.get("content-type") || "image/jpeg";
+        const arrBuf = await resp.arrayBuffer();
+        const buf = Buffer.from(arrBuf);
+
+        const urlParts = cldUrl.split("/");
+        const origName = (urlParts[urlParts.length - 1] || `img_${Date.now()}.jpg`).split("?")[0];
+        const safeName = origName.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const key = `${prefix}/${safeName}`;
+
+        await r2Client.send(new PutObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: key,
+          Body: buf,
+          ContentType: cType,
+        }));
+        const newUrl = `${R2_PUBLIC_URL}/${key}`;
+        urlCache.set(cldUrl, newUrl);
+        return newUrl;
+      } catch (e) {
+        console.warn(`Failed to migrate ${cldUrl}:`, e);
+        return null;
+      }
+    };
+
+    // 1. Scan and migrate Products
+    try {
+      const prodDocs = await getCollectionDocs("products");
+      for (const docItem of prodDocs) {
+        const data = docItem.data;
+        let changed = false;
+        const updates: any = {};
+
+        const checkFields = ["image", "imageUrl"];
+        for (const f of checkFields) {
+          const val = data[f];
+          if (typeof val === "string" && val.includes("cloudinary.com")) {
+            const newUrl = await migrateUrl(val, "products");
+            if (newUrl) {
+              updates[f] = newUrl;
+              changed = true;
+              logDetails.push({ id: docItem.id, oldUrl: val, newUrl, collection: "products" });
+            }
+          }
+        }
+
+        if (changed) {
+          await docItem.update(updates);
+          migratedCount++;
+        }
+      }
+    } catch (prodErr: any) {
+      console.warn("Product scan notice during R2 migration:", prodErr?.message);
+    }
+
+    // 2. Scan and migrate Categories
+    try {
+      const catDocs = await getCollectionDocs("categories");
+      for (const docItem of catDocs) {
+        const data = docItem.data;
+        let changed = false;
+        const updates: any = {};
+
+        const checkFields = ["image", "imageUrl", "banner", "bannerUrl"];
+        for (const f of checkFields) {
+          const val = data[f];
+          if (typeof val === "string" && val.includes("cloudinary.com")) {
+            const newUrl = await migrateUrl(val, "categories");
+            if (newUrl) {
+              updates[f] = newUrl;
+              changed = true;
+              logDetails.push({ id: docItem.id, oldUrl: val, newUrl, collection: "categories" });
+            }
+          }
+        }
+
+        if (changed) {
+          await docItem.update(updates);
+          migratedCount++;
+        }
+      }
+    } catch (catErr: any) {
+      console.warn("Category scan notice during R2 migration:", catErr?.message);
+    }
+
+    // 3. Scan and migrate Banners
+    try {
+      const banDocs = await getCollectionDocs("banners");
+      for (const docItem of banDocs) {
+        const data = docItem.data;
+        if (typeof data.image === "string" && data.image.includes("cloudinary.com")) {
+          const newUrl = await migrateUrl(data.image, "banners");
+          if (newUrl) {
+            await docItem.update({ image: newUrl });
+            migratedCount++;
+            logDetails.push({ id: docItem.id, oldUrl: data.image, newUrl, collection: "banners" });
+          }
+        }
+      }
+    } catch (banErr: any) {
+      console.warn("Banner scan notice during R2 migration:", banErr?.message);
+    }
+
+    // 4. Scan and migrate Subcategories
+    try {
+      const subDocs = await getCollectionDocs("subcategories");
+      for (const docItem of subDocs) {
+        const data = docItem.data;
+        if (typeof data.image === "string" && data.image.includes("cloudinary.com")) {
+          const newUrl = await migrateUrl(data.image, "categories");
+          if (newUrl) {
+            await docItem.update({ image: newUrl });
+            migratedCount++;
+            logDetails.push({ id: docItem.id, oldUrl: data.image, newUrl, collection: "subcategories" });
+          }
+        }
+      }
+    } catch (subErr: any) {
+      console.warn("Subcategory scan notice during R2 migration:", subErr?.message);
+    }
+
+    // 5. Scan and migrate Settings (logo, brand images)
+    try {
+      const setDocs = await getCollectionDocs("settings");
+      for (const docItem of setDocs) {
+        const data = docItem.data;
+        let changed = false;
+        const updates: any = {};
+        for (const [k, v] of Object.entries(data)) {
+          if (typeof v === "string" && v.includes("cloudinary.com")) {
+            const newUrl = await migrateUrl(v, "branding");
+            if (newUrl) {
+              updates[k] = newUrl;
+              changed = true;
+              logDetails.push({ id: docItem.id, oldUrl: v, newUrl, collection: "settings" });
+            }
+          }
+        }
+        if (changed) {
+          await docItem.update(updates);
+          migratedCount++;
+        }
+      }
+    } catch (setErr: any) {
+      console.warn("Settings scan notice during R2 migration:", setErr?.message);
+    }
+
+    activeMigrationState = {
+      running: false,
+      totalItems: logDetails.length,
+      processedItems: logDetails.length,
+      migratedCount,
+      currentStatus: "সম্পন্ন",
+      percent: 100,
+      logDetails: logDetails.slice(0, 50),
+      startedAt: activeMigrationState.startedAt,
+      completedAt: new Date().toISOString(),
+    };
+
+    return res.json({
+      success: true,
+      migratedCount,
+      logDetails,
+      message: `ক্লাউডিনারি থেকে ${migratedCount}টি ছবি সফলভাবে Cloudflare R2-তে মার্জ করা হয়েছে!`
+    });
+  } catch (err: any) {
+    activeMigrationState.running = false;
+    activeMigrationState.currentStatus = `ত্রুটি: ${err?.message}`;
+    console.error("Migration error:", err);
+    return res.status(500).json({ success: false, error: err?.message || "Migration failed" });
+  }
+});
+
+// 4.8 GET /api/r2/audit-images - Live audit of images across collections
+app.get("/api/r2/audit-images", async (req, res) => {
+  try {
+    const items: Array<{
+      id: string;
+      title: string;
+      collection: string;
+      field: string;
+      url: string;
+      storage: "r2" | "cloudinary" | "other";
+    }> = [];
+
+    const classifyStorage = (url: string): "r2" | "cloudinary" | "other" => {
+      if (!url || typeof url !== "string") return "other";
+      if (url.includes("r2.dev") || url.includes("cloudflarestorage.com")) return "r2";
+      if (url.includes("cloudinary.com")) return "cloudinary";
+      return "other";
+    };
+
+    // 1. Products
+    try {
+      const prodDocs = await getCollectionDocs("products");
+      for (const docItem of prodDocs) {
+        const d = docItem.data;
+        const title = d.name || d.title || d.titleBn || `Product #${docItem.id.slice(0, 6)}`;
+        const checkFields = ["image", "imageUrl", "thumbnail", "thumbnailUrl"];
+        for (const f of checkFields) {
+          const val = d[f];
+          if (typeof val === "string" && (val.startsWith("http://") || val.startsWith("https://") || val.startsWith("data:"))) {
+            items.push({
+              id: docItem.id,
+              title,
+              collection: "products",
+              field: f,
+              url: val,
+              storage: classifyStorage(val),
+            });
+          }
+        }
+        if (Array.isArray(d.images)) {
+          d.images.forEach((imgUrl: any, idx: number) => {
+            if (typeof imgUrl === "string" && (imgUrl.startsWith("http://") || imgUrl.startsWith("https://"))) {
+              items.push({
+                id: `${docItem.id}-img-${idx}`,
+                title: `${title} (Gallery #${idx + 1})`,
+                collection: "products",
+                field: `images[${idx}]`,
+                url: imgUrl,
+                storage: classifyStorage(imgUrl),
+              });
+            }
+          });
+        }
+      }
+    } catch (e: any) {
+      console.warn("Product audit error:", e?.message);
+    }
+
+    // 2. Categories
+    try {
+      const catDocs = await getCollectionDocs("categories");
+      for (const docItem of catDocs) {
+        const d = docItem.data;
+        const title = d.name || d.nameBn || `Category #${docItem.id.slice(0, 6)}`;
+        ["image", "imageUrl", "banner", "bannerUrl"].forEach((f) => {
+          const val = d[f];
+          if (typeof val === "string" && (val.startsWith("http://") || val.startsWith("https://"))) {
+            items.push({
+              id: docItem.id,
+              title,
+              collection: "categories",
+              field: f,
+              url: val,
+              storage: classifyStorage(val),
+            });
+          }
+        });
+      }
+    } catch (e: any) {
+      console.warn("Category audit error:", e?.message);
+    }
+
+    // 3. Banners
+    try {
+      const banDocs = await getCollectionDocs("banners");
+      for (const docItem of banDocs) {
+        const d = docItem.data;
+        const title = d.title || `Banner #${docItem.id.slice(0, 6)}`;
+        if (typeof d.image === "string" && (d.image.startsWith("http://") || d.image.startsWith("https://"))) {
+          items.push({
+            id: docItem.id,
+            title,
+            collection: "banners",
+            field: "image",
+            url: d.image,
+            storage: classifyStorage(d.image),
+          });
+        }
+      }
+    } catch (e: any) {
+      console.warn("Banner audit error:", e?.message);
+    }
+
+    // 4. Subcategories
+    try {
+      const subDocs = await getCollectionDocs("subcategories");
+      for (const docItem of subDocs) {
+        const d = docItem.data;
+        const title = d.name || d.nameBn || `Subcategory #${docItem.id.slice(0, 6)}`;
+        if (typeof d.image === "string" && (d.image.startsWith("http://") || d.image.startsWith("https://"))) {
+          items.push({
+            id: docItem.id,
+            title,
+            collection: "subcategories",
+            field: "image",
+            url: d.image,
+            storage: classifyStorage(d.image),
+          });
+        }
+      }
+    } catch (e: any) {
+      console.warn("Subcategory audit error:", e?.message);
+    }
+
+    // 5. Settings
+    try {
+      const setDocs = await getCollectionDocs("settings");
+      for (const docItem of setDocs) {
+        const d = docItem.data;
+        for (const [k, v] of Object.entries(d)) {
+          if (typeof v === "string" && (v.startsWith("http://") || v.startsWith("https://")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("r2.dev") || v.includes("cloudinary.com"))) {
+            items.push({
+              id: docItem.id,
+              title: `Site Setting: ${k}`,
+              collection: "settings",
+              field: k,
+              url: v,
+              storage: classifyStorage(v),
+            });
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn("Settings audit error:", e?.message);
+    }
+
+    // 6. Direct R2 Bucket Objects query
+    let r2Objects: string[] = [];
+    try {
+      const r2Cmd = new ListObjectsV2Command({
+        Bucket: R2_BUCKET_NAME,
+        MaxKeys: 50
+      });
+      const r2Res = await r2Client.send(r2Cmd);
+      r2Objects = (r2Res.Contents || []).map((o) => `${R2_PUBLIC_URL}/${o.Key}`);
+    } catch (e: any) {
+      console.warn("R2 list error in audit:", e?.message);
+    }
+
+    const r2Count = items.filter((i) => i.storage === "r2").length;
+    const cloudinaryCount = items.filter((i) => i.storage === "cloudinary").length;
+    const otherCount = items.filter((i) => i.storage === "other").length;
+    const total = items.length;
+
+    return res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      summary: {
+        totalImages: total,
+        r2Count,
+        cloudinaryCount,
+        otherCount,
+        r2Percentage: total > 0 ? Math.round((r2Count / total) * 100) : 100,
+        r2BucketObjectsCount: r2Objects.length,
+        status: cloudinaryCount === 0 ? "ALL_MIGRATED_TO_R2" : "MIGRATION_PENDING"
+      },
+      r2BucketSamples: r2Objects.slice(0, 10),
+      items: items.slice(0, 100)
+    });
+  } catch (err: any) {
+    console.error("Audit error:", err);
+    return res.status(500).json({ success: false, error: err?.message || "Audit failed" });
+  }
+});
+
 
 // 5. POST /api/staff/reset-password - Reset Password Securely
 app.post("/api/staff/reset-password", rateLimiter(15, 60000), requireAdminAuth, async (req, res) => {

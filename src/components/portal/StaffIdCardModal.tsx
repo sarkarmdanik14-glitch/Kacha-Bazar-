@@ -23,6 +23,7 @@ import QRCode from "qrcode";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas-pro";
 import { createTranslator } from "../../lib/formatUtils";
+import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 
 interface StaffIdCardModalProps {
   staff: StaffMember | null;
@@ -442,27 +443,14 @@ export default function StaffIdCardModal({
       throw new Error(lang === "bn" ? "অনুগ্রহ করে একটি ছবি ফাইল নির্বাচন করুন!" : "Please select an image file!");
     }
 
-    // 1. Try Cloudinary if environment configured
+    // 1. Primary: Cloudflare R2 via uploadImageWithFallback
     try {
-      const cloudName = (import.meta as any).env?.VITE_CLOUDINARY_CLOUD_NAME || "upvkzb3p";
-      const uploadPreset = (import.meta as any).env?.VITE_CLOUDINARY_UPLOAD_PRESET || "k0x8mjmx";
-      if (cloudName && uploadPreset) {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", uploadPreset);
-        const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-          method: "POST",
-          body: formData
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.secure_url) {
-            return data.secure_url;
-          }
-        }
+      const url = await uploadImageWithFallback(file, { folder: "staff" });
+      if (url) {
+        return url;
       }
     } catch (uploadErr) {
-      console.warn("Cloudinary upload notice, using local data URL:", uploadErr);
+      console.warn("Upload notice, using local data URL fallback:", uploadErr);
     }
 
     // 2. High-reliability fallback: Read file as Data URL

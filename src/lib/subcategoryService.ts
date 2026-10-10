@@ -470,7 +470,7 @@ export async function bootstrapEventManagementSubcategories(): Promise<number> {
       count++;
     }
 
-    const EVENT_IMAGE = "https://res.cloudinary.com/upvkzb3p/image/upload/v1790502262/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg";
+    const EVENT_IMAGE = "https://pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev/branding/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg";
 
     // Also update categories/pet-food-care with subcategories array & proper metadata
     await setDoc(doc(db, "categories", "pet-food-care"), {

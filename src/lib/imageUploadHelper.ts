@@ -86,7 +86,23 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
     console.warn("Client compression notice:", compErr);
   }
 
-  // TIER 1: Cloudinary (Fast Global CDN)
+  // TIER 1: Cloudflare R2 Object Storage (Zero Egress, Unlimited CDN)
+  try {
+    const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const data = await apiClient.post("/api/upload", {
+      dataUrl: compressedDataUrl,
+      filename,
+      folder
+    }, { skipAuth: true, timeoutMs: 25000 });
+
+    if (data?.url) {
+      return data.url;
+    }
+  } catch (r2Err) {
+    console.warn("Cloudflare R2 tier notice, attempting Cloudinary fallback:", r2Err);
+  }
+
+  // TIER 2: Cloudinary Fallback
   try {
     const formData = new FormData();
     if (compressedDataUrl) {
@@ -100,7 +116,7 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => controller.abort(), 12000);
 
     const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
       method: "POST",
@@ -119,7 +135,7 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
     // Graceful fallback to next tier
   }
 
-  // TIER 2: Firebase Storage (Protected with 10s timeout)
+  // TIER 3: Firebase Storage Fallback (Protected with 10s timeout)
   try {
     if (storage) {
       const filename = `${folder}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
@@ -142,22 +158,6 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
       }
     }
   } catch (fsErr) {
-    // Graceful fallback to local tier
-  }
-
-  // TIER 3: Local Server Upload API (/api/upload)
-  try {
-    const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-    const data = await apiClient.post("/api/upload", {
-      dataUrl: compressedDataUrl,
-      filename,
-      folder
-    }, { skipAuth: true, timeoutMs: 3500 });
-
-    if (data?.url) {
-      return data.url;
-    }
-  } catch (srvErr) {
     // Graceful fallback to base64
   }
 

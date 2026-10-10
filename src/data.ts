@@ -16,7 +16,7 @@ export const CATEGORIES: Category[] = [
   { id: "cosmetics", nameBn: "কসমেটিকস ও বিউটি কর্নার", nameEn: "Cosmetics & Beauty Corner", iconName: "Sparkles", colorClass: "bg-pink-50 text-pink-700", borderColor: "border-pink-100", displayOrder: 10 },
   { id: "pharmacy", nameBn: "ফার্মেসি", nameEn: "Pharmacy", iconName: "Pill", colorClass: "bg-teal-50 text-teal-800", borderColor: "border-teal-100", displayOrder: 12 },
   { id: "offers", nameBn: "অফার ও ডিল", nameEn: "Offers & Deals", iconName: "Tag", colorClass: "bg-purple-50 text-purple-800", borderColor: "border-purple-100", displayOrder: 13 },
-  { id: "pet-food-care", nameBn: "ইভেন্ট ম্যানেজমেন্ট", nameEn: "Event Management", iconName: "Sparkles", colorClass: "bg-orange-50 text-orange-700", borderColor: "border-orange-100", displayOrder: 16, image: "https://res.cloudinary.com/upvkzb3p/image/upload/v1790502262/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg", imageUrl: "https://res.cloudinary.com/upvkzb3p/image/upload/v1790502262/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg" }
+  { id: "pet-food-care", nameBn: "ইভেন্ট ম্যানেজমেন্ট", nameEn: "Event Management", iconName: "Sparkles", colorClass: "bg-orange-50 text-orange-700", borderColor: "border-orange-100", displayOrder: 16, image: "https://pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev/branding/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg", imageUrl: "https://pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev/branding/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg" }
 ];
 
 export const GROCERY_PRODUCTS_RAW: Product[] = [
