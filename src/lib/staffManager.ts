@@ -27,6 +27,8 @@ import {
   onSnapshot 
 } from "./firebase";
 import { apiClient, getApiAuthHeaders } from "./apiClient";
+import { syncSingleStaffToSupabase } from "./supabaseSync";
+import { supabase } from "./supabase";
 
 // Module registry with descriptions
 export interface ModuleInfo {
@@ -976,6 +978,11 @@ export async function createStaffInFirestore(params: {
 
   await setDoc(staffDocRef, firestoreData, { merge: true });
 
+  // Real-time automatic sync to Supabase
+  syncSingleStaffToSupabase(firestoreData).catch((err) => {
+    console.warn("[Supabase] Notice auto-syncing created staff:", err);
+  });
+
   // 3. Log activity in Firestore
   await logStaffActivity({
     staffUser: creatorUser || { fullName: "Super Admin", role: "super_admin" },
@@ -1167,6 +1174,11 @@ export async function updateStaffInFirestore(
     photoURL: rawPayload.photoURL !== undefined ? rawPayload.photoURL : (existingFirestoreData.photoURL || "")
   } as StaffMember;
 
+  // Real-time automatic sync to Supabase
+  syncSingleStaffToSupabase(finalStaffResult).catch((err) => {
+    console.warn("[Supabase] Notice auto-syncing updated staff:", err);
+  });
+
   return finalStaffResult;
 }
 
@@ -1286,6 +1298,9 @@ export async function deleteStaffFromFirestore(
       await deleteDoc(doc(db, "staff", snap.docs[0].id));
     }
   });
+
+  // Real-time automatic removal from Supabase
+  Promise.resolve(supabase.from("staff").delete().or(`id.eq.${staffIdOrDocId},staff_id.eq.${staffIdOrDocId}`)).catch(() => {});
 
   // 3. Log activity in Firestore
   await logStaffActivity({

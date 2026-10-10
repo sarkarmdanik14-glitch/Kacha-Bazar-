@@ -29,6 +29,7 @@ import { awardOrderRewardPoints } from "../../lib/rewardPoints";
 import { mergeCategoryCards, shouldKeepProductGroceryFiltered, isCategoryMatch } from "../../lib/categoryUtils";
 import { ALL_PRODUCTS, CATEGORIES, GROCERY_PRODUCTS_RAW } from "../../data";
 import { resolveAuthenticProductImage } from "../../lib/masterImageRegistry";
+import { syncSingleOrderToSupabase } from "../../lib/supabaseSync";
 
 // Import modular sub-panels
 import AdminDashboardReport from "./AdminDashboardReport";
@@ -505,6 +506,12 @@ export default function AdminPanel({
         orderStatus: status,
         updatedAt: serverTimestamp()
       });
+
+      // Real-time automatic sync to Supabase
+      syncSingleOrderToSupabase({ id: orderId, orderStatus: status }).catch((err) => {
+        console.warn("[Supabase] Notice auto-syncing order status:", err);
+      });
+
       triggerToast(`অর্ডার স্ট্যাটাস আপডেট করা হয়েছে: ${status}`, `Order status updated to: ${status}`);
 
       if (status === "delivered" || status === "completed") {
@@ -537,6 +544,15 @@ export default function AdminPanel({
         paymentStatus: status,
         // If status is refunded, also mark orderStatus as refunded
         ...(status === "refunded" ? { orderStatus: "refunded" } : {})
+      });
+
+      // Real-time automatic sync to Supabase
+      syncSingleOrderToSupabase({
+        id: orderId,
+        paymentStatus: status,
+        ...(status === "refunded" ? { orderStatus: "refunded" } : {})
+      }).catch((err) => {
+        console.warn("[Supabase] Notice auto-syncing payment status:", err);
       });
 
       // Handle wallet credit if setting status to refunded

@@ -3,14 +3,18 @@ import {
   Settings, Check, RefreshCw, MapPin, Building, Phone, Mail, 
   ToggleLeft, ToggleRight, ImageIcon, Plus, Trash2, Edit, Upload, Navigation, ShieldAlert, Info,
   QrCode, Smartphone, Download, Copy, ExternalLink, Sparkles, CheckCircle2, Globe, Printer,
-  Megaphone, AlertCircle, Eye, RotateCcw, Save, Bell
+  Megaphone, AlertCircle, Eye, RotateCcw, Save, Bell, Database, Play, CheckCircle, ArrowRight
 } from "lucide-react";
 import QRCode from "qrcode";
 import { APP_LOGO_URL } from "../../constants/branding";
-import { db, doc, setDoc, deleteDoc, collection, serverTimestamp, onSnapshot } from "../../lib/firebase";
+import { db, doc, setDoc, deleteDoc, collection, serverTimestamp, onSnapshot, getDocs } from "../../lib/firebase";
 import { DeliveryZone, DEFAULT_DELIVERY_ZONES, DEFAULT_STORE_LOCATION } from "../../lib/delivery";
 import { LiveNoticeConfig, DEFAULT_LIVE_NOTICE } from "../../types";
 import { createTranslator } from "../../lib/formatUtils";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../../lib/supabase";
+import { checkSupabaseStatus, syncAllToSupabase, SyncProgress } from "../../lib/supabaseSync";
+import { SUPABASE_SCHEMA_SQL } from "../../lib/supabaseSchemaCode";
+import { CATEGORIES, ALL_PRODUCTS } from "../../data";
 
 interface AdminSettingsTabProps {
   settings: any;
@@ -22,8 +26,16 @@ interface AdminSettingsTabProps {
 export default function AdminSettingsTab({ settings, banners, lang, triggerToast }: AdminSettingsTabProps) {
   const getTranslation = createTranslator(lang);
 
-  const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "notice" | "delivery" | "banners" | "pwa">("global");
+  const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "notice" | "delivery" | "banners" | "pwa" | "supabase">("global");
   const [savingSettings, setSavingSettings] = useState<boolean>(false);
+
+  // Supabase Migration & Test State
+  const [checkingSupabase, setCheckingSupabase] = useState<boolean>(false);
+  const [supabaseCheckInfo, setSupabaseCheckInfo] = useState<{ connected: boolean; message: string; tableCounts?: Record<string, number> } | null>(null);
+  const [copiedSql, setCopiedSql] = useState<boolean>(false);
+  const [syncingSupabase, setSyncingSupabase] = useState<boolean>(false);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+  const [syncResult, setSyncResult] = useState<{ success: boolean; details: Record<string, number>; errors: string[] } | null>(null);
 
   // Live Notice / Announcement State
   const [noticeActive, setNoticeActive] = useState<boolean>(DEFAULT_LIVE_NOTICE.isActive);
@@ -616,6 +628,15 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         >
           <QrCode className="w-3.5 h-3.5" />
           <span>{getTranslation("PWA ও QR কোড", "PWA & QR Posters")}</span>
+        </button>
+        <button 
+          onClick={() => setActiveSettingsSubTab("supabase")}
+          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
+            activeSettingsSubTab === "supabase" ? "border-emerald-600 text-emerald-600 bg-emerald-50/50" : "border-transparent text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          <Database className="w-3.5 h-3.5 text-emerald-600" />
+          <span>{getTranslation("⚡ সুপাবেস ডেটাবেস", "⚡ Supabase DB")}</span>
         </button>
       </div>
 
@@ -1691,6 +1712,350 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= SUPABASE DATABASE MIGRATION SUBTAB ================= */}
+      {activeSettingsSubTab === "supabase" && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white rounded-3xl p-6 sm:p-8 shadow-lg shadow-emerald-900/10 relative overflow-hidden">
+            <div className="absolute -right-6 -bottom-6 w-40 h-40 bg-white/10 rounded-full blur-xl pointer-events-none" />
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-xs text-xs font-black uppercase tracking-wider text-emerald-100">
+                  <Database className="w-3.5 h-3.5" />
+                  <span>{getTranslation("সুপাবেস ক্লাউড ডেটাবেস", "Supabase Cloud Database")}</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black">
+                  {getTranslation("সুপাবেস (PostgreSQL) মাইগ্রেশন হাব", "Supabase (PostgreSQL) Migration Hub")}
+                </h3>
+                <p className="text-emerald-100 text-xs sm:text-sm max-w-xl">
+                  {getTranslation(
+                    "আপনার কাঁচাবাজার প্রজেক্টটি এখন সরাসরি Supabase-এর সাথে সংযুক্ত। নিচে দেওয়া SQL কোডটি আপনার Supabase SQL Editor-এ রান করার পর যেকোনো সময় এক ক্লিকে ফায়ারবেস থেকে সব ডেটা ট্রান্সফার করতে পারবেন।",
+                    "Your KachaBazar project is now integrated with Supabase. After running the SQL schema in your Supabase SQL Editor, you can sync all data with a single click."
+                  )}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  disabled={checkingSupabase}
+                  onClick={async () => {
+                    setCheckingSupabase(true);
+                    try {
+                      const res = await checkSupabaseStatus();
+                      setSupabaseCheckInfo(res);
+                      if (res.connected) {
+                        triggerToast("Supabase কানেকশন সফল!", res.message);
+                      } else {
+                        triggerToast("কানেকশন চেক ব্যর্থ", res.message);
+                      }
+                    } catch (err: any) {
+                      triggerToast("ত্রুটি", err?.message || "Check error");
+                    } finally {
+                      setCheckingSupabase(false);
+                    }
+                  }}
+                  className="px-4 py-2.5 bg-white text-emerald-800 hover:bg-emerald-50 active:scale-95 font-black text-xs rounded-xl shadow transition flex items-center gap-2 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${checkingSupabase ? "animate-spin" : ""}`} />
+                  <span>{checkingSupabase ? getTranslation("যাচাই হচ্ছে...", "Checking...") : getTranslation("কানেকশন টেস্ট করুন", "Test Connection")}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Connection Info Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase text-slate-400 tracking-wider">Project URL</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">Connected</span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl font-mono text-xs text-slate-700 break-all border border-slate-100 select-all">
+                {SUPABASE_URL}
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase text-slate-400 tracking-wider">Anon Public Key</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">sb_publishable</span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl font-mono text-xs text-slate-700 truncate border border-slate-100 select-all" title={SUPABASE_ANON_KEY}>
+                {SUPABASE_ANON_KEY}
+              </div>
+            </div>
+          </div>
+
+          {/* Status Result Display if available */}
+          {supabaseCheckInfo && (
+            <div className={`p-4 rounded-2xl border ${supabaseCheckInfo.connected ? "bg-emerald-50/70 border-emerald-200 text-emerald-900" : "bg-amber-50/70 border-amber-200 text-amber-900"}`}>
+              <div className="flex items-start gap-3">
+                {supabaseCheckInfo.connected ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                )}
+                <div className="space-y-1 text-xs">
+                  <div className="font-black text-sm">{supabaseCheckInfo.message}</div>
+                  {supabaseCheckInfo.tableCounts && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {Object.entries(supabaseCheckInfo.tableCounts).map(([tbl, cnt]) => (
+                        <span key={tbl} className="px-2.5 py-1 bg-white rounded-lg border border-emerald-200 font-bold text-[11px] text-slate-700">
+                          {tbl}: <strong className="text-emerald-700">{cnt}</strong>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 1: SQL Schema instructions and copy */}
+          <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-slate-900 text-white font-black text-xs flex items-center justify-center shrink-0">
+                  ১
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-800 text-sm">
+                    {getTranslation("সুপাবেস এসকিউএল স্কিমা স্ক্রিপ্ট (SQL Schema)", "Supabase SQL Schema Script")}
+                  </h4>
+                  <p className="text-slate-500 text-xs">
+                    {getTranslation("সুপাবেস SQL Editor-এ একবার রান করে সব টেবিল তৈরি করে নিন", "Run in Supabase SQL Editor once to create all database tables")}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(SUPABASE_SCHEMA_SQL);
+                      setCopiedSql(true);
+                      triggerToast("SQL স্ক্রিপ্ট কপি হয়েছে!", "SQL schema copied to clipboard!");
+                      setTimeout(() => setCopiedSql(false), 3000);
+                    } catch (e) {
+                      triggerToast("কপি করা যায়নি", "Failed to copy");
+                    }
+                  }}
+                  className={`px-4 py-2 text-xs font-black rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                    copiedSql ? "bg-emerald-600 text-white" : "bg-slate-900 hover:bg-black text-white"
+                  }`}
+                >
+                  {copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedSql ? getTranslation("কপি হয়েছে!", "Copied!") : getTranslation("সম্পূর্ণ SQL স্ক্রিপ্ট কপি করুন", "Copy SQL Schema")}</span>
+                </button>
+                <a
+                  href="https://supabase.com/dashboard/project/syqiyurjeuibpprfrmwa/sql/new"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>{getTranslation("SQL Editor খুলুন", "Open SQL Editor")}</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Quick How to run steps */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                <div className="font-black text-slate-700 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-black">১</span>
+                  <span>SQL Editor-এ যান</span>
+                </div>
+                <p className="text-slate-500 text-[11px]">
+                  আপনার Supabase Dashboard-এর বাম পাশের মেনু থেকে <strong>SQL Editor</strong>-এ ক্লিক করে <strong>New query</strong> খুলুন।
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                <div className="font-black text-slate-700 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-black">২</span>
+                  <span>কোড পেস্ট করুন</span>
+                </div>
+                <p className="text-slate-500 text-[11px]">
+                  উপরের <strong>"সম্পূর্ণ SQL স্ক্রিপ্ট কপি করুন"</strong> বাটনে ক্লিক করে কোডটি পেস্ট (Ctrl+V) করুন।
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                <div className="font-black text-slate-700 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-200 text-emerald-800 flex items-center justify-center text-[10px] font-black">৩</span>
+                  <span>Run বাটনে চাপুন</span>
+                </div>
+                <p className="text-slate-500 text-[11px]">
+                  ডানপাশের সবুজ <strong>Run</strong> বাটনে চাপ দিন। ২-৩ সেকেন্ডে Success মেসেজ চলে আসবে এবং সব টেবিল প্রস্তুত হবে!
+                </p>
+              </div>
+            </div>
+
+            {/* Code preview snippet */}
+            <div className="relative rounded-2xl bg-slate-900 text-slate-200 p-4 font-mono text-[11px] max-h-56 overflow-y-auto scrollbar-thin">
+              <pre className="whitespace-pre-wrap">{SUPABASE_SCHEMA_SQL.slice(0, 1400)}
+{"\n-- ... [এবং আরও অন্যান্য টেবিল ও RLS পলিসি সহ সম্পূর্ণ স্ক্রিপ্ট কপি বাটনে রয়েছে] ..."}</pre>
+            </div>
+          </div>
+
+          {/* Step 2: Live Sync from Firestore to Supabase */}
+          <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                  ২
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-800 text-sm">
+                    {getTranslation("ফায়ারবেস থেকে সুপাবেসে ডেটা সিঙ্ক করুন (Live Data Migration)", "Live Data Sync to Supabase")}
+                  </h4>
+                  <p className="text-slate-500 text-xs">
+                    {getTranslation("বিদ্যমান ক্যাটাগরি, প্রোডাক্ট, স্টাফ, পার্টনার শপ ও অর্ডারগুলো সুপাবেসে কপি করুন", "Transfer current products, categories, staff, partner shops, and orders to Supabase")}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={syncingSupabase}
+                onClick={async () => {
+                  setSyncingSupabase(true);
+                  setSyncResult(null);
+                  setSyncProgress({ step: "ডেটা লোড হচ্ছে...", total: 0, completed: 0, status: "running" });
+
+                  try {
+                    // Fetch from Firestore
+                    const [catSnap, subcatSnap, prodSnap, staffSnap, shopSnap, ordSnap] = await Promise.all([
+                      getDocs(collection(db, "categories")).catch(() => ({ docs: [] } as any)),
+                      getDocs(collection(db, "subcategories")).catch(() => ({ docs: [] } as any)),
+                      getDocs(collection(db, "products")).catch(() => ({ docs: [] } as any)),
+                      getDocs(collection(db, "staff")).catch(() => ({ docs: [] } as any)),
+                      getDocs(collection(db, "partner_shops")).catch(() => ({ docs: [] } as any)),
+                      getDocs(collection(db, "orders")).catch(() => ({ docs: [] } as any)),
+                    ]);
+
+                    const firestoreCats = (catSnap.docs || []).map((d: any) => ({ ...d.data(), id: d.id }));
+                    const firestoreSubcats = (subcatSnap.docs || []).map((d: any) => ({ ...d.data(), id: d.id }));
+                    const firestoreProds = (prodSnap.docs || []).map((d: any) => ({ ...d.data(), id: d.id }));
+                    const staff = (staffSnap.docs || []).map((d: any) => ({ ...d.data(), id: d.id }));
+                    const partnerShops = (shopSnap.docs || []).map((d: any) => ({ ...d.data(), id: d.id }));
+                    const orders = (ordSnap.docs || []).map((d: any) => ({ ...d.data(), id: d.id }));
+
+                    // Merge baseline catalog categories and firestore categories
+                    const categories = [...CATEGORIES, ...firestoreCats];
+
+                    // Merge baseline products and firestore products
+                    const products = [...ALL_PRODUCTS, ...firestoreProds];
+
+                    // Build subcategories map from products and any from Firestore
+                    const subcatMap = new Map<string, any>();
+                    for (const s of firestoreSubcats) {
+                      if (s && s.id) subcatMap.set(String(s.id), s);
+                    }
+                    for (const p of products) {
+                      const subName = p.subcategory || p.subCategory;
+                      const catId = p.categoryId || p.category;
+                      if (subName && typeof subName === "string" && subName.trim() && catId) {
+                        const slug = subName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-]/g, "") || `sub_${subName.length}`;
+                        const subId = p.subCategoryId || `sub_${catId}_${slug}`;
+                        if (!subcatMap.has(subId)) {
+                          subcatMap.set(subId, {
+                            id: subId,
+                            nameBn: subName,
+                            nameEn: p.subcategoryEn || subName,
+                            categoryId: String(catId),
+                            categorySlug: String(catId),
+                            displayOrder: 0,
+                            isActive: true,
+                          });
+                        }
+                      }
+                    }
+                    const subcategories = Array.from(subcatMap.values());
+
+                    const res = await syncAllToSupabase(
+                      { categories, subcategories, products, staff, partnerShops, orders },
+                      (p) => setSyncProgress(p)
+                    );
+
+                    setSyncResult(res);
+
+                    // Re-check Supabase status counts
+                    const checkRes = await checkSupabaseStatus();
+                    setSupabaseCheckInfo(checkRes);
+
+                    if (res.success) {
+                      triggerToast("সুপাবেস ডেটা সিঙ্ক সফল!", "All data successfully synced to Supabase!");
+                    } else {
+                      triggerToast("সিঙ্ক সম্পন্ন হয়েছে সতর্কতাসহ", "Sync finished with some issues");
+                    }
+                  } catch (err: any) {
+                    console.error("Sync error:", err);
+                    triggerToast("সিঙ্ক ব্যর্থ হয়েছে", err?.message || "Sync error");
+                  } finally {
+                    setSyncingSupabase(false);
+                  }
+                }}
+                className={`px-5 py-3 text-xs font-black rounded-xl text-white transition flex items-center gap-2 cursor-pointer shadow-md ${
+                  syncingSupabase ? "bg-emerald-400 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700 active:scale-95"
+                }`}
+              >
+                <Play className={`w-3.5 h-3.5 fill-current ${syncingSupabase ? "animate-pulse" : ""}`} />
+                <span>{syncingSupabase ? getTranslation("সিঙ্ক হচ্ছে...", "Syncing...") : getTranslation("১-ক্লিকে ডেটা সিঙ্ক শুরু করুন", "Start 1-Click Sync")}</span>
+              </button>
+            </div>
+
+            {/* Sync Progress Indicator */}
+            {syncProgress && (
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span>{syncProgress.step}</span>
+                  {syncProgress.total > 0 && (
+                    <span className="text-emerald-700">
+                      {syncProgress.completed} / {syncProgress.total}
+                    </span>
+                  )}
+                </div>
+                {syncingSupabase && (
+                  <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                    <div className="bg-emerald-600 h-2 rounded-full animate-pulse w-full" />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Sync Results Box */}
+            {syncResult && (
+              <div className={`p-4 rounded-2xl border ${syncResult.success ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"} space-y-2 text-xs`}>
+                <div className="font-black text-slate-800 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span>সিঙ্ক ফলাফল (Synced Records):</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {Object.entries(syncResult.details).map(([k, v]) => (
+                    <div key={k} className="p-2.5 bg-white rounded-xl border border-slate-200/60 font-bold">
+                      <span className="text-[10px] uppercase text-slate-400 block">{k}</span>
+                      <span className="text-sm text-emerald-700">{v} টি রেকর্ড</span>
+                    </div>
+                  ))}
+                </div>
+                {syncResult.errors.length > 0 && (
+                  <div className="pt-2 text-rose-600 font-medium text-[11px] space-y-1">
+                    <div className="font-bold">সতর্কতা / ত্রুটি:</div>
+                    {syncResult.errors.map((e, idx) => (
+                      <div key={idx}>• {e}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

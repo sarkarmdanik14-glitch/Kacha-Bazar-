@@ -26,6 +26,7 @@ import { resolveProductDisplayUnit } from "../lib/productWeightUtils";
 import { createTranslator } from "../lib/formatUtils";
 import { SAFE_PRODUCT_PLACEHOLDER } from "../lib/masterImageRegistry";
 import { checkAndUpgradePremiumMembership } from "../lib/membership";
+import { syncSingleOrderToSupabase } from "../lib/supabaseSync";
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -353,6 +354,10 @@ export default function CheckoutModal({
       if (user?.uid) {
         checkAndUpgradePremiumMembership(user.uid);
       }
+      // Real-time automatic sync of newly placed order to Supabase
+      syncSingleOrderToSupabase({ ...orderPayload, id: orderId }).catch((err) => {
+        console.warn("[Supabase] Notice auto-syncing new order:", err);
+      });
       onSuccess(orderId, orderPayload);
     } catch (err: any) {
       if (err?.message && (err.message.startsWith("INSUFFICIENT_STOCK:") || err.message.startsWith("PRODUCT_NOT_FOUND:"))) {

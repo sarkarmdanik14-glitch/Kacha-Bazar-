@@ -13,6 +13,7 @@ import {
   onSnapshot 
 } from "./firebase";
 import { Subcategory } from "../types";
+import { syncSingleSubcategoryToSupabase } from "./supabaseSync";
 
 /**
  * Standard default subcategories categorized by main category ID.
@@ -393,6 +394,12 @@ export async function saveSubcategory(
   };
 
   await setDoc(ref, payload, { merge: true });
+
+  // Real-time automatic sync to Supabase
+  syncSingleSubcategoryToSupabase(payload).catch((err) => {
+    console.warn("[Supabase] Notice auto-syncing subcategory:", err);
+  });
+
   return id;
 }
 
@@ -407,6 +414,9 @@ export async function softDeleteSubcategory(subcategoryId: string): Promise<void
     isActive: false,
     updatedAt: serverTimestamp()
   });
+
+  // Real-time automatic update in Supabase
+  syncSingleSubcategoryToSupabase({ id: subcategoryId, isDeleted: true, isActive: false }).catch(() => {});
 }
 
 /**

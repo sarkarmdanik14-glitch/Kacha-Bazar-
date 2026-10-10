@@ -16,6 +16,8 @@ import {
   onSnapshot 
 } from "./firebase";
 import { sanitizeForFirestore } from "./staffManager";
+import { syncSinglePartnerShopToSupabase } from "./supabaseSync";
+import { supabase } from "./supabase";
 
 export const INITIAL_PARTNER_SHOPS: PartnerShop[] = [
   {
@@ -450,6 +452,11 @@ export async function createPartnerShop(shopData: Partial<PartnerShop>): Promise
     console.warn("Notice saving partner shop to Firestore:", err);
   }
 
+  // Real-time automatic sync to Supabase
+  syncSinglePartnerShopToSupabase(newShop).catch((err) => {
+    console.warn("[Supabase] Notice auto-syncing partner shop:", err);
+  });
+
   return newShop;
 }
 
@@ -459,8 +466,10 @@ export async function createPartnerShop(shopData: Partial<PartnerShop>): Promise
 export async function updatePartnerShop(id: string, updates: Partial<PartnerShop>): Promise<void> {
   const currentList = getLocalPartnerShops();
   const index = currentList.findIndex(s => s.id === id || s.partnerId === id);
+  let updatedShopItem: any = null;
   if (index !== -1) {
     currentList[index] = { ...currentList[index], ...updates };
+    updatedShopItem = currentList[index];
     saveLocalPartnerShops(currentList);
   }
 
@@ -471,6 +480,13 @@ export async function updatePartnerShop(id: string, updates: Partial<PartnerShop
     }));
   } catch (err) {
     console.warn("Notice updating partner shop in Firestore:", err);
+  }
+
+  // Real-time automatic sync to Supabase
+  if (updatedShopItem) {
+    syncSinglePartnerShopToSupabase(updatedShopItem).catch(() => {});
+  } else {
+    syncSinglePartnerShopToSupabase({ id, ...updates }).catch(() => {});
   }
 }
 
@@ -487,6 +503,9 @@ export async function deletePartnerShop(id: string): Promise<void> {
   } catch (err) {
     console.warn("Notice deleting partner shop from Firestore:", err);
   }
+
+  // Real-time automatic delete from Supabase
+  Promise.resolve(supabase.from("partner_shops").delete().or(`id.eq.${id},partner_id.eq.${id}`)).catch(() => {});
 }
 
 /**

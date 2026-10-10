@@ -17,7 +17,7 @@ import {
   X, Printer, Download, RefreshCw, Edit3, Check, Eye, 
   Phone, Calendar, Droplet, MapPin, AlertCircle, Sparkles, 
   QrCode as QrIcon, CheckCircle2, Lock, Copy, Building2, User,
-  Shield, CheckCircle, Award, Upload, Camera, Loader2, PenTool
+  Shield, CheckCircle, Award, Upload, Camera, Loader2
 } from "lucide-react";
 import QRCode from "qrcode";
 import jsPDF from "jspdf";
@@ -127,8 +127,6 @@ export default function StaffIdCardModal({
   const [generatingPdf, setGeneratingPdf] = useState<boolean>(false);
   const [printing, setPrinting] = useState<boolean>(false);
 
-  // Digital Signature vs Manual Pen Sign clearance
-  const [includeDigitalSignature, setIncludeDigitalSignature] = useState<boolean>(true);
 
   // Responsive ID Card preview scaling for laptops & desktops (prevents cutoff while keeping physical CR80 size intact)
   const [scaleMode, setScaleMode] = useState<"auto" | "75" | "80" | "100">("auto");
@@ -143,8 +141,10 @@ export default function StaffIdCardModal({
       const windowW = window.innerWidth;
 
       if (windowW < 640) {
-        // Keep mobile layout flexible and natural
-        setAutoScale(1);
+        // Compute mobile scale so the 292px card fits cleanly with margins
+        const availMobileW = Math.max(260, windowW - 32);
+        const mobileScale = Math.min(1.0, Math.max(0.70, (availMobileW - 12) / 292));
+        setAutoScale(Math.round(mobileScale * 100) / 100);
         return;
       }
 
@@ -160,8 +160,8 @@ export default function StaffIdCardModal({
       const targetWScale = activeSide === "dual" ? (availW - 40) / 612 : (availW - 40) / 310;
 
       const fitted = Math.min(targetHScale, targetWScale);
-      // Clamped between 0.75 and 0.95 for pristine laptop & desktop readability without cutoff
-      const clamped = Math.min(0.95, Math.max(0.75, Math.round(fitted * 100) / 100));
+      // Clamped between 0.65 and 0.95 for pristine laptop, tablet & desktop readability without cutoff
+      const clamped = Math.min(0.95, Math.max(0.65, Math.round(fitted * 100) / 100));
       setAutoScale(clamped);
     };
 
@@ -181,9 +181,19 @@ export default function StaffIdCardModal({
           ? 0.75
           : autoScale;
 
-  // Card element refs for capture
+  // Card element refs for capture & navigation
   const frontCardRef = useRef<HTMLDivElement>(null);
   const backCardRef = useRef<HTMLDivElement>(null);
+  const frontCardContainerRef = useRef<HTMLDivElement>(null);
+  const backCardContainerRef = useRef<HTMLDivElement>(null);
+  const modalScrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Reset scroll to top when toggling between Dual, Front, and Back
+  useEffect(() => {
+    if (modalScrollContainerRef.current) {
+      modalScrollContainerRef.current.scrollTop = 0;
+    }
+  }, [activeSide]);
 
   // Synchronize activeStaff when staff prop changes
   useEffect(() => {
@@ -300,64 +310,68 @@ export default function StaffIdCardModal({
   // Dynamic font sizing and line wrapping for staff full name so long names are bold, prominent, and legible
   const getStaffNameClasses = (name: string) => {
     const len = (name || "").trim().length;
-    if (len <= 15) return "text-[18px] leading-tight font-black";
-    if (len <= 22) return "text-[15.5px] leading-snug font-black";
-    if (len <= 30) return "text-[13.5px] leading-snug font-extrabold";
-    if (len <= 38) return "text-[12px] leading-tight font-bold";
-    return "text-[11px] leading-tight font-bold";
+    if (len <= 15) return "text-[19.5px] leading-tight font-black";
+    if (len <= 22) return "text-[17px] leading-snug font-black";
+    if (len <= 30) return "text-[15px] leading-snug font-extrabold";
+    if (len <= 38) return "text-[13px] leading-tight font-bold";
+    return "text-[12px] leading-tight font-bold";
   };
 
   // Dynamic font sizing for designation so long positions are clearly readable
   const getDesignationClasses = (desig: string) => {
     const len = (desig || "").trim().length;
-    if (len <= 20) return "text-[12px] leading-tight";
-    if (len <= 30) return "text-[11px] leading-tight";
-    return "text-[10px] leading-tight";
+    if (len <= 20) return "text-[12.5px] leading-tight";
+    if (len <= 30) return "text-[11.5px] leading-tight";
+    return "text-[10.5px] leading-tight";
   };
 
   // Dynamic font sizing for email so complete email address is always visible and clear
   const getStaffEmailClasses = (email: string) => {
     const len = (email || "").trim().length;
-    if (len <= 18) return "text-[11.5px]";
-    if (len <= 24) return "text-[10.5px]";
-    if (len <= 30) return "text-[9.5px]";
-    return "text-[9px]";
+    if (len <= 18) return "text-[12px]";
+    if (len <= 24) return "text-[11.5px]";
+    if (len <= 30) return "text-[11px]";
+    return "text-[10.5px]";
   };
 
-  // Check if current card is the first staff ID card only
-  const isFirstStaffCard = (() => {
+  // Check if current card is the first staff card / Founder Md Anik Sarkar's card
+  const isFounderCard = (() => {
     if (!activeStaff) return false;
+    const cleanId = String(activeStaff.id || "").toLowerCase().trim();
+    const cleanStaffId = String(activeStaff.staffId || "").toLowerCase().trim();
+    const cleanName = String(activeStaff.fullName || "").toLowerCase().trim();
+    const cleanEmail = String(activeStaff.email || "").toLowerCase().trim();
+    const cleanRole = String(activeStaff.role || "").toLowerCase().trim();
+    const cleanDesignation = String(activeStaff.designation || "").toLowerCase().trim();
 
-    // Primary identifier check for the first staff member (CFI-KB-001 / staff-super-admin-01 / Founder Md Anik Sarkar)
-    const cleanStaffId = String(activeStaff.staffId || "").trim().toUpperCase();
-    const cleanEmail = String(activeStaff.email || "").trim().toLowerCase();
-    const cleanName = String(activeStaff.fullName || "").trim().toLowerCase();
-
-    if (
-      cleanStaffId === "CFI-KB-001" ||
-      cleanStaffId === "KB-STF-001" ||
-      cleanStaffId === "001" ||
-      activeStaff.id === "staff-super-admin-01" ||
-      cleanEmail === "sarkarmdanik14@gmail.com" ||
-      cleanName === "md anik sarkar"
-    ) {
-      return true;
-    }
-
-    return false;
+    return (
+      cleanId === "staff-super-admin-01" ||
+      cleanId === "cfi-kb-001" ||
+      cleanStaffId === "cfi-kb-001" ||
+      cleanStaffId === "kb-dir-001" ||
+      cleanStaffId === "kb-001" ||
+      cleanName.includes("anik") ||
+      cleanEmail.includes("sarkarmdanik") ||
+      cleanEmail === "admin@kachabazar.com" ||
+      cleanRole === "founder" ||
+      cleanDesignation.includes("founder") ||
+      cleanDesignation.includes("managing director") ||
+      cleanDesignation.includes("প্রতিষ্ঠাতা") ||
+      Boolean(staffList && staffList.length > 0 && (staffList[0]?.id === activeStaff.id || staffList[0]?.staffId === activeStaff.staffId))
+    );
   })();
 
-  // Authorized signature metadata (First staff ID card signed by Vice-Chairman Md Abu Hanif Sarkar; all other cards signed by Founder Md Anik Sarkar)
-  const authorizedSigner = isFirstStaffCard
+  // Authorized Signatory Metadata:
+  // For this single card (Founder Md Anik Sarkar): Authorized by Md Abu Hanif Sarkar, Vice Chairman, Kacha Bazar
+  // For all other staff cards: Authorized by Md Anik Sarkar, Founder, Kacha Bazar
+  const officialSignerInfo = isFounderCard
     ? {
-        title: "AUTHORISED BY",
-        name: "MD ABU HANIF SARKAR",
-        designation: "VICE-CHAIRMAN, KACHA BAZAR"
+        name: "Md Abu Hanif Sarkar",
+        designation: "Vice Chairman, Kacha Bazar"
       }
     : {
-        title: "AUTHORISED BY",
-        name: "MD ANIK SARKAR",
-        designation: "FOUNDER, KACHA BAZAR"
+        name: "Md Anik Sarkar",
+        designation: "Founder, Kacha Bazar"
       };
 
   // Generate QR Code on mount or activeStaff change
@@ -605,9 +619,9 @@ export default function StaffIdCardModal({
       // Brief pause to ensure DOM renders unscaled at 100% natural resolution
       await new Promise((resolve) => setTimeout(resolve, 80));
 
-      // Capture high-resolution images of both cards at ~480 DPI for razor-sharp, crisp print quality
+      // Capture ultra-high-resolution images of both cards at ~600 DPI (scale: 4.5) for razor-sharp, crystal-clear print quality
       const frontCanvas = await html2canvas(frontCardRef.current, {
-        scale: 3.5,
+        scale: 4.5,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
@@ -615,7 +629,7 @@ export default function StaffIdCardModal({
       });
 
       const backCanvas = await html2canvas(backCardRef.current, {
-        scale: 3.5,
+        scale: 4.5,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
@@ -885,18 +899,18 @@ export default function StaffIdCardModal({
       const cardWidthMm = 53.98;
       const cardHeightMm = 85.60;
 
-      // Render Front Canvas at ultra-high-resolution (~480 DPI) for razor-sharp PDF print
+      // Render Front Canvas at ultra-high-resolution (~600 DPI) for razor-sharp PDF print
       const frontCanvas = await html2canvas(frontCardRef.current, {
-        scale: 3.5,
+        scale: 4.5,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
         logging: false
       });
 
-      // Render Back Canvas at ultra-high-resolution (~480 DPI)
+      // Render Back Canvas at ultra-high-resolution (~600 DPI)
       const backCanvas = await html2canvas(backCardRef.current, {
-        scale: 3.5,
+        scale: 4.5,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
@@ -1170,8 +1184,8 @@ export default function StaffIdCardModal({
             </div>
 
             {/* Scale / Zoom selector for responsive preview */}
-            <div className="hidden sm:flex items-center bg-slate-900 p-1 rounded-xl border border-slate-750 text-[11px]">
-              <span className="px-2 text-slate-400 font-bold">{getTranslation("প্রিভিউ:", "Preview:")}</span>
+            <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-750 text-[11px]">
+              <span className="hidden xs:inline px-2 text-slate-400 font-bold">{getTranslation("প্রিভিউ:", "Preview:")}</span>
               <button
                 onClick={() => setScaleMode("auto")}
                 className={`px-2.5 py-0.5 rounded-lg font-black transition cursor-pointer ${
@@ -1231,32 +1245,11 @@ export default function StaffIdCardModal({
               <span>{getTranslation("রিপ্রিন্ট (Reprint)", "Reprint")}</span>
             </button>
 
-            {/* Signature Mode Toggle (Digital Sign vs Manual Pen Space) */}
-            <button
-              type="button"
-              onClick={() => setIncludeDigitalSignature(!includeDigitalSignature)}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-black shadow-xs transition border cursor-pointer ${
-                includeDigitalSignature
-                  ? "bg-emerald-950/90 text-emerald-300 border-emerald-600 hover:bg-emerald-900"
-                  : "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-750"
-              }`}
-              title={getTranslation(
-                "ডিজিটাল স্বাক্ষর বা কলমে স্বাক্ষরের স্পেস পরিবর্তন করুন",
-                "Toggle digital signature vs manual pen signature space"
-              )}
-            >
-              <PenTool className="w-3.5 h-3.5 text-emerald-400" />
-              <span>
-                {includeDigitalSignature
-                  ? getTranslation("ডিজিটাল স্বাক্ষর: চালু", "Digital Sign: ON")
-                  : getTranslation("কলমে স্বাক্ষর (ফাঁকা স্পেস)", "Manual Pen Sign Space")}
-              </span>
-            </button>
           </div>
         </div>
 
         {/* Modal Main Content Area */}
-        <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4 bg-slate-950 flex flex-col items-center">
+        <div ref={modalScrollContainerRef} className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4 bg-slate-950 flex flex-col items-center">
           
           {/* ========================================================================= */}
           {/* EDIT FORM MODE */}
@@ -1474,6 +1467,7 @@ export default function StaffIdCardModal({
               {/* ===================================================================== */}
               {(activeSide === "dual" || activeSide === "front") && (
                 <div
+                  ref={frontCardContainerRef}
                   className="flex flex-col items-center transition-all duration-150"
                   style={{
                     width: isCapturing || effectiveScale === 1 ? "292px" : `${Math.round(292 * effectiveScale)}px`,
@@ -1485,18 +1479,29 @@ export default function StaffIdCardModal({
                     style={{
                       width: "292px",
                       transform: isCapturing || effectiveScale === 1 ? "none" : `scale(${effectiveScale})`,
-                      transformOrigin: "top left",
+                      transformOrigin: "top center",
                       transition: "transform 0.15s ease-out"
                     }}
                   >
                     <div className="flex items-center justify-between w-full max-w-[292px] mb-2 px-1">
-                      <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      <span className="text-[11px] font-black text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                         <span>FRONT (সম্মুখভাগ)</span>
                       </span>
-                      <span className="text-[10px] text-emerald-400 bg-emerald-950/90 px-2.5 py-0.5 rounded-full font-mono font-bold border border-emerald-800">
-                        CR80 • 54 × 85.6 mm
-                      </span>
+                      {activeSide === "dual" ? (
+                        <button
+                          type="button"
+                          onClick={() => backCardContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                          className="text-[10px] text-emerald-400 hover:text-emerald-300 bg-emerald-950/90 hover:bg-emerald-900/90 px-2.5 py-0.5 rounded-full font-bold border border-emerald-800 transition cursor-pointer flex items-center gap-1 shadow-xs"
+                          title={getTranslation("পেছনের পাশে স্ক্রোল করুন", "Jump to Back side")}
+                        >
+                          <span>পেছনে যান ↓</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-emerald-400 bg-emerald-950/90 px-2.5 py-0.5 rounded-full font-mono font-bold border border-emerald-800">
+                          CR80 • 54 × 85.6 mm
+                        </span>
+                      )}
                     </div>
 
                     {/* The Physical Card Container - Portrait */}
@@ -1579,10 +1584,10 @@ export default function StaffIdCardModal({
                       </div>
                     </div>
 
-                    {/* Staff Name & Position - Dynamic Font Sizing & Wrapping (Never Cut Off) */}
+                    {/* Staff Name & Position - High-Contrast Black Name & Crisp Badge */}
                     <div className="relative z-10 text-center px-3 mt-1 min-h-[38px] flex flex-col justify-center items-center">
                       <h3 
-                        className={`font-black text-[#056839] uppercase tracking-wide break-words line-clamp-2 px-1 ${getStaffNameClasses(activeStaff.fullName)}`}
+                        className={`font-black text-slate-950 uppercase tracking-wide break-words line-clamp-2 px-1 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] ${getStaffNameClasses(activeStaff.fullName)}`}
                         title={activeStaff.fullName}
                       >
                         {activeStaff.fullName}
@@ -1597,36 +1602,36 @@ export default function StaffIdCardModal({
                       </div>
                     </div>
 
-                    {/* Key-Value Details Block - High-Legibility & Crystal Clear Font Sizes */}
-                    <div className="relative z-10 px-4 py-0.5 mt-0.5 mb-1 w-full">
-                      <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl px-2.5 py-1.5 space-y-1 text-[11.5px] font-sans shadow-2xs">
+                    {/* Key-Value Details Block - Enlarged High-Legibility Font Scaling for Crisp Printing */}
+                    <div className="relative z-10 px-3.5 py-1 mt-0.5 mb-1 w-full">
+                      <div className="bg-slate-50/95 border border-slate-300 rounded-xl px-3 py-2 space-y-1.5 font-sans shadow-2xs">
                         {/* ID Row */}
-                        <div className="flex items-center text-left">
-                          <span className="w-[66px] font-black text-[#056839] text-[11.5px] uppercase tracking-wide shrink-0">ID</span>
-                          <span className="font-black text-[#056839] w-[10px] shrink-0 text-center">:</span>
-                          <span className="font-black text-slate-950 font-mono tracking-wider pl-1.5 text-[12.5px]">{activeStaff.staffId}</span>
+                        <div className="flex items-center text-left leading-none">
+                          <span className="w-[72px] font-black text-[#056839] text-[12px] uppercase tracking-wide shrink-0">ID</span>
+                          <span className="font-black text-[#056839] w-[10px] shrink-0 text-center text-[12px]">:</span>
+                          <span className="font-black text-slate-950 font-mono tracking-wider pl-1 text-[12.5px]">{activeStaff.staffId}</span>
                         </div>
 
                         {/* JOIN DATE Row */}
-                        <div className="flex items-center text-left">
-                          <span className="w-[66px] font-bold text-[#056839] text-[10.5px] uppercase tracking-tight shrink-0 whitespace-nowrap">JOIN DATE</span>
-                          <span className="font-bold text-[#056839] w-[10px] shrink-0 text-center">:</span>
-                          <span className="font-bold text-slate-900 tracking-wide pl-1.5 text-[11.5px]">{OFFICIAL_STAFF_CARD_JOIN_DATE}</span>
+                        <div className="flex items-center text-left leading-none">
+                          <span className="w-[72px] font-black text-[#056839] text-[11.5px] uppercase tracking-tight shrink-0 whitespace-nowrap">JOIN DATE</span>
+                          <span className="font-black text-[#056839] w-[10px] shrink-0 text-center text-[11.5px]">:</span>
+                          <span className="font-bold text-slate-950 tracking-wide pl-1 text-[12px]">{OFFICIAL_STAFF_CARD_JOIN_DATE}</span>
                         </div>
 
                         {/* Phone Row */}
-                        <div className="flex items-center text-left">
-                          <span className="w-[66px] font-bold text-[#056839] text-[10.5px] uppercase tracking-wide shrink-0">PHONE</span>
-                          <span className="font-bold text-[#056839] w-[10px] shrink-0 text-center">:</span>
-                          <span className="font-bold text-slate-950 font-mono tracking-wide pl-1.5 text-[11.5px]">{activeStaff.mobile || "01719-469714"}</span>
+                        <div className="flex items-center text-left leading-none">
+                          <span className="w-[72px] font-black text-[#056839] text-[12px] uppercase tracking-wide shrink-0">PHONE</span>
+                          <span className="font-black text-[#056839] w-[10px] shrink-0 text-center text-[12px]">:</span>
+                          <span className="font-bold text-slate-950 font-mono tracking-wide pl-1 text-[12px]">{activeStaff.mobile || "01719-469714"}</span>
                         </div>
 
-                        {/* Email Row - Dynamic Font Size & Wrapping, Complete Email Always Visible */}
-                        <div className="flex items-start text-left">
-                          <span className="w-[66px] font-bold text-[#056839] text-[10.5px] uppercase tracking-wide shrink-0 pt-0.5">EMAIL</span>
-                          <span className="font-bold text-[#056839] w-[10px] shrink-0 text-center pt-0.5">:</span>
+                        {/* Email Row - Vertically Centered with Matching Large Clear Font */}
+                        <div className="flex items-center text-left pt-1.5 mt-0.5 border-t border-slate-200/90 leading-none">
+                          <span className="w-[72px] font-black text-[#056839] text-[12px] uppercase tracking-wide shrink-0">EMAIL</span>
+                          <span className="font-black text-[#056839] w-[10px] shrink-0 text-center text-[12px]">:</span>
                           <span 
-                            className={`font-semibold text-slate-900 pl-1.5 leading-tight break-all ${getStaffEmailClasses(activeStaff.email || "support@kachabazar.com")}`} 
+                            className="font-bold text-slate-950 pl-1 leading-none break-all flex items-center text-[11.5px] tracking-tight" 
                             title={activeStaff.email || "support@kachabazar.com"}
                           >
                             {activeStaff.email || "support@kachabazar.com"}
@@ -1635,42 +1640,27 @@ export default function StaffIdCardModal({
                       </div>
                     </div>
 
-                    {/* Bottom Authorized Signature Section - Dedicated Spacious Signing Zone */}
-                    <div className="relative z-10 px-5 pb-2.5 pt-0.5 text-center w-full flex flex-col items-center mt-auto">
-                      {/* Spacious Signature Area: 34px Height for Pen Signing or Digital Autograph */}
-                      <div className="h-[34px] w-full flex items-end justify-center pb-0.5 relative">
-                        {includeDigitalSignature ? (
-                          <div className="flex flex-col items-center justify-end select-none">
-                            <svg className="w-24 h-6 text-[#056839]" viewBox="0 0 120 32" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M10 24 C12 15, 16 5, 24 7 C28 8, 26 20, 30 18 C34 16, 40 10, 44 14 C48 18, 50 22, 54 16 C58 10, 62 12, 68 16 C74 20, 80 13, 86 12 C92 11, 100 20, 110 10" />
-                              <path d="M16 21 Q55 24 106 15" strokeWidth="1.6" />
-                            </svg>
-                            <span className="text-[6.5px] font-serif italic text-emerald-800 -mt-1 font-bold tracking-wide">
-                              {authorizedSigner.name === "MD ABU HANIF SARKAR" ? "Abu Hanif Sarkar" : "Md Anik Sarkar"}
-                            </span>
-                          </div>
-                        ) : (
-                          /* Dedicated Blank Space for Manual Pen Signature */
-                          <div className="w-full flex items-center justify-center">
-                            <span className="text-[7.5px] text-slate-300 font-semibold tracking-wider uppercase border border-dashed border-slate-200 px-3 py-0.5 rounded-md select-none">
-                              (এখানে স্বাক্ষর করুন / Sign Here)
-                            </span>
-                          </div>
-                        )}
-                      </div>
+                    {/* Bottom Authorized Signature Section - Official Signatory Zone */}
+                    <div className="relative z-10 px-5 pb-3 pt-0.5 text-center w-full flex flex-col items-center mt-auto">
+                      {/* Compact Signing Clearance (No awkward giant gap) */}
+                      <div className="h-3 w-full flex items-end justify-center" />
 
                       {/* Signature Underline */}
-                      <div className="w-24 border-t-2 border-[#056839]/80 mb-1" />
+                      <div className="w-36 border-t-2 border-[#056839]/80 mb-1" />
 
-                      {/* Signer Info */}
-                      <div className="text-[7.5px] font-bold text-slate-500 tracking-wider uppercase leading-tight">
-                        {authorizedSigner.title}
+                      {/* Authorised by Label */}
+                      <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest leading-none mb-1">
+                        Authorised by
                       </div>
-                      <div className="text-[9.5px] font-black text-[#056839] tracking-wider uppercase leading-tight mt-0.5">
-                        {authorizedSigner.name}
+
+                      {/* Signer Name */}
+                      <div className="text-[10.5px] font-black text-slate-950 tracking-wide uppercase leading-tight">
+                        {officialSignerInfo.name}
                       </div>
-                      <div className="text-[7px] font-bold text-slate-600 tracking-wide uppercase leading-tight mt-0.5">
-                        {authorizedSigner.designation}
+
+                      {/* Signer Designation & Organization */}
+                      <div className="text-[9px] font-bold text-[#056839] tracking-wider uppercase leading-tight mt-0.5">
+                        {officialSignerInfo.designation}
                       </div>
                     </div>
                   </div>
@@ -1683,6 +1673,7 @@ export default function StaffIdCardModal({
             {/* ===================================================================== */}
             {(activeSide === "dual" || activeSide === "back") && (
               <div
+                ref={backCardContainerRef}
                 className="flex flex-col items-center transition-all duration-150"
                 style={{
                   width: isCapturing || effectiveScale === 1 ? "292px" : `${Math.round(292 * effectiveScale)}px`,
@@ -1694,18 +1685,29 @@ export default function StaffIdCardModal({
                   style={{
                     width: "292px",
                     transform: isCapturing || effectiveScale === 1 ? "none" : `scale(${effectiveScale})`,
-                    transformOrigin: "top left",
+                    transformOrigin: "top center",
                     transition: "transform 0.15s ease-out"
                   }}
                 >
                   <div className="flex items-center justify-between w-full max-w-[292px] mb-2 px-1">
-                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span className="text-[11px] font-black text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
                       <span>BACK (পেছনের ভাগ)</span>
                     </span>
-                    <span className="text-[10px] text-emerald-400 bg-slate-950/90 px-2.5 py-0.5 rounded-full font-mono font-bold border border-slate-700">
-                      OFFICIAL VERIFICATION
-                    </span>
+                    {activeSide === "dual" ? (
+                      <button
+                        type="button"
+                        onClick={() => frontCardContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                        className="text-[10px] text-sky-400 hover:text-sky-300 bg-sky-950/90 hover:bg-sky-900/90 px-2.5 py-0.5 rounded-full font-bold border border-sky-800 transition cursor-pointer flex items-center gap-1 shadow-xs"
+                        title={getTranslation("সামনের পাশে স্ক্রোল করুন", "Jump to Front side")}
+                      >
+                        <span>সামনে যান ↑</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-emerald-400 bg-slate-950/90 px-2.5 py-0.5 rounded-full font-mono font-bold border border-slate-700">
+                        OFFICIAL VERIFICATION
+                      </span>
+                    )}
                   </div>
 
                   {/* Physical Card Container - Portrait */}

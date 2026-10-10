@@ -26,6 +26,12 @@ import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 import { SAFE_PRODUCT_PLACEHOLDER } from "../../lib/masterImageRegistry";
 import { createTranslator } from "../../lib/formatUtils";
 import { apiClient } from "../../lib/apiClient";
+import { 
+  syncSingleProductToSupabase, 
+  deleteProductFromSupabase, 
+  syncSingleCategoryToSupabase, 
+  syncSingleSubcategoryToSupabase 
+} from "../../lib/supabaseSync";
 
 interface AdminProductsTabProps {
   products: any[];
@@ -62,6 +68,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         localStorage.setItem("kb_deleted_products", JSON.stringify(Array.from(next)));
       } catch {}
       return next;
+    });
+    // Automatic Real-Time Delete from Supabase
+    deleteProductFromSupabase(deletedId).catch((err) => {
+      console.warn("[Supabase] Notice syncing product delete:", err);
     });
   };
 
@@ -627,6 +637,11 @@ export default function AdminProductsTab({ products, categories, orders = [], us
 
       await setDoc(doc(db, "categories", finalId), payload, { merge: true });
 
+      // Automatic Real-Time Sync to Supabase
+      syncSingleCategoryToSupabase(payload).catch((err) => {
+        console.warn("[Supabase] Notice syncing category:", err);
+      });
+
       // Save into cache ref & ensure local state keeps the updated image
       lastSavedCategoryImages.current[finalId] = cleanImg;
       if (selectedCatId === finalId) {
@@ -668,6 +683,11 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         disabled: !newStatus,
         updatedAt: serverTimestamp()
       }, { merge: true });
+
+      // Automatic Real-Time Sync to Supabase
+      syncSingleCategoryToSupabase({ id: catId, isAvailable: newStatus, disabled: !newStatus }).catch((err) => {
+        console.warn("[Supabase] Notice syncing category status:", err);
+      });
 
       triggerToast(
         newStatus ? "ক্যাটাগরি সক্রিয় করা হয়েছে" : "ক্যাটাগরি নিষ্ক্রিয় করা হয়েছে",
@@ -922,8 +942,13 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         }
 
         if (saveSuccess) {
+          const finalProductData = { ...payload, id: payload.id || finalId };
+          // Real-time automatic sync to Supabase
+          syncSingleProductToSupabase(finalProductData).catch((err) => {
+            console.warn("[Supabase] Notice auto-syncing product:", err);
+          });
           // Immediately update optimistic state in Admin and App
-          onProductSaved?.({ ...payload, id: payload.id || finalId });
+          onProductSaved?.(finalProductData);
           triggerToast(
             isGroceryItem ? "নতুন মুদি পণ্য সফলভাবে যুক্ত করা হয়েছে!" : (isDryFoodItem ? "নতুন ড্রাই ফুড পণ্য সফলভাবে যুক্ত করা হয়েছে!" : "নতুন পণ্য যুক্ত করা হয়েছে!"),
             isGroceryItem ? "New grocery product added successfully!" : (isDryFoodItem ? "New dry food product added successfully!" : "New product added to catalog successfully!")
@@ -982,6 +1007,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
         }
 
         if (updateSuccess) {
+          // Real-time automatic sync to Supabase
+          syncSingleProductToSupabase(updatePayload).catch((err) => {
+            console.warn("[Supabase] Notice auto-syncing updated product:", err);
+          });
           onProductSaved?.(updatePayload);
           triggerToast("পণ্য সফলভাবে আপডেট করা হয়েছে!", "Product details updated successfully!");
           setShowProductForm(false);
