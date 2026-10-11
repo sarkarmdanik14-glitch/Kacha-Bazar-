@@ -14,8 +14,8 @@ export const MERGED_GROCERY_CATEGORY: Category = {
   borderColor: "border-amber-100",
   displayOrder: 2,
   order: 2,
-  image: "/api/media/branding/aisure-2f9b0144-2a3f-4bf8-ac23-9bb0efcf7756_r428ci.webp",
-  imageUrl: "/api/media/branding/aisure-2f9b0144-2a3f-4bf8-ac23-9bb0efcf7756_r428ci.webp",
+  image: "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev/branding/aisure-2f9b0144-2a3f-4bf8-ac23-9bb0efcf7756_r428ci.webp",
+  imageUrl: "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev/branding/aisure-2f9b0144-2a3f-4bf8-ac23-9bb0efcf7756_r428ci.webp",
   isAvailable: true
 };
 
@@ -139,8 +139,8 @@ export const EVENT_MANAGEMENT_CATEGORY: Category = {
   borderColor: "border-orange-100",
   displayOrder: 16,
   order: 16,
-  image: "/api/media/branding/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg",
-  imageUrl: "/api/media/branding/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg",
+  image: "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev/branding/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg",
+  imageUrl: "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev/branding/Gemini_Generated_Image_56vcn756vcn756vc_gq1xfi.jpg",
   isAvailable: true
 };
 

@@ -1817,12 +1817,12 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
               <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60">
                 <div className="text-[10px] font-black uppercase text-slate-400">Public CDN URL</div>
                 <a 
-                  href="https://pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev" 
+                  href="https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev" 
                   target="_blank" 
                   rel="noreferrer"
                   className="font-mono text-amber-600 hover:underline mt-1 truncate block flex items-center gap-1"
                 >
-                  <span className="truncate">pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev</span>
+                  <span className="truncate">pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev</span>
                   <ExternalLink className="w-3 h-3 shrink-0" />
                 </a>
               </div>
@@ -2010,7 +2010,7 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
                   <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
                     <div className="text-[10px] font-black uppercase text-amber-700">লাইভ CDN ডোমেইন</div>
                     <div className="text-xs font-mono font-bold text-amber-900 mt-1 truncate">
-                      pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev
+                      pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev
                     </div>
                     <p className="text-[11px] text-amber-700 mt-1">শূন্য ইগ্রেস ব্যান্ডউইথ খরচ ($0.00)</p>
                   </div>

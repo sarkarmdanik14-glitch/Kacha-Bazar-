@@ -32,7 +32,7 @@ const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "f28557b34a31123a24324c3124b0
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "5fee722d943a23b2184e7a44e72553a2";
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "5ce5e1826dd3f97f0a0c2e489c42c43713dc7ca5147b78af89e5aba7b0a6b073";
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "kachabazar-image";
-const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || "https://pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev").replace(/\/+$/, "");
+const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev").replace(/\/+$/, "");
 const R2_ENDPOINT = process.env.R2_ENDPOINT || `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 
 const r2Client = new S3Client({

@@ -57,9 +57,11 @@ export const MASTER_PRODUCT_IMAGE_MAP: Record<string, string> = {
  */
 export const SAFE_PRODUCT_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200' width='100%25' height='100%25'%3E%3Crect width='200' height='200' fill='%23f8fafc'/%3E%3Cg fill='none' stroke='%23cbd5e1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M60 75 L140 75 L130 150 L70 150 Z' fill='%23f1f5f9'/%3E%3Cpath d='M80 75 C80 55 120 55 120 75' stroke='%2394a3b8'/%3E%3Ccircle cx='100' cy='112' r='14' stroke='%2310b981' fill='%23ecfdf5'/%3E%3Cpath d='M94 112 L98 116 L106 108' stroke='%2310b981' stroke-width='2'/%3E%3C/g%3E%3Ctext x='100' y='175' font-family='system-ui, sans-serif' font-size='11' font-weight='600' fill='%2394a3b8' text-anchor='middle'%3EKacha Bazar%3C/text%3E%3C/svg%3E";
 
+export const R2_PUBLIC_BASE = "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev";
+
 /**
  * Universal safe image onError handler that prevents infinite error loops
- * and provides dual-tier automatic failover between /api/media proxy and direct R2 CDN.
+ * and provides dual-tier automatic failover between direct R2 CDN and /api/media proxy.
  */
 export function handleProductImgError(e: React.SyntheticEvent<HTMLImageElement, Event>) {
   const target = (e.currentTarget || e.target) as HTMLImageElement;
@@ -67,22 +69,22 @@ export function handleProductImgError(e: React.SyntheticEvent<HTMLImageElement, 
   
   const currentSrc = target.src || "";
 
-  // If internal /api/media proxy failed on static hosting, attempt direct Cloudflare R2 CDN URL
-  if (currentSrc.includes("/api/media/") && target.dataset.triedR2Direct !== "true") {
-    target.dataset.triedR2Direct = "true";
-    const key = currentSrc.split("/api/media/")[1]?.split("?")[0];
-    if (key) {
-      target.src = `https://pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev/${key}`;
-      return;
-    }
-  }
-
-  // If direct Cloudflare R2 CDN URL failed (e.g. 401), attempt authenticated /api/media proxy
+  // If direct Cloudflare R2 CDN URL failed, attempt authenticated /api/media proxy
   if (currentSrc.includes("r2.dev/") && target.dataset.triedProxy !== "true") {
     target.dataset.triedProxy = "true";
     const key = currentSrc.split("r2.dev/")[1]?.split("?")[0];
     if (key) {
       target.src = `/api/media/${key}`;
+      return;
+    }
+  }
+
+  // If internal /api/media proxy failed on static hosting, attempt direct Cloudflare R2 CDN URL
+  if (currentSrc.includes("/api/media/") && target.dataset.triedR2Direct !== "true") {
+    target.dataset.triedR2Direct = "true";
+    const key = currentSrc.split("/api/media/")[1]?.split("?")[0];
+    if (key) {
+      target.src = `${R2_PUBLIC_BASE}/${key}`;
       return;
     }
   }
@@ -98,7 +100,12 @@ export function handleProductImgError(e: React.SyntheticEvent<HTMLImageElement, 
  * Reconnects a product to its authentic master image if candidate is missing or corrupted
  */
 export function resolveAuthenticProductImage(productId: string | undefined | null, candidateImage: string | undefined | null): string {
-  const current = (candidateImage || "").trim();
+  let current = (candidateImage || "").trim();
+
+  // Auto-correct domain typo if legacy 'hf' was stored in document: 8c990c8869hf -> 8c990c8869bf
+  if (current.includes("8c990c8869hf42c8b8248b786e5a546d")) {
+    current = current.replace("8c990c8869hf42c8b8248b786e5a546d", "8c990c8869bf42c8b8248b786e5a546d");
+  }
 
   // If candidate is a known dead Unsplash image, replace with a verified working fallback
   if (
@@ -111,10 +118,10 @@ export function resolveAuthenticProductImage(productId: string | undefined | nul
     return "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=500&q=80";
   }
 
-  // Route Cloudflare R2 images through authenticated backend proxy to bypass public bucket restriction
+  // Route Cloudflare R2 images to direct public R2 CDN URL
   if (current.includes("r2.dev/") || current.includes("cloudflarestorage.com/")) {
     const key = current.replace(/^https?:\/\/[^\/]+\//, "").split("?")[0];
-    return `/api/media/${key}`;
+    return `${R2_PUBLIC_BASE}/${key}`;
   }
 
   // If candidate is a valid custom upload (e.g. Cloudinary, data:image, custom server/CDN), preserve untouched
@@ -139,20 +146,25 @@ export function resolveAuthenticProductImage(productId: string | undefined | nul
 /**
  * Injects dynamic Cloudinary formatting and compression parameters
  * (f_auto,q_auto,w_400,c_limit/) for blazing-fast loading speeds and WebP/AVIF delivery,
- * and routes Cloudflare R2 assets through the high-performance authenticated media streamer.
+ * and routes Cloudflare R2 assets directly through Cloudflare's high-performance edge CDN.
  */
 export function optimizeProductImageUrl(
   url: string | undefined | null, 
   width: number = 400
 ): string {
   if (!url || typeof url !== "string") return url || SAFE_PRODUCT_PLACEHOLDER;
-  const trimmed = url.trim();
+  let trimmed = url.trim();
   if (!trimmed) return SAFE_PRODUCT_PLACEHOLDER;
 
-  // Route Cloudflare R2 URLs through authenticated media proxy
+  // Auto-correct domain typo if legacy 'hf' was stored in document: 8c990c8869hf -> 8c990c8869bf
+  if (trimmed.includes("8c990c8869hf42c8b8248b786e5a546d")) {
+    trimmed = trimmed.replace("8c990c8869hf42c8b8248b786e5a546d", "8c990c8869bf42c8b8248b786e5a546d");
+  }
+
+  // Route Cloudflare R2 URLs directly through global R2 CDN
   if (trimmed.includes("r2.dev/") || trimmed.includes("cloudflarestorage.com/")) {
     const key = trimmed.replace(/^https?:\/\/[^\/]+\//, "").split("?")[0];
-    return `/api/media/${key}`;
+    return `${R2_PUBLIC_BASE}/${key}`;
   }
 
   // Cloudinary dynamic optimization
