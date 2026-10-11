@@ -59,11 +59,35 @@ export const SAFE_PRODUCT_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http:/
 
 /**
  * Universal safe image onError handler that prevents infinite error loops
+ * and provides dual-tier automatic failover between /api/media proxy and direct R2 CDN.
  */
 export function handleProductImgError(e: React.SyntheticEvent<HTMLImageElement, Event>) {
   const target = (e.currentTarget || e.target) as HTMLImageElement;
   if (!target) return;
-  // Instantly break any recursion loop
+  
+  const currentSrc = target.src || "";
+
+  // If internal /api/media proxy failed on static hosting, attempt direct Cloudflare R2 CDN URL
+  if (currentSrc.includes("/api/media/") && target.dataset.triedR2Direct !== "true") {
+    target.dataset.triedR2Direct = "true";
+    const key = currentSrc.split("/api/media/")[1]?.split("?")[0];
+    if (key) {
+      target.src = `https://pub-8c990c8869hf42c8b8248b786e5a546d.r2.dev/${key}`;
+      return;
+    }
+  }
+
+  // If direct Cloudflare R2 CDN URL failed (e.g. 401), attempt authenticated /api/media proxy
+  if (currentSrc.includes("r2.dev/") && target.dataset.triedProxy !== "true") {
+    target.dataset.triedProxy = "true";
+    const key = currentSrc.split("r2.dev/")[1]?.split("?")[0];
+    if (key) {
+      target.src = `/api/media/${key}`;
+      return;
+    }
+  }
+
+  // Break recursion loop and fallback to clean SVG placeholder
   target.onerror = null;
   if (target.dataset.triedFallback === "true") return;
   target.dataset.triedFallback = "true";
