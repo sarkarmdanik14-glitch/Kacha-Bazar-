@@ -225,6 +225,7 @@ export default function AdminMemoManagementTab({
     }
 
     setUploadingState(true);
+    let uploadedUrl: string | null = null;
     try {
       uploadedUrl = await uploadImageWithFallback(file, { folder: "signatures" });
     } catch (err) {

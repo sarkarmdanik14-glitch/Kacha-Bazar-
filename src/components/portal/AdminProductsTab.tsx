@@ -23,7 +23,7 @@ import { DRY_FOOD_RAW, PHARMACY_PRODUCTS_RAW, GROCERY_SUBCATEGORY_MAP, GROCERY_O
 import { resolveProductUnit } from "../../lib/productWeightUtils";
 import { RESTAURANT_SUBCATEGORIES, getResolvedRestaurantSubcategory } from "../../lib/restaurantSubcategories";
 import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
-import { SAFE_PRODUCT_PLACEHOLDER } from "../../lib/masterImageRegistry";
+import { SAFE_PRODUCT_PLACEHOLDER, optimizeProductImageUrl } from "../../lib/masterImageRegistry";
 import { createTranslator } from "../../lib/formatUtils";
 import { apiClient } from "../../lib/apiClient";
 import { 
@@ -1643,7 +1643,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                 <div className="w-12 h-12 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center overflow-hidden shrink-0">
                   {catImage ? (
                     <img 
-                      src={catImage} 
+                      src={optimizeProductImageUrl(catImage, 120)} 
                       alt={catNameEn} 
                       className="w-full h-full object-cover" 
                       onError={(e) => {
@@ -1821,7 +1821,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                               <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
                                 {p.image || p.imageUrl ? (
                                   <img 
-                                    src={p.image || p.imageUrl} 
+                                    src={optimizeProductImageUrl(p.image || p.imageUrl, 100)} 
                                     alt={p.nameEn || p.nameBn} 
                                     className="w-full h-full object-cover" 
                                     onError={(e) => {
@@ -1981,7 +1981,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                             <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
                               {p.image || p.imageUrl ? (
                                 <img 
-                                  src={p.image || p.imageUrl} 
+                                  src={optimizeProductImageUrl(p.image || p.imageUrl, 100)} 
                                   alt={p.nameEn || p.nameBn} 
                                   className="w-full h-full object-cover" 
                                   onError={(e) => {
@@ -2241,7 +2241,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                   <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200 mt-2">
                     <div className="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
                       <img 
-                        src={prodImage} 
+                        src={optimizeProductImageUrl(prodImage, 200)} 
                         alt="Preview" 
                         className="w-full h-full object-cover" 
                         onError={(e) => {
@@ -2565,7 +2565,7 @@ export default function AdminProductsTab({ products, categories, orders = [], us
                                 >
                                   {c.image || c.imageUrl ? (
                                     <img 
-                                      src={c.image || c.imageUrl} 
+                                      src={optimizeProductImageUrl(c.image || c.imageUrl, 100)} 
                                       alt={c.nameEn} 
                                       className="w-full h-full object-cover rounded-full" 
                                       style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}

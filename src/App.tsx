@@ -3515,7 +3515,7 @@ export default function App() {
                 onClick={() => openQuickView(product)}
                 className="bg-white p-2.5 rounded-xl border border-slate-100 flex items-center gap-3 hover:shadow-md cursor-pointer transition"
               >
-                <img src={product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER} className="w-12 h-12 object-cover rounded-lg shrink-0 bg-slate-50" onError={handleProductImgError} />
+                <img src={optimizeProductImageUrl(product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER, 80)} className="w-12 h-12 object-cover rounded-lg shrink-0 bg-slate-50" onError={handleProductImgError} />
                 <div className="min-w-0">
                   <h4 className="text-xs font-bold text-slate-800 truncate">{lang === "bn" ? product.nameBn : product.nameEn}</h4>
                   <p className="text-[10px] font-bold text-slate-700 bg-slate-100 inline-block px-1.5 py-0.5 rounded border border-slate-200/80 mt-0.5">
@@ -3747,7 +3747,7 @@ export default function App() {
                     <div key={member.id} className="bg-slate-950/70 border border-slate-800 hover:border-emerald-500/40 transition rounded-md p-1 sm:p-1.5 text-center flex flex-col items-center justify-between min-w-0">
                       <div className="relative mb-0.5">
                         <img 
-                          src={member.image} 
+                          src={optimizeProductImageUrl(member.image, 100)} 
                           alt={`${member.nameEn} - ${member.roleEn}`} 
                           className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full object-cover border ${member.borderColor} shadow-2xs`}
                           referrerPolicy="no-referrer"

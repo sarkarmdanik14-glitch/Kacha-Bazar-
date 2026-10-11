@@ -2267,7 +2267,7 @@ const handleImageUpload = async (req: express.Request, res: express.Response) =>
         ContentType: mimeType,
       }));
       r2Success = true;
-      finalUrl = `${R2_PUBLIC_URL}/${r2Key}`;
+      finalUrl = `/api/media/${r2Key}`;
       console.log(`[Cloudflare R2] Successfully uploaded: ${r2Key} -> ${finalUrl}`);
     } catch (r2Err: any) {
       console.warn("[Cloudflare R2] Upload warning, falling back to local storage:", r2Err?.message || r2Err);
@@ -2327,10 +2327,13 @@ app.get("/api/r2/status", rateLimiter(30, 60000), async (_req, res) => {
   }
 });
 
-// 4.8 GET /api/media/:folder/:file - Media streamer proxy from R2
-app.get("/api/media/:folder/:file", async (req, res) => {
-  const { folder, file } = req.params;
-  const key = `${folder}/${file}`;
+// 4.8 GET /api/media/* - Universal media streamer proxy from Cloudflare R2
+app.get("/api/media/*", async (req, res) => {
+  const rawKey = req.params[0] || "";
+  const key = decodeURIComponent(rawKey).replace(/^\/+/, "").split("?")[0];
+  if (!key) {
+    return res.status(400).send("Image key required");
+  }
   try {
     const r2Obj = await r2Client.send(new GetObjectCommand({
       Bucket: R2_BUCKET_NAME,
@@ -2338,6 +2341,12 @@ app.get("/api/media/:folder/:file", async (req, res) => {
     }));
     if (r2Obj.ContentType) {
       res.setHeader("Content-Type", r2Obj.ContentType);
+    } else {
+      const ext = path.extname(key).toLowerCase();
+      if (ext === ".jpg" || ext === ".jpeg") res.setHeader("Content-Type", "image/jpeg");
+      else if (ext === ".png") res.setHeader("Content-Type", "image/png");
+      else if (ext === ".webp") res.setHeader("Content-Type", "image/webp");
+      else if (ext === ".svg") res.setHeader("Content-Type", "image/svg+xml");
     }
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     const stream = r2Obj.Body as any;
@@ -2350,8 +2359,8 @@ app.get("/api/media/:folder/:file", async (req, res) => {
     }
     return res.status(404).send("Image not found");
   } catch (err: any) {
-    // If not found in R2, redirect to public URL or return 404
-    return res.redirect(`${R2_PUBLIC_URL}/${key}`);
+    console.warn(`[R2 Media Proxy] Could not fetch "${key}":`, err?.message);
+    return res.status(404).send("Image not found in R2");
   }
 });
 

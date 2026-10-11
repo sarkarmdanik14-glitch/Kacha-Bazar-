@@ -87,10 +87,17 @@ export function resolveAuthenticProductImage(productId: string | undefined | nul
     return "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=500&q=80";
   }
 
+  // Route Cloudflare R2 images through authenticated backend proxy to bypass public bucket restriction
+  if (current.includes("r2.dev/") || current.includes("cloudflarestorage.com/")) {
+    const key = current.replace(/^https?:\/\/[^\/]+\//, "").split("?")[0];
+    return `/api/media/${key}`;
+  }
+
   // If candidate is a valid custom upload (e.g. Cloudinary, data:image, custom server/CDN), preserve untouched
   if (
     current.includes("cloudinary.com") || 
     current.includes("/uploads/") ||
+    current.startsWith("/api/media/") ||
     current.startsWith("data:image/") ||
     (current.startsWith("http") && !current.includes("images.unsplash.com/featured/"))
   ) {
@@ -107,7 +114,8 @@ export function resolveAuthenticProductImage(productId: string | undefined | nul
 
 /**
  * Injects dynamic Cloudinary formatting and compression parameters
- * (f_auto,q_auto,w_400,c_limit/) for blazing-fast loading speeds and WebP/AVIF delivery.
+ * (f_auto,q_auto,w_400,c_limit/) for blazing-fast loading speeds and WebP/AVIF delivery,
+ * and routes Cloudflare R2 assets through the high-performance authenticated media streamer.
  */
 export function optimizeProductImageUrl(
   url: string | undefined | null, 
@@ -116,6 +124,12 @@ export function optimizeProductImageUrl(
   if (!url || typeof url !== "string") return url || SAFE_PRODUCT_PLACEHOLDER;
   const trimmed = url.trim();
   if (!trimmed) return SAFE_PRODUCT_PLACEHOLDER;
+
+  // Route Cloudflare R2 URLs through authenticated media proxy
+  if (trimmed.includes("r2.dev/") || trimmed.includes("cloudflarestorage.com/")) {
+    const key = trimmed.replace(/^https?:\/\/[^\/]+\//, "").split("?")[0];
+    return `/api/media/${key}`;
+  }
 
   // Cloudinary dynamic optimization
   if (trimmed.includes("res.cloudinary.com") && trimmed.includes("/upload/")) {
