@@ -223,7 +223,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
               <div className="absolute inset-0 bg-emerald-500/20 rounded-2xl blur-lg animate-pulse"></div>
               <img 
                 src={APP_LOGO_URL} 
-                alt="কাঁচা বাজার" 
+                alt="মেগা বাজার" 
                 className="relative w-20 h-20 rounded-2xl object-contain bg-white p-1 shadow-lg border-2 border-emerald-500 mx-auto"
               />
               <span className="absolute -bottom-1 -right-1 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full border border-white shadow-xs">
@@ -234,11 +234,11 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
             {/* Title & Subtitle */}
             <div className="space-y-1.5 pt-1">
               <h3 className="text-lg font-black text-slate-800 tracking-tight">
-                📱 {lang === "bn" ? "কাঁচা বাজার অ্যাপ ইনস্টল করুন" : "Install Kacha Bazar App"}
+                📱 {lang === "bn" ? "মেগা বাজার অ্যাপ ইনস্টল করুন" : "Install Mega Bazar App"}
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
                 {lang === "bn"
-                  ? "আরও দ্রুত ও সহজে কাঁচা বাজার ব্যবহার করতে অ্যাপটি ইনস্টল করুন।"
+                  ? "আরও দ্রুত ও সহজে মেগা বাজার ব্যবহার করতে অ্যাপটি ইনস্টল করুন।"
                   : "Install the app for the fastest ordering experience and instant deals."}
               </p>
             </div>
@@ -312,7 +312,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
             <div className="relative shrink-0">
               <img 
                 src={APP_LOGO_URL} 
-                alt="কাঁচা বাজার" 
+                alt="মেগা বাজার" 
                 className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl object-contain bg-white p-0.5 border border-emerald-100 shadow-2xs"
               />
               <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-[8px] text-white font-bold">
@@ -324,7 +324,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <h4 className="text-xs sm:text-sm font-black text-slate-800 truncate">
-                  {lang === "bn" ? "কাচা বাজার অ্যাপ" : "Kacha Bazar App"}
+                  {lang === "bn" ? "মেগা বাজার অ্যাপ" : "Mega Bazar App"}
                 </h4>
                 <span className="bg-emerald-100 text-emerald-800 text-[8.5px] font-extrabold px-1.5 py-0.2 rounded shrink-0">
                   PWA
@@ -384,8 +384,8 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
               </h3>
               <p className="text-xs text-slate-500">
                 {lang === "bn" 
-                  ? "কাচা বাজার অ্যাপটি আপনার হোমস্ক্রিন বা অ্যাপ লিস্টে যুক্ত হয়েছে।" 
-                  : "Kacha Bazar is now installed on your home screen."}
+                  ? "মেগা বাজার অ্যাপটি আপনার হোমস্ক্রিন বা অ্যাপ লিস্টে যুক্ত হয়েছে।" 
+                  : "Mega Bazar is now installed on your home screen."}
               </p>
             </div>
             <button

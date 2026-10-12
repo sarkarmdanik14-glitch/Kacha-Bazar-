@@ -1,5 +1,5 @@
-// Service Worker for কাচা বাজার (Kacha Bazar) PWA
-const CACHE_NAME = 'kacha-bazar-pass-through-v2';
+// Service Worker for মেগা বাজার (Mega Bazar) PWA
+const CACHE_NAME = 'mega-bazar-pass-through-v3';
 
 // Install Event - Immediately take over without waiting
 self.addEventListener('install', (event) => {

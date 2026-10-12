@@ -5,21 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
       (function() {
-        // Clear any old stale service worker registrations and caches to prevent module chunk mismatches
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function(regs) {
-            for (var i = 0; i < regs.length; i++) {
-              regs[i].unregister();
+        // One-time purge of stale previous-brand caches and update service workers
+        try {
+          if (!localStorage.getItem('mega_bazar_v3_sw_purged')) {
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                for (var i = 0; i < regs.length; i++) {
+                  regs[i].unregister();
+                }
+              }).catch(function() {});
             }
-          }).catch(function() {});
-        }
-        if ('caches' in window) {
-          caches.keys().then(function(keys) {
-            for (var i = 0; i < keys.length; i++) {
-              caches.delete(keys[i]);
+            if ('caches' in window) {
+              caches.keys().then(function(keys) {
+                for (var i = 0; i < keys.length; i++) {
+                  caches.delete(keys[i]);
+                }
+              }).catch(function() {});
             }
-          }).catch(function() {});
-        }
+            localStorage.setItem('mega_bazar_v3_sw_purged', 'true');
+          }
+        } catch(e) {}
 
         // Intercept noisy third-party browser extension console messages (e.g. MetaMask, ChromeTransport)
         const isExtensionNoise = function(args) {
@@ -96,23 +101,25 @@
         }, true);
       })();
     </script>
-    <meta name="description" content="A world-class, premium, and highly engaging grocery e-commerce homepage for fresh produce, meats, daily essentials, and quick 15-minute deliveries." />
-    <meta property="og:title" content="কাচা বাজার - Premium Grocery Store" />
-    <meta property="og:description" content="A world-class, premium, and highly engaging grocery e-commerce homepage for fresh produce, meats, daily essentials, and quick 15-minute deliveries." />
-    <title>কাচা বাজার - Premium Grocery Store</title>
+    <meta name="description" content="মেগা বাজার - নিত্যপ্রয়োজনীয় পণ্যের সেরা অনলাইন সুপারশপ। হোম ডেলিভারি।" />
+    <meta property="og:title" content="মেগা বাজার - Mega Bazar" />
+    <meta property="og:description" content="মেগা বাজার - নিত্যপ্রয়োজনীয় পণ্যের সেরা অনলাইন সুপারশপ। হোম ডেলিভারি।" />
+    <title>মেগা বাজার - Mega Bazar</title>
     
     <!-- PWA & Mobile Web App Meta Tags -->
     <meta name="theme-color" content="#059669" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="কাচা বাজার" />
-    <meta name="application-name" content="কাচা বাজার" />
+    <meta name="apple-mobile-web-app-title" content="মেগা বাজার" />
+    <meta name="application-name" content="মেগা বাজার" />
     <meta name="format-detection" content="telephone=no" />
     
     <!-- PWA Manifest & Icons -->
     <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev/file_000000005aa88208b941d314860e7ba9.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png" />
     <link rel="icon" type="image/png" href="https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev/file_000000005aa88208b941d314860e7ba9.png" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">

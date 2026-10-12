@@ -114,11 +114,11 @@ export const PWAQRCodeModal: React.FC<PWAQRCodeModalProps> = ({ isOpen, onClose,
             <div className="flex items-center space-x-2 mb-3">
               <img 
                 src={APP_LOGO_URL} 
-                alt="কাঁচা বাজার" 
+                alt="মেগা বাজার" 
                 className="w-7 h-7 rounded-full border border-emerald-300 object-contain bg-white p-0.5"
               />
               <span className="text-emerald-800 font-black text-sm tracking-tight">
-                {lang === "bn" ? "কাচা বাজার অনলাইন সুপারশপ" : "Kacha Bazar Online Super Shop"}
+                {lang === "bn" ? "মেগা বাজার অনলাইন সুপারশপ" : "Mega Bazar Online Super Shop"}
               </span>
             </div>
 
@@ -139,7 +139,7 @@ export const PWAQRCodeModal: React.FC<PWAQRCodeModalProps> = ({ isOpen, onClose,
                 <div className="relative group">
                   <img 
                     src={qrDataUrl} 
-                    alt="Kacha Bazar PWA Install QR Code" 
+                    alt="Mega Bazar PWA Install QR Code" 
                     className="w-48 h-48 sm:w-56 sm:h-56 object-contain rounded-xl"
                   />
                   {/* Floating Center Brand Badge */}
@@ -147,7 +147,7 @@ export const PWAQRCodeModal: React.FC<PWAQRCodeModalProps> = ({ isOpen, onClose,
                     <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white p-0.5 shadow-md border border-emerald-400 flex items-center justify-center">
                       <img 
                         src={APP_LOGO_URL} 
-                        alt="কাঁচা বাজার" 
+                        alt="মেগা বাজার" 
                         className="w-full h-full rounded-full object-contain p-0.5"
                       />
                     </div>
