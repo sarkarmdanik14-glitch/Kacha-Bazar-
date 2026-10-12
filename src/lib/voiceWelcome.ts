@@ -1,23 +1,71 @@
 /**
- * Bengali Voice Welcome Service for Kacha Bazar
+ * Bengali Voice Welcome Service for Mega Bazar (মেগা বাজার)
  *
  * Requirements:
- * 1. Plays: "আসসালামু আলাইকুম, কাঁচা বাজারে আপনাকে স্বাগতম"
- * 2. Plays automatically when the app/website opens.
- * 3. Plays only once per session, not repeatedly (guarded by sessionStorage and memory state).
- * 4. Uses a clear, natural Bengali voice (studio-quality natural voice audio with Web Speech API fallback).
- * 5. If browser autoplay is blocked, smoothly plays on the user's first interaction (click/touch/keydown).
- * 6. Completely transparent — zero changes to visual layout or design.
+ * 1. Plays: "আসসালামু আলাইকুম, মেগা বাজারে আপনাকে স্বাগতম"
+ * 2. Supports custom uploaded audio URL configured via Admin Settings (MP3 / WAV / M4A).
+ * 3. Plays automatically when the app/website opens.
+ * 4. Plays only once per session, not repeatedly (guarded by sessionStorage and memory state).
+ * 5. Uses a clear, natural Bengali voice (studio-quality natural voice audio with Web Speech API fallback).
+ * 6. If browser autoplay is blocked, smoothly plays on the user's first interaction (click/touch/keydown).
+ * 7. Completely transparent — zero changes to visual layout or design.
  */
 
-const SESSION_KEY = "kachabazar_welcome_voice_played";
-const GREETING_TEXT = "আসসালামু আলাইকুম, কাঁচা বাজারে আপনাকে স্বাগতম";
-const AUDIO_SRC_MP3 = "/audio/kachabazar-welcome.mp3";
-const AUDIO_SRC_WAV = "/audio/kachabazar-welcome.wav";
+const SESSION_KEY = "megabazar_welcome_voice_played";
+const LOCAL_STORAGE_AUDIO_URL_KEY = "megabazar_welcome_audio_url";
+const LOCAL_STORAGE_AUDIO_ENABLED_KEY = "megabazar_welcome_audio_enabled";
+const GREETING_TEXT = "আসসালামু আলাইকুম, মেগা বাজারে আপনাকে স্বাগতম";
+const DEFAULT_AUDIO_SRC_MP3 = "/audio/kachabazar-welcome.mp3";
+const DEFAULT_AUDIO_SRC_WAV = "/audio/kachabazar-welcome.wav";
 
 let isInitialized = false;
 let hasPlayed = false;
 let currentAudio: HTMLAudioElement | null = null;
+let activeAudioUrl: string = "";
+let isAudioEnabled: boolean = true;
+
+export function getWelcomeAudioUrl(): string {
+  if (activeAudioUrl) return activeAudioUrl;
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const saved = window.localStorage.getItem(LOCAL_STORAGE_AUDIO_URL_KEY);
+      if (saved) return saved;
+    }
+  } catch {}
+  return DEFAULT_AUDIO_SRC_MP3;
+}
+
+export function setWelcomeAudioUrl(url: string): void {
+  activeAudioUrl = url || "";
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      if (url) {
+        window.localStorage.setItem(LOCAL_STORAGE_AUDIO_URL_KEY, url);
+      } else {
+        window.localStorage.removeItem(LOCAL_STORAGE_AUDIO_URL_KEY);
+      }
+    }
+  } catch {}
+}
+
+export function isWelcomeVoiceEnabled(): boolean {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const saved = window.localStorage.getItem(LOCAL_STORAGE_AUDIO_ENABLED_KEY);
+      if (saved === "false") return false;
+    }
+  } catch {}
+  return isAudioEnabled;
+}
+
+export function setWelcomeVoiceEnabled(enabled: boolean): void {
+  isAudioEnabled = enabled;
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem(LOCAL_STORAGE_AUDIO_ENABLED_KEY, enabled ? "true" : "false");
+    }
+  } catch {}
+}
 
 function isSessionAlreadyPlayed(): boolean {
   if (hasPlayed) return true;
@@ -91,8 +139,8 @@ function speakWithWebSpeech(): void {
 /**
  * Attempt to play the welcome voice greeting
  */
-export function playWelcomeVoice(): void {
-  if (isSessionAlreadyPlayed()) {
+export function playWelcomeVoice(customUrl?: string, forcePlay = false): void {
+  if (!forcePlay && isSessionAlreadyPlayed()) {
     return;
   }
 
@@ -100,7 +148,12 @@ export function playWelcomeVoice(): void {
     return;
   }
 
-  // Use natural Bengali voice audio file
+  if (!isWelcomeVoiceEnabled() && !forcePlay) {
+    return;
+  }
+
+  const targetUrl = customUrl || getWelcomeAudioUrl();
+
   try {
     if (currentAudio) {
       try {
@@ -111,23 +164,30 @@ export function playWelcomeVoice(): void {
 
     const audio = new Audio();
     currentAudio = audio;
-    audio.src = AUDIO_SRC_MP3;
+    audio.src = targetUrl;
     audio.volume = 1.0;
     audio.preload = "auto";
 
     audio.onplaying = () => {
-      markSessionAsPlayed();
+      if (!forcePlay) markSessionAsPlayed();
     };
 
     audio.onerror = () => {
-      // If MP3 fails, try WAV fallback, then Web Speech
-      if (audio.src.endsWith(".mp3")) {
-        audio.src = AUDIO_SRC_WAV;
+      console.warn("[Voice Welcome] Audio load failed for:", targetUrl);
+      // If custom URL fails, try default MP3, then WAV, then Web Speech
+      if (targetUrl !== DEFAULT_AUDIO_SRC_MP3) {
+        audio.src = DEFAULT_AUDIO_SRC_MP3;
+        audio.play().catch(() => {
+          audio.src = DEFAULT_AUDIO_SRC_WAV;
+          audio.play().catch(() => {
+            speakWithWebSpeech();
+          });
+        });
+      } else {
+        audio.src = DEFAULT_AUDIO_SRC_WAV;
         audio.play().catch(() => {
           speakWithWebSpeech();
         });
-      } else {
-        speakWithWebSpeech();
       }
     };
 
@@ -135,7 +195,7 @@ export function playWelcomeVoice(): void {
     if (playPromise !== undefined) {
       playPromise
         .then(() => {
-          markSessionAsPlayed();
+          if (!forcePlay) markSessionAsPlayed();
         })
         .catch((err) => {
           // Autoplay blocked by browser policy; user interaction listeners will trigger it
@@ -153,8 +213,17 @@ export function playWelcomeVoice(): void {
  * Automatically tries to play immediately; if blocked by browser autoplay policy,
  * seamlessly plays on the user's first tap, click, or keypress.
  */
-export function initVoiceWelcome(): void {
+export function initVoiceWelcome(customUrl?: string, enabled = true): void {
   if (typeof window === "undefined") return;
+
+  if (customUrl !== undefined) {
+    setWelcomeAudioUrl(customUrl);
+  }
+  if (enabled !== undefined) {
+    setWelcomeVoiceEnabled(enabled);
+  }
+
+  if (!isWelcomeVoiceEnabled()) return;
 
   // Already played in this session? Do nothing.
   if (isSessionAlreadyPlayed()) {
@@ -167,7 +236,7 @@ export function initVoiceWelcome(): void {
   const handleFirstInteraction = () => {
     cleanupListeners();
     if (!isSessionAlreadyPlayed()) {
-      playWelcomeVoice();
+      playWelcomeVoice(customUrl);
     }
   };
 
@@ -189,7 +258,7 @@ export function initVoiceWelcome(): void {
   // Attempt to play automatically when the app loads (short 350ms delay for smooth DOM mount)
   setTimeout(() => {
     if (!isSessionAlreadyPlayed()) {
-      playWelcomeVoice();
+      playWelcomeVoice(customUrl);
     }
   }, 350);
 }

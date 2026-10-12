@@ -30,7 +30,7 @@ import CustomerVoiceCallModal from "./components/CustomerVoiceCallModal";
 import { seedDatabase, db, collection, onSnapshot, auth, onAuthStateChanged, doc, getDoc, getDocs, setDoc, query, where, limit, orderBy, or, addDoc, deleteDoc, serverTimestamp } from "./lib/firebase";
 import { calculateDeliveryFeeFromSettings } from "./lib/delivery";
 import { visitorTracker } from "./lib/visitorTracker";
-import { initVoiceWelcome } from "./lib/voiceWelcome";
+import { initVoiceWelcome, setWelcomeAudioUrl, setWelcomeVoiceEnabled } from "./lib/voiceWelcome";
 import { matchesProductSearch } from "./lib/banglishSearch";
 import { isUserPremiumMember, calculatePremiumDiscount } from "./lib/membership";
 
@@ -376,7 +376,14 @@ export default function App() {
       doc(db, "settings", "global"),
       (snap) => {
         if (snap.exists()) {
-          setGlobalSettings(snap.data());
+          const data = snap.data();
+          setGlobalSettings(data);
+          if (data.welcomeAudioUrl !== undefined) {
+            setWelcomeAudioUrl(data.welcomeAudioUrl);
+          }
+          if (data.enableWelcomeVoice !== undefined) {
+            setWelcomeVoiceEnabled(data.enableWelcomeVoice);
+          }
         }
       },
       (err) => console.warn("Firestore global settings sync notice:", err.message)

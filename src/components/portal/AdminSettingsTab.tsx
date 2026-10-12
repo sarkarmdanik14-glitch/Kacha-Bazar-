@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   Settings, Check, RefreshCw, MapPin, Building, Phone, Mail, 
   ToggleLeft, ToggleRight, ImageIcon, Plus, Trash2, Edit, Upload, Navigation, ShieldAlert, Info,
   QrCode, Smartphone, Download, Copy, ExternalLink, Sparkles, CheckCircle2, Globe, Printer,
-  Megaphone, AlertCircle, Eye, RotateCcw, Save, Bell, Database, Play, CheckCircle, ArrowRight,
-  Cloud, HardDrive, ShieldCheck, Search
+  Megaphone, AlertCircle, Eye, RotateCcw, Save, Bell, Database, Play, Pause, CheckCircle, ArrowRight,
+  Cloud, HardDrive, ShieldCheck, Search, Volume2, VolumeX, Mic, Music
 } from "lucide-react";
 import QRCode from "qrcode";
 import { APP_LOGO_URL } from "../../constants/branding";
@@ -17,6 +17,7 @@ import { checkSupabaseStatus, syncAllToSupabase, SyncProgress } from "../../lib/
 import { SUPABASE_SCHEMA_SQL } from "../../lib/supabaseSchemaCode";
 import { CATEGORIES, ALL_PRODUCTS } from "../../data";
 import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
+import { apiClient } from "../../lib/apiClient";
 
 interface AdminSettingsTabProps {
   settings: any;
@@ -78,6 +79,14 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
   const [enableNagad, setEnableNagad] = useState<boolean>(settings?.enableNagad !== false);
   const [enableRocket, setEnableRocket] = useState<boolean>(settings?.enableRocket !== false);
 
+  // Welcome Voice Greeting States
+  const [welcomeAudioUrl, setWelcomeAudioUrl] = useState<string>(settings?.welcomeAudioUrl || "");
+  const [enableWelcomeVoice, setEnableWelcomeVoice] = useState<boolean>(settings?.enableWelcomeVoice !== false);
+  const [uploadingAudio, setUploadingAudio] = useState<boolean>(false);
+  const [isPlayingPreview, setIsPlayingPreview] = useState<boolean>(false);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
+
   // Store Location & Delivery Zones State
   const [storeAddress, setStoreAddress] = useState<string>(
     settings?.storeLocation?.address || settings?.officeAddress || DEFAULT_STORE_LOCATION.address
@@ -136,6 +145,12 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
       }
       if (settings.deliveryUnavailableAboveMax !== undefined) {
         setDeliveryUnavailableAboveMax(settings.deliveryUnavailableAboveMax);
+      }
+      if (settings.welcomeAudioUrl !== undefined) {
+        setWelcomeAudioUrl(settings.welcomeAudioUrl);
+      }
+      if (settings.enableWelcomeVoice !== undefined) {
+        setEnableWelcomeVoice(settings.enableWelcomeVoice);
       }
     }
   }, [settings]);
@@ -317,6 +332,84 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
   };
 
 
+  // Handle Custom Welcome Voice Audio Upload
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("audio/") && !file.name.match(/\.(mp3|wav|m4a|aac|ogg|webm)$/i)) {
+      triggerToast("অনুগ্রহ করে একটি অডিও ফাইল (MP3, WAV, M4A) নির্বাচন করুন।", "Please select a valid audio file (MP3, WAV, M4A).");
+      return;
+    }
+
+    if (file.size > 25 * 1024 * 1024) {
+      triggerToast("অডিও ফাইলের সাইজ ২৫ মেগাবাইটের কম হতে হবে।", "Audio size must be under 25MB.");
+      return;
+    }
+
+    setUploadingAudio(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const dataUrl = reader.result as string;
+          const res = await apiClient.post("/api/upload-audio", {
+            dataUrl,
+            filename: file.name,
+            folder: "audio",
+          });
+
+          if (res?.url) {
+            setWelcomeAudioUrl(res.url);
+            triggerToast("ভয়েস অডিও ফাইল সফলভাবে আপলোড হয়েছে! 'সেটিংস সেভ করুন'-এ চাপ দিন।", "Voice audio uploaded successfully! Click 'Save Global Settings'.");
+          } else {
+            throw new Error(res?.message || "Upload failed");
+          }
+        } catch (err: any) {
+          console.error("Audio upload error:", err);
+          triggerToast(err.message || "অডিও আপলোড ব্যর্থ হয়েছে।", "Failed to upload audio.");
+        } finally {
+          setUploadingAudio(false);
+          if (audioInputRef.current) audioInputRef.current.value = "";
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setUploadingAudio(false);
+      triggerToast("অডিও ফাইল পড়তে সমস্যা হয়েছে।", "Error reading audio file.");
+    }
+  };
+
+  // Preview Welcome Voice Audio in Admin Panel
+  const handleTogglePreviewAudio = () => {
+    if (isPlayingPreview) {
+      if (audioPreviewRef.current) {
+        audioPreviewRef.current.pause();
+        audioPreviewRef.current.currentTime = 0;
+      }
+      setIsPlayingPreview(false);
+    } else {
+      const src = welcomeAudioUrl.trim() || "/audio/kachabazar-welcome.mp3";
+      if (!audioPreviewRef.current) {
+        audioPreviewRef.current = new Audio(src);
+        audioPreviewRef.current.onended = () => setIsPlayingPreview(false);
+        audioPreviewRef.current.onerror = () => {
+          setIsPlayingPreview(false);
+          triggerToast("অডিও প্লে করতে সমস্যা হয়েছে।", "Could not play audio.");
+        };
+      } else {
+        audioPreviewRef.current.src = src;
+      }
+      audioPreviewRef.current.play().then(() => {
+        setIsPlayingPreview(true);
+      }).catch((e) => {
+        console.warn("Audio play error:", e);
+        setIsPlayingPreview(false);
+        triggerToast("অডিও প্লে করা সম্ভব হয়নি।", "Playback failed.");
+      });
+    }
+  };
+
   // Save global configurations
   const handleSaveGlobalConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -336,6 +429,8 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         enableBkash,
         enableNagad,
         enableRocket,
+        welcomeAudioUrl: welcomeAudioUrl.trim(),
+        enableWelcomeVoice,
         deliveryChargesByLocation: deliveryChargesMap,
         updatedAt: serverTimestamp()
       };
@@ -984,6 +1079,145 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
       {activeSettingsSubTab === "global" && (
         <form onSubmit={handleSaveGlobalConfig} className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm space-y-6">
           
+          {/* Welcome Voice Greeting Card */}
+          <div className="bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-slate-50 border-2 border-emerald-200/90 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/20 shrink-0">
+                  <Mic className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                    <span>{getTranslation("ওয়েলকাম ভয়েস বার্তা (Welcome Voice Greeting)", "Welcome Voice Greeting")}</span>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${enableWelcomeVoice ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                      {enableWelcomeVoice ? getTranslation("সচল", "ACTIVE") : getTranslation("বন্ধ", "OFF")}
+                    </span>
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                    {getTranslation("অ্যাপ বা ওয়েবসাইট ওপেন করার সাথে সাথে গ্রাহককে স্বাগতম জানিয়ে এই অডিওটি বাজবে।", "Plays when visitors open the store homepage or app.")}
+                  </p>
+                </div>
+              </div>
+
+              {/* On/Off Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setEnableWelcomeVoice(!enableWelcomeVoice)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
+                  enableWelcomeVoice 
+                    ? "bg-emerald-600 text-white border-emerald-600 shadow-sm" 
+                    : "bg-slate-100 text-slate-600 border-slate-200"
+                }`}
+              >
+                {enableWelcomeVoice ? (
+                  <>
+                    <Volume2 className="w-4 h-4" />
+                    <span>{getTranslation("ভয়েস বার্তা সচল", "Voice Enabled")}</span>
+                  </>
+                ) : (
+                  <>
+                    <VolumeX className="w-4 h-4 text-slate-400" />
+                    <span>{getTranslation("ভয়েস বার্তা বন্ধ", "Voice Disabled")}</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Audio Management Controls */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+              <div className="md:col-span-7 space-y-2">
+                <label className="text-[11px] font-extrabold text-slate-700 flex items-center justify-between">
+                  <span>{getTranslation("অডিও ফাইলের লিঙ্ক বা আপলোড (URL)", "Audio File URL or Upload")}</span>
+                  <span className="text-[10px] text-slate-400 font-semibold">(MP3, WAV, M4A, OGG)</span>
+                </label>
+                <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-emerald-500 shadow-2xs">
+                  <Music className="w-4 h-4 text-emerald-600 mr-2 shrink-0" />
+                  <input
+                    type="text"
+                    value={welcomeAudioUrl}
+                    onChange={(e) => setWelcomeAudioUrl(e.target.value)}
+                    placeholder="অডিও লিংক দিন অথবা ডানে আপলোড বাটনে ক্লিক করুন..."
+                    className="bg-transparent flex-1 outline-none text-slate-800 font-medium text-xs placeholder:text-slate-400"
+                  />
+                  {welcomeAudioUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setWelcomeAudioUrl("")}
+                      className="text-slate-400 hover:text-rose-500 text-xs px-1.5 font-bold cursor-pointer"
+                      title="Clear / Reset to Default"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-600 flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-slate-500">বর্তমান স্ট্যাটাস:</span>
+                  {welcomeAudioUrl ? (
+                    <span className="text-emerald-700 font-bold bg-emerald-100/70 px-2 py-0.5 rounded-md border border-emerald-200">
+                      ✨ নিজস্ব কাস্টম ভয়েস রেকর্ড সেট করা আছে
+                    </span>
+                  ) : (
+                    <span className="text-slate-600 font-medium bg-slate-100 px-2 py-0.5 rounded-md">
+                      ডিফল্ট ওয়েলকাম অডিও সক্রিয়
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons: Upload & Test Preview */}
+              <div className="md:col-span-5 flex flex-wrap sm:flex-nowrap gap-2 items-center justify-start md:justify-end">
+                <input
+                  type="file"
+                  ref={audioInputRef}
+                  onChange={handleAudioUpload}
+                  accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.webm"
+                  className="hidden"
+                />
+
+                <button
+                  type="button"
+                  disabled={uploadingAudio}
+                  onClick={() => audioInputRef.current?.click()}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-3.5 py-2.5 rounded-xl text-xs font-black shadow-sm transition cursor-pointer disabled:opacity-50"
+                >
+                  {uploadingAudio ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>{getTranslation("আপলোড হচ্ছে...", "Uploading...")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{getTranslation("ভয়েস রেকর্ড আপলোড", "Upload Voice Record")}</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleTogglePreviewAudio}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-black border transition cursor-pointer shadow-2xs ${
+                    isPlayingPreview
+                      ? "bg-rose-50 border-rose-300 text-rose-700 animate-pulse"
+                      : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  {isPlayingPreview ? (
+                    <>
+                      <Pause className="w-3.5 h-3.5 text-rose-600" />
+                      <span>{getTranslation("বন্ধ করুন", "Stop")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{getTranslation("টেস্ট শুনুন", "Listen Test")}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* General Contacts */}
           <div className="space-y-4">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">{getTranslation("যোগাযোগ ও শারীরিক ঠিকানা", "Support & HQ Coordinates")}</h3>

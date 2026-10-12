@@ -2297,7 +2297,99 @@ const handleImageUpload = async (req: express.Request, res: express.Response) =>
   }
 };
 
+// 4.6.1 POST /api/upload-audio - Upload custom welcome voice or notification sounds
+const handleAudioUpload = async (req: express.Request, res: express.Response) => {
+  try {
+    const { dataUrl, filename, folder } = req.body || {};
+    if (!dataUrl || typeof dataUrl !== "string") {
+      return res.status(400).json({ success: false, error: "Audio dataUrl is required", message: "অডিও ফাইলের তথ্য (dataUrl) পাওয়া যায়নি।" });
+    }
+
+    const matches = dataUrl.match(/^data:([A-Za-z0-9_\-\+\/]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      return res.status(400).json({ success: false, error: "Invalid base64 audio format", message: "অডিও ফরম্যাট সঠিক নয়।" });
+    }
+
+    const mimeType = matches[1].toLowerCase().trim();
+    const allowedExtensions: Record<string, string> = {
+      "audio/mpeg": "mp3",
+      "audio/mp3": "mp3",
+      "audio/wav": "wav",
+      "audio/x-wav": "wav",
+      "audio/wave": "wav",
+      "audio/ogg": "ogg",
+      "audio/aac": "aac",
+      "audio/m4a": "m4a",
+      "audio/mp4": "m4a",
+      "audio/x-m4a": "m4a",
+      "audio/webm": "webm",
+    };
+
+    let cleanExt = allowedExtensions[mimeType];
+    if (!cleanExt) {
+      if (typeof filename === "string" && filename.includes(".")) {
+        const ext = filename.split(".").pop()?.toLowerCase();
+        if (ext && ["mp3", "wav", "m4a", "ogg", "aac", "webm"].includes(ext)) {
+          cleanExt = ext;
+        }
+      }
+    }
+
+    if (!cleanExt) {
+      cleanExt = "mp3";
+    }
+
+    const buffer = Buffer.from(matches[2], "base64");
+    if (buffer.length > 25 * 1024 * 1024) {
+      return res.status(400).json({ success: false, error: "Audio exceeds 25MB limit", message: "অডিও ফাইলের আকার ২৫ মেগাবাইটের বেশি হতে পারবে না।" });
+    }
+
+    const cleanFolder = (typeof folder === "string" && folder.trim()) ? folder.trim().replace(/[^a-zA-Z0-9_-]/g, "_") : "audio";
+    const safeName = `voice_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
+    const r2Key = `${cleanFolder}/${safeName}`;
+
+    let r2Success = false;
+    let finalUrl = "";
+
+    try {
+      await r2Client.send(new PutObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: r2Key,
+        Body: buffer,
+        ContentType: mimeType || "audio/mpeg",
+      }));
+      r2Success = true;
+      finalUrl = `/api/media/${r2Key}`;
+      console.log(`[Cloudflare R2] Successfully uploaded audio: ${r2Key} -> ${finalUrl}`);
+    } catch (r2Err: any) {
+      console.warn("[Cloudflare R2] Audio upload warning, falling back to local storage:", r2Err?.message || r2Err);
+    }
+
+    if (!r2Success) {
+      const audioDir = path.resolve(process.cwd(), "public", "uploads", "audio");
+      if (!fs.existsSync(audioDir)) {
+        fs.mkdirSync(audioDir, { recursive: true });
+      }
+      const filePath = path.join(audioDir, safeName);
+      fs.writeFileSync(filePath, buffer);
+      finalUrl = `/uploads/audio/${safeName}`;
+    }
+
+    return res.json({
+      success: true,
+      url: finalUrl,
+      r2Key: r2Success ? r2Key : null,
+      provider: r2Success ? "cloudflare_r2" : "local_storage",
+      message: "অডিও সফলভাবে আপলোড করা হয়েছে।"
+    });
+  } catch (err: any) {
+    console.error("Server audio upload error:", err);
+    return res.status(500).json({ success: false, error: err.message || "Failed to save uploaded audio", message: "অডিও সংরক্ষণ করতে ত্রুটি দেখা দিয়েছে।" });
+  }
+};
+
 app.post("/api/upload", rateLimiter(120, 60000), handleImageUpload);
+app.post("/api/upload-audio", rateLimiter(60, 60000), handleAudioUpload);
 app.post("/api/staff/upload-photo", rateLimiter(120, 60000), requireStaffAuth, handleImageUpload);
 
 // 4.7 GET /api/r2/status - Cloudflare R2 Health Check & Stats
@@ -2341,13 +2433,18 @@ app.get("/api/media/*", async (req, res) => {
     }));
     if (r2Obj.ContentType) {
       res.setHeader("Content-Type", r2Obj.ContentType);
-    } else {
       const ext = path.extname(key).toLowerCase();
       if (ext === ".jpg" || ext === ".jpeg") res.setHeader("Content-Type", "image/jpeg");
       else if (ext === ".png") res.setHeader("Content-Type", "image/png");
       else if (ext === ".webp") res.setHeader("Content-Type", "image/webp");
       else if (ext === ".svg") res.setHeader("Content-Type", "image/svg+xml");
+      else if (ext === ".mp3") res.setHeader("Content-Type", "audio/mpeg");
+      else if (ext === ".wav") res.setHeader("Content-Type", "audio/wav");
+      else if (ext === ".m4a") res.setHeader("Content-Type", "audio/mp4");
+      else if (ext === ".ogg") res.setHeader("Content-Type", "audio/ogg");
+      else if (ext === ".webm") res.setHeader("Content-Type", "audio/webm");
     }
+    res.setHeader("Accept-Ranges", "bytes");
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     const stream = r2Obj.Body as any;
     if (stream && typeof stream.pipe === "function") {
