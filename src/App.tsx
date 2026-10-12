@@ -42,6 +42,7 @@ import { PWAInstallBanner } from "./components/PWAInstallBanner";
 import { DailyAlarmBanner } from "./components/common/DailyAlarmBanner";
 import { LiveNoticeBanner } from "./components/common/LiveNoticeBanner";
 import { FloatingContactOverlay } from "./components/FloatingContactOverlay";
+import { AppSplashScreen } from "./components/AppSplashScreen";
 import { openPWAQRCodeModal, openPWAInstallModal } from "./utils/pwa";
 
 import makkahImg from "./assets/images/makkah.jpg";
@@ -2104,6 +2105,9 @@ export default function App() {
   return (
     <div className="min-h-screen w-full bg-slate-50 font-sans text-slate-800 antialiased selection:bg-emerald-500 selection:text-white overflow-x-hidden">
       
+      {/* App Launch Luxury Emerald Animated Splash Screen Overlay */}
+      <AppSplashScreen />
+
       {/* Main Page Layout Wrapper */}
       <div>
       
