@@ -536,7 +536,7 @@ app.post("/api/memo/verify-code", async (req, res) => {
     // Generate QR Code image (Data URL)
     const qrDataUrl = await QRCode.toDataURL(
       JSON.stringify({
-        store: "KANCHA BAZAR",
+        store: "MEGA BAZAR",
         invoice: vData.orderId,
         code: vData.verificationCode,
         hash: vData.hash.slice(0, 16),

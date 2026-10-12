@@ -63,35 +63,15 @@ export async function imageToDataUrl(url: string): Promise<string> {
   const inFlight = imageFetchPromises.get(url);
   if (inFlight) return inFlight;
 
-  // Resolve CORS-safe endpoint: route direct R2 URLs through authenticated media proxy with CORS headers
-  let targetUrl = url;
-  if (url.includes("r2.dev/") || url.includes("cloudflarestorage.com/")) {
-    const key = url.replace(/^https?:\/\/[^\/]+\//, "").split("?")[0];
-    targetUrl = `/api/media/${key}`;
-  }
-
   const fetchPromise = (async () => {
     try {
-      let response = await fetch(targetUrl, {
+      const response = await fetch(url, {
         mode: "cors",
         credentials: "omit",
         cache: "force-cache",
       });
 
-      // If proxy failed and target was proxy, fallback to direct url
-      if (!response.ok && targetUrl !== url) {
-        try {
-          response = await fetch(url, {
-            mode: "cors",
-            credentials: "omit",
-            cache: "force-cache",
-          });
-        } catch {
-          // ignore fallback error
-        }
-      }
-
-      if (!response || !response.ok) {
+      if (!response.ok) {
         imageCache.set(url, "");
         return "";
       }

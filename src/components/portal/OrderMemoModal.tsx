@@ -119,7 +119,7 @@ export default function OrderMemoModal({
       const code = `KB-MEMO-${cleanId}-VERIFIED`;
       setVerificationCode(code);
 
-      const qrPayload = `KANCHA BAZAR OFFICIAL ORDER MEMO\nOrder ID: #${orderId}\nTotal: ৳${total}\nPhone: ${phone}\nItems: ${itemsList.length}\nVerification Code: ${code}`;
+      const qrPayload = `MEGA BAZAR OFFICIAL ORDER MEMO\nOrder ID: #${orderId}\nTotal: ৳${total}\nPhone: ${phone}\nItems: ${itemsList.length}\nVerification Code: ${code}`;
 
       // Generate local QR code Data URL immediately
       QRCode.toDataURL(qrPayload, { margin: 1, width: 140, color: { dark: "#064e3b", light: "#ffffff" } })
@@ -155,8 +155,8 @@ export default function OrderMemoModal({
 
   // Dynamic Memo Fields with defaults
   const storeLogo = logoDataUrl || storeLogoRaw;
-  const storeName = memoConfig?.storeName || getTranslation("কাঁচা বাজার", "Kancha Bazar");
-  const storeTagline = memoConfig?.storeTagline || getTranslation("বিশুদ্ধ ও নিরাপদ খাদ্যের প্রতিশ্রুতি", "The Assurance of Pure & Fresh Food");
+  const storeName = memoConfig?.storeName || getTranslation("মেগা বাজার", "Mega Bazar");
+  const storeTagline = memoConfig?.storeTagline || getTranslation("হোম ডেলিভারি", "Home Delivery");
   const supportPhone = memoConfig?.supportPhone || "+8801615581975";
 
   // 1. Resolve Seller Officer from order, staff profile, or memo settings
@@ -235,7 +235,7 @@ export default function OrderMemoModal({
   // Prepared By - use seller officer name or fallback
   const preparedBy = sellerOfficerName || (memoConfig?.preparedBy && memoConfig.preparedBy.trim().length > 0
     ? memoConfig.preparedBy
-    : getTranslation("কাঁচা বাজার টিম", "Kancha Bazar Team"));
+    : getTranslation("মেগা বাজার টিম", "Mega Bazar Team"));
 
   const thankYouMsg = memoConfig?.thankYouMessage || getTranslation("পণ্য সরবরাহ করার জন্য আপনাকে ধন্যবাদ। কোন জিজ্ঞাসা থাকলে যোগাযোগ করুন।", "Thank you for shopping with us! Please check all details upon delivery.");
   const footerTerms = memoConfig?.termsAndConditions || getTranslation("চাঁচকৈড় বাজার, বাংলাদেশ | বিশুদ্ধ পণ্য সরবরাহে আমরা দায়বদ্ধ।", "Chanchkoir Bazar, Bangladesh | We are committed to supplying fresh groceries.");

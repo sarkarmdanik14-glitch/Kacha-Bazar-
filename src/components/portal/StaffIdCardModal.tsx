@@ -277,14 +277,14 @@ export default function StaffIdCardModal({
 
   const displayBloodGroup = activeStaff?.bloodGroup || "B (+ve)";
   const displayEmergency = activeStaff?.emergencyContact || activeStaff?.mobile || "01611181115";
-  const activeLogo = logoDataUrl || "/api/media/branding/Gemini_Generated_Image_o7gpz1o7gpz1o7gp_ptkcoo.jpg" || logoImg;
+  const activeLogo = logoDataUrl || logoImg;
 
-  // Preload actual logo as Data URL for canvas / PDF generation
+  // Preload actual logo as Data URL
   useEffect(() => {
     imageToDataUrl(logoImg).then((dataUrl) => {
-      if (dataUrl) setLogoDataUrl(dataUrl);
+      setLogoDataUrl(dataUrl || logoImg);
     }).catch(() => {
-      // keep fallback
+      setLogoDataUrl(logoImg);
     });
   }, []);
 
@@ -1535,12 +1535,7 @@ export default function StaffIdCardModal({
                           src={logoDataUrl || activeLogo} 
                           alt="Kacha Bazar Logo" 
                           className="w-full h-full object-contain"
-                          onError={(e) => {
-                            const target = e.currentTarget as HTMLImageElement;
-                            if (target.src !== logoImg) {
-                              target.src = logoImg;
-                            }
-                          }}
+                          crossOrigin="anonymous"
                         />
                       </div>
                       <div className="text-white text-left leading-tight">
@@ -1562,6 +1557,7 @@ export default function StaffIdCardModal({
                               src={photoDataUrl || activeStaff.photoURL}
                               alt={activeStaff.fullName}
                               className="w-full h-full object-cover object-center rounded-full"
+                              crossOrigin="anonymous"
                             />
                           ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center bg-slate-200 text-slate-400 rounded-full">
@@ -1720,12 +1716,7 @@ export default function StaffIdCardModal({
                           src={logoDataUrl || activeLogo} 
                           alt="Kacha Bazar Logo" 
                           className="w-full h-full object-contain"
-                          onError={(e) => {
-                            const target = e.currentTarget as HTMLImageElement;
-                            if (target.src !== logoImg) {
-                              target.src = logoImg;
-                            }
-                          }}
+                          crossOrigin="anonymous"
                         />
                       </div>
                       <h4 className="font-black text-[15px] text-[#056839] tracking-wide leading-tight">

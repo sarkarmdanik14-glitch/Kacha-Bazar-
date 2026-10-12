@@ -14,6 +14,7 @@ import OrderMemoModal from "./OrderMemoModal";
 import { downloadMemoPDF } from "../../lib/pdfUtils";
 import { createTranslator } from "../../lib/formatUtils";
 import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
+import { APP_LOGO_URL } from "../../constants/branding";
 
 interface AdminMemoManagementTabProps {
   orders?: any[];
@@ -36,10 +37,10 @@ export default function AdminMemoManagementTab({
   const isSuperAdmin = currentUser?.role === "admin" || currentUser?.role === "founder";
 
   // Memo Configurations Form States
-  const [storeLogo, setStoreLogo] = useState<string>(settings?.storeLogo || "");
-  const [storeName, setStoreName] = useState<string>(settings?.storeName || "কাঁচা বাজার");
+  const [storeLogo, setStoreLogo] = useState<string>(settings?.storeLogo || APP_LOGO_URL);
+  const [storeName, setStoreName] = useState<string>(settings?.storeName || "মেগা বাজার");
   const [storeTagline, setStoreTagline] = useState<string>(
-    settings?.storeTagline || "বিশুদ্ধ ও নিরাপদ খাদ্যের প্রতিশ্রুতি"
+    settings?.storeTagline || "হোম ডেলিভারি"
   );
   const [supportPhone, setSupportPhone] = useState<string>(settings?.supportPhone || "+8801615581975");
   const [founderName, setFounderName] = useState<string>(settings?.founderName || "Md Anik Sarkar");
@@ -57,7 +58,7 @@ export default function AdminMemoManagementTab({
     settings?.sellerOfficerSignature || ""
   );
   const [preparedBy, setPreparedBy] = useState<string>(
-    settings?.preparedBy || (lang === "bn" ? "কাঁচা বাজার টিম" : "Kancha Bazar Team")
+    settings?.preparedBy || (lang === "bn" ? "মেগা বাজার টিম" : "Mega Bazar Team")
   );
   const [thankYouMessage, setThankYouMessage] = useState<string>(
     settings?.thankYouMessage ||
@@ -134,7 +135,7 @@ export default function AdminMemoManagementTab({
   // Sync with incoming Firestore settings prop
   useEffect(() => {
     if (settings) {
-      if (settings.storeLogo !== undefined) setStoreLogo(settings.storeLogo);
+      if (settings.storeLogo) setStoreLogo(settings.storeLogo);
       if (settings.storeName) setStoreName(settings.storeName);
       if (settings.storeTagline) setStoreTagline(settings.storeTagline);
       if (settings.supportPhone) setSupportPhone(settings.supportPhone);
@@ -961,7 +962,7 @@ export default function AdminMemoManagementTab({
                 disabled={!isSuperAdmin}
                 value={storeName}
                 onChange={(e) => setStoreName(e.target.value)}
-                placeholder="e.g. কাঁচা বাজার / Kancha Bazar"
+                placeholder="e.g. মেগা বাজার / Mega Bazar"
                 className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100"
               />
             </div>
@@ -976,7 +977,7 @@ export default function AdminMemoManagementTab({
                 disabled={!isSuperAdmin}
                 value={storeTagline}
                 onChange={(e) => setStoreTagline(e.target.value)}
-                placeholder="e.g. বিশুদ্ধ ও নিরাপদ খাদ্যের প্রতিশ্রুতি"
+                placeholder="e.g. হোম ডেলিভারি / Home Delivery"
                 className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100"
               />
             </div>

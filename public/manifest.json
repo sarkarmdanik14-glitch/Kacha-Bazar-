@@ -15,9 +15,9 @@
   "categories": ["shopping", "food", "lifestyle"],
   "icons": [
     {
-      "src": "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev/branding/Gemini_Generated_Image_o7gpz1o7gpz1o7gp_ptkcoo.jpg",
+      "src": "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev/file_000000005aa88208b941d314860e7ba9.png",
       "sizes": "512x512",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {

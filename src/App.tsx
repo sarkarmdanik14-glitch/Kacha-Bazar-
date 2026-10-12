@@ -151,7 +151,7 @@ export default function App() {
       if (el) {
         await printOrderMemo(el, {
           orderId: completedOrder.id,
-          storeName: "KachaBazar Store",
+          storeName: "Mega Bazar Store",
           lang,
           onPopupBlocked: () => {
             triggerToast(
@@ -2201,16 +2201,16 @@ export default function App() {
           >
             <img 
               src={APP_LOGO_URL} 
-              alt="কাঁচা বাজার" 
+              alt={lang === "bn" ? "মেগা বাজার" : "Mega Bazar"} 
               className="h-9 sm:h-11 md:h-12 w-auto max-w-[48px] object-contain rounded-xl border border-emerald-100 bg-white p-0.5 shadow-md shadow-emerald-50 shrink-0 group-hover:scale-105 transition"
               referrerPolicy="no-referrer"
             />
             <div className="min-w-0">
               <h1 className="text-xs sm:text-lg md:text-xl font-black text-emerald-700 tracking-tight leading-none truncate group-hover:text-emerald-800 transition">
-                {lang === "bn" ? "কাঁচা বাজার (মেগা বাজার)" : "Kacha Bazar (Mega Bazar)"}
+                {lang === "bn" ? "মেগা বাজার" : "Mega Bazar"}
               </h1>
               <p className="text-[7px] sm:text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 truncate">
-                {lang === "bn" ? "তাজা পণ্য, আপনার দরজায়।" : "Fresh Everyday"}
+                {lang === "bn" ? "হোম ডেলিভারি" : "Home Delivery"}
               </p>
             </div>
           </div>
