@@ -7,6 +7,12 @@
   --font-arabic: "Scheherazade New", "Amiri", "Noto Naskh Arabic", serif;
 }
 
+html, body {
+  background-color: #064e3b;
+  margin: 0;
+  padding: 0;
+}
+
 /* ================= NATIVE A4 PRINT STYLES ================= */
 @media print {
   @page {
