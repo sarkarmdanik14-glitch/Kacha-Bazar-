@@ -1,19 +1,21 @@
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "f28557b34a31123a24324c3124b05180";
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "5fee722d943a23b2184e7a44e72553a2";
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "5ce5e1826dd3f97f0a0c2e489c42c43713dc7ca5147b78af89e5aba7b0a6b073";
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "";
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "";
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "";
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "kachabazar-image";
-const R2_ENDPOINT = process.env.R2_ENDPOINT || `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+const R2_ENDPOINT = process.env.R2_ENDPOINT || (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : "");
 
-const r2Client = new S3Client({
-  region: "auto",
-  endpoint: R2_ENDPOINT,
-  credentials: {
-    accessKeyId: R2_ACCESS_KEY_ID,
-    secretAccessKey: R2_SECRET_ACCESS_KEY,
-  },
-});
+const r2Client = (R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_ENDPOINT)
+  ? new S3Client({
+      region: "auto",
+      endpoint: R2_ENDPOINT,
+      credentials: {
+        accessKeyId: R2_ACCESS_KEY_ID,
+        secretAccessKey: R2_SECRET_ACCESS_KEY,
+      },
+    })
+  : null;
 
 export default async function handler(req: any, res: any) {
   const pathParam = req.query?.path;
@@ -22,6 +24,10 @@ export default async function handler(req: any, res: any) {
 
   if (!key) {
     return res.status(400).send("Image key is required");
+  }
+
+  if (!r2Client) {
+    return res.status(503).send("Cloudflare R2 storage credentials not configured in environment");
   }
 
   try {
