@@ -17,7 +17,7 @@ import {
 } from "./firebase";
 import { sanitizeForFirestore } from "./staffManager";
 import { syncSinglePartnerShopToSupabase } from "./supabaseSync";
-import { supabase } from "./supabase";
+import { apiClient } from "./apiClient";
 
 export const INITIAL_PARTNER_SHOPS: PartnerShop[] = [
   {
@@ -33,7 +33,6 @@ export const INITIAL_PARTNER_SHOPS: PartnerShop[] = [
     joiningDate: "01 জানুয়ারি ২০২৫",
     commissionRate: 8, // 8% commission
     status: "active",
-    plainPassword: "partner123@green",
     paymentMethod: "bKash Merchant",
     accountNumber: "01711223344",
     balance: 0,
@@ -55,7 +54,6 @@ export const INITIAL_PARTNER_SHOPS: PartnerShop[] = [
     joiningDate: "15 মার্চ ২০২৫",
     commissionRate: 10, // 10% commission
     status: "active",
-    plainPassword: "partner123@dairy",
     paymentMethod: "Nagad",
     accountNumber: "01819556677",
     balance: 0,
@@ -77,7 +75,6 @@ export const INITIAL_PARTNER_SHOPS: PartnerShop[] = [
     joiningDate: "10 মে ২০২৫",
     commissionRate: 12, // 12% commission
     status: "active",
-    plainPassword: "partner123@fish",
     paymentMethod: "Bank Transfer",
     accountNumber: "BRAC Bank - 1502201948301",
     balance: 0,
@@ -99,7 +96,6 @@ export const INITIAL_PARTNER_SHOPS: PartnerShop[] = [
     joiningDate: "02 জুলাই ২০২৫",
     commissionRate: 7, // 7% commission
     status: "active",
-    plainPassword: "partner123@grain",
     paymentMethod: "bKash Personal",
     accountNumber: "01677334455",
     balance: 0,
@@ -119,10 +115,11 @@ export interface PartnerFinancialMetrics {
 }
 
 /**
- * Filter out any legacy dummy/sample sales figures from stored records
+ * Filter out any legacy dummy/sample sales figures and strip credentials from stored records
  */
 export function sanitizePartnerFinancials(shop: PartnerShop): PartnerShop {
   if (!shop) return shop;
+  const { plainPassword, password, passwordHash, passwordSalt, ...cleanShop } = shop as any;
   const legacyDummySales = [84200, 125400, 168000, 62000];
   const legacyDummyBalances = [14500, 22800, 31200, 9500];
   const legacyDummyOrders = [68, 92, 85, 44];
@@ -130,15 +127,15 @@ export function sanitizePartnerFinancials(shop: PartnerShop): PartnerShop {
   const legacyDummyEarnings = [77464, 112860, 147840, 57660];
 
   const hasDummy =
-    legacyDummySales.includes(shop.totalSales) ||
-    legacyDummyBalances.includes(shop.balance) ||
-    legacyDummyOrders.includes(shop.totalOrders) ||
-    legacyDummyCommissions.includes(shop.totalCommission) ||
-    legacyDummyEarnings.includes(shop.netEarnings);
+    legacyDummySales.includes(cleanShop.totalSales) ||
+    legacyDummyBalances.includes(cleanShop.balance) ||
+    legacyDummyOrders.includes(cleanShop.totalOrders) ||
+    legacyDummyCommissions.includes(cleanShop.totalCommission) ||
+    legacyDummyEarnings.includes(cleanShop.netEarnings);
 
   if (hasDummy) {
     return {
-      ...shop,
+      ...cleanShop,
       balance: 0,
       totalSales: 0,
       totalOrders: 0,
@@ -146,7 +143,7 @@ export function sanitizePartnerFinancials(shop: PartnerShop): PartnerShop {
       netEarnings: 0
     };
   }
-  return shop;
+  return cleanShop;
 }
 
 /**
@@ -427,7 +424,6 @@ export async function createPartnerShop(shopData: Partial<PartnerShop>): Promise
     joiningDate: shopData.joiningDate || new Date().toLocaleDateString("bn-BD", { year: "numeric", month: "long", day: "numeric" }),
     commissionRate: typeof shopData.commissionRate === "number" ? shopData.commissionRate : 10,
     status: shopData.status || "active",
-    plainPassword: shopData.plainPassword || "partner123",
     paymentMethod: shopData.paymentMethod || "bKash",
     accountNumber: shopData.accountNumber || shopData.mobile || "",
     balance: 0,
@@ -441,13 +437,22 @@ export async function createPartnerShop(shopData: Partial<PartnerShop>): Promise
   const updatedList = [newShop, ...currentList];
   saveLocalPartnerShops(updatedList);
 
-  // 2. Persist to Firestore
+  // 2. Persist to Firestore without plaintext credentials
   try {
+    const { plainPassword, password, passwordHash, passwordSalt, ...safeFirestoreData } = newShop as any;
     await setDoc(doc(db, "partner_shops", newShop.id), sanitizeForFirestore({
-      ...newShop,
+      ...safeFirestoreData,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }));
+
+    // If password provided, securely set it on the server (hashed via PBKDF2)
+    if (shopData.plainPassword) {
+      await apiClient.post("/api/partner/set-password", {
+        partnerId: newShop.id,
+        newPassword: shopData.plainPassword
+      }).catch(console.warn);
+    }
   } catch (err) {
     console.warn("Notice saving partner shop to Firestore:", err);
   }
@@ -467,17 +472,29 @@ export async function updatePartnerShop(id: string, updates: Partial<PartnerShop
   const currentList = getLocalPartnerShops();
   const index = currentList.findIndex(s => s.id === id || s.partnerId === id);
   let updatedShopItem: any = null;
+
+  // Separate password update from document updates to prevent plaintext leakage
+  const newPass = (updates as any).plainPassword || (updates as any).password;
+  const { plainPassword, password, passwordHash, passwordSalt, ...safeUpdates } = updates as any;
+
   if (index !== -1) {
-    currentList[index] = { ...currentList[index], ...updates };
+    currentList[index] = { ...currentList[index], ...safeUpdates };
     updatedShopItem = currentList[index];
     saveLocalPartnerShops(currentList);
   }
 
   try {
     await updateDoc(doc(db, "partner_shops", id), sanitizeForFirestore({
-      ...updates,
+      ...safeUpdates,
       updatedAt: serverTimestamp()
     }));
+
+    if (newPass) {
+      await apiClient.post("/api/partner/set-password", {
+        partnerId: id,
+        newPassword: newPass
+      }).catch(console.warn);
+    }
   } catch (err) {
     console.warn("Notice updating partner shop in Firestore:", err);
   }
@@ -486,7 +503,7 @@ export async function updatePartnerShop(id: string, updates: Partial<PartnerShop
   if (updatedShopItem) {
     syncSinglePartnerShopToSupabase(updatedShopItem).catch(() => {});
   } else {
-    syncSinglePartnerShopToSupabase({ id, ...updates }).catch(() => {});
+    syncSinglePartnerShopToSupabase({ id, ...safeUpdates }).catch(() => {});
   }
 }
 
@@ -504,8 +521,8 @@ export async function deletePartnerShop(id: string): Promise<void> {
     console.warn("Notice deleting partner shop from Firestore:", err);
   }
 
-  // Real-time automatic delete from Supabase
-  Promise.resolve(supabase.from("partner_shops").delete().or(`id.eq.${id},partner_id.eq.${id}`)).catch(() => {});
+  // Secure server-authoritative delete from Supabase
+  apiClient.post("/api/sync/partner-shop-delete", { id }).catch(() => {});
 }
 
 /**
@@ -516,8 +533,8 @@ export async function togglePartnerShopStatus(id: string, newStatus: PartnerShop
 }
 
 /**
- * Secure login authentication for Partner
- * Matches by partnerId (e.g. KB-SHOP-001), email, or mobile + password
+ * Secure server-authoritative authentication for Partner Shop
+ * Matches by partnerId (e.g. KB-SHOP-001), email, or mobile + password via PBKDF2
  */
 export async function authenticatePartner(identifier: string, password: string): Promise<{ success: boolean; partner?: PartnerShop; error?: string }> {
   const cleanIdent = identifier.trim().toLowerCase();
@@ -527,61 +544,31 @@ export async function authenticatePartner(identifier: string, password: string):
     return { success: false, error: "অনুগ্রহ করে পার্টনার আইডি/ইমেইল এবং পাসওয়ার্ড প্রদান করুন।" };
   }
 
-  // 1. Check local / Firestore partner list
-  let shops = getLocalPartnerShops();
-  
-  // Try fetching fresh from Firestore if available
   try {
-    const snap = await getDocs(collection(db, "partner_shops"));
-    if (!snap.empty) {
-      const freshList: PartnerShop[] = [];
-      snap.forEach(d => freshList.push({ id: d.id, ...(d.data() as any) }));
-      if (freshList.length > 0) {
-        shops = freshList;
-        saveLocalPartnerShops(shops);
-      }
+    const res = await apiClient.post<any>("/api/partner/login", {
+      identifier: cleanIdent,
+      password: cleanPass
+    });
+
+    if (res?.success && res.partner) {
+      const sanitizedPartner = sanitizePartnerFinancials(res.partner);
+      try {
+        sessionStorage.setItem(CURRENT_PARTNER_KEY, JSON.stringify(sanitizedPartner));
+        localStorage.setItem(CURRENT_PARTNER_KEY, JSON.stringify(sanitizedPartner));
+      } catch (e) {}
+      return { success: true, partner: sanitizedPartner };
     }
-  } catch (e) {}
 
-  const partner = shops.find(s => 
-    s.partnerId.toLowerCase() === cleanIdent ||
-    s.email.toLowerCase() === cleanIdent ||
-    s.mobile.replace(/\s+/g, "") === cleanIdent.replace(/\s+/g, "")
-  );
-
-  if (!partner) {
-    return { 
-      success: false, 
-      error: "কোনো পার্টনার শপ পাওয়া যায়নি! আপনার পার্টনার আইডি (যেমনঃ KB-SHOP-001) বা ইমেইল সঠিক কি না পরীক্ষা করুন।" 
+    return {
+      success: false,
+      error: res?.error || "লগইন সম্পন্ন করা যায়নি।"
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || "সার্ভারের সাথে সংযোগ স্থাপন করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।"
     };
   }
-
-  // Check if suspended
-  if (partner.status === "suspended") {
-    return { 
-      success: false, 
-      error: "আপনার পার্টনার শপ অ্যাকাউন্টটি এডমিন কর্তৃক স্থগিত (Suspended) করা হয়েছে। অনুগ্রহ করে হেড অফিসের সাথে যোগাযোগ করুন।" 
-    };
-  }
-
-  // Check password strictly against the partner's designated password
-  const expectedPass = partner.plainPassword || (partner as any).password;
-  if (!expectedPass || cleanPass !== expectedPass) {
-    return { 
-      success: false, 
-      error: "ভুল পাসওয়ার্ড! অনুগ্রহ করে আপনার অ্যাকাউন্টের সঠিক পাসওয়ার্ড প্রবেশ করান।" 
-    };
-  }
-
-  const sanitizedPartner = sanitizePartnerFinancials(partner);
-
-  // Save session
-  try {
-    sessionStorage.setItem(CURRENT_PARTNER_KEY, JSON.stringify(sanitizedPartner));
-    localStorage.setItem(CURRENT_PARTNER_KEY, JSON.stringify(sanitizedPartner));
-  } catch (e) {}
-
-  return { success: true, partner: sanitizedPartner };
 }
 
 /**

@@ -140,12 +140,7 @@ export async function executeDeleteProduct(
   // 2. Fallback to Server Admin API
   try {
     const data = await apiClient.post("/api/admin/delete-product", {
-      productId,
-      userEmail
-    }, {
-      headers: {
-        "x-user-email": userEmail
-      }
+      productId
     });
 
     if (data?.success) {

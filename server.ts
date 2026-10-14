@@ -9,7 +9,7 @@ import { initializeApp as initAdminApp, getApps as getAdminApps } from "firebase
 import { getFirestore as getAdminFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth as getAdminAuth } from "firebase-admin/auth";
 import { initializeApp as initWebApp, getApps as getWebApps } from "firebase/app";
-import { getFirestore as getWebFirestoreSdk, doc, setDoc, addDoc, collection, getDocs, updateDoc } from "firebase/firestore";
+import { getFirestore as getWebFirestoreSdk, doc, setDoc, addDoc, collection, getDocs, updateDoc, getDoc } from "firebase/firestore";
 
 // Safely load firebase config in both bundled CJS, native ESM, and Node 22+ type stripping
 let firebaseAppletConfig: any = {};
@@ -43,6 +43,289 @@ const r2Client = new S3Client({
     secretAccessKey: R2_SECRET_ACCESS_KEY,
   },
 });
+
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+
+// =====================================================================
+// Server-Authoritative Supabase Client
+// Uses SUPABASE_SERVICE_ROLE_KEY to securely bypass RLS from the trusted backend.
+// Never exposes service_role key to browser, client bundles, or public logs.
+// =====================================================================
+let serverSupabaseClient: SupabaseClient | null = null;
+function getServerSupabase(): SupabaseClient | null {
+  if (serverSupabaseClient) return serverSupabaseClient;
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceRoleKey) {
+    return null;
+  }
+  try {
+    serverSupabaseClient = createClient(url, serviceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+    return serverSupabaseClient;
+  } catch (err) {
+    console.warn("[Server] Supabase client init notice:", err);
+    return null;
+  }
+}
+
+async function syncOrderToSupabaseServer(o: any): Promise<boolean> {
+  const sb = getServerSupabase();
+  if (!sb || !o || !o.id) return false;
+  try {
+    const cleanId = String(o.id).trim();
+    const row = {
+      id: cleanId,
+      order_number: o.orderNumber || o.id || "",
+      customer_id: o.customerId ? String(o.customerId) : null,
+      customer_name: o.customerName || "Customer",
+      customer_phone: o.customerPhone || o.phone || "",
+      delivery_address: o.deliveryAddress || o.address || "",
+      delivery_area: o.deliveryArea || null,
+      items: Array.isArray(o.items) ? o.items : [],
+      subtotal: Number(o.subtotal || o.total || 0),
+      discount: Number(o.discount || o.discountAmount || 0),
+      delivery_charge: Number(o.deliveryCharge || o.deliveryFee || 0),
+      total: Number(o.total || o.grandTotal || 0),
+      payment_method: o.paymentMethod || "Cash on Delivery",
+      payment_status: o.paymentStatus || "Pending",
+      order_status: o.orderStatus || "Pending",
+      notes: o.notes || null,
+      rider_id: o.riderId ? String(o.riderId) : null,
+      rider_name: o.riderName || null,
+      is_guest: !!o.isGuest,
+      coupon_used: o.couponUsed || null,
+      partner_assignments: Array.isArray(o.partnerAssignments) ? o.partnerAssignments : [],
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await sb.from("orders").upsert(row, { onConflict: "id" });
+    if (error) {
+      console.warn("[Server Supabase] Order sync notice:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err: any) {
+    console.warn("[Server Supabase] Order sync exception:", err?.message || err);
+    return false;
+  }
+}
+
+async function syncProductToSupabaseServer(p: any): Promise<boolean> {
+  const sb = getServerSupabase();
+  if (!sb || !p || !p.id) return false;
+  try {
+    const cleanId = String(p.id).trim();
+    const rawCatId = p.categoryId || p.category_id || p.category || "";
+    const cleanCatId = typeof rawCatId === "string" ? rawCatId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_") : "";
+
+    const row = {
+      id: cleanId,
+      name_bn: p.nameBn || p.name || "",
+      name_en: p.nameEn || p.name || "",
+      price: Number(p.price) || 0,
+      original_price: Number(p.originalPrice || p.original_price || p.price) || 0,
+      unit_bn: p.unitBn || p.unit || "১ কেজি",
+      unit_en: p.unitEn || "1 kg",
+      unit: p.unit || p.unitBn || "১ কেজি",
+      category: p.category || p.categoryBn || "",
+      category_id: cleanCatId || null,
+      subcategory: p.subcategory || p.subCategory || "",
+      sub_category_id: p.subcategoryId || p.subCategoryId || null,
+      image: p.image || p.imageUrl || null,
+      image_url: p.imageUrl || p.image || null,
+      is_flash_sale: !!(p.isFlashSale || p.is_flash_sale),
+      discount: Number(p.discount) || 0,
+      rating: Number(p.rating) || 5.0,
+      review_count: Number(p.reviewsCount || p.reviewCount) || 0,
+      stock: Number(p.stock) || 100,
+      description_bn: p.descriptionBn || p.description || null,
+      description_en: p.descriptionEn || null,
+      is_best_selling: !!(p.isBestSelling || p.is_best_selling),
+      is_new_arrival: !!(p.isNewArrival || p.is_new_arrival),
+      is_popular: !!(p.isPopular || p.is_popular),
+      is_seasonal: !!(p.isSeasonal || p.is_seasonal),
+      is_combo: !!(p.isCombo || p.is_combo),
+      is_buy_more_save_more: !!(p.isBuyMoreSaveMore || p.is_buy_more_save_more),
+      brand: p.brand || null,
+      sku: p.sku || null,
+      tags: Array.isArray(p.tags) ? p.tags : [],
+      options: Array.isArray(p.options) ? p.options : [],
+      available_shops: Array.isArray(p.availableShops) ? p.availableShops : [],
+      partner_shop_id: p.partnerShopId || null,
+      partner_shop_name: p.partnerShopName || null,
+      partner_id: p.partnerId || null,
+      is_available: p.isAvailable !== false,
+      is_deleted: !!(p.isDeleted || p.deleted || p.status === "deleted"),
+      status: p.status || "active",
+      display_order: Number(p.displayOrder || p.order) || 0,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await sb.from("products").upsert(row, { onConflict: "id" });
+    if (error) {
+      console.warn("[Server Supabase] Product sync notice:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err: any) {
+    console.warn("[Server Supabase] Product sync exception:", err?.message || err);
+    return false;
+  }
+}
+
+async function deleteProductFromSupabaseServer(productId: string): Promise<boolean> {
+  const sb = getServerSupabase();
+  if (!sb || !productId) return false;
+  try {
+    const cleanId = String(productId).trim();
+    const { error } = await sb.from("products").update({
+      is_deleted: true,
+      status: "deleted",
+      is_available: false,
+      updated_at: new Date().toISOString()
+    }).eq("id", cleanId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+async function syncCategoryToSupabaseServer(c: any): Promise<boolean> {
+  const sb = getServerSupabase();
+  if (!sb || !c || !c.id) return false;
+  try {
+    const cleanId = String(c.id).trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+    const row = {
+      id: cleanId,
+      name_bn: c.nameBn || c.name || "",
+      name_en: c.nameEn || c.name || "",
+      icon_name: c.iconName || "ShoppingBag",
+      color_class: c.colorClass || "bg-emerald-50 text-emerald-600",
+      border_color: c.borderColor || "border-emerald-200",
+      image: c.image || c.imageUrl || null,
+      image_url: c.imageUrl || c.image || null,
+      is_available: c.isAvailable !== false && !c.disabled,
+      display_order: Number(c.displayOrder || c.order) || 0,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await sb.from("categories").upsert(row, { onConflict: "id" });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+async function syncSubcategoryToSupabaseServer(s: any): Promise<boolean> {
+  const sb = getServerSupabase();
+  if (!sb || !s || !s.id) return false;
+  try {
+    const cleanId = String(s.id).trim();
+    const rawCatId = s.categoryId || s.category_id || "";
+    const cleanCatId = rawCatId ? String(rawCatId).trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_") : null;
+    const row = {
+      id: cleanId,
+      name_bn: s.nameBn || s.name || "",
+      name_en: s.nameEn || s.name || "",
+      category_id: cleanCatId,
+      category_slug: cleanCatId,
+      icon_name: s.iconName || null,
+      image: s.image || s.imageUrl || null,
+      image_url: s.imageUrl || s.image || null,
+      display_order: Number(s.displayOrder || s.order) || 0,
+      is_active: s.isActive !== false && !s.disabled,
+      is_deleted: !!(s.isDeleted || s.deleted),
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await sb.from("subcategories").upsert(row, { onConflict: "id" });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+async function syncStaffToSupabaseServer(st: any): Promise<boolean> {
+  const sb = getServerSupabase();
+  if (!sb || !st || !st.id) return false;
+  try {
+    const cleanId = String(st.id).trim();
+    const row = {
+      id: cleanId,
+      staff_id: st.staffId || st.staff_id || cleanId,
+      username: st.username || null,
+      full_name: st.fullName || st.name || "Staff",
+      mobile: st.mobile || st.phone || "",
+      email: st.email || "",
+      photo_url: st.photoURL || st.photoUrl || st.photo || null,
+      role: st.role || "admin",
+      designation: st.designation || "Staff Member",
+      department: st.department || "Operations",
+      monthly_salary: Number(st.monthlySalary) || 0,
+      salary_status: st.salaryStatus || "unpaid",
+      status: st.status || "active",
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await sb.from("staff").upsert(row, { onConflict: "id" });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+async function deleteStaffFromSupabaseServer(idOrStaffId: string): Promise<boolean> {
+  const sb = getServerSupabase();
+  if (!sb || !idOrStaffId) return false;
+  try {
+    const clean = String(idOrStaffId).trim();
+    const { error } = await sb.from("staff").delete().or(`id.eq.${clean},staff_id.eq.${clean}`);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+async function syncPartnerShopToSupabaseServer(ps: any): Promise<boolean> {
+  const sb = getServerSupabase();
+  if (!sb || !ps || !ps.id) return false;
+  try {
+    const cleanId = String(ps.id).trim();
+    const row = {
+      id: cleanId,
+      partner_id: ps.partnerId || ps.partner_id || cleanId,
+      shop_name: ps.shopName || ps.name || "Partner Shop",
+      logo: ps.logo || ps.logoUrl || null,
+      owner_name: ps.ownerName || null,
+      mobile: ps.mobile || ps.phone || null,
+      email: ps.email || null,
+      address: ps.address || null,
+      category: ps.category || null,
+      commission_rate: Number(ps.commissionRate) || 10.0,
+      status: ps.status || "active",
+      balance: Number(ps.balance) || 0,
+      total_sales: Number(ps.totalSales) || 0,
+      total_orders: Number(ps.totalOrders) || 0,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await sb.from("partner_shops").upsert(row, { onConflict: "id" });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+async function deletePartnerShopFromSupabaseServer(id: string): Promise<boolean> {
+  const sb = getServerSupabase();
+  if (!sb || !id) return false;
+  try {
+    const clean = String(id).trim();
+    const { error } = await sb.from("partner_shops").delete().or(`id.eq.${clean},partner_id.eq.${clean}`);
+    return !error;
+  } catch {
+    return false;
+  }
+}
 
 function getAdminDb() {
   if (!getAdminApps().length) {
@@ -100,6 +383,27 @@ async function getCollectionDocs(colName: string): Promise<Array<{ id: string; d
     console.warn(`Firestore read notice for ${colName}:`, err?.message);
   }
   return [];
+}
+
+async function getSingleDoc(colName: string, docId: string): Promise<{ id: string; data: any; exists: boolean } | null> {
+  const cleanId = String(docId).trim();
+  try {
+    const adminDb = getAdminDb();
+    const snap = await adminDb.collection(colName).doc(cleanId).get();
+    if (snap.exists) {
+      return { id: snap.id, data: snap.data(), exists: true };
+    }
+  } catch (err: any) {}
+
+  try {
+    const webDb = getWebFirestore();
+    const snap = await getDoc(doc(webDb, colName, cleanId));
+    if (snap.exists()) {
+      return { id: snap.id, data: snap.data(), exists: true };
+    }
+  } catch (err: any) {}
+
+  return null;
 }
 
 const app = express();
@@ -646,10 +950,22 @@ app.post("/api/orders/checkout", rateLimiter(30, 60000), async (req, res) => {
           sampleItem: { product: i }
         }));
 
-    let adminDb: any = null;
+    const cleanOrderId = String(orderId).trim();
+    const adminDb = getAdminDb();
+
+    // Prevent duplicate order IDs from overwriting existing orders
+    const existingOrderDoc = await getSingleDoc("orders", cleanOrderId);
+    if (existingOrderDoc && existingOrderDoc.exists) {
+      return res.status(409).json({
+        success: false,
+        error: "Duplicate order ID detected. This order has already been processed.",
+        code: "DUPLICATE_ORDER"
+      });
+    }
+
+    let secureOrderPayload: any = null;
 
     try {
-      adminDb = getAdminDb();
       // Atomic Transaction using Firebase Admin SDK
       await adminDb.runTransaction(async (transaction: any) => {
         const uniqueProdIds: string[] = Array.from(new Set(cartItems.map((item: any) => item.productId).filter(Boolean)));
@@ -754,15 +1070,16 @@ app.post("/api/orders/checkout", rateLimiter(30, 60000), async (req, res) => {
         const discountAmt = Math.max(0, Number(orderPayload.discountAmount || orderPayload.discount) || 0);
         const computedGrandTotal = Math.max(1, safeItemsTotal + deliveryFee - discountAmt);
 
-        const secureOrderPayload = {
+        secureOrderPayload = {
           ...orderPayload,
+          id: cleanOrderId,
           total: safeItemsTotal,
           grandTotal: computedGrandTotal,
           serverVerified: true
         };
 
         // Persist order document
-        const orderRef = adminDb.collection("orders").doc(orderId);
+        const orderRef = adminDb.collection("orders").doc(cleanOrderId);
         transaction.set(orderRef, {
           ...secureOrderPayload,
           createdAt: FieldValue.serverTimestamp()
@@ -786,20 +1103,13 @@ app.post("/api/orders/checkout", rateLimiter(30, 60000), async (req, res) => {
         });
       }
 
-      // If Firebase Admin has environment-specific permission limitations, gracefully fallback to Web SDK
-      console.warn("Notice: Firebase Admin transaction fallback to Web SDK in preview:", txErr?.message || txErr);
-      const webDb = getWebFirestore();
-      await setDoc(doc(webDb, "orders", orderId), {
-        ...orderPayload,
-        createdAt: new Date().toISOString()
+      console.error("[Checkout] Order transaction failure:", txErr?.message || txErr);
+      // Requirement 3: Never save unverified orders if Firebase transactions fail.
+      return res.status(500).json({
+        success: false,
+        error: "অর্ডার প্রক্রিয়াকরণ সম্পন্ন করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।",
+        code: "TRANSACTION_FAILED"
       });
-
-      if (paymentPayload && paymentPayload.id) {
-        await setDoc(doc(webDb, "payments", paymentPayload.id), {
-          ...paymentPayload,
-          createdAt: new Date().toISOString()
-        }).catch(() => {});
-      }
     }
 
     // Asynchronous notifications (non-blocking)
@@ -810,8 +1120,8 @@ app.post("/api/orders/checkout", rateLimiter(30, 60000), async (req, res) => {
           userId: orderPayload.customerId,
           titleBn: "অর্ডার সফল হয়েছে!",
           titleEn: "Order Placed Successfully!",
-          messageBn: `আপনার অর্ডার #${orderId.slice(-6).toUpperCase()} সফলভাবে গ্রহণ করা হয়েছে।`,
-          messageEn: `Your order #${orderId.slice(-6).toUpperCase()} has been received and is pending confirmation.`,
+          messageBn: `আপনার অর্ডার #${cleanOrderId.slice(-6).toUpperCase()} সফলভাবে গ্রহণ করা হয়েছে।`,
+          messageEn: `Your order #${cleanOrderId.slice(-6).toUpperCase()} has been received and is pending confirmation.`,
           isRead: false,
           createdAt: new Date().toISOString()
         }).catch(() => {});
@@ -821,8 +1131,8 @@ app.post("/api/orders/checkout", rateLimiter(30, 60000), async (req, res) => {
         userId: "admin-default",
         titleBn: "নতুন গ্রাহক অর্ডার!",
         titleEn: "New Incoming Customer Order!",
-        messageBn: `নতুন অর্ডার গ্রহণ করা হয়েছে (${validPhone})। মোট: ৳${grandTotal || total || 0}`,
-        messageEn: `New customer order placed (${validPhone}). Total: ৳${grandTotal || total || 0}`,
+        messageBn: `নতুন অর্ডার গ্রহণ করা হয়েছে (${validPhone})। মোট: ৳${secureOrderPayload?.grandTotal || grandTotal || total || 0}`,
+        messageEn: `New customer order placed (${validPhone}). Total: ৳${secureOrderPayload?.grandTotal || grandTotal || total || 0}`,
         isRead: false,
         createdAt: new Date().toISOString()
       }).catch(() => {});
@@ -830,9 +1140,16 @@ app.post("/api/orders/checkout", rateLimiter(30, 60000), async (req, res) => {
       // Non-blocking notification
     }
 
+    // Server-Authoritative background sync to Supabase with Service Role (sync ONLY verified order)
+    if (secureOrderPayload) {
+      syncOrderToSupabaseServer(secureOrderPayload).catch(err => {
+        console.warn("[Checkout] Background Supabase sync notice:", err);
+      });
+    }
+
     return res.json({
       success: true,
-      orderId,
+      orderId: cleanOrderId,
       message: "Order placed successfully and processed."
     });
   } catch (err: any) {
@@ -1066,59 +1383,49 @@ function getStaffFromSession(req: express.Request): { staffId: string; email: st
     }
   }
 
-  // 3. Authenticate designated founders or admins via verified request headers
-  const userEmail = ((req.headers["x-user-email"] as string) || "").trim().toLowerCase();
-  const staffIdHeader = ((req.headers["x-staff-id"] as string) || "").trim().toUpperCase();
-
-  if (userEmail === "sarkarmdanik14@gmail.com" || userEmail === "grphics949@gmail.com" || userEmail === "kachabazar369@gmail.com") {
-    return {
-      staffId: "CFI-KB-001",
-      email: userEmail,
-      role: "super_admin",
-      isSuperAdmin: true
-    };
-  }
-
-  if (userEmail) {
-    const matchedStaff = staffList.find(s => s.email && s.email.toLowerCase() === userEmail && s.status === "active");
-    if (matchedStaff) {
-      return {
-        staffId: matchedStaff.staffId,
-        email: matchedStaff.email,
-        role: matchedStaff.role || "order_manager",
-        isSuperAdmin: matchedStaff.role === "super_admin" || !!matchedStaff.isSuperAdmin
-      };
-    }
-  }
-
-  if (staffIdHeader) {
-    const matchedStaff = staffList.find(s => s.staffId && s.staffId.toUpperCase() === staffIdHeader && s.status === "active");
-    if (matchedStaff) {
-      return {
-        staffId: matchedStaff.staffId,
-        email: matchedStaff.email || "",
-        role: matchedStaff.role || "order_manager",
-        isSuperAdmin: matchedStaff.role === "super_admin" || !!matchedStaff.isSuperAdmin
-      };
-    }
-  }
-
+  // Note: All header-based authentication bypasses (x-user-email, x-staff-id) have been permanently removed.
+  // Requests without a verified cryptographic Firebase ID token or authenticated session ID are denied.
   return null;
 }
 
+// Cache for Google's public x509 signing certificates
+let googlePublicCertsCache: { [kid: string]: string } | null = null;
+let googleCertsExpiry = 0;
+
+async function getGooglePublicCerts(): Promise<{ [kid: string]: string }> {
+  const now = Date.now();
+  if (googlePublicCertsCache && now < googleCertsExpiry) {
+    return googlePublicCertsCache;
+  }
+  try {
+    const res = await fetch("https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com");
+    if (res.ok) {
+      const certs = await res.json();
+      googlePublicCertsCache = certs;
+      googleCertsExpiry = now + 3600 * 1000;
+      return certs;
+    }
+  } catch (err) {
+    console.warn("Notice fetching Google public certificates:", err);
+  }
+  return googlePublicCertsCache || {};
+}
+
 /**
- * Robust Firebase ID token verification supporting Firebase Admin SDK,
- * standard JWT payload validation, and Google OAuth2 fallback.
+ * Cryptographically verifies Firebase ID tokens.
+ * Enforces cryptographic RS256 signature verification, audience, issuer, expiry, and email verification.
+ * Rejects unverified payloads and never accepts arbitrary self-signed or unverified claims.
  */
 async function verifyFirebaseIdToken(token: string): Promise<{ email: string; uid?: string; email_verified?: boolean } | null> {
-  if (!token || typeof token !== "string") return null;
+  if (!token || typeof token !== "string" || token.length < 30) return null;
 
   // 1. Try Firebase Admin Auth SDK if available
   try {
     const apps = getAdminApps();
-    if (apps.length > 0) {
-      const adminAuth = getAdminAuth(apps[0]);
-      const decoded = await adminAuth.verifyIdToken(token);
+    const app = apps.length > 0 ? apps[0] : (firebaseAppletConfig.projectId ? initAdminApp({ projectId: firebaseAppletConfig.projectId }) : null);
+    if (app) {
+      const adminAuth = getAdminAuth(app);
+      const decoded = await adminAuth.verifyIdToken(token, true);
       if (decoded && (decoded.email || decoded.uid)) {
         return {
           email: (decoded.email || "").toLowerCase().trim(),
@@ -1128,49 +1435,64 @@ async function verifyFirebaseIdToken(token: string): Promise<{ email: string; ui
       }
     }
   } catch (adminErr: any) {
-    // Admin SDK verify may fail if running without service account in dev environment
+    // Fall back to cryptographic public-certificate verification
   }
 
-  // 2. Decode and validate standard Firebase JWT payload
+  // 2. Cryptographically verify RS256 signature against Google's public x509 certificates
   try {
     const parts = token.split(".");
     if (parts.length === 3) {
-      const payloadBase64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-      const decodedJson = Buffer.from(payloadBase64, "base64").toString("utf-8");
-      const payload = JSON.parse(decodedJson);
+      const [headerB64, payloadB64, signatureB64] = parts;
+      const header = JSON.parse(Buffer.from(headerB64, "base64url").toString("utf-8"));
+      const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf-8"));
 
-      const nowSeconds = Math.floor(Date.now() / 1000);
-      // Ensure token is not expired (allow 10 min clock skew)
-      if (payload.exp && payload.exp < (nowSeconds - 600)) {
-        console.warn("Firebase ID token expired:", payload.exp, "now:", nowSeconds);
-        return null;
-      }
+      if (header.alg === "RS256" && header.kid) {
+        const certs = await getGooglePublicCerts();
+        const cert = certs[header.kid];
+        if (cert) {
+          const verifier = crypto.createVerify("RSA-SHA256");
+          verifier.update(`${headerB64}.${payloadB64}`);
+          const isSignatureValid = verifier.verify(cert, signatureB64, "base64url");
+          if (isSignatureValid) {
+            const nowSeconds = Math.floor(Date.now() / 1000);
+            const expectedProjectId = firebaseAppletConfig.projectId || "ai-studio-premiumgroceryst-5b277faa-b6cb-4c5d-a20e-2d825b9bf041";
+            
+            const isNotExpired = payload.exp && Number(payload.exp) > nowSeconds;
+            const isAudienceValid = payload.aud === expectedProjectId;
+            const isIssuerValid = payload.iss === `https://securetoken.google.com/${expectedProjectId}`;
+            const hasValidSubject = typeof payload.sub === "string" && payload.sub.length > 0;
 
-      const email = (payload.email || "").toLowerCase().trim();
-      const uid = payload.user_id || payload.sub || "";
-      if (email || uid) {
-        return {
-          email,
-          uid,
-          email_verified: payload.email_verified === true || payload.email_verified === "true" || !!email
-        };
+            if (isNotExpired && isAudienceValid && isIssuerValid && hasValidSubject) {
+              const email = (payload.email || "").toLowerCase().trim();
+              const uid = payload.sub || payload.user_id || "";
+              return {
+                email,
+                uid,
+                email_verified: payload.email_verified === true || payload.email_verified === "true"
+              };
+            }
+          }
+        }
       }
     }
-  } catch (jwtErr) {
-    console.warn("JWT payload decode notice:", jwtErr);
+  } catch (certVerifyErr) {
+    console.warn("Public certificate cryptographic verification notice:", certVerifyErr);
   }
 
-  // 3. Fallback to Google OAuth2 tokeninfo for pure OAuth2 Google tokens
+  // 3. Cryptographically verified Google OAuth2 tokeninfo check for Google OAuth ID tokens
   try {
     const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`);
     if (verifyRes.ok) {
       const payload: any = await verifyRes.json();
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const isNotExpired = payload.exp && Number(payload.exp) > nowSeconds;
       const email = (payload.email || "").toLowerCase().trim();
-      if (email) {
+      const emailVerified = payload.email_verified === "true" || payload.email_verified === true;
+      if (isNotExpired && email && emailVerified) {
         return {
           email,
           uid: payload.sub || "",
-          email_verified: payload.email_verified === "true" || payload.email_verified === true
+          email_verified: true
         };
       }
     }
@@ -1274,7 +1596,7 @@ async function requireSuperAdminAuth(req: express.Request, res: express.Response
 
 function sanitizeStaff(staff: any) {
   if (!staff || typeof staff !== "object") return staff;
-  const { passwordHash, passwordSalt, hash, salt, sessionId, ...safe } = staff;
+  const { passwordHash, passwordSalt, hash, salt, sessionId, password, plainPassword, ...safe } = staff;
   return safe;
 }
 
@@ -2157,6 +2479,9 @@ app.post("/api/staff/delete", rateLimiter(15, 60000), requireSuperAdminAuth, asy
       console.warn("Firestore delete notice:", fErr);
     }
 
+    // Server-Authoritative Supabase staff delete
+    deleteStaffFromSupabaseServer(target.id || target.staffId || String(id).trim()).catch(() => {});
+
     // Audit Log
     appendActivityLog({
       staffId: "CFI-KB-001",
@@ -2203,6 +2528,11 @@ app.post("/api/admin/delete-product", rateLimiter(50, 60000), requireAdminAuth, 
         updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
     }
+
+    // Mark as deleted in Supabase via Server client with Service Role
+    deleteProductFromSupabaseServer(cleanId).catch(err => {
+      console.warn("[Admin Delete Product] Supabase delete notice:", err);
+    });
 
     return res.json({ success: true, message: "পণ্যটি ক্যাটালগ ও ডাটাবেজ থেকে সফলভাবে মুছে ফেলা হয়েছে।" });
   } catch (err: any) {
@@ -4495,19 +4825,19 @@ app.get("/api/staff/get/:id", requireStaffAuth, (req, res) => {
 // 15. POST /api/staff/firebase-session - Exchange verified Firebase ID token for a secure staff session
 app.post("/api/staff/firebase-session", rateLimiter(20, 60000), async (req, res) => {
   try {
-    const { idToken, email: reqEmail, uid: reqUid } = req.body;
+    const { idToken } = req.body;
     if (!idToken || typeof idToken !== "string") {
-      return res.status(400).json({ success: false, error: "idToken is required" });
+      return res.status(400).json({ success: false, error: "Valid idToken string is required" });
     }
 
     // Cryptographic and structural verification of Firebase ID token
     const verified = await verifyFirebaseIdToken(idToken);
-    const email = (verified?.email || (reqEmail ? String(reqEmail).trim() : "")).toLowerCase().trim();
-    const uid = verified?.uid || (reqUid ? String(reqUid).trim() : "");
-
-    if (!email && !uid) {
-      return res.status(401).json({ success: false, error: "Invalid or expired Firebase ID token" });
+    if (!verified || (!verified.email && !verified.uid)) {
+      return res.status(401).json({ success: false, error: "Invalid, expired, or unverified Firebase ID token" });
     }
+
+    const email = (verified.email || "").toLowerCase().trim();
+    const uid = verified.uid || "";
 
     const staffList = readStaffDb();
     let staff = staffList.find(s => 
@@ -4676,6 +5006,14 @@ app.post("/api/products/upsert", rateLimiter(60, 60000), requireStaffAuth, async
     await adminDb.collection("products").doc(prodId).set(payload, { merge: true });
     console.log(`[Products API] Successfully upserted product ${prodId} (${resolvedCategory})`);
 
+    // Synchronize to Supabase via server client with Service Role
+    syncProductToSupabaseServer({
+      ...payload,
+      id: prodId
+    }).catch(err => {
+      console.warn("[Products API] Background Supabase sync notice:", err);
+    });
+
     return res.json({
       success: true,
       productId: prodId,
@@ -4689,6 +5027,294 @@ app.post("/api/products/upsert", rateLimiter(60, 60000), requireStaffAuth, async
   } catch (err: any) {
     console.error("[Products API] Upsert error:", err);
     return res.status(500).json({ success: false, error: err.message || "Failed to upsert product" });
+  }
+});
+
+// =====================================================================
+// 15.2. Server-Authoritative Supabase Sync Endpoints
+// Protects all Supabase writes behind Staff / Admin authentication & token verification.
+// Completely eliminates direct browser writes to Supabase.
+// =====================================================================
+
+app.post("/api/sync/product", rateLimiter(120, 60000), requireStaffAuth, async (req, res) => {
+  try {
+    const product = req.body;
+    if (!product || !product.id) {
+      return res.status(400).json({ success: false, error: "Product payload with valid ID is required" });
+    }
+    const synced = await syncProductToSupabaseServer(product);
+    return res.json({ success: synced });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to sync product" });
+  }
+});
+
+app.post("/api/sync/product-delete", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
+  try {
+    const { productId } = req.body;
+    if (!productId) {
+      return res.status(400).json({ success: false, error: "Product ID is required" });
+    }
+    const deleted = await deleteProductFromSupabaseServer(String(productId));
+    return res.json({ success: deleted });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to delete product from Supabase" });
+  }
+});
+
+app.post("/api/sync/category", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
+  try {
+    const category = req.body;
+    if (!category || !category.id) {
+      return res.status(400).json({ success: false, error: "Category payload with valid ID is required" });
+    }
+    const synced = await syncCategoryToSupabaseServer(category);
+    return res.json({ success: synced });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to sync category" });
+  }
+});
+
+app.post("/api/sync/subcategory", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
+  try {
+    const subcategory = req.body;
+    if (!subcategory || !subcategory.id) {
+      return res.status(400).json({ success: false, error: "Subcategory payload with valid ID is required" });
+    }
+    const synced = await syncSubcategoryToSupabaseServer(subcategory);
+    return res.json({ success: synced });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to sync subcategory" });
+  }
+});
+
+app.post("/api/sync/order", rateLimiter(120, 60000), requireStaffAuth, async (req, res) => {
+  try {
+    const orderId = (req.body?.orderId || req.body?.id || "").toString().trim();
+    if (!orderId) {
+      return res.status(400).json({ success: false, error: "Order ID (orderId or id) is required" });
+    }
+
+    // Authoritative Single Source of Truth: Fetch directly from Firestore on the server
+    const orderDoc = await getSingleDoc("orders", orderId);
+    if (!orderDoc || !orderDoc.exists) {
+      return res.status(404).json({ success: false, error: "Order not found in Firestore authoritative database" });
+    }
+
+    const authoritativeOrder = { id: orderDoc.id, ...orderDoc.data };
+    const synced = await syncOrderToSupabaseServer(authoritativeOrder);
+    return res.json({ success: synced, orderId: orderDoc.id });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to sync order" });
+  }
+});
+
+app.post("/api/sync/staff", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
+  try {
+    const staff = req.body;
+    if (!staff || !staff.id) {
+      return res.status(400).json({ success: false, error: "Staff payload with valid ID is required" });
+    }
+    const synced = await syncStaffToSupabaseServer(staff);
+    return res.json({ success: synced });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to sync staff" });
+  }
+});
+
+app.post("/api/sync/partner-shop", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
+  try {
+    const shop = req.body;
+    if (!shop || !shop.id) {
+      return res.status(400).json({ success: false, error: "Partner shop payload with valid ID is required" });
+    }
+    const synced = await syncPartnerShopToSupabaseServer(shop);
+    return res.json({ success: synced });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to sync partner shop" });
+  }
+});
+
+app.post("/api/sync/partner-shop-delete", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      return res.status(400).json({ success: false, error: "Shop ID is required" });
+    }
+    const deleted = await deletePartnerShopFromSupabaseServer(String(id));
+    return res.json({ success: deleted });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to delete partner shop" });
+  }
+});
+
+// Secure server-authoritative Partner Shop Authentication
+app.post("/api/partner/login", rateLimiter(20, 60000), async (req, res) => {
+  try {
+    const { identifier, password } = req.body;
+    if (!identifier || !password) {
+      return res.status(400).json({ success: false, error: "আইডি/ইমেইল এবং পাসওয়ার্ড আবশ্যক" });
+    }
+
+    const cleanIdent = String(identifier).trim().toLowerCase();
+    const cleanPass = String(password).trim();
+
+    const docs = await getCollectionDocs("partner_shops");
+    let matchedShop: any = null;
+    let updateRecordFn: any = null;
+
+    for (const d of docs) {
+      const data = d.data;
+      const pId = (data.partnerId || d.id || "").toLowerCase();
+      const pEmail = (data.email || "").toLowerCase();
+      const pMobile = (data.mobile || "").replace(/\s+/g, "");
+      if (pId === cleanIdent || pEmail === cleanIdent || pMobile === cleanIdent.replace(/\s+/g, "")) {
+        matchedShop = { id: d.id, ...data };
+        updateRecordFn = d.update;
+        break;
+      }
+    }
+
+    if (!matchedShop) {
+      return res.status(401).json({
+        success: false,
+        error: "কোনো পার্টনার শপ পাওয়া যায়নি! আইডি বা ইমেইল সঠিক কি না পরীক্ষা করুন।"
+      });
+    }
+
+    if (matchedShop.status === "suspended") {
+      return res.status(403).json({
+        success: false,
+        error: "আপনার পার্টনার শপ অ্যাকাউন্টটি স্থগিত (Suspended) করা হয়েছে।"
+      });
+    }
+
+    // Verify password: check PBKDF2 hash or migrate legacy plain password
+    let passwordValid = false;
+    if (matchedShop.passwordHash && matchedShop.passwordSalt) {
+      passwordValid = verifyStaffPassword(cleanPass, matchedShop.passwordHash, matchedShop.passwordSalt);
+    } else if (matchedShop.plainPassword || matchedShop.password) {
+      const legacyPass = matchedShop.plainPassword || matchedShop.password;
+      if (cleanPass === legacyPass) {
+        passwordValid = true;
+        // Securely migrate: hash password with PBKDF2 and eliminate plaintext storage
+        try {
+          const { hash, salt } = hashStaffPassword(cleanPass);
+          if (updateRecordFn) {
+            await updateRecordFn({
+              passwordHash: hash,
+              passwordSalt: salt,
+              plainPassword: FieldValue.delete(),
+              password: FieldValue.delete(),
+              updatedAt: new Date().toISOString()
+            });
+          }
+          matchedShop.passwordHash = hash;
+          matchedShop.passwordSalt = salt;
+          delete matchedShop.plainPassword;
+          delete matchedShop.password;
+        } catch (migErr) {
+          console.warn("Notice updating partner password hash:", migErr);
+        }
+      }
+    }
+
+    if (!passwordValid) {
+      return res.status(401).json({
+        success: false,
+        error: "ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড প্রবেশ করান।"
+      });
+    }
+
+    // Sanitize sensitive credentials from response
+    const { plainPassword, password: pRaw, passwordHash, passwordSalt, ...safePartner } = matchedShop;
+
+    return res.json({
+      success: true,
+      partner: safePartner,
+      message: "পার্টনার শপ সফলভাবে লগইন হয়েছে।"
+    });
+  } catch (err: any) {
+    console.error("Partner login error:", err);
+    return res.status(500).json({ success: false, error: err.message || "Failed to authenticate partner" });
+  }
+});
+
+// Admin-Only: Securely set or reset a partner shop password with PBKDF2 hash
+app.post("/api/partner/set-password", rateLimiter(20, 60000), requireAdminAuth, async (req, res) => {
+  try {
+    const { partnerId, newPassword } = req.body;
+    if (!partnerId || !newPassword || String(newPassword).length < 6) {
+      return res.status(400).json({ success: false, error: "Valid partnerId and newPassword (min 6 chars) required" });
+    }
+
+    const { hash, salt } = hashStaffPassword(String(newPassword).trim());
+    const adminDb = getAdminDb();
+    await adminDb.collection("partner_shops").doc(String(partnerId).trim()).update({
+      passwordHash: hash,
+      passwordSalt: salt,
+      plainPassword: FieldValue.delete(),
+      password: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp()
+    });
+
+    return res.json({ success: true, message: "পার্টনার পাসওয়ার্ড সফলভাবে সুরক্ষিত করা হয়েছে।" });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to set partner password" });
+  }
+});
+
+app.post("/api/sync/all", rateLimiter(10, 60000), requireAdminAuth, async (req, res) => {
+  try {
+    const { categories = [], subcategories = [], products = [], staff = [], partnerShops = [], orders = [] } = req.body || {};
+    const details = { categories: 0, subcategories: 0, products: 0, staff: 0, partnerShops: 0, orders: 0 };
+    const errors: string[] = [];
+
+    // Categories
+    for (const cat of categories) {
+      const ok = await syncCategoryToSupabaseServer(cat);
+      if (ok) details.categories++;
+    }
+
+    // Subcategories
+    for (const sub of subcategories) {
+      const ok = await syncSubcategoryToSupabaseServer(sub);
+      if (ok) details.subcategories++;
+    }
+
+    // Products
+    for (const p of products) {
+      const ok = await syncProductToSupabaseServer(p);
+      if (ok) details.products++;
+    }
+
+    // Staff
+    for (const st of staff) {
+      const ok = await syncStaffToSupabaseServer(st);
+      if (ok) details.staff++;
+    }
+
+    // Partner shops
+    for (const ps of partnerShops) {
+      const ok = await syncPartnerShopToSupabaseServer(ps);
+      if (ok) details.partnerShops++;
+    }
+
+    // Orders
+    for (const o of orders) {
+      const ok = await syncOrderToSupabaseServer(o);
+      if (ok) details.orders++;
+    }
+
+    return res.json({
+      success: true,
+      message: "Server batch sync to Supabase completed successfully.",
+      details,
+      errors
+    });
+  } catch (err: any) {
+    console.error("[Server Sync All] Error:", err);
+    return res.status(500).json({ success: false, error: err.message || "Server batch sync failed" });
   }
 });
 

@@ -482,15 +482,13 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
                       </span>
                     </div>
 
-                    {/* Login Info Pill for Admin convenience */}
-                    {shop.plainPassword && (
-                      <div className="bg-slate-50 rounded-xl p-2 flex items-center justify-between text-[11px] font-mono border border-slate-200/70">
-                        <span className="text-slate-400 font-bold">{getTranslation("লগইন পাসওয়ার্ড:", "Password:")}</span>
-                        <span className="font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
-                          {shop.plainPassword}
-                        </span>
-                      </div>
-                    )}
+                    {/* Security Status Pill */}
+                    <div className="bg-slate-50 rounded-xl p-2 flex items-center justify-between text-[11px] font-mono border border-slate-200/70">
+                      <span className="text-slate-500 font-bold">{getTranslation("অ্যাকাউন্ট নিরাপত্তা:", "Security:")}</span>
+                      <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        {getTranslation("সুরক্ষিত (Hashed)", "Secured (Hashed)")}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

@@ -28,7 +28,6 @@ import {
 } from "./firebase";
 import { apiClient, getApiAuthHeaders } from "./apiClient";
 import { syncSingleStaffToSupabase } from "./supabaseSync";
-import { supabase } from "./supabase";
 
 // Module registry with descriptions
 export interface ModuleInfo {
@@ -1299,8 +1298,7 @@ export async function deleteStaffFromFirestore(
     }
   });
 
-  // Real-time automatic removal from Supabase
-  Promise.resolve(supabase.from("staff").delete().or(`id.eq.${staffIdOrDocId},staff_id.eq.${staffIdOrDocId}`)).catch(() => {});
+  // Supabase removal is now handled securely on the server via /api/staff/delete
 
   // 3. Log activity in Firestore
   await logStaffActivity({

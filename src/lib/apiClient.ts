@@ -58,16 +58,12 @@ export function getApiAuthHeaders(user?: any): Record<string, string> {
       headers["x-session-id"] = sessionId;
     }
 
-    const email = user?.email ||
-      (typeof window !== "undefined" ? (localStorage.getItem("kb_staff_email") || localStorage.getItem("kb_user_email")) : null);
-    if (email) {
-      headers["x-user-email"] = email;
-    }
-
-    const staffId = user?.staffId || user?.uid ||
-      (typeof window !== "undefined" ? localStorage.getItem("kb_staff_id") : null);
-    if (staffId) {
-      headers["x-staff-id"] = staffId;
+    const firebaseToken = user?.firebaseToken || user?.idToken ||
+      (typeof window !== "undefined"
+        ? (localStorage.getItem("kb_firebase_id_token") || sessionStorage.getItem("kb_firebase_id_token") || localStorage.getItem("firebase_id_token"))
+        : null);
+    if (firebaseToken) {
+      headers["x-firebase-id-token"] = firebaseToken;
     }
   } catch (e) {
     // Non-blocking fallback
