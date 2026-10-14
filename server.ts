@@ -27,24 +27,22 @@ dotenv.config();
 
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 
-// Cloudflare R2 Object Storage Client Configuration (Strictly from Environment Variables)
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "";
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "";
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "";
+// Cloudflare R2 Object Storage Client Configuration
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "f28557b34a31123a24324c3124b05180";
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "5fee722d943a23b2184e7a44e72553a2";
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "5ce5e1826dd3f97f0a0c2e489c42c43713dc7ca5147b78af89e5aba7b0a6b073";
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "kachabazar-image";
 const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev").replace(/\/+$/, "");
-const R2_ENDPOINT = process.env.R2_ENDPOINT || (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : "");
+const R2_ENDPOINT = process.env.R2_ENDPOINT || `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 
-const r2Client = (R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_ENDPOINT)
-  ? new S3Client({
-      region: "auto",
-      endpoint: R2_ENDPOINT,
-      credentials: {
-        accessKeyId: R2_ACCESS_KEY_ID,
-        secretAccessKey: R2_SECRET_ACCESS_KEY,
-      },
-    })
-  : null;
+const r2Client = new S3Client({
+  region: "auto",
+  endpoint: R2_ENDPOINT,
+  credentials: {
+    accessKeyId: R2_ACCESS_KEY_ID,
+    secretAccessKey: R2_SECRET_ACCESS_KEY,
+  },
+});
 
 function getAdminDb() {
   if (!getAdminApps().length) {
@@ -2262,17 +2260,15 @@ const handleImageUpload = async (req: express.Request, res: express.Response) =>
     let finalUrl = "";
 
     try {
-      if (r2Client) {
-        await r2Client.send(new PutObjectCommand({
-          Bucket: R2_BUCKET_NAME,
-          Key: r2Key,
-          Body: buffer,
-          ContentType: mimeType,
-        }));
-        r2Success = true;
-        finalUrl = `/api/media/${r2Key}`;
-        console.log(`[Cloudflare R2] Successfully uploaded: ${r2Key} -> ${finalUrl}`);
-      }
+      await r2Client.send(new PutObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: r2Key,
+        Body: buffer,
+        ContentType: mimeType,
+      }));
+      r2Success = true;
+      finalUrl = `/api/media/${r2Key}`;
+      console.log(`[Cloudflare R2] Successfully uploaded: ${r2Key} -> ${finalUrl}`);
     } catch (r2Err: any) {
       console.warn("[Cloudflare R2] Upload warning, falling back to local storage:", r2Err?.message || r2Err);
     }
@@ -2356,17 +2352,15 @@ const handleAudioUpload = async (req: express.Request, res: express.Response) =>
     let finalUrl = "";
 
     try {
-      if (r2Client) {
-        await r2Client.send(new PutObjectCommand({
-          Bucket: R2_BUCKET_NAME,
-          Key: r2Key,
-          Body: buffer,
-          ContentType: mimeType || "audio/mpeg",
-        }));
-        r2Success = true;
-        finalUrl = `/api/media/${r2Key}`;
-        console.log(`[Cloudflare R2] Successfully uploaded audio: ${r2Key} -> ${finalUrl}`);
-      }
+      await r2Client.send(new PutObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: r2Key,
+        Body: buffer,
+        ContentType: mimeType || "audio/mpeg",
+      }));
+      r2Success = true;
+      finalUrl = `/api/media/${r2Key}`;
+      console.log(`[Cloudflare R2] Successfully uploaded audio: ${r2Key} -> ${finalUrl}`);
     } catch (r2Err: any) {
       console.warn("[Cloudflare R2] Audio upload warning, falling back to local storage:", r2Err?.message || r2Err);
     }
@@ -2400,16 +2394,6 @@ app.post("/api/staff/upload-photo", rateLimiter(120, 60000), requireStaffAuth, h
 
 // 4.7 GET /api/r2/status - Cloudflare R2 Health Check & Stats
 app.get("/api/r2/status", rateLimiter(30, 60000), async (_req, res) => {
-  if (!r2Client) {
-    return res.json({
-      success: false,
-      connected: false,
-      bucket: R2_BUCKET_NAME,
-      publicUrl: R2_PUBLIC_URL,
-      endpoint: R2_ENDPOINT,
-      message: "Cloudflare R2 credentials not configured in environment variables."
-    });
-  }
   try {
     const listRes = await r2Client.send(new ListObjectsV2Command({
       Bucket: R2_BUCKET_NAME,
@@ -2441,9 +2425,6 @@ app.get("/api/media/*", async (req, res) => {
   const key = decodeURIComponent(rawKey).replace(/^\/+/, "").split("?")[0];
   if (!key) {
     return res.status(400).send("Image key required");
-  }
-  if (!r2Client) {
-    return res.redirect(`${R2_PUBLIC_URL}/${key}`);
   }
   try {
     const r2Obj = await r2Client.send(new GetObjectCommand({
@@ -2537,14 +2518,11 @@ app.post("/api/r2/migrate-from-cloudinary", async (req, res) => {
         const cType = resp.headers.get("content-type") || "image/jpeg";
         const arrBuf = await resp.arrayBuffer();
         const buf = Buffer.from(arrBuf);
+
         const urlParts = cldUrl.split("/");
         const origName = (urlParts[urlParts.length - 1] || `img_${Date.now()}.jpg`).split("?")[0];
         const safeName = origName.replace(/[^a-zA-Z0-9._-]/g, "_");
         const key = `${prefix}/${safeName}`;
-
-        if (!r2Client) {
-          return null;
-        }
 
         await r2Client.send(new PutObjectCommand({
           Bucket: R2_BUCKET_NAME,
@@ -2857,17 +2835,15 @@ app.get("/api/r2/audit-images", async (req, res) => {
 
     // 6. Direct R2 Bucket Objects query
     let r2Objects: string[] = [];
-    if (r2Client) {
-      try {
-        const r2Cmd = new ListObjectsV2Command({
-          Bucket: R2_BUCKET_NAME,
-          MaxKeys: 50
-        });
-        const r2Res = await r2Client.send(r2Cmd);
-        r2Objects = (r2Res.Contents || []).map((o) => `${R2_PUBLIC_URL}/${o.Key}`);
-      } catch (e: any) {
-        console.warn("R2 list error in audit:", e?.message);
-      }
+    try {
+      const r2Cmd = new ListObjectsV2Command({
+        Bucket: R2_BUCKET_NAME,
+        MaxKeys: 50
+      });
+      const r2Res = await r2Client.send(r2Cmd);
+      r2Objects = (r2Res.Contents || []).map((o) => `${R2_PUBLIC_URL}/${o.Key}`);
+    } catch (e: any) {
+      console.warn("R2 list error in audit:", e?.message);
     }
 
     const r2Count = items.filter((i) => i.storage === "r2").length;

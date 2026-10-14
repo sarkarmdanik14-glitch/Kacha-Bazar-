@@ -271,7 +271,12 @@ export const mapDocToProduct = (docId: string, data: any): Product => {
     (typeof data.category === "string" && (data.category.includes("মসলা") || data.category.includes("রান্নার তেল") || data.category.includes("মুদি")));
   const resolvedCategory = isSpicesOrStaples ? "groceries" : (data.category || (docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") ? "groceries" : "others"));
   const isGrocery = resolvedCategory === "groceries" || docId.startsWith("st") || docId.startsWith("sp") || docId.startsWith("gr") || (data.id && (data.id.startsWith("st") || data.id.startsWith("sp") || data.id.startsWith("gr")));
-  const isPharmacy = resolvedCategory === "pharmacy" || docId.startsWith("ph") || (data.id && data.id.startsWith("ph"));
+  const isPharmacy = 
+    resolvedCategory === "pharmacy" || 
+    data.categoryId === "pharmacy" || 
+    (typeof data.category === "string" && (data.category.toLowerCase().includes("pharmacy") || data.category.includes("ফার্মেসি") || data.category.includes("ঔষধ"))) ||
+    docId.startsWith("ph") || 
+    (data.id && String(data.id).startsWith("ph"));
   const rawSubVal = data.subcategory || data.subCategory;
   const resolvedSubcategory = isGrocery
     ? getResolvedGrocerySubcategory(data.id || docId, data.nameBn, data.nameEn, rawSubVal, resolvedCategory)

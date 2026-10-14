@@ -22,6 +22,15 @@ import {
   getResolvedRestaurantSubcategory, 
   matchesRestaurantSubcategory 
 } from "./lib/restaurantSubcategories";
+import { 
+  fetchAllProductsFromSupabase, 
+  fetchAllCategoriesFromSupabase, 
+  fetchAllSubcategoriesFromSupabase,
+  subscribeToSupabaseProducts, 
+  subscribeToSupabaseCategories,
+  getCachedProducts,
+  getCachedCategories
+} from "./lib/supabaseDataService";
 
 import PortalModal from "./components/portal/PortalModal";
 import CheckoutModal from "./components/CheckoutModal";
@@ -662,9 +671,18 @@ export default function App() {
     }
   }, [cart, loggedInUser]);
 
-  const [products, setProducts] = useState<Product[]>(() => ALL_PRODUCTS);
-  const [loadingProducts, setLoadingProducts] = useState<boolean>(false);
+  const [products, setProducts] = useState<Product[]>(() => {
+    const cached = getCachedProducts();
+    if (cached && cached.length > 0) return cached;
+    return ALL_PRODUCTS;
+  });
+  const [loadingProducts, setLoadingProducts] = useState<boolean>(() => {
+    const cached = getCachedProducts();
+    return !(cached && cached.length > 0);
+  });
   const [categories, setCategories] = useState<Category[]>(() => {
+    const cached = getCachedCategories();
+    if (cached && cached.length > 0) return cached;
     // Deduplicate by ID so 'all' (সকল পণ্য) or other categories never duplicate
     const seen = new Set<string>();
     return CATEGORIES.filter(c => {
@@ -673,7 +691,10 @@ export default function App() {
       return true;
     });
   });
-  const [loadingCategories, setLoadingCategories] = useState<boolean>(false);
+  const [loadingCategories, setLoadingCategories] = useState<boolean>(() => {
+    const cached = getCachedCategories();
+    return !(cached && cached.length > 0);
+  });
   const [reviews, setReviews] = useState<Review[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
   const [loadingBanners, setLoadingBanners] = useState<boolean>(true);
@@ -835,279 +856,86 @@ export default function App() {
     // Database groceries are permanently preserved in Firestore
   }, []);
 
-  // One-time automatic sync to replace all old cosmetics products with fresh cosmetics products in Firestore
+  // One-time startup sync routines disabled on client page load to eliminate Firestore write & read quota drain
   useEffect(() => {
-    const syncCosmeticsToFirestore = async () => {
-      const syncKey = "kb_cosmetics_replaced_v2";
-      if (localStorage.getItem(syncKey)) return;
-
-      try {
-        localStorage.setItem(syncKey, "true");
-        // 1. Soft-delete / remove any previous cosmetics or personal-care products
-        for (let i = 1; i <= 60; i++) {
-          const pcRef = doc(db, "products", `pc${i}`);
-          deleteDoc(pcRef).catch(() => setDoc(pcRef, { isDeleted: true, status: "deleted", isAvailable: false }, { merge: true }).catch(() => {}));
-        }
-
-        // 2. Upsert all fresh cosmetics products into Firestore
-        for (const cp of COSMETICS_PRODUCTS_RAW) {
-          const prodRef = doc(db, "products", cp.id);
-          await setDoc(prodRef, {
-            ...cp,
-            isDeleted: false,
-            deleted: false,
-            status: "active",
-            isAvailable: true,
-            inStock: true,
-            stock: 100,
-            updatedAt: serverTimestamp()
-          }, { merge: true }).catch((err) => console.warn(`Notice upserting ${cp.id}:`, err));
-        }
-      } catch (e) {
-        console.warn("Notice syncing fresh cosmetics products to Firestore:", e);
-      }
-    };
-
-    syncCosmeticsToFirestore();
-
-    const syncPharmacyToFirestore = async () => {
-      const syncKey = "kb_pharmacy_popular_added_v6";
-      if (localStorage.getItem(syncKey)) return;
-
-      try {
-        localStorage.setItem(syncKey, "true");
-        // 1. Remove all old legacy products in pharmacy, baby-care, and medicine categories
-        const oldQuery = query(collection(db, "products"), where("category", "in", ["pharmacy", "baby-care", "medicine"]));
-        const oldSnap = await getDocs(oldQuery);
-        const newPhIds = new Set(PHARMACY_PRODUCTS_RAW.map(p => p.id));
-        
-        for (const docSnap of oldSnap.docs) {
-          if (!newPhIds.has(docSnap.id)) {
-            await deleteDoc(doc(db, "products", docSnap.id)).catch(() => {
-              setDoc(doc(db, "products", docSnap.id), { isDeleted: true, status: "deleted", isAvailable: false }, { merge: true }).catch(() => {});
-            });
-          }
-        }
-
-        // 2. Delete legacy bc1..bc60 if any exist
-        for (let i = 1; i <= 60; i++) {
-          const bcRef = doc(db, "products", `bc${i}`);
-          deleteDoc(bcRef).catch(() => {});
-        }
-
-        // 3. Upsert fresh medicine products and ensure they always have valid prices
-        for (const ph of PHARMACY_PRODUCTS_RAW) {
-          const prodRef = doc(db, "products", ph.id);
-          const existingSnap = await getDoc(prodRef).catch(() => null);
-          const existingData = existingSnap?.exists() ? existingSnap.data() : null;
-          const currentPrice = existingData ? Number(existingData.price) : 0;
-          
-          if (!existingData || isNaN(currentPrice) || currentPrice <= 0) {
-            await setDoc(prodRef, {
-              ...ph,
-              price: ph.price,
-              originalPrice: ph.originalPrice || ph.price,
-              unit: ph.unitBn || "১ পিস",
-              unitBn: ph.unitBn || "১ পিস",
-              unitEn: ph.unitEn || "1 pc",
-              isDeleted: false,
-              deleted: false,
-              status: "active",
-              isAvailable: true,
-              inStock: true,
-              stock: 100,
-              updatedAt: serverTimestamp()
-            }, { merge: true }).catch((err) => console.warn(`Notice upserting ${ph.id}:`, err));
-          }
-        }
-
-        // 4. Ensure pharmacy category document is active in Firestore
-        await setDoc(doc(db, "categories", "pharmacy"), {
-          id: "pharmacy",
-          nameBn: "ফার্মেসি",
-          nameEn: "Pharmacy",
-          iconName: "Pill",
-          colorClass: "bg-teal-50 text-teal-700 hover:bg-teal-100",
-          borderColor: "border-teal-100",
-          displayOrder: 12,
-          order: 12,
-          isAvailable: true
-        }, { merge: true }).catch(() => {});
-
-      } catch (e) {
-        console.warn("Notice syncing fresh pharmacy products to Firestore:", e);
-      }
-    };
-
-    syncPharmacyToFirestore();
+    // Database catalogs are permanently managed and synced via Supabase PostgreSQL & Admin Panel
   }, []);
 
-  // One-time automatic sync to seed/update official Event Management subcategories in Firestore
+  // Real-time synchronization of products, categories, reviews, banners, and home config from Supabase & Firestore
   useEffect(() => {
-    const syncEventSubcategories = async () => {
-      try {
-        await bootstrapEventManagementSubcategories();
-      } catch (err) {
-        console.warn("Notice syncing event subcategories:", err);
-      }
-    };
-    syncEventSubcategories();
-  }, []);
+    let isMounted = true;
+    let isSupabaseLoaded = false;
 
-  // Real-time synchronization of products, categories, reviews, banners, and home config from Firestore
-  useEffect(() => {
-    const productsQuery = collection(db, "products");
-
-    const unsubProducts = onSnapshot(
-      productsQuery,
-      (snap) => {
-        const savedDeleted = (() => {
-          try {
-            const raw = localStorage.getItem("kb_deleted_products");
-            return raw ? new Set<string>(JSON.parse(raw)) : new Set<string>();
-          } catch {
-            return new Set<string>();
-          }
-        })();
-
-        const items: Product[] = [];
-        snap.forEach((doc) => {
-          const data = doc.data();
-          if (data.isDeleted === true || data.status === "deleted" || data.deleted === true || savedDeleted.has(doc.id)) {
-            return;
-          }
-          // Only filter out legacy hardcoded mock items from former "হিমায়িত খাদ্য" category (fr1..fr30)
-          // NEVER filter out newly created products (prod_*), items with createdAt/updatedAt, or dry food items (df*)
-          const isLegacyFrozenSeed = /^fr\d+$/i.test(doc.id) || 
-            (data.categoryBn === "হিমায়িত খাদ্য" && !doc.id.startsWith("prod_") && !doc.id.startsWith("df") && !data.createdAt && !data.updatedAt);
-          if (isLegacyFrozenSeed) {
-            return;
-          }
-          // Completely remove legacy standalone pre-merge products (st1..st60, sp1..sp60)
-          if (doc.id.startsWith("st") || doc.id.startsWith("sp")) {
-            return;
-          }
-
-          // Completely remove legacy confectionery seed items (sn1..sn30)
-          if (/^sn\d+$/i.test(doc.id)) {
-            return;
-          }
-
-          // Completely remove ALL old/legacy products under "কসমেটিকস ও বিউটি কর্নার" except new cos items
-          const isLegacyCosmetics = 
-            (data.category === "personal-care" || data.category === "cosmetics" || data.category === "beauty" || data.category === "beauty-cosmetics") &&
-            !doc.id.startsWith("cos");
-
-          if (isLegacyCosmetics) {
-            return;
-          }
-
-          // Completely remove ALL old/legacy products under "ফার্মেসি" except new 132 items (ph1..ph132)
-          const isLegacyPharmacy = 
-            (data.category === "pharmacy" || data.category === "baby-care" || data.category === "medicine" || (data as any).categoryId === "pharmacy") &&
-            !/^ph\d+$/i.test(doc.id);
-
-          if (isLegacyPharmacy) {
-            return;
-          }
-
-          const mapped = mapDocToProduct(doc.id, data);
-          if (!shouldKeepProductGroceryFiltered(mapped)) {
-            return;
-          }
-
-          // Guarantee pharmacy items always have their official price restored if 0 or missing in Firestore
-          if (doc.id.startsWith("ph") || data.category === "pharmacy" || (data as any).categoryId === "pharmacy") {
-            const officialPrice = OFFICIAL_MEDICINE_PRICES[doc.id];
-            if (mapped.price === undefined || mapped.price === null || mapped.price <= 0) {
-              if (officialPrice && officialPrice > 0) {
-                mapped.price = officialPrice;
-                mapped.originalPrice = mapped.originalPrice && mapped.originalPrice > 0 ? mapped.originalPrice : officialPrice;
-              }
-            }
-          }
-
-          items.push(mapped);
-        });
-
-        // Ensure all grocery products are present with strict deduplication
-        const existingIds = new Set(items.map(p => p.id));
-        const existingGroceryKeys = new Set(
-          items
-            .filter(p => isCategoryMatch(p.category || (p as any).categoryId, "groceries"))
-            .map(p => `${(p.nameBn || "").trim().toLowerCase()}::${((p.unitBn || (p as any).unit || "") as string).trim().toLowerCase()}`)
-        );
-
-        for (const gp of GROCERY_PRODUCTS_RAW) {
-          const key = `${gp.nameBn.trim().toLowerCase()}::${(gp.unitBn || "").trim().toLowerCase()}`;
-          const isDupe = existingIds.has(gp.id) || existingGroceryKeys.has(key);
-          if (!isDupe && !savedDeleted.has(gp.id) && shouldKeepProductGroceryFiltered(gp)) {
-            items.push(gp);
-            existingIds.add(gp.id);
-            existingGroceryKeys.add(key);
-          }
-        }
-        for (const cp of COSMETICS_PRODUCTS_RAW) {
-          if (!existingIds.has(cp.id) && !savedDeleted.has(cp.id)) {
-            items.push(cp);
-            existingIds.add(cp.id);
-          }
-        }
-
-        // Ensure all new confectionery products are present in items list
-        for (const conf of CONFECTIONERY_PRODUCTS_RAW) {
-          if (!existingIds.has(conf.id) && !savedDeleted.has(conf.id)) {
-            items.push(conf);
-            existingIds.add(conf.id);
-          }
-        }
-
-        // Ensure all mobile zone products are present in items list
-        for (const mob of MOBILE_ZONE_PRODUCTS_RAW) {
-          if (!existingIds.has(mob.id) && !savedDeleted.has(mob.id)) {
-            items.push(mob);
-            existingIds.add(mob.id);
-          }
-        }
-
-        // Ensure all 132 pharmacy products from official PDF are present in items list
-        for (const ph of PHARMACY_PRODUCTS_RAW) {
-          if (!existingIds.has(ph.id) && !savedDeleted.has(ph.id)) {
-            items.push(ph);
-            existingIds.add(ph.id);
-          }
-        }
-
-        // Ensure all restaurant products are present with strict duplicate prevention
-        const existingRestNames = new Set(
-          items
-            .filter(p => isCategoryMatch(p.category || (p as any).categoryId, "bakery-sweets"))
-            .flatMap(p => [(p.nameBn || "").trim().toLowerCase(), (p.nameEn || "").trim().toLowerCase()])
-            .filter(Boolean)
-        );
-
-        for (const rp of RESTAURANT_PRODUCTS_RAW) {
-          const normBn = rp.nameBn.trim().toLowerCase();
-          const normEn = rp.nameEn.trim().toLowerCase();
-          const isDupe = existingIds.has(rp.id) || existingRestNames.has(normBn) || existingRestNames.has(normEn);
-          if (!isDupe && !savedDeleted.has(rp.id)) {
-            items.push(rp);
-            existingIds.add(rp.id);
-            existingRestNames.add(normBn);
-            existingRestNames.add(normEn);
-          }
-        }
-
-        setProducts(items);
+    // 1. Direct Primary Load from Supabase PostgreSQL (1,641+ synced products & categories)
+    // 1. Direct Primary Load from Supabase PostgreSQL (1,641+ synced products & categories)
+    fetchAllProductsFromSupabase().then((spProducts) => {
+      if (spProducts && spProducts.length > 0 && isMounted) {
+        isSupabaseLoaded = true;
+        console.log(`[Supabase Engine] Successfully loaded ${spProducts.length} live products directly from Supabase`);
+        setProducts(spProducts);
         setLoadingProducts(false);
-      },
-      (err) => {
-        console.warn("Firestore products sync notice:", err.message);
-        // Fallback to ALL_PRODUCTS on network or permission notice
-        setProducts(ALL_PRODUCTS);
+      } else if (isMounted) {
         setLoadingProducts(false);
       }
-    );
+    }).catch((err) => {
+      console.warn("[Supabase] Products fetch error:", err);
+      if (isMounted) setLoadingProducts(false);
+    });
+
+    fetchAllCategoriesFromSupabase().then((spCats) => {
+      if (spCats && spCats.length > 0 && isMounted) {
+        const allCat: Category = {
+          id: "all",
+          nameBn: "সকল পণ্য",
+          nameEn: "All Products",
+          iconName: "LayoutGrid",
+          colorClass: "from-emerald-500 to-teal-600",
+          borderColor: "border-emerald-200",
+          displayOrder: 0
+        };
+        setCategories(mergeCategoryCards([allCat, ...spCats]));
+        setLoadingCategories(false);
+      } else if (isMounted) {
+        setLoadingCategories(false);
+      }
+    }).catch((err) => {
+      console.warn("[Supabase] Categories fetch error:", err);
+      if (isMounted) setLoadingCategories(false);
+    });
+
+    fetchAllSubcategoriesFromSupabase().then((spSubs) => {
+      if (spSubs && spSubs.length > 0 && isMounted) {
+        setDbSubcategories(spSubs);
+      }
+    }).catch((err) => {
+      console.warn("[Supabase] Subcategories fetch error:", err);
+    });
+
+    // 2. Real-time subscriptions for Supabase changes
+    const unsubSupabaseProds = subscribeToSupabaseProducts(() => {
+      fetchAllProductsFromSupabase().then((spProducts) => {
+        if (spProducts && spProducts.length > 0 && isMounted) {
+          setProducts(spProducts);
+        }
+      });
+    });
+
+    const unsubSupabaseCats = subscribeToSupabaseCategories(() => {
+      fetchAllCategoriesFromSupabase().then((spCats) => {
+        if (spCats && spCats.length > 0 && isMounted) {
+          const allCat: Category = {
+            id: "all",
+            nameBn: "সকল পণ্য",
+            nameEn: "All Products",
+            iconName: "LayoutGrid",
+            colorClass: "from-emerald-500 to-teal-600",
+            borderColor: "border-emerald-200",
+            displayOrder: 0
+          };
+          setCategories(mergeCategoryCards([allCat, ...spCats]));
+        }
+      });
+    });
 
     setLoadingCategories(true);
     const unsubCategories = onSnapshot(
@@ -1244,12 +1072,16 @@ export default function App() {
           }
           return (a.nameEn || "").localeCompare(b.nameEn || "");
         });
-        setCategories(uniqueCats);
-        setLoadingCategories(false);
+        if (!isSupabaseLoaded) {
+          setCategories(uniqueCats);
+          setLoadingCategories(false);
+        }
       },
       (err) => {
         console.warn("Firestore categories sync notice:", err.message);
-        setLoadingCategories(false);
+        if (!isSupabaseLoaded) {
+          setLoadingCategories(false);
+        }
       }
     );
 
@@ -1337,7 +1169,9 @@ export default function App() {
     });
 
     return () => {
-      unsubProducts();
+      isMounted = false;
+      unsubSupabaseProds();
+      unsubSupabaseCats();
       unsubCategories();
       unsubSubcategories();
       unsubReviews();
@@ -2559,87 +2393,105 @@ export default function App() {
               </div>
             </div>
 
-            {homeCategoryList.map((cat) => {
-              const prods = categoryProductsMap[cat.id] || [];
-              if (prods.length === 0) return null;
+            {loadingProducts && availableProducts.length === 0 ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/80 animate-pulse">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-slate-200"></div>
+                      <div className="h-5 w-40 bg-slate-200 rounded"></div>
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                      {[1, 2, 3, 4].map((j) => (
+                        <div key={j} className="h-44 bg-slate-200/70 rounded-xl"></div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              homeCategoryList.map((cat) => {
+                const prods = categoryProductsMap[cat.id] || [];
+                if (prods.length === 0) return null;
 
-              const isExpanded = !!expandedCategoryIds[cat.id];
-              // Show minimum 3 on mobile (4 on desktop) when collapsed, 12 when expanded
-              const displayItems = isExpanded ? prods.slice(0, 12) : prods.slice(0, 4);
+                const isExpanded = !!expandedCategoryIds[cat.id];
+                // Show minimum 3 on mobile (4 on desktop) when collapsed, 12 when expanded
+                const displayItems = isExpanded ? prods.slice(0, 12) : prods.slice(0, 4);
 
-              return (
-                <div key={cat.id} className="bg-slate-50/60 rounded-2xl p-2.5 sm:p-4 border border-slate-200/70 shadow-2xs">
-                  {/* Category Header */}
-                  <div className="flex items-center justify-between mb-3 sm:mb-4 bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/80 shadow-xs">
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                      <CategoryAvatar 
-                        cat={cat} 
-                        sizeClass="w-8 h-8 sm:w-10 sm:h-10" 
-                        imgSize={80} 
-                        roundedClass="rounded-xl"
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-xs sm:text-base font-black text-slate-800 leading-tight truncate">
-                            {lang === "bn" ? cat.nameBn : cat.nameEn}
-                          </h4>
-                          <span className="text-[9.5px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100/80">
-                            {fmtNum(prods.length)} {lang === "bn" ? "টি পণ্য" : "items"}
-                          </span>
+                return (
+                  <div key={cat.id} className="bg-slate-50/60 rounded-2xl p-2.5 sm:p-4 border border-slate-200/70 shadow-2xs">
+                    {/* Category Header */}
+                    <div className="flex items-center justify-between mb-3 sm:mb-4 bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200/80 shadow-xs">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <CategoryAvatar 
+                          cat={cat} 
+                          sizeClass="w-8 h-8 sm:w-10 sm:h-10" 
+                          imgSize={80} 
+                          roundedClass="rounded-xl"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-xs sm:text-base font-black text-slate-800 leading-tight truncate">
+                              {lang === "bn" ? cat.nameBn : cat.nameEn}
+                            </h4>
+                            <span className="text-[9.5px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100/80">
+                              {fmtNum(prods.length)} {lang === "bn" ? "টি পণ্য" : "items"}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-medium hidden sm:block truncate">
+                            {lang === "bn" ? `${cat.nameBn} কালেকশন` : `${cat.nameEn} Collection`}
+                          </p>
                         </div>
-                        <p className="text-[10px] text-slate-400 font-medium hidden sm:block truncate">
-                          {lang === "bn" ? `${cat.nameBn} কালেকশন` : `${cat.nameEn} Collection`}
-                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                        {prods.length > 3 && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedCategoryIds(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))}
+                            className="text-[11px] sm:text-xs text-slate-600 hover:text-emerald-700 font-bold px-2 py-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                          >
+                            {isExpanded 
+                              ? (lang === "bn" ? "কম দেখুন" : "See Less") 
+                              : (lang === "bn" ? "আরও দেখুন" : "See More")}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => navigateToCategory(cat.id)}
+                          className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] sm:text-xs rounded-xl flex items-center gap-1 transition shadow-xs cursor-pointer"
+                        >
+                          <span>{lang === "bn" ? "সবগুলো দেখুন" : "View All"}</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                      {prods.length > 3 && (
-                        <button
-                          type="button"
-                          onClick={() => setExpandedCategoryIds(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))}
-                          className="text-[11px] sm:text-xs text-slate-600 hover:text-emerald-700 font-bold px-2 py-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
-                        >
-                          {isExpanded 
-                            ? (lang === "bn" ? "কম দেখুন" : "See Less") 
-                            : (lang === "bn" ? "আরও দেখুন" : "See More")}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => navigateToCategory(cat.id)}
-                        className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] sm:text-xs rounded-xl flex items-center gap-1 transition shadow-xs cursor-pointer"
-                      >
-                        <span>{lang === "bn" ? "সবগুলো দেখুন" : "View All"}</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
+                    {/* Product Grid: Minimum 3 products guaranteed */}
+                    <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                      {displayItems.map((product, idx) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          lang={lang}
+                          fmtNum={fmtNum}
+                          wishlist={wishlist}
+                          toggleWishlist={toggleWishlist}
+                          cart={cart}
+                          addToCart={addToCart}
+                          updateCartQuantity={updateCartQuantity}
+                          removeFromCart={removeFromCart}
+                          handleBuyNow={handleBuyNow}
+                          openQuickView={openQuickView}
+                          handleProductImgError={handleProductImgError}
+                          className={!isExpanded && idx === 3 ? "hidden md:block" : ""}
+                        />
+                      ))}
                     </div>
                   </div>
-
-                  {/* Product Grid: Minimum 3 products guaranteed */}
-                  <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                    {displayItems.map((product, idx) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        lang={lang}
-                        fmtNum={fmtNum}
-                        wishlist={wishlist}
-                        toggleWishlist={toggleWishlist}
-                        cart={cart}
-                        addToCart={addToCart}
-                        updateCartQuantity={updateCartQuantity}
-                        removeFromCart={removeFromCart}
-                        handleBuyNow={handleBuyNow}
-                        openQuickView={openQuickView}
-                        handleProductImgError={handleProductImgError}
-                        className={!isExpanded && idx === 3 ? "hidden md:block" : ""}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </section>
 
           {/* ================= 2. POPULAR & ATTRACTIVE PRODUCTS (জনপ্রিয় ও আকর্ষণীয় পণ্য সমূহ - একদম শেষে) ================= */}

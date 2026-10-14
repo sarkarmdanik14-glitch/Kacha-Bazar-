@@ -846,25 +846,27 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       const isGroceryItem = isCategoryMatch(prodCategory, "groceries") || prodCategory === "groceries" || prodCategory === "মুদি পণ্য";
       const isDryFoodItem = isCategoryMatch(prodCategory, "frozen") || prodCategory === "frozen" || prodCategory === "dry-food" || prodCategory === "dryfood" || prodCategory === "ড্রাই ফুড";
       const isConfectioneryItem = isCategoryMatch(prodCategory, "snacks-biscuits") || prodCategory === "snacks-biscuits" || prodCategory === "confectionery" || prodCategory === "কনফেকশনারি";
+      const isPharmacyItem = isCategoryMatch(prodCategory, "pharmacy") || prodCategory === "pharmacy" || prodCategory === "ফার্মেসি";
 
       const selectedSub = subcategories.find(s => s.id === prodSubcategoryId) ||
                           (isRestItem ? RESTAURANT_SUBCATEGORIES.find(s => s.id === prodSubcategoryId) : null);
-      const resolvedSubName = selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || (isRestItem ? "বিরিয়ানি, পোলাও ও রাইস" : (isDryFoodItem ? "ড্রাই ফুড" : (isConfectioneryItem ? "চকলেট ও ক্যান্ডি" : "General"))));
+      const resolvedSubName = selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || (isRestItem ? "বিরিয়ানি, পোলাও ও রাইস" : (isDryFoodItem ? "ড্রাই ফুড" : (isConfectioneryItem ? "চকলেট ও ক্যান্ডি" : (isPharmacyItem ? "ঔষধ ও প্রেসক্রিপশন আইটেম" : "General")))));
       const resolvedSubId = prodSubcategoryId || (selectedSub ? selectedSub.id : "");
 
-      const finalId = editingProduct ? (editingProduct.id || prodId) : (prodId || `prod_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`);
+      const idPrefix = isPharmacyItem ? "ph" : (isGroceryItem ? "gr" : "prod");
+      const finalId = editingProduct ? (editingProduct.id || prodId) : (prodId || `${idPrefix}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`);
 
       const resolvedCategoryId = isGroceryItem 
         ? "groceries" 
         : (isRestItem 
             ? "bakery-sweets" 
-            : (isDryFoodItem ? "frozen" : (isConfectioneryItem ? "snacks-biscuits" : (normalizeCategoryId(prodCategory) || prodCategory))));
+            : (isDryFoodItem ? "frozen" : (isConfectioneryItem ? "snacks-biscuits" : (isPharmacyItem ? "pharmacy" : (normalizeCategoryId(prodCategory) || prodCategory)))));
 
       const resolvedCategoryName = isGroceryItem 
         ? "মুদি পণ্য" 
         : (isRestItem 
             ? "রেস্টুরেন্ট" 
-            : (isDryFoodItem ? "ড্রাই ফুড" : (isConfectioneryItem ? "কনফেকশনারি" : (prodCategory === "groceries" ? "মুদি পণ্য" : prodCategory))));
+            : (isDryFoodItem ? "ড্রাই ফুড" : (isConfectioneryItem ? "কনফেকশনারি" : (isPharmacyItem ? "ফার্মেসি" : (prodCategory === "groceries" ? "মুদি পণ্য" : prodCategory)))));
 
       const payload: any = {
         id: finalId,

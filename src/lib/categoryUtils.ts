@@ -367,15 +367,21 @@ export function isCategoryMatch(
     sCat === "pharmacy" || 
     sCat === "baby-care" || 
     sCat === "medicine" || 
+    sCat === "medicines" ||
     sCat === "ফার্মেসি" || 
-    sCat.includes("ফার্মেসি")
+    sCat.includes("ফার্মেসি") ||
+    sCat.includes("ঔষধ")
   ) {
     return (
       pCat === "pharmacy" || 
       pCat === "baby-care" || 
       pCat === "medicine" || 
+      pCat === "medicines" ||
       pCat === "ফার্মেসি" || 
-      pCat.includes("ফার্মেসি")
+      pCat.includes("ফার্মেসি") ||
+      pCat.includes("ঔষধ") ||
+      pCat.includes("pharmacy") ||
+      pCat.includes("medicine")
     );
   }
 
