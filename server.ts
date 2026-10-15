@@ -48,27 +48,77 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // =====================================================================
 // Server-Authoritative Supabase Client
-// Uses SUPABASE_SERVICE_ROLE_KEY to securely bypass RLS from the trusted backend.
-// Never exposes service_role key to browser, client bundles, or public logs.
+// Supports SUPABASE_SERVICE_ROLE_KEY for full backend access,
+// with safe fallback to Anon key (compatible with Supabase open RLS schema).
+// Automatically persists and reloads custom keys from data/supabase_config.json.
 // =====================================================================
+const SUPABASE_CONFIG_FILE = path.resolve(process.cwd(), "data", "supabase_config.json");
+
+interface SupabaseConfigData {
+  url?: string;
+  anonKey?: string;
+  serviceRoleKey?: string;
+  updatedAt?: string;
+}
+
+function loadSupabaseConfig(): SupabaseConfigData {
+  try {
+    if (fs.existsSync(SUPABASE_CONFIG_FILE)) {
+      return JSON.parse(fs.readFileSync(SUPABASE_CONFIG_FILE, "utf-8")) || {};
+    }
+  } catch (e) {
+    console.warn("[Server Supabase] Error reading supabase_config.json:", e);
+  }
+  return {};
+}
+
+function saveSupabaseConfig(config: SupabaseConfigData): boolean {
+  try {
+    const dir = path.dirname(SUPABASE_CONFIG_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(SUPABASE_CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
+    return true;
+  } catch (e) {
+    console.warn("[Server Supabase] Error writing supabase_config.json:", e);
+    return false;
+  }
+}
+
 let serverSupabaseClient: SupabaseClient | null = null;
+let currentSupabaseClientKey = "";
+
 function getServerSupabase(): SupabaseClient | null {
-  if (serverSupabaseClient) return serverSupabaseClient;
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) {
+  const fileConfig = loadSupabaseConfig();
+  const url = (fileConfig.url || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://syqiyurjeuibpprfrmwa.supabase.co").trim();
+  const serviceRoleKey = (fileConfig.serviceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+  const anonKey = (fileConfig.anonKey || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i").trim();
+
+  // Prefer serviceRoleKey when configured; otherwise fall back to anonKey
+  const activeKey = serviceRoleKey || anonKey;
+
+  if (!url || !activeKey) {
+    console.warn("[Server Supabase] Supabase URL or Key is missing. Cannot initialize client.");
     return null;
   }
+
+  const clientFingerprint = `${url}:::${activeKey}`;
+  if (serverSupabaseClient && currentSupabaseClientKey === clientFingerprint) {
+    return serverSupabaseClient;
+  }
+
   try {
-    serverSupabaseClient = createClient(url, serviceRoleKey, {
+    serverSupabaseClient = createClient(url, activeKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
       },
     });
+    currentSupabaseClientKey = clientFingerprint;
+    const keyType = serviceRoleKey ? "Service Role Key (Full Bypass)" : "Publishable/Anon Key (RLS Compliant)";
+    console.log(`[Server Supabase] Client connected to ${url} using ${keyType}`);
     return serverSupabaseClient;
-  } catch (err) {
-    console.warn("[Server] Supabase client init notice:", err);
+  } catch (err: any) {
+    console.warn("[Server Supabase] Client initialization notice:", err?.message || err);
     return null;
   }
 }
@@ -1321,8 +1371,40 @@ function verifyStaffPassword(password: string, hash: string, salt: string) {
   return false;
 }
 
-// In-memory active staff session store: sessionId -> { staffId, email, role, expiresAt }
-const activeStaffSessions = new Map<string, { staffId: string; email: string; role: string; expiresAt: number }>();
+const SESSIONS_FILE = path.resolve(process.cwd(), "data", "staff_sessions.json");
+
+function loadStaffSessions(): Map<string, { staffId: string; email: string; role: string; expiresAt: number }> {
+  const map = new Map<string, { staffId: string; email: string; role: string; expiresAt: number }>();
+  try {
+    if (fs.existsSync(SESSIONS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(SESSIONS_FILE, "utf-8"));
+      const now = Date.now();
+      for (const [k, v] of Object.entries(data)) {
+        if (v && typeof v === "object" && (v as any).expiresAt > now) {
+          map.set(k, v as any);
+        }
+      }
+    }
+  } catch (e) {}
+  return map;
+}
+
+const activeStaffSessions = loadStaffSessions();
+
+function persistStaffSessions(): void {
+  try {
+    const dir = path.dirname(SESSIONS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const obj: Record<string, any> = {};
+    const now = Date.now();
+    for (const [k, v] of activeStaffSessions.entries()) {
+      if (v.expiresAt > now) {
+        obj[k] = v;
+      }
+    }
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(obj, null, 2), "utf-8");
+  } catch (e) {}
+}
 
 function createStaffSession(staff: any): string {
   const sessionId = crypto.randomBytes(32).toString("hex");
@@ -1332,12 +1414,14 @@ function createStaffSession(staff: any): string {
     role: staff.role || "order_manager",
     expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
   });
+  persistStaffSessions();
   return sessionId;
 }
 
 function revokeStaffSession(sessionId: string): void {
   if (sessionId) {
     activeStaffSessions.delete(sessionId);
+    persistStaffSessions();
   }
 }
 
@@ -5035,9 +5119,78 @@ app.post("/api/products/upsert", rateLimiter(60, 60000), requireStaffAuth, async
 // Protects all Supabase writes behind Staff / Admin authentication & token verification.
 // Completely eliminates direct browser writes to Supabase.
 // =====================================================================
+// =====================================================================
+// 15.2. Server-Authoritative Supabase Sync Endpoints
+// Protects all Supabase writes behind Staff / Admin authentication & token verification.
+// Completely eliminates direct browser writes to Supabase.
+// =====================================================================
+
+app.get("/api/admin/supabase-config", requireAdminAuth, (req, res) => {
+  try {
+    const fileConfig = loadSupabaseConfig();
+    const url = (fileConfig.url || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://syqiyurjeuibpprfrmwa.supabase.co").trim();
+    const anonKey = (fileConfig.anonKey || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i").trim();
+    const serviceRoleKey = (fileConfig.serviceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+
+    return res.json({
+      success: true,
+      url,
+      anonKey,
+      hasServiceRoleKey: !!serviceRoleKey,
+      serviceRoleKeyMasked: serviceRoleKey ? `${serviceRoleKey.slice(0, 10)}••••••••${serviceRoleKey.slice(-6)}` : "",
+      mode: serviceRoleKey ? "service_role" : "anon"
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || "Failed to load config" });
+  }
+});
+
+app.post("/api/admin/supabase-config", requireAdminAuth, (req, res) => {
+  try {
+    const { url, anonKey, serviceRoleKey } = req.body || {};
+    const existing = loadSupabaseConfig();
+    const updated: SupabaseConfigData = {
+      ...existing,
+      url: typeof url === "string" && url.trim() ? url.trim() : (existing.url || process.env.SUPABASE_URL || "https://syqiyurjeuibpprfrmwa.supabase.co"),
+      anonKey: typeof anonKey === "string" && anonKey.trim() ? anonKey.trim() : (existing.anonKey || process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i"),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (serviceRoleKey !== undefined) {
+      const cleanKey = typeof serviceRoleKey === "string" ? serviceRoleKey.trim() : "";
+      updated.serviceRoleKey = cleanKey;
+      if (cleanKey) {
+        process.env.SUPABASE_SERVICE_ROLE_KEY = cleanKey;
+      } else {
+        delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+      }
+    }
+
+    saveSupabaseConfig(updated);
+    // Invalidate cached client to force re-initialization
+    serverSupabaseClient = null;
+    currentSupabaseClientKey = "";
+    getServerSupabase();
+
+    return res.json({
+      success: true,
+      message: "Supabase কনফিগারেশন সফলভাবে সংরক্ষিত ও আপডেট হয়েছে।",
+      hasServiceRoleKey: !!(updated.serviceRoleKey)
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || "Failed to save Supabase config" });
+  }
+});
 
 app.post("/api/sync/product", rateLimiter(120, 60000), requireStaffAuth, async (req, res) => {
   try {
+    if (!getServerSupabase()) {
+      return res.status(422).json({
+        success: false,
+        error: "SUPABASE_NOT_INITIALIZED",
+        message: "Supabase ক্লায়েন্ট প্রস্তুত করা যায়নি। অনুগ্রহ করে Admin Settings থেকে Supabase কনফিগারেশন পরীক্ষা করুন।"
+      });
+    }
     const product = req.body;
     if (!product || !product.id) {
       return res.status(400).json({ success: false, error: "Product payload with valid ID is required" });
@@ -5051,6 +5204,13 @@ app.post("/api/sync/product", rateLimiter(120, 60000), requireStaffAuth, async (
 
 app.post("/api/sync/product-delete", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
   try {
+    if (!getServerSupabase()) {
+      return res.status(422).json({
+        success: false,
+        error: "SUPABASE_NOT_INITIALIZED",
+        message: "Supabase ক্লায়েন্ট প্রস্তুত করা যায়নি। অনুগ্রহ করে Admin Settings থেকে Supabase কনফিগারেশন পরীক্ষা করুন।"
+      });
+    }
     const { productId } = req.body;
     if (!productId) {
       return res.status(400).json({ success: false, error: "Product ID is required" });
@@ -5064,6 +5224,13 @@ app.post("/api/sync/product-delete", rateLimiter(60, 60000), requireAdminAuth, a
 
 app.post("/api/sync/category", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
   try {
+    if (!getServerSupabase()) {
+      return res.status(422).json({
+        success: false,
+        error: "SUPABASE_NOT_INITIALIZED",
+        message: "Supabase ক্লায়েন্ট প্রস্তুত করা যায়নি। অনুগ্রহ করে Admin Settings থেকে Supabase কনফিগারেশন পরীক্ষা করুন।"
+      });
+    }
     const category = req.body;
     if (!category || !category.id) {
       return res.status(400).json({ success: false, error: "Category payload with valid ID is required" });
@@ -5077,6 +5244,13 @@ app.post("/api/sync/category", rateLimiter(60, 60000), requireAdminAuth, async (
 
 app.post("/api/sync/subcategory", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
   try {
+    if (!getServerSupabase()) {
+      return res.status(422).json({
+        success: false,
+        error: "SUPABASE_NOT_INITIALIZED",
+        message: "Supabase ক্লায়েন্ট প্রস্তুত করা যায়নি। অনুগ্রহ করে Admin Settings থেকে Supabase কনফিগারেশন পরীক্ষা করুন।"
+      });
+    }
     const subcategory = req.body;
     if (!subcategory || !subcategory.id) {
       return res.status(400).json({ success: false, error: "Subcategory payload with valid ID is required" });
@@ -5090,6 +5264,13 @@ app.post("/api/sync/subcategory", rateLimiter(60, 60000), requireAdminAuth, asyn
 
 app.post("/api/sync/order", rateLimiter(120, 60000), requireStaffAuth, async (req, res) => {
   try {
+    if (!getServerSupabase()) {
+      return res.status(422).json({
+        success: false,
+        error: "SUPABASE_NOT_INITIALIZED",
+        message: "Supabase ক্লায়েন্ট প্রস্তুত করা যায়নি। অনুগ্রহ করে Admin Settings থেকে Supabase কনফিগারেশন পরীক্ষা করুন।"
+      });
+    }
     const orderId = (req.body?.orderId || req.body?.id || "").toString().trim();
     if (!orderId) {
       return res.status(400).json({ success: false, error: "Order ID (orderId or id) is required" });
@@ -5111,6 +5292,13 @@ app.post("/api/sync/order", rateLimiter(120, 60000), requireStaffAuth, async (re
 
 app.post("/api/sync/staff", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
   try {
+    if (!getServerSupabase()) {
+      return res.status(422).json({
+        success: false,
+        error: "SUPABASE_NOT_INITIALIZED",
+        message: "Supabase ক্লায়েন্ট প্রস্তুত করা যায়নি। অনুগ্রহ করে Admin Settings থেকে Supabase কনফিগারেশন পরীক্ষা করুন।"
+      });
+    }
     const staff = req.body;
     if (!staff || !staff.id) {
       return res.status(400).json({ success: false, error: "Staff payload with valid ID is required" });
@@ -5124,6 +5312,13 @@ app.post("/api/sync/staff", rateLimiter(60, 60000), requireAdminAuth, async (req
 
 app.post("/api/sync/partner-shop", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
   try {
+    if (!getServerSupabase()) {
+      return res.status(422).json({
+        success: false,
+        error: "SUPABASE_NOT_INITIALIZED",
+        message: "Supabase ক্লায়েন্ট প্রস্তুত করা যায়নি। অনুগ্রহ করে Admin Settings থেকে Supabase কনফিগারেশন পরীক্ষা করুন।"
+      });
+    }
     const shop = req.body;
     if (!shop || !shop.id) {
       return res.status(400).json({ success: false, error: "Partner shop payload with valid ID is required" });
@@ -5137,6 +5332,13 @@ app.post("/api/sync/partner-shop", rateLimiter(60, 60000), requireAdminAuth, asy
 
 app.post("/api/sync/partner-shop-delete", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
   try {
+    if (!getServerSupabase()) {
+      return res.status(422).json({
+        success: false,
+        error: "SUPABASE_NOT_INITIALIZED",
+        message: "Supabase ক্লায়েন্ট প্রস্তুত করা যায়নি। অনুগ্রহ করে Admin Settings থেকে Supabase কনফিগারেশন পরীক্ষা করুন।"
+      });
+    }
     const { id } = req.body;
     if (!id) {
       return res.status(400).json({ success: false, error: "Shop ID is required" });
@@ -5266,6 +5468,14 @@ app.post("/api/partner/set-password", rateLimiter(20, 60000), requireAdminAuth, 
 
 app.post("/api/sync/all", rateLimiter(10, 60000), requireAdminAuth, async (req, res) => {
   try {
+    const sb = getServerSupabase();
+    if (!sb) {
+      return res.status(422).json({
+        success: false,
+        error: "SUPABASE_NOT_INITIALIZED",
+        message: "সার্ভারে Supabase সংযোগ সক্রিয় করা যায়নি। অনুগ্রহ করে অ্যাডমিন সেটিংস থেকে Supabase ক্রেডেনশিয়াল পরীক্ষা করুন।"
+      });
+    }
     const { categories = [], subcategories = [], products = [], staff = [], partnerShops = [], orders = [] } = req.body || {};
     const details = { categories: 0, subcategories: 0, products: 0, staff: 0, partnerShops: 0, orders: 0 };
     const errors: string[] = [];

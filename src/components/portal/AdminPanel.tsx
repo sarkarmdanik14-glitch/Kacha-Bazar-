@@ -30,6 +30,12 @@ import { mergeCategoryCards, shouldKeepProductGroceryFiltered, isCategoryMatch }
 import { ALL_PRODUCTS, CATEGORIES, GROCERY_PRODUCTS_RAW } from "../../data";
 import { resolveAuthenticProductImage } from "../../lib/masterImageRegistry";
 import { syncSingleOrderToSupabase } from "../../lib/supabaseSync";
+import { 
+  subscribeToSupabaseOrders, 
+  subscribeToSupabaseCoupons, 
+  subscribeToSupabaseBanners, 
+  updateOrderStatusInSupabase 
+} from "../../lib/supabaseLiveService";
 
 // Import modular sub-panels
 import AdminDashboardReport from "./AdminDashboardReport";
@@ -202,7 +208,19 @@ export default function AdminPanel({
   useEffect(() => {
     setLoading(true);
 
-    // Listen to orders
+    // Listen to orders from Supabase with Firestore fallback
+    let unsubSupabaseOrders = () => {};
+    try {
+      unsubSupabaseOrders = subscribeToSupabaseOrders((supaOrds) => {
+        if (supaOrds && supaOrds.length > 0) {
+          setOrders(supaOrds);
+        }
+      });
+    } catch (e) {
+      console.warn("Supabase orders listener notice:", e);
+    }
+
+    // Fallback/parallel listener to Firestore orders
     const unsubOrders = onSnapshot(
       collection(db, "orders"), 
       (snapshot) => {
@@ -210,7 +228,15 @@ export default function AdminPanel({
         snapshot.forEach((doc) => {
           ords.push({ id: doc.id, ...doc.data() });
         });
-        setOrders(ords);
+        if (ords.length > 0) {
+          setOrders(prev => {
+            const merged = [...ords];
+            for (const po of prev) {
+              if (!merged.some(m => m.id === po.id)) merged.push(po);
+            }
+            return merged;
+          });
+        }
       },
       (err) => console.warn("Admin orders sync notice:", err.message)
     );
@@ -450,6 +476,7 @@ export default function AdminPanel({
     }
 
     return () => {
+      unsubSupabaseOrders();
       unsubOrders();
       unsubProds();
       unsubUsers();

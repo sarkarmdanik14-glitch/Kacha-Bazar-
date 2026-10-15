@@ -151,6 +151,10 @@ export default function PortalModal({
 
               try {
                 const idToken = await user.getIdToken();
+                if (idToken) {
+                  localStorage.setItem("kb_firebase_id_token", idToken);
+                  sessionStorage.setItem("kb_firebase_id_token", idToken);
+                }
                 const sessionData = await apiClient.post("/api/staff/firebase-session", { 
                   idToken,
                   email: user.email,
@@ -305,6 +309,10 @@ export default function PortalModal({
             if (isAdminUser) {
               try {
                 const idToken = await user.getIdToken();
+                if (idToken) {
+                  localStorage.setItem("kb_firebase_id_token", idToken);
+                  sessionStorage.setItem("kb_firebase_id_token", idToken);
+                }
                 const sessionData = await apiClient.post("/api/staff/firebase-session", { 
                   idToken,
                   email: user.email,

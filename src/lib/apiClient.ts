@@ -5,10 +5,9 @@
  * 1. Checks HTTP status and Content-Type before parsing.
  * 2. Parses JSON ONLY when response is valid JSON (Content-Type: application/json).
  * 3. Never throws "Unexpected token '<', <html>..." when HTML or text is returned by server.
- * 4. Translates HTTP and server errors into clear, user-friendly Bangla & English messages.
- * 5. Automatically injects staff/admin session authentication headers.
  * 6. Logs real API errors in development mode for easy debugging.
  */
+import { auth } from "./firebase";
 
 export class ApiError extends Error {
   public status: number;
@@ -64,6 +63,9 @@ export function getApiAuthHeaders(user?: any): Record<string, string> {
         : null);
     if (firebaseToken) {
       headers["x-firebase-id-token"] = firebaseToken;
+      if (!headers["Authorization"]) {
+        headers["Authorization"] = `Bearer ${firebaseToken}`;
+      }
     }
   } catch (e) {
     // Non-blocking fallback
@@ -125,6 +127,24 @@ export async function apiRequest<T = any>(
     const authHeaders = getApiAuthHeaders();
     for (const [key, value] of Object.entries(authHeaders)) {
       if (value) headers.set(key, value);
+    }
+
+    // Dynamic Firebase Auth token resolution if missing from headers
+    if (!headers.has("x-firebase-id-token") && typeof window !== "undefined") {
+      try {
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const freshToken = await currentUser.getIdToken();
+          if (freshToken) {
+            headers.set("x-firebase-id-token", freshToken);
+            if (!headers.has("Authorization")) {
+              headers.set("Authorization", `Bearer ${freshToken}`);
+            }
+          }
+        }
+      } catch (authErr) {
+        // Non-blocking
+      }
     }
   }
 
@@ -245,16 +265,29 @@ export async function apiRequest<T = any>(
     return { success: true } as unknown as T;
   }
 
-  // If response returned HTML on a 200 OK (e.g. Vite SPA fallback for a missing API route)
+  // If response returned HTML on a 200 OK (e.g. Vite SPA fallback or proxy intercepted page)
   if (isHtml || rawText.trim().startsWith("<")) {
-    const errorMsg = `API রুটটি সার্ভারে সংজ্ঞায়িত নেই (HTML ইন্টারফেস প্রাপ্ত হয়েছে: ${url})`;
+    let errorMsg = `API সেবা থেকে অপ্রত্যাশিত ডেটা প্রাপ্ত হয়েছে (${url})`;
+    let errStatus = 404;
+
+    if (rawText.includes("403 Forbidden") || rawText.includes("forbidden.html")) {
+      errorMsg = "অননুমোদিত অনুরোধ (403 Forbidden)। প্রশাসনিক অনুমতি নেই অথবা সেশনের মেয়াদ শেষ হয়েছে।";
+      errStatus = 403;
+    } else if (rawText.includes("warmup") || rawText.includes("503") || rawText.includes("502")) {
+      errorMsg = "সার্ভার সাময়িকভাবে প্রস্তুত হচ্ছে বা সার্ভিস অনুপলব্ধ রয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
+      errStatus = 503;
+    } else if (rawText.includes("<div id=\"root\">") || rawText.includes("<!DOCTYPE html>")) {
+      errorMsg = `অনুরোধকৃত API রুটটি ব্যাকএন্ড সার্ভারে পাওয়া যায়নি (${url})।`;
+      errStatus = 404;
+    }
+
     if (import.meta.env?.DEV) {
-      console.warn(`[API Warning] Received HTML response on 200 OK for API route ${url}`);
+      console.warn(`[API Warning] Received HTML response for API route ${url}:`, errorMsg);
     }
     throw new ApiError({
       message: errorMsg,
-      status: 404,
-      statusText: "Not Found (HTML SPA Fallback)",
+      status: errStatus,
+      statusText: "Non-JSON Response",
       data: null,
       isHtmlResponse: true,
       url

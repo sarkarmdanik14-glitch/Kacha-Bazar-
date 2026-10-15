@@ -15,6 +15,11 @@ import {
 } from "../../lib/firebase";
 import { MessageSquare, Send, User, Check, CheckCheck, Shield, Sparkles, ArrowLeft } from "lucide-react";
 import { createTranslator } from "../../lib/formatUtils";
+import { 
+  sendSupabaseChatMessage, 
+  subscribeToSupabaseChatRooms, 
+  subscribeToSupabaseChatMessages 
+} from "../../lib/supabaseChat";
 
 interface AdminSupportChatTabProps {
   lang: "bn" | "en";
@@ -35,8 +40,31 @@ export default function AdminSupportChatTab({ lang, triggerToast }: AdminSupport
 
   const getTranslation = createTranslator(lang);
 
-  // 1. Listen to all active chats in real time
+  // 1. Listen to all active chats in real time (Supabase Realtime + Firestore)
   useEffect(() => {
+    let unsubSupaRooms = () => {};
+    try {
+      unsubSupaRooms = subscribeToSupabaseChatRooms((supaRooms) => {
+        if (supaRooms && supaRooms.length > 0) {
+          setChats(prev => {
+            const merged = supaRooms.map(r => ({
+              id: r.id,
+              userDisplayName: r.userName,
+              userEmail: r.userEmail,
+              lastMessage: r.lastMessage,
+              lastMessageAt: r.lastMessageAt,
+              unreadCount: r.unreadCountForSupport
+            }));
+            for (const pc of prev) {
+              if (!merged.some(m => m.id === pc.id)) merged.push(pc);
+            }
+            return merged;
+          });
+          setLoadingChats(false);
+        }
+      });
+    } catch {}
+
     const chatsQuery = query(collection(db, "chats"), orderBy("lastMessageAt", "desc"));
     
     const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
@@ -44,14 +72,25 @@ export default function AdminSupportChatTab({ lang, triggerToast }: AdminSupport
       snapshot.forEach((doc) => {
         chatsList.push({ id: doc.id, ...doc.data() });
       });
-      setChats(chatsList);
+      if (chatsList.length > 0) {
+        setChats(prev => {
+          const merged = [...chatsList];
+          for (const pc of prev) {
+            if (!merged.some(m => m.id === pc.id)) merged.push(pc);
+          }
+          return merged;
+        });
+      }
       setLoadingChats(false);
     }, (err) => {
-      console.error("Error listening to chats: ", err);
+      console.warn("Notice listening to chats: ", err?.message);
       setLoadingChats(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubSupaRooms();
+      unsubscribe();
+    };
   }, []);
 
   // 2. Listen to messages for the selected chat in real time
@@ -62,6 +101,24 @@ export default function AdminSupportChatTab({ lang, triggerToast }: AdminSupport
     }
 
     setLoadingMessages(true);
+
+    // Supabase Realtime messages listener
+    let unsubSupaMsgs = () => {};
+    try {
+      unsubSupaMsgs = subscribeToSupabaseChatMessages(selectedChatId, (supaMsgs) => {
+        if (supaMsgs && supaMsgs.length > 0) {
+          setMessages(prev => {
+            const merged = [...prev];
+            for (const sm of supaMsgs) {
+              if (!merged.some(m => m.id === sm.id)) merged.push(sm);
+            }
+            return merged;
+          });
+          setLoadingMessages(false);
+        }
+      });
+    } catch {}
+
     const messagesQuery = query(
       collection(db, "chat_messages"),
       where("chatId", "==", selectedChatId),
@@ -73,17 +130,28 @@ export default function AdminSupportChatTab({ lang, triggerToast }: AdminSupport
       snapshot.forEach((doc) => {
         msgsList.push({ id: doc.id, ...doc.data() });
       });
-      setMessages(msgsList);
+      if (msgsList.length > 0) {
+        setMessages(prev => {
+          const merged = [...msgsList];
+          for (const pm of prev) {
+            if (!merged.some(m => m.id === pm.id)) merged.push(pm);
+          }
+          return merged;
+        });
+      }
       setLoadingMessages(false);
       
       // Mark customer messages as read when viewed by Support
       markMessagesAsRead(selectedChatId);
     }, (err) => {
-      console.error("Error listening to messages: ", err);
+      console.warn("Notice listening to messages: ", err?.message);
       setLoadingMessages(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubSupaMsgs();
+      unsubscribe();
+    };
   }, [selectedChatId]);
 
   // Scroll to bottom when messages list changes
@@ -171,6 +239,15 @@ export default function AdminSupportChatTab({ lang, triggerToast }: AdminSupport
         createdAt: serverTimestamp(),
         isRead: false
       });
+
+      // 3. Broadcast to Supabase Realtime channel
+      sendSupabaseChatMessage({
+        chatId: selectedChatId,
+        senderId: "support",
+        senderName: "Support Staff",
+        senderRole: "support",
+        text: textToSend
+      }).catch(() => {});
     } catch (err) {
       console.error("Error sending chat message:", err);
       triggerToast("বার্তা প্রেরণ ব্যর্থ হয়েছে।", "Failed to send message.");

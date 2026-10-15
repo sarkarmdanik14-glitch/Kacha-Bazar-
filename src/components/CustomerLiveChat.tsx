@@ -18,6 +18,7 @@ import {
 } from "../lib/firebase";
 import { MessageSquare, X, Send, User, Sparkles, LogIn, Check, CheckCheck, Edit2, ShieldCheck } from "lucide-react";
 import { createTranslator } from "../lib/formatUtils";
+import { sendSupabaseChatMessage, subscribeToSupabaseChatMessages } from "../lib/supabaseChat";
 
 interface CustomerLiveChatProps {
   lang: "bn" | "en";
@@ -152,6 +153,24 @@ export default function CustomerLiveChat({
     if (!effectiveChatId || !isOpen) return;
 
     setLoading(true);
+
+    // Supabase Realtime chat listener
+    let unsubSupa = () => {};
+    try {
+      unsubSupa = subscribeToSupabaseChatMessages(effectiveChatId, (supaMsgs) => {
+        if (supaMsgs && supaMsgs.length > 0) {
+          setMessages(prev => {
+            const merged = [...prev];
+            for (const sm of supaMsgs) {
+              if (!merged.some(m => m.id === sm.id)) merged.push(sm);
+            }
+            return merged;
+          });
+          setLoading(false);
+        }
+      });
+    } catch {}
+
     const msgsQuery = query(
       collection(db, "chat_messages"),
       where("chatId", "==", effectiveChatId),
@@ -163,7 +182,15 @@ export default function CustomerLiveChat({
       snapshot.forEach((doc) => {
         msgsList.push({ id: doc.id, ...doc.data() });
       });
-      setMessages(msgsList);
+      if (msgsList.length > 0) {
+        setMessages(prev => {
+          const merged = [...msgsList];
+          for (const pm of prev) {
+            if (!merged.some(m => m.id === pm.id)) merged.push(pm);
+          }
+          return merged;
+        });
+      }
       setLoading(false);
 
       // Mark support messages as read
@@ -173,7 +200,10 @@ export default function CustomerLiveChat({
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubSupa();
+      unsubscribe();
+    };
   }, [effectiveChatId, isOpen]);
 
   // Scroll to bottom
@@ -283,6 +313,16 @@ export default function CustomerLiveChat({
         createdAt: serverTimestamp(),
         isRead: false
       });
+
+      // 3. Broadcast and buffer in Supabase Realtime
+      sendSupabaseChatMessage({
+        chatId: effectiveChatId,
+        senderId: effectiveChatId,
+        senderName: userDisplayName,
+        senderRole: "customer",
+        text: textToSend,
+        userEmail: userEmail
+      }).catch(() => {});
     } catch (err) {
       console.error("Error sending client message:", err);
     }

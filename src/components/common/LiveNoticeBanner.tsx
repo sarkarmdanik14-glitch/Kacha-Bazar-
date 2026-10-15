@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { db, doc, onSnapshot } from "../../lib/firebase";
 import { LiveNoticeConfig, DEFAULT_LIVE_NOTICE } from "../../types";
+import { subscribeToSupabaseLiveNotice } from "../../lib/supabaseLiveService";
 
 interface LiveNoticeBannerProps {
   lang?: "bn" | "en";
@@ -23,14 +24,38 @@ export const LiveNoticeBanner: React.FC<LiveNoticeBannerProps> = ({
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
   const [isDismissed, setIsDismissed] = useState<boolean>(false);
 
-  // Subscribe to live notice config in Firestore
+  // Subscribe to live notice config in Supabase with Firestore fallback
   useEffect(() => {
     if (noticeOverride) {
       setNotice(noticeOverride);
       return;
     }
 
-    const unsub = onSnapshot(
+    let unsubSupa = () => {};
+    try {
+      unsubSupa = subscribeToSupabaseLiveNotice((supaNotice) => {
+        if (supaNotice) {
+          const merged: LiveNoticeConfig = {
+            isActive: supaNotice.isActive !== undefined ? supaNotice.isActive : true,
+            badgeBn: supaNotice.badgeBn || DEFAULT_LIVE_NOTICE.badgeBn,
+            badgeEn: supaNotice.badgeEn || DEFAULT_LIVE_NOTICE.badgeEn,
+            titleBn: supaNotice.titleBn || DEFAULT_LIVE_NOTICE.titleBn,
+            titleEn: supaNotice.titleEn || DEFAULT_LIVE_NOTICE.titleEn,
+            messageBn: supaNotice.messageBn || DEFAULT_LIVE_NOTICE.messageBn,
+            messageEn: supaNotice.messageEn || DEFAULT_LIVE_NOTICE.messageEn,
+            theme: supaNotice.theme || DEFAULT_LIVE_NOTICE.theme,
+            showDotPulse: supaNotice.showDotPulse !== undefined ? supaNotice.showDotPulse : true,
+            orderDisabled: supaNotice.orderDisabled !== undefined ? supaNotice.orderDisabled : false,
+          };
+          setNotice(merged);
+          if (onNoticeStateChange) {
+            onNoticeStateChange(merged.isActive, merged);
+          }
+        }
+      });
+    } catch {}
+
+    const unsubFirestore = onSnapshot(
       doc(db, "settings", "notice"),
       (docSnap) => {
         if (docSnap.exists()) {
@@ -52,11 +77,6 @@ export const LiveNoticeBanner: React.FC<LiveNoticeBannerProps> = ({
           if (onNoticeStateChange) {
             onNoticeStateChange(merged.isActive, merged);
           }
-        } else {
-          setNotice(DEFAULT_LIVE_NOTICE);
-          if (onNoticeStateChange) {
-            onNoticeStateChange(DEFAULT_LIVE_NOTICE.isActive, DEFAULT_LIVE_NOTICE);
-          }
         }
       },
       (err) => {
@@ -64,7 +84,10 @@ export const LiveNoticeBanner: React.FC<LiveNoticeBannerProps> = ({
       }
     );
 
-    return () => unsub();
+    return () => {
+      unsubSupa();
+      unsubFirestore();
+    };
   }, [noticeOverride]);
 
   if (!notice.isActive || isDismissed) {

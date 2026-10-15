@@ -3,12 +3,12 @@ import {
   Settings, Check, RefreshCw, MapPin, Building, Phone, Mail, 
   ToggleLeft, ToggleRight, ImageIcon, Plus, Trash2, Edit, Upload, Navigation, ShieldAlert, Info,
   QrCode, Smartphone, Download, Copy, ExternalLink, Sparkles, CheckCircle2, Globe, Printer,
-  Megaphone, AlertCircle, Eye, RotateCcw, Save, Bell, Database, Play, Pause, CheckCircle, ArrowRight,
+  Megaphone, AlertCircle, Eye, EyeOff, Key, RotateCcw, Save, Bell, Database, Play, Pause, CheckCircle, ArrowRight,
   Cloud, HardDrive, ShieldCheck, Search, Volume2, VolumeX, Mic, Music
 } from "lucide-react";
 import QRCode from "qrcode";
 import { APP_LOGO_URL } from "../../constants/branding";
-import { db, doc, setDoc, deleteDoc, collection, serverTimestamp, onSnapshot, getDocs } from "../../lib/firebase";
+import { auth, db, doc, setDoc, deleteDoc, collection, serverTimestamp, onSnapshot, getDocs } from "../../lib/firebase";
 import { DeliveryZone, DEFAULT_DELIVERY_ZONES, DEFAULT_STORE_LOCATION } from "../../lib/delivery";
 import { LiveNoticeConfig, DEFAULT_LIVE_NOTICE } from "../../types";
 import { createTranslator } from "../../lib/formatUtils";
@@ -39,6 +39,20 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
   const [syncingSupabase, setSyncingSupabase] = useState<boolean>(false);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [syncResult, setSyncResult] = useState<{ success: boolean; details: Record<string, number>; errors: string[] } | null>(null);
+
+  // Supabase Configuration Management
+  const [supabaseConfig, setSupabaseConfig] = useState<{
+    url: string;
+    anonKey: string;
+    hasServiceRoleKey: boolean;
+    serviceRoleKeyMasked: string;
+    mode: "service_role" | "anon";
+  } | null>(null);
+  const [supabaseUrlInput, setSupabaseUrlInput] = useState<string>(SUPABASE_URL);
+  const [supabaseAnonKeyInput, setSupabaseAnonKeyInput] = useState<string>(SUPABASE_ANON_KEY);
+  const [supabaseServiceRoleKeyInput, setSupabaseServiceRoleKeyInput] = useState<string>("");
+  const [showServiceKey, setShowServiceKey] = useState<boolean>(false);
+  const [savingSupabaseConfig, setSavingSupabaseConfig] = useState<boolean>(false);
 
   // Cloudflare R2 Cloud Storage State
   const [checkingR2, setCheckingR2] = useState<boolean>(false);
@@ -278,6 +292,49 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         setAdminQrGenerating(false);
       });
   }, [adminPwaUrl]);
+
+  // Load Supabase server configuration status
+  useEffect(() => {
+    if (activeSettingsSubTab === "supabase") {
+      apiClient.get<any>("/api/admin/supabase-config", { silent: true })
+        .then((res) => {
+          if (res && res.success) {
+            setSupabaseConfig(res);
+            if (res.url) setSupabaseUrlInput(res.url);
+            if (res.anonKey) setSupabaseAnonKeyInput(res.anonKey);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [activeSettingsSubTab]);
+
+  const handleSaveSupabaseConfig = async () => {
+    setSavingSupabaseConfig(true);
+    try {
+      const payload: any = {
+        url: supabaseUrlInput.trim(),
+        anonKey: supabaseAnonKeyInput.trim(),
+      };
+      if (supabaseServiceRoleKeyInput.trim()) {
+        payload.serviceRoleKey = supabaseServiceRoleKeyInput.trim();
+      }
+      const res = await apiClient.post<any>("/api/admin/supabase-config", payload);
+      if (res && res.success) {
+        triggerToast("Supabase কনফিগারেশন সংরক্ষিত!", "Supabase settings saved successfully!");
+        const updated = await apiClient.get<any>("/api/admin/supabase-config", { silent: true });
+        if (updated && updated.success) {
+          setSupabaseConfig(updated);
+          setSupabaseServiceRoleKeyInput("");
+        }
+      } else {
+        triggerToast("সংরক্ষণ ব্যর্থ", res?.error || "Failed to save configuration");
+      }
+    } catch (err: any) {
+      triggerToast("ত্রুটি", err?.message || "Error saving Supabase configuration");
+    } finally {
+      setSavingSupabaseConfig(false);
+    }
+  };
 
   // Banner Image Upload (Cloudflare R2 + fallback)
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -2448,26 +2505,113 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
             </div>
           </div>
 
-          {/* Connection Info Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black uppercase text-slate-400 tracking-wider">Project URL</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">Connected</span>
+          {/* Supabase Credentials & Settings Card */}
+          <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-800 text-sm">
+                    {getTranslation("সুপাবেস ক্রেডেনশিয়াল ও সংযোগ সেটিংস", "Supabase Credentials & Connection Settings")}
+                  </h4>
+                  <p className="text-slate-500 text-xs">
+                    {getTranslation("প্রজেক্ট ইউআরএল, অ্যানন কী এবং সার্ভিস রোল কী কনফিগার করুন", "Manage Project URL, Anon Public Key, and Service Role Key")}
+                  </p>
+                </div>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl font-mono text-xs text-slate-700 break-all border border-slate-100 select-all">
-                {SUPABASE_URL}
+
+              <div className="flex items-center gap-2">
+                <span className={`px-3 py-1 rounded-full text-xs font-black inline-flex items-center gap-1.5 ${
+                  supabaseConfig?.hasServiceRoleKey
+                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                    : "bg-blue-100 text-blue-800 border border-blue-300"
+                }`}>
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>
+                    {supabaseConfig?.hasServiceRoleKey
+                      ? getTranslation("Service Role Key সক্রিয়", "Service Role Active")
+                      : getTranslation("Anon Key সক্রিয় (RLS Policy)", "Anon Key Active (RLS)")}
+                  </span>
+                </span>
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Project URL */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Project URL</label>
+                <input
+                  type="text"
+                  value={supabaseUrlInput}
+                  onChange={(e) => setSupabaseUrlInput(e.target.value)}
+                  placeholder="https://your-project.supabase.co"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 focus:bg-white focus:outline-emerald-600 transition"
+                />
+              </div>
+
+              {/* Anon Public Key */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Anon Public Key (Publishable)</label>
+                <input
+                  type="text"
+                  value={supabaseAnonKeyInput}
+                  onChange={(e) => setSupabaseAnonKeyInput(e.target.value)}
+                  placeholder="sb_publishable_..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 focus:bg-white focus:outline-emerald-600 transition"
+                />
+              </div>
+            </div>
+
+            {/* Service Role Key (Secret) */}
+            <div className="space-y-1.5 pt-1">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black uppercase text-slate-400 tracking-wider">Anon Public Key</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">sb_publishable</span>
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <span>Service Role Secret Key</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md">ঐচ্ছিক / সুবিধাজনক</span>
+                </label>
+                {supabaseConfig?.hasServiceRoleKey && (
+                  <span className="text-[11px] font-mono text-emerald-700 font-bold">
+                    সক্রিয়: {supabaseConfig.serviceRoleKeyMasked}
+                  </span>
+                )}
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl font-mono text-xs text-slate-700 truncate border border-slate-100 select-all" title={SUPABASE_ANON_KEY}>
-                {SUPABASE_ANON_KEY}
+              <div className="relative">
+                <input
+                  type={showServiceKey ? "text" : "password"}
+                  value={supabaseServiceRoleKeyInput}
+                  onChange={(e) => setSupabaseServiceRoleKeyInput(e.target.value)}
+                  placeholder={supabaseConfig?.hasServiceRoleKey ? "নতুন কী দিয়ে পরিবর্তন করতে এখানে পেস্ট করুন..." : "eyJhbGciOi... (Supabase Dashboard -> Project Settings -> API)"}
+                  className="w-full px-3.5 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 focus:bg-white focus:outline-emerald-600 transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowServiceKey(!showServiceKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                >
+                  {showServiceKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
+              <p className="text-[11px] text-slate-500 pt-0.5">
+                {getTranslation(
+                  "টিপস: Supabase ড্যাশবোর্ডের Project Settings -> API মেনু থেকে service_role secret key পাওয়া যাবে। সার্ভিস রোল কী দিলে ব্যাকএন্ড সম্পূর্ণ রুট অ্যাক্সেস সহ দ্রুত সিঙ্ক করতে পারে।",
+                  "Tip: Find service_role in Project Settings -> API. Service role key enables full backend bypass for high-speed synchronization."
+                )}
+              </p>
+            </div>
+
+            {/* Save Button */}
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                disabled={savingSupabaseConfig}
+                onClick={handleSaveSupabaseConfig}
+                className="px-5 py-2.5 bg-slate-900 hover:bg-black active:scale-95 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-2 cursor-pointer disabled:opacity-60"
+              >
+                {savingSupabaseConfig ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                <span>{savingSupabaseConfig ? getTranslation("সংরক্ষণ হচ্ছে...", "Saving...") : getTranslation("ক্রেডেনশিয়াল সংরক্ষণ করুন", "Save Supabase Credentials")}</span>
+              </button>
             </div>
           </div>
 
@@ -2611,6 +2755,17 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
                   setSyncProgress({ step: "ডেটা লোড হচ্ছে...", total: 0, completed: 0, status: "running" });
 
                   try {
+                    // Refresh and attach authenticated Firebase token if logged in
+                    if (auth.currentUser) {
+                      try {
+                        const freshToken = await auth.currentUser.getIdToken(true);
+                        if (freshToken) {
+                          localStorage.setItem("kb_firebase_id_token", freshToken);
+                          sessionStorage.setItem("kb_firebase_id_token", freshToken);
+                        }
+                      } catch (tErr) {}
+                    }
+
                     // Fetch from Firestore
                     const [catSnap, subcatSnap, prodSnap, staffSnap, shopSnap, ordSnap] = await Promise.all([
                       getDocs(collection(db, "categories")).catch(() => ({ docs: [] } as any)),

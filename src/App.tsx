@@ -475,6 +475,14 @@ export default function App() {
       if (user) {
         setLoggedInUser(user);
 
+        try {
+          const idToken = await user.getIdToken();
+          if (idToken) {
+            localStorage.setItem("kb_firebase_id_token", idToken);
+            sessionStorage.setItem("kb_firebase_id_token", idToken);
+          }
+        } catch (e) {}
+
         // If an authenticated user lands on a referral link, do NOT pop up the registration form
         setPortalInitialAuthMode(prevMode => {
           if (prevMode === "register") {
