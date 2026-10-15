@@ -7,7 +7,6 @@ import QRCode from "qrcode";
 import dotenv from "dotenv";
 import { initializeApp as initAdminApp, getApps as getAdminApps } from "firebase-admin/app";
 import { getFirestore as getAdminFirestore, FieldValue } from "firebase-admin/firestore";
-import { getAuth as getAdminAuth } from "firebase-admin/auth";
 import { initializeApp as initWebApp, getApps as getWebApps } from "firebase/app";
 import { getFirestore as getWebFirestoreSdk, doc, setDoc, addDoc, collection, getDocs, updateDoc, getDoc } from "firebase/firestore";
 
@@ -1496,31 +1495,52 @@ async function getGooglePublicCerts(): Promise<{ [kid: string]: string }> {
 }
 
 /**
- * Cryptographically verifies Firebase ID tokens.
- * Enforces cryptographic RS256 signature verification, audience, issuer, expiry, and email verification.
- * Rejects unverified payloads and never accepts arbitrary self-signed or unverified claims.
+ * Cryptographically verifies authentication token using Supabase Auth (supabase.auth.getUser(jwt)).
+ * Serves as the primary token validation mechanism for all requests.
  */
-async function verifyFirebaseIdToken(token: string): Promise<{ email: string; uid?: string; email_verified?: boolean } | null> {
-  if (!token || typeof token !== "string" || token.length < 30) return null;
+async function verifySupabaseToken(token: string): Promise<{ email: string; uid: string; role?: string } | null> {
+  if (!token || typeof token !== "string" || token.length < 20) return null;
+  const cleanToken = token.startsWith("Bearer ") ? token.substring(7).trim() : token.trim();
 
-  // 1. Try Firebase Admin Auth SDK if available
   try {
-    const apps = getAdminApps();
-    const app = apps.length > 0 ? apps[0] : (firebaseAppletConfig.projectId ? initAdminApp({ projectId: firebaseAppletConfig.projectId }) : null);
-    if (app) {
-      const adminAuth = getAdminAuth(app);
-      const decoded = await adminAuth.verifyIdToken(token, true);
-      if (decoded && (decoded.email || decoded.uid)) {
+    const sb = getServerSupabase();
+    if (sb) {
+      const { data, error } = await sb.auth.getUser(cleanToken);
+      if (!error && data?.user) {
+        const u = data.user;
+        const email = (u.email || "").toLowerCase().trim();
+        const role = u.user_metadata?.role || (u.app_metadata as any)?.role;
         return {
-          email: (decoded.email || "").toLowerCase().trim(),
-          uid: decoded.uid,
-          email_verified: decoded.email_verified ?? true
+          email,
+          uid: u.id,
+          role
         };
       }
     }
-  } catch (adminErr: any) {
-    // Fall back to cryptographic public-certificate verification
+  } catch (err: any) {
+    console.warn("[Server Supabase Auth] Token verification notice:", err?.message || err);
   }
+  return null;
+}
+
+/**
+ * Cryptographically verifies tokens with fallback for legacy tokens.
+ * Prioritizes Supabase Auth, then falls back to cryptographic Google public certificate check.
+ */
+async function verifyFirebaseIdToken(token: string): Promise<{ email: string; uid?: string; email_verified?: boolean } | null> {
+  if (!token || typeof token !== "string" || token.length < 20) return null;
+
+  // 1. Primary: Verify with Supabase Auth (supabase.auth.getUser(token))
+  try {
+    const sbUser = await verifySupabaseToken(token);
+    if (sbUser) {
+      return {
+        email: sbUser.email,
+        uid: sbUser.uid,
+        email_verified: true
+      };
+    }
+  } catch (sbErr) {}
 
   // 2. Cryptographically verify RS256 signature against Google's public x509 certificates
   try {
@@ -1586,10 +1606,81 @@ async function verifyFirebaseIdToken(token: string): Promise<{ email: string; ui
 }
 
 async function verifyFirebaseTokenAuth(req: express.Request): Promise<{ staffId: string; email: string; role: string; isSuperAdmin: boolean } | null> {
-  const token = (req.headers["x-firebase-id-token"] as string) || 
+  const token = (req.headers["x-supabase-token"] as string) ||
+    (req.headers["x-firebase-id-token"] as string) || 
     (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.substring(7) : "");
-  if (!token || token.length < 30) return null;
+  if (!token || token.length < 20) return null;
 
+  // 1. Primary: Verify with Supabase Auth (supabase.auth.getUser)
+  try {
+    const sbUser = await verifySupabaseToken(token);
+    if (sbUser?.email || sbUser?.uid) {
+      const email = sbUser.email;
+      const uid = sbUser.uid;
+
+      const staffList = readStaffDb();
+      let staff = staffList.find(s => 
+        (email && s.email && s.email.toLowerCase() === email) ||
+        (uid && s.id === uid)
+      );
+
+      if (!staff && (email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com")) {
+        return {
+          staffId: "CFI-KB-001",
+          email: email,
+          role: "super_admin",
+          isSuperAdmin: true
+        };
+      }
+
+      if (staff && staff.status === "active") {
+        return {
+          staffId: staff.staffId,
+          email: staff.email,
+          role: staff.role,
+          isSuperAdmin: staff.role === "super_admin" || !!staff.isSuperAdmin
+        };
+      }
+
+      // Check Supabase staff table
+      const sb = getServerSupabase();
+      if (sb) {
+        try {
+          const { data: staffRow } = await sb
+            .from("staff")
+            .select("*")
+            .or(`email.eq.${email},id.eq.${uid},staff_id.eq.${uid}`)
+            .single();
+          if (staffRow && staffRow.status === "active") {
+            return {
+              staffId: staffRow.staff_id || staffRow.id || "CFI-KB-STAFF",
+              email: staffRow.email,
+              role: staffRow.role || "admin",
+              isSuperAdmin: staffRow.role === "super_admin"
+            };
+          }
+        } catch {}
+
+        try {
+          const { data: userRow } = await sb
+            .from("users")
+            .select("role")
+            .or(`id.eq.${uid},uid.eq.${uid}`)
+            .single();
+          if (userRow && (userRow.role === "admin" || userRow.role === "super_admin")) {
+            return {
+              staffId: "CFI-KB-ADMIN",
+              email: email,
+              role: userRow.role,
+              isSuperAdmin: userRow.role === "super_admin"
+            };
+          }
+        } catch {}
+      }
+    }
+  } catch (sbErr) {}
+
+  // 2. Fallback to Firebase token verification
   try {
     const verified = await verifyFirebaseIdToken(token);
     if (!verified) return null;
@@ -5001,6 +5092,128 @@ app.post("/api/staff/firebase-session", rateLimiter(20, 60000), async (req, res)
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message || "Failed to create verified session" });
+  }
+});
+
+// 15.0. POST /api/staff/supabase-session - Exchange verified Supabase access token for a secure staff session
+app.post("/api/staff/supabase-session", rateLimiter(20, 60000), async (req, res) => {
+  try {
+    const { accessToken, token } = req.body;
+    const sbToken = accessToken || token || (req.headers["x-supabase-token"] as string) || (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.substring(7) : "");
+    if (!sbToken || typeof sbToken !== "string") {
+      return res.status(400).json({ success: false, error: "Valid Supabase token is required" });
+    }
+
+    const sb = getServerSupabase();
+    if (!sb) {
+      return res.status(500).json({ success: false, error: "Supabase client not initialized on server" });
+    }
+
+    const { data: sbData, error: sbErr } = await sb.auth.getUser(sbToken);
+    if (sbErr || !sbData?.user) {
+      return res.status(401).json({ success: false, error: sbErr?.message || "Invalid or expired Supabase session token" });
+    }
+
+    const email = (sbData.user.email || "").toLowerCase().trim();
+    const uid = sbData.user.id;
+
+    const staffList = readStaffDb();
+    let staff = staffList.find(s => 
+      (email && s.email && s.email.toLowerCase() === email) ||
+      (uid && s.id === uid)
+    );
+
+    // If designated founder / super_admin
+    if (!staff && (email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com")) {
+      staff = staffList.find(s => s.role === "super_admin" || s.isSuperAdmin);
+      if (!staff) {
+        staff = {
+          id: `staff-${Date.now()}`,
+          staffId: "CFI-KB-001",
+          username: "cfikb001",
+          fullName: "Md Anik Sarkar",
+          email: email,
+          role: "super_admin",
+          designation: "Chief Executive / Super Admin",
+          department: "Executive Administration",
+          status: "active",
+          isSuperAdmin: true,
+          monthlySalary: 50000,
+          salaryStatus: "paid"
+        };
+        staffList.push(staff);
+      } else {
+        if (!staff.email) staff.email = email;
+      }
+    }
+
+    // Check in Supabase staff table as well
+    if (!staff) {
+      try {
+        const { data: staffRow } = await sb
+          .from("staff")
+          .select("*")
+          .or(`email.eq.${email},username.eq.${email}`)
+          .single();
+        if (staffRow && staffRow.status === "active") {
+          staff = {
+            id: staffRow.id,
+            staffId: staffRow.staff_id || staffRow.staffId || "CFI-KB-STAFF",
+            username: staffRow.username || email.split("@")[0],
+            fullName: staffRow.full_name || staffRow.name || "Staff",
+            email: staffRow.email,
+            role: staffRow.role || "admin",
+            designation: staffRow.designation || "Staff",
+            department: staffRow.department || "Operations",
+            status: "active",
+            isSuperAdmin: staffRow.role === "super_admin"
+          };
+          staffList.push(staff);
+        }
+      } catch (sErr) {}
+    }
+
+    // Check in Supabase users table
+    if (!staff) {
+      try {
+        const { data: userRow } = await sb
+          .from("users")
+          .select("*")
+          .or(`id.eq.${uid},uid.eq.${uid}`)
+          .single();
+        if (userRow && (userRow.role === "admin" || userRow.role === "super_admin")) {
+          staff = {
+            id: uid,
+            staffId: "CFI-KB-ADMIN",
+            username: userRow.email?.split("@")[0] || "admin",
+            fullName: userRow.full_name || userRow.display_name || "Admin",
+            email: userRow.email,
+            role: userRow.role,
+            status: "active",
+            isSuperAdmin: userRow.role === "super_admin"
+          };
+          staffList.push(staff);
+        }
+      } catch (uErr) {}
+    }
+
+    if (!staff || staff.status === "inactive") {
+      return res.status(403).json({ success: false, error: "No active staff authorization found for this account" });
+    }
+
+    const newSessionId = createStaffSession(staff);
+    staff.sessionId = newSessionId;
+    staff.onlineStatus = "online";
+    staff.lastActiveAt = new Date().toISOString();
+    writeStaffDb(staffList);
+
+    return res.json({
+      success: true,
+      sessionId: newSessionId,
+      staff: sanitizeStaff(staff)
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to create verified Supabase session" });
   }
 });
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { X, Send, User, MessageSquare, Phone, Check, ShieldCheck } from "lucide-react";
-import { db, collection, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion } from "../../lib/firebase";
 import { BuySellListing, BuySellChat, BuySellChatMessage } from "../../types/buySell";
+import { subscribeToBuySellChat, sendBuySellMessage } from "../../lib/buysellSupabase";
 
 interface BuySellChatModalProps {
   listing: BuySellListing;
@@ -25,23 +25,13 @@ export default function BuySellChatModal({
 
   // Generate deterministic chat ID based on listing and buyer UID
   const isSeller = currentUser?.uid === listing.sellerUid;
-  // If user is buyer: chatId = `${listing.id}_${currentUser.uid}`
-  // If seller opened the chat directly, we need buyerUid or default to a direct thread
   const chatId = `${listing.id}_${currentUser?.uid || "guest"}`;
 
   useEffect(() => {
     if (!currentUser?.uid) return;
 
-    const chatRef = doc(db, "buy_sell_chats", chatId);
-    const unsubscribe = onSnapshot(chatRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data() as BuySellChat;
-        setMessages(data.messages || []);
-      } else {
-        setMessages([]);
-      }
-    }, (err) => {
-      console.warn("BuySell chat error:", err);
+    const unsubscribe = subscribeToBuySellChat(chatId, (chat) => {
+      setMessages(chat?.messages || []);
     });
 
     return () => unsubscribe();
@@ -58,9 +48,6 @@ export default function BuySellChatModal({
 
     setSending(true);
     try {
-      const chatRef = doc(db, "buy_sell_chats", chatId);
-      const chatSnap = await getDoc(chatRef);
-
       const newMessage: BuySellChatMessage = {
         id: `msg_${Date.now()}`,
         senderUid: currentUser.uid,
@@ -69,9 +56,9 @@ export default function BuySellChatModal({
         createdAt: new Date().toISOString()
       };
 
-      if (!chatSnap.exists()) {
-        const initialChatData: BuySellChat = {
-          id: chatId,
+      await sendBuySellMessage(
+        chatId,
+        {
           listingId: listing.id,
           listingTitle: listing.title,
           listingPrice: listing.price,
@@ -79,19 +66,10 @@ export default function BuySellChatModal({
           sellerUid: listing.sellerUid,
           sellerName: listing.sellerName,
           buyerUid: currentUser.uid,
-          buyerName: currentUser.displayName || (lang === "bn" ? "ক্রেতা" : "Buyer"),
-          lastMessage: text,
-          lastMessageAt: new Date(),
-          messages: [newMessage]
-        };
-        await setDoc(chatRef, initialChatData);
-      } else {
-        await updateDoc(chatRef, {
-          lastMessage: text,
-          lastMessageAt: new Date(),
-          messages: arrayUnion(newMessage)
-        });
-      }
+          buyerName: currentUser.displayName || (lang === "bn" ? "ক্রেতা" : "Buyer")
+        },
+        newMessage
+      );
 
       setInputText("");
     } catch (err) {

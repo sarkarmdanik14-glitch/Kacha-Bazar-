@@ -16,8 +16,8 @@ import {
   CheckCircle2,
   ChevronDown
 } from "lucide-react";
-import { db, collection, query, onSnapshot, orderBy, where } from "../../lib/firebase";
 import { BuySellListing, BUY_SELL_CATEGORIES, POPULAR_LOCATIONS } from "../../types/buySell";
+import { subscribeToBuySellListings } from "../../lib/buysellSupabase";
 import BuySellCard from "./BuySellCard";
 import SellItemModal from "./SellItemModal";
 import BuySellDetailsModal from "./BuySellDetailsModal";
@@ -57,36 +57,19 @@ export default function BuySellMarketplace({
   const [chatListing, setChatListing] = useState<BuySellListing | null>(null);
   const [reportListing, setReportListing] = useState<BuySellListing | null>(null);
 
-  // Firestore real-time listener
+  // Supabase Real-time listener with automatic fallback
   useEffect(() => {
     setLoading(true);
-    const listingsRef = collection(db, "buy_sell_listings");
-    // Listen to all listings
-    const q = query(listingsRef);
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items: BuySellListing[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        items.push({
-          id: doc.id,
-          ...data
-        } as BuySellListing);
-      });
-
-      // Sort client-side by createdAt descending
-      items.sort((a, b) => {
-        const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-        const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-        return timeB - timeA;
-      });
-
-      setListings(items);
-      setLoading(false);
-    }, (err) => {
-      console.warn("BuySell listings listener error:", err);
-      setLoading(false);
-    });
+    const unsubscribe = subscribeToBuySellListings(
+      (items) => {
+        setListings(items);
+        setLoading(false);
+      },
+      (err) => {
+        console.warn("BuySell listings listener error:", err);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, []);

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { X, AlertTriangle, CheckCircle, ShieldAlert, Flag } from "lucide-react";
-import { db, collection, addDoc, doc, updateDoc, increment } from "../../lib/firebase";
 import { BuySellListing } from "../../types/buySell";
+import { reportBuySellListing } from "../../lib/buysellSupabase";
 
 interface BuySellReportModalProps {
   listing: BuySellListing;
@@ -39,31 +39,16 @@ export default function BuySellReportModal({
 
     setSubmitting(true);
     try {
-      const reportData = {
+      await reportBuySellListing({
         listingId: listing.id,
         listingTitle: listing.title,
         sellerUid: listing.sellerUid,
-        sellerName: listing.sellerName,
         reportedByUid: currentUser?.uid || "anonymous",
         reportedByName: currentUser?.displayName || (lang === "bn" ? "সাধারণ ব্যবহারকারী" : "Anonymous User"),
         reason: selectedReason,
-        reasonText: REPORT_REASONS.find(r => r.id === selectedReason)?.[lang === "bn" ? "bn" : "en"] || selectedReason,
         details: details.trim(),
-        status: "pending",
-        createdAt: new Date()
-      };
-
-      await addDoc(collection(db, "buy_sell_reports"), reportData);
-
-      // Increment reportCount on the listing
-      try {
-        const listingRef = doc(db, "buy_sell_listings", listing.id);
-        await updateDoc(listingRef, {
-          reportCount: increment(1)
-        });
-      } catch (err) {
-        console.warn("Could not increment report count:", err);
-      }
+        status: "pending"
+      });
 
       setSubmitted(true);
       triggerToast("রিপোর্টটি সফলভাবে জমা হয়েছে। অ্যাডমিন টিম দ্রুত ব্যবস্থা নেবে।", "Report submitted successfully. Admins will review it promptly.");

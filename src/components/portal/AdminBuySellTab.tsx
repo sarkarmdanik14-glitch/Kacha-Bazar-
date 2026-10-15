@@ -15,8 +15,9 @@ import {
   Clock,
   Filter
 } from "lucide-react";
-import { db, collection, query, onSnapshot, doc, updateDoc, deleteDoc, getDocs, where } from "../../lib/firebase";
+import { db, collection, query, onSnapshot, doc, updateDoc, deleteDoc } from "../../lib/firebase";
 import { BuySellListing, BuySellReport, BUY_SELL_CATEGORIES } from "../../types/buySell";
+import { subscribeToBuySellListings, updateBuySellListing, deleteBuySellListing } from "../../lib/buysellSupabase";
 import BuySellDetailsModal from "../buysell/BuySellDetailsModal";
 import SellItemModal from "../buysell/SellItemModal";
 
@@ -49,23 +50,16 @@ export default function AdminBuySellTab({
   // Real-time listener for listings
   useEffect(() => {
     setLoading(true);
-    const qListings = query(collection(db, "buy_sell_listings"));
-    const unsubListings = onSnapshot(qListings, (snap) => {
-      const items: BuySellListing[] = [];
-      snap.forEach((d) => {
-        items.push({ id: d.id, ...d.data() } as BuySellListing);
-      });
-      items.sort((a, b) => {
-        const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-        const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-        return tB - tA;
-      });
-      setListings(items);
-      setLoading(false);
-    }, (err) => {
-      console.warn("Admin listings listener error:", err);
-      setLoading(false);
-    });
+    const unsubListings = subscribeToBuySellListings(
+      (items) => {
+        setListings(items);
+        setLoading(false);
+      },
+      (err) => {
+        console.warn("Admin listings listener error:", err);
+        setLoading(false);
+      }
+    );
 
     // Real-time listener for reports
     const qReports = query(collection(db, "buy_sell_reports"));
@@ -112,7 +106,7 @@ export default function AdminBuySellTab({
   const handleToggleStatus = async (listing: BuySellListing) => {
     try {
       const newStatus = listing.status === "active" ? "sold" : "active";
-      await updateDoc(doc(db, "buy_sell_listings", listing.id), {
+      await updateBuySellListing(listing.id, {
         status: newStatus
       });
       triggerToast("স্ট্যাটাস আপডেট করা হয়েছে!", "Listing status updated!");
@@ -124,7 +118,7 @@ export default function AdminBuySellTab({
 
   const handleDeleteListing = async (listingId: string) => {
     try {
-      await deleteDoc(doc(db, "buy_sell_listings", listingId));
+      await deleteBuySellListing(listingId);
       triggerToast("বিজ্ঞাপনটি সফলভাবে মুছে ফেলা হয়েছে।", "Listing deleted permanently.");
       setDeletingId(null);
     } catch (err) {
@@ -148,7 +142,7 @@ export default function AdminBuySellTab({
   const handleRemoveReportedListing = async (report: BuySellReport) => {
     try {
       // Delete listing
-      await deleteDoc(doc(db, "buy_sell_listings", report.listingId));
+      await deleteBuySellListing(report.listingId);
       // Update report status
       await updateDoc(doc(db, "buy_sell_reports", report.id), {
         status: "removed"

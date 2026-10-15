@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { auth, db, doc, getDoc, setDoc, serverTimestamp, signOut, onAuthStateChanged, collection, query, where, getDocs } from "../../lib/firebase";
+import { supabase } from "../../lib/supabase";
+import { supabaseSignOut, onSupabaseAuthStateChange, getSupabaseUser, checkIsSupabaseAdmin } from "../../lib/supabaseAuth";
 import { X, RefreshCw, Key, Shield, LogOut } from "lucide-react";
 
 import AuthView from "./AuthView";
@@ -115,307 +117,343 @@ export default function PortalModal({
       }
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setLoading(true);
-      if (user) {
-        try {
-          if (forcedRole === "admin") {
-            const adminDocSnap = await getDoc(doc(db, "admins", user.uid));
-            let isAdminUser = false;
-            let adminData: any = null;
-
-            if (adminDocSnap.exists()) {
-              adminData = adminDocSnap.data();
-              if (
-                adminData &&
-                typeof adminData.uid === "string" &&
-                adminData.uid === user.uid &&
-                typeof adminData.email === "string" &&
-                user.email &&
-                adminData.email.toLowerCase() === user.email.toLowerCase() &&
-                adminData.createdAt &&
-                (adminData.isActive === undefined || adminData.isActive === true)
-              ) {
-                isAdminUser = true;
-              }
-            }
-
-            if (isAdminUser) {
-              const adminUserObj = {
-                uid: user.uid,
-                email: user.email,
-                displayName: adminData?.displayName || user.displayName || user.email?.split("@")[0] || "System Admin",
-                role: "admin",
-                profileStatus: "approved"
-              };
-
-              try {
-                const idToken = await user.getIdToken();
-                if (idToken) {
-                  localStorage.setItem("kb_firebase_id_token", idToken);
-                  sessionStorage.setItem("kb_firebase_id_token", idToken);
-                }
-                const sessionData = await apiClient.post("/api/staff/firebase-session", { 
-                  idToken,
-                  email: user.email,
-                  uid: user.uid
-                });
-                if (sessionData?.sessionId) {
-                  localStorage.setItem("kb_staff_session", sessionData.sessionId);
-                  sessionStorage.setItem("kb_staff_session", sessionData.sessionId);
-                  if (sessionData.staff?.staffId) localStorage.setItem("kb_staff_id", sessionData.staff.staffId);
-                  if (sessionData.staff?.email) localStorage.setItem("kb_staff_email", sessionData.staff.email);
-                }
-              } catch (e) {
-                console.warn("Notice authenticating staff session:", e);
-              }
-
-              setCurrentUser(adminUserObj);
-              setUserRole("admin");
-              setActivePortalTab("admin");
-            } else {
-              await signOut(auth);
-              setCurrentUser(null);
-              setUserRole("customer");
-              setActivePortalTab("customer");
-              triggerToast(
-                "প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।",
-                "Access denied. You are not authorized as an admin."
-              );
-              setLoading(false);
-              return;
-            }
-          } else if (forcedRole === "seller") {
-            let isSellerUser = false;
-            let sellerStatus = "pending";
-            let sellerData: any = null;
-
-            const sellerSnap = await getDoc(doc(db, "sellers", user.uid));
-            if (sellerSnap.exists()) {
-              isSellerUser = true;
-              sellerData = sellerSnap.data();
-              sellerStatus = sellerData?.status || "pending";
-            } else {
-              const userSnap = await getDoc(doc(db, "users", user.uid));
-              if (userSnap.exists()) {
-                const uData = userSnap.data();
-                if (uData.role === "seller") {
-                  isSellerUser = true;
-                  sellerData = uData;
-                  sellerStatus = uData.sellerStatus || uData.status || "pending";
-                }
-              }
-            }
-
-            if (isSellerUser) {
-              if (sellerStatus === "rejected") {
-                await signOut(auth);
-                setCurrentUser(null);
-                setUserRole("customer");
-                triggerToast(
-                  "আপনার বিক্রেতা আবেদনটি এডমিন কর্তৃক বাতিল করা হয়েছে।",
-                  "Your seller account application was rejected by admin."
-                );
-                setLoading(false);
-                return;
-              }
-              const sellerUserObj = {
-                uid: user.uid,
-                email: user.email,
-                displayName: sellerData?.ownerName || sellerData?.displayName || user.displayName || "Seller",
-                role: "seller",
-                profileStatus: sellerStatus
-              };
-              setCurrentUser(sellerUserObj);
-              setUserRole("seller");
-              setActivePortalTab("seller");
-            } else {
-              await signOut(auth);
-              setCurrentUser(null);
-              setUserRole("customer");
-              triggerToast(
-                "প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি বিক্রেতা হিসেবে নিবন্ধিত নয়।",
-                "Access denied. This account is not registered as a seller."
-              );
-              setLoading(false);
-              return;
-            }
-          } else if (forcedRole === "rider") {
-            let isRiderUser = false;
-            let riderStatus = "pending";
-            let riderData: any = null;
-
-            const riderSnap = await getDoc(doc(db, "riders", user.uid));
-            if (riderSnap.exists()) {
-              isRiderUser = true;
-              riderData = riderSnap.data();
-              riderStatus = riderData?.status || "pending";
-            } else {
-              const userSnap = await getDoc(doc(db, "users", user.uid));
-              if (userSnap.exists()) {
-                const uData = userSnap.data();
-                if (uData.role === "rider") {
-                  isRiderUser = true;
-                  riderData = uData;
-                  riderStatus = uData.riderStatus || uData.status || "pending";
-                }
-              }
-            }
-
-            if (isRiderUser) {
-              if (riderStatus === "rejected") {
-                await signOut(auth);
-                setCurrentUser(null);
-                setUserRole("customer");
-                triggerToast(
-                  "আপনার রাইডার আবেদনটি এডমিন কর্তৃক বাতিল করা হয়েছে।",
-                  "Your rider account application was rejected by admin."
-                );
-                setLoading(false);
-                return;
-              }
-              const riderUserObj = {
-                uid: user.uid,
-                email: user.email,
-                displayName: riderData?.name || riderData?.displayName || user.displayName || "Rider",
-                role: "rider",
-                profileStatus: riderStatus
-              };
-              setCurrentUser(riderUserObj);
-              setUserRole("rider");
-              setActivePortalTab("rider");
-            } else {
-              await signOut(auth);
-              setCurrentUser(null);
-              setUserRole("customer");
-              triggerToast(
-                "প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি রাইডার হিসেবে নিবন্ধিত নয়।",
-                "Access denied. This account is not registered as a rider."
-              );
-              setLoading(false);
-              return;
-            }
-          } else {
-            // Customer App default authentication handling
-            const adminDocSnap = await getDoc(doc(db, "admins", user.uid));
-            let isAdminUser = false;
-            if (adminDocSnap.exists()) {
-              const data = adminDocSnap.data();
-              if (data && data.uid === user.uid && data.isActive !== false) {
-                isAdminUser = true;
-              }
-            }
-
-            if (isAdminUser) {
-              try {
-                const idToken = await user.getIdToken();
-                if (idToken) {
-                  localStorage.setItem("kb_firebase_id_token", idToken);
-                  sessionStorage.setItem("kb_firebase_id_token", idToken);
-                }
-                const sessionData = await apiClient.post("/api/staff/firebase-session", { 
-                  idToken,
-                  email: user.email,
-                  uid: user.uid
-                });
-                if (sessionData?.sessionId) {
-                  localStorage.setItem("kb_staff_session", sessionData.sessionId);
-                  sessionStorage.setItem("kb_staff_session", sessionData.sessionId);
-                  if (sessionData.staff?.staffId) localStorage.setItem("kb_staff_id", sessionData.staff.staffId);
-                  if (sessionData.staff?.email) localStorage.setItem("kb_staff_email", sessionData.staff.email);
-                }
-              } catch (e) {
-                console.warn("Notice authenticating staff session:", e);
-              }
-
-              setCurrentUser({
-                uid: user.uid,
-                email: user.email,
-                displayName: adminDocSnap.data()?.displayName || user.displayName || "System Admin",
-                role: "admin",
-                profileStatus: "approved"
-              });
-              setUserRole("admin");
-              setActivePortalTab("admin");
-            } else {
-              const userDocSnap = await getDoc(doc(db, "users", user.uid));
-              let userData: any = null;
-              if (userDocSnap.exists()) {
-                userData = userDocSnap.data();
-                // Ensure existing user customerId starts strictly with CFI prefix (e.g. FCIMWZ -> CFIMWZ)
-                const normalizedCustId = normalizeMemberId(userData?.customerId, user.uid);
-                if (userData?.customerId !== normalizedCustId) {
-                  userData.customerId = normalizedCustId;
-                  setDoc(doc(db, "users", user.uid), { customerId: normalizedCustId }, { merge: true }).catch((err) => {
-                    console.warn("Notice updating migrated customerId in Firestore:", err);
-                  });
-                }
-              } else {
-                const effectiveName = user.displayName || "গ্রাহক";
-                const customerId = generateMemberId(user.uid);
-                const sanitizedHandle = effectiveName
-                  .toLowerCase()
-                  .replace(/\s+/g, "_")
-                  .replace(/[^\w\u0980-\u09FF]/gi, "") || customerId.toLowerCase();
-
-                userData = {
-                  uid: user.uid,
-                  email: user.email || "",
-                  displayName: effectiveName,
-                  fullName: effectiveName,
-                  name: effectiveName,
-                  username: sanitizedHandle,
-                  role: "customer",
-                  profileStatus: "approved",
-                  createdAt: serverTimestamp(),
-                  referralCode: "REF" + user.uid.substring(0, 5).toUpperCase(),
-                  customerId: customerId
-                };
-                try {
-                  await setDoc(doc(db, "users", user.uid), userData, { merge: true });
-                } catch (persistErr) {
-                  console.warn("Notice persisting customer document:", persistErr);
-                }
-              }
-              const role = userData.role === "admin" ? "customer" : (userData.role || "customer");
-              setCurrentUser({ ...userData, role, profileStatus: "approved" });
-              setUserRole(role);
-              setActivePortalTab(role);
-            }
-          }
-        } catch (err: any) {
-          if (!err?.message?.includes("offline")) {
-            console.warn("Portal fetch user role notice:", err?.message || err);
-          }
-          if (user) {
-            const fallbackName = user.displayName || "গ্রাহক";
-            const fallbackUser = {
-              uid: user.uid,
-              email: user.email,
-              displayName: fallbackName,
-              fullName: fallbackName,
-              name: fallbackName,
-              role: "customer",
-              profileStatus: "approved"
-            };
-            setCurrentUser(fallbackUser);
-            setUserRole("customer");
-            setActivePortalTab("customer");
-          } else {
-            setCurrentUser(null);
-            setUserRole("customer");
-            setActivePortalTab("customer");
-          }
-        }
-      } else {
+    const handleUserSession = async (user: any, sbAccessToken?: string) => {
+      if (!user) {
         setCurrentUser(null);
         setUserRole("customer");
         setActivePortalTab("customer");
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      setLoading(true);
+      try {
+        const uid = user.uid || user.id;
+        const email = (user.email || "").toLowerCase().trim();
+
+        if (forcedRole === "admin") {
+          let isAdminUser = false;
+          let adminData: any = null;
+
+          // 1. Designated admin emails
+          if (email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com") {
+            isAdminUser = true;
+          }
+
+          // 2. Supabase admin check
+          if (!isAdminUser) {
+            isAdminUser = await checkIsSupabaseAdmin(uid, email);
+          }
+
+          // 3. Firestore fallback
+          if (!isAdminUser) {
+            const adminDocSnap = await getDoc(doc(db, "admins", uid));
+            if (adminDocSnap.exists()) {
+              adminData = adminDocSnap.data();
+              if (adminData && (adminData.isActive === undefined || adminData.isActive === true)) {
+                isAdminUser = true;
+              }
+            }
+          }
+
+          if (isAdminUser) {
+            const adminUserObj = {
+              uid,
+              id: uid,
+              email: user.email,
+              displayName: adminData?.displayName || user.displayName || user.fullName || email.split("@")[0] || "System Admin",
+              role: "admin",
+              profileStatus: "approved"
+            };
+
+            // Authenticate server session
+            try {
+              const tokenToUse = sbAccessToken || localStorage.getItem("kb_supabase_token") || "";
+              if (tokenToUse) {
+                const sessionData = await apiClient.post<any>("/api/staff/supabase-session", {
+                  accessToken: tokenToUse,
+                  token: tokenToUse
+                }, { silent: true });
+                if (sessionData?.sessionId) {
+                  localStorage.setItem("kb_staff_session", sessionData.sessionId);
+                  sessionStorage.setItem("kb_staff_session", sessionData.sessionId);
+                  if (sessionData.staff?.staffId) localStorage.setItem("kb_staff_id", sessionData.staff.staffId);
+                  if (sessionData.staff?.email) localStorage.setItem("kb_staff_email", sessionData.staff.email);
+                }
+              }
+            } catch (sessErr) {
+              console.warn("Notice authenticating staff session:", sessErr);
+            }
+
+            setCurrentUser(adminUserObj);
+            setUserRole("admin");
+            setActivePortalTab("admin");
+            setLoading(false);
+            return;
+          } else {
+            await supabaseSignOut().catch(() => {});
+            await signOut(auth).catch(() => {});
+            setCurrentUser(null);
+            setUserRole("customer");
+            setActivePortalTab("customer");
+            triggerToast(
+              "প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।",
+              "Access denied. You are not authorized as an admin."
+            );
+            setLoading(false);
+            return;
+          }
+        } else if (forcedRole === "seller") {
+          let isSellerUser = false;
+          let sellerStatus = "pending";
+          let sellerData: any = null;
+
+          // Check Supabase sellers
+          try {
+            const { data: sbSeller } = await supabase.from("sellers").select("*").or(`id.eq.${uid},user_id.eq.${uid}`).single();
+            if (sbSeller) {
+              isSellerUser = true;
+              sellerData = sbSeller;
+              sellerStatus = sbSeller.status || "pending";
+            } else {
+              const { data: sbUser } = await supabase.from("users").select("*").or(`id.eq.${uid},uid.eq.${uid}`).single();
+              if (sbUser?.role === "seller") {
+                isSellerUser = true;
+                sellerData = sbUser;
+                sellerStatus = sbUser.status || "pending";
+              }
+            }
+          } catch {}
+
+          // Fallback Firestore
+          if (!isSellerUser) {
+            try {
+              const sellerSnap = await getDoc(doc(db, "sellers", uid));
+              if (sellerSnap.exists()) {
+                isSellerUser = true;
+                sellerData = sellerSnap.data();
+                sellerStatus = sellerData?.status || "pending";
+              }
+            } catch {}
+          }
+
+          if (isSellerUser) {
+            if (sellerStatus === "rejected") {
+              await supabaseSignOut().catch(() => {});
+              await signOut(auth).catch(() => {});
+              setCurrentUser(null);
+              setUserRole("customer");
+              triggerToast(
+                "আপনার বিক্রেতা আবেদনটি এডমিন কর্তৃক বাতিল করা হয়েছে।",
+                "Your seller account application was rejected by admin."
+              );
+              setLoading(false);
+              return;
+            }
+            const sellerUserObj = {
+              uid,
+              id: uid,
+              email: user.email,
+              displayName: sellerData?.shop_name || sellerData?.owner_name || sellerData?.shopName || user.displayName || "Seller",
+              role: "seller",
+              profileStatus: sellerStatus
+            };
+            setCurrentUser(sellerUserObj);
+            setUserRole("seller");
+            setActivePortalTab("seller");
+            setLoading(false);
+            return;
+          } else {
+            await supabaseSignOut().catch(() => {});
+            await signOut(auth).catch(() => {});
+            setCurrentUser(null);
+            setUserRole("customer");
+            triggerToast(
+              "প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি বিক্রেতা হিসেবে নিবন্ধিত নয়।",
+              "Access denied. This account is not registered as a seller."
+            );
+            setLoading(false);
+            return;
+          }
+        } else if (forcedRole === "rider") {
+          let isRiderUser = false;
+          let riderStatus = "pending";
+          let riderData: any = null;
+
+          // Check Supabase riders
+          try {
+            const { data: sbRider } = await supabase.from("riders").select("*").or(`id.eq.${uid},user_id.eq.${uid}`).single();
+            if (sbRider) {
+              isRiderUser = true;
+              riderData = sbRider;
+              riderStatus = sbRider.status || "pending";
+            } else {
+              const { data: sbUser } = await supabase.from("users").select("*").or(`id.eq.${uid},uid.eq.${uid}`).single();
+              if (sbUser?.role === "rider") {
+                isRiderUser = true;
+                riderData = sbUser;
+                riderStatus = sbUser.status || "pending";
+              }
+            }
+          } catch {}
+
+          // Fallback Firestore
+          if (!isRiderUser) {
+            try {
+              const riderSnap = await getDoc(doc(db, "riders", uid));
+              if (riderSnap.exists()) {
+                isRiderUser = true;
+                riderData = riderSnap.data();
+                riderStatus = riderData?.status || "pending";
+              }
+            } catch {}
+          }
+
+          if (isRiderUser) {
+            if (riderStatus === "rejected") {
+              await supabaseSignOut().catch(() => {});
+              await signOut(auth).catch(() => {});
+              setCurrentUser(null);
+              setUserRole("customer");
+              triggerToast(
+                "আপনার রাইডার আবেদনটি এডমিন কর্তৃক বাতিল করা হয়েছে।",
+                "Your rider account application was rejected by admin."
+              );
+              setLoading(false);
+              return;
+            }
+            const riderUserObj = {
+              uid,
+              id: uid,
+              email: user.email,
+              displayName: riderData?.name || user.displayName || "Rider",
+              role: "rider",
+              profileStatus: riderStatus
+            };
+            setCurrentUser(riderUserObj);
+            setUserRole("rider");
+            setActivePortalTab("rider");
+            setLoading(false);
+            return;
+          } else {
+            await supabaseSignOut().catch(() => {});
+            await signOut(auth).catch(() => {});
+            setCurrentUser(null);
+            setUserRole("customer");
+            triggerToast(
+              "প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি রাইডার হিসেবে নিবন্ধিত নয়।",
+              "Access denied. This account is not registered as a rider."
+            );
+            setLoading(false);
+            return;
+          }
+        } else {
+          // Customer App default authentication handling
+          // Check if admin
+          let isAdminUser = false;
+          if (email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com") {
+            isAdminUser = true;
+          } else {
+            isAdminUser = await checkIsSupabaseAdmin(uid, email);
+          }
+
+          if (isAdminUser) {
+            setCurrentUser({
+              uid,
+              id: uid,
+              email: user.email,
+              displayName: user.displayName || user.fullName || "System Admin",
+              role: "admin",
+              profileStatus: "approved"
+            });
+            setUserRole("admin");
+            setActivePortalTab("admin");
+            setLoading(false);
+            return;
+          }
+
+          // Fetch profile from Supabase users
+          let userData: any = null;
+          try {
+            const { data: sbUser } = await supabase.from("users").select("*").or(`id.eq.${uid},uid.eq.${uid}`).single();
+            if (sbUser) {
+              userData = {
+                uid,
+                id: uid,
+                email: sbUser.email || user.email,
+                displayName: sbUser.display_name || sbUser.full_name || user.displayName || "গ্রাহক",
+                fullName: sbUser.full_name || sbUser.display_name || user.displayName || "গ্রাহক",
+                name: sbUser.full_name || sbUser.display_name || user.displayName || "গ্রাহক",
+                phone: sbUser.phone || sbUser.mobile || "",
+                role: sbUser.role || "customer",
+                referralCode: sbUser.referral_code,
+                address: sbUser.address,
+                customerId: generateMemberId(uid)
+              };
+            }
+          } catch {}
+
+          if (!userData) {
+            // Fallback to Firestore users
+            try {
+              const userDocSnap = await getDoc(doc(db, "users", uid));
+              if (userDocSnap.exists()) {
+                userData = userDocSnap.data();
+              }
+            } catch {}
+          }
+
+          if (!userData) {
+            const effectiveName = user.displayName || user.fullName || "গ্রাহক";
+            const customerId = generateMemberId(uid);
+            userData = {
+              uid,
+              id: uid,
+              email: user.email,
+              displayName: effectiveName,
+              fullName: effectiveName,
+              name: effectiveName,
+              role: "customer",
+              customerId,
+              referralCode: "REF" + uid.substring(0, 5).toUpperCase()
+            };
+          }
+
+          const targetRole = (userData?.role || "customer") as any;
+          setCurrentUser(userData);
+          setUserRole(targetRole);
+          setActivePortalTab(targetRole === "admin" ? "admin" : (targetRole === "seller" ? "seller" : (targetRole === "rider" ? "rider" : "customer")));
+          setLoading(false);
+        }
+      } catch (err) {
+        console.warn("Notice in portal user session handling:", err);
+        setLoading(false);
+      }
+    };
+
+    // 1. Initial check with Supabase user
+    getSupabaseUser().then((sbU) => {
+      if (sbU) {
+        handleUserSession(sbU);
+      }
     });
 
-    return () => unsubscribe();
+    // 2. Subscribe to Supabase Auth state changes
+    const unsubSb = onSupabaseAuthStateChange((sbU) => {
+      handleUserSession(sbU);
+    });
+
+    // 3. Fallback subscribe to Firebase Auth
+    const unsubFb = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        handleUserSession(fbUser);
+      }
+    });
+
+    return () => {
+      unsubSb();
+      unsubFb();
+    };
   }, [isOpen, forcedRole]);
 
   const handleAuthSuccess = (userData: any, role: string) => {
@@ -435,13 +473,16 @@ export default function PortalModal({
     try {
       logoutPartnerSession();
       setCurrentPartner(null);
-      await signOut(auth);
+      await supabaseSignOut().catch(() => {});
+      await signOut(auth).catch(() => {});
       try {
         localStorage.removeItem("kacha_user_session");
         localStorage.removeItem("user_role");
         localStorage.removeItem("kb_staff_session");
         localStorage.removeItem("kb_staff_email");
         localStorage.removeItem("kb_staff_id");
+        localStorage.removeItem("kb_supabase_token");
+        localStorage.removeItem("kb_firebase_id_token");
         sessionStorage.clear();
       } catch (e) {}
       setCurrentUser(null);

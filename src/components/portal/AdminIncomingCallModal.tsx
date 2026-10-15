@@ -27,6 +27,7 @@ import {
 import { RTC_CONFIG, callAudioSynth, VoiceCallSession } from "../../lib/webrtcCall";
 import { atomicallyAcceptCall } from "../../lib/callCenterManager";
 import { createTranslator, formatTime } from "../../lib/formatUtils";
+import { SupabaseCallSignalingChannel, updateSupabaseVoiceCall } from "../../lib/supabaseVoiceCall";
 
 interface AdminIncomingCallModalProps {
   lang: "bn" | "en";
@@ -51,6 +52,8 @@ export default function AdminIncomingCallModal({
   const durationRef = useRef<number>(0);
   const unsubscribeCallRef = useRef<(() => void) | null>(null);
   const unsubscribeCandidatesRef = useRef<(() => void) | null>(null);
+  const signalingRef = useRef<SupabaseCallSignalingChannel | null>(null);
+  const unsubscribeSignalingRef = useRef<(() => void) | null>(null);
 
   const getTranslation = createTranslator(lang);
 
@@ -108,6 +111,12 @@ export default function AdminIncomingCallModal({
       unsubscribeCandidatesRef.current();
       unsubscribeCandidatesRef.current = null;
     }
+
+    if (unsubscribeSignalingRef.current) {
+      unsubscribeSignalingRef.current();
+      unsubscribeSignalingRef.current = null;
+    }
+    signalingRef.current = null;
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -170,9 +179,14 @@ export default function AdminIncomingCallModal({
         }
       };
 
-      // Collect ICE candidates from Admin (callee)
+      // Initialize low-latency Supabase Realtime Broadcast signaling
+      const signaling = new SupabaseCallSignalingChannel(incomingCall.id);
+      signalingRef.current = signaling;
+
+      // Collect ICE candidates from Admin (callee) and send via Supabase Realtime
       pc.onicecandidate = (event) => {
         if (event.candidate) {
+          signaling.sendIceCandidate(event.candidate.toJSON(), "agent");
           addDoc(collection(db, "voice_calls", incomingCall.id, "calleeCandidates"), event.candidate.toJSON()).catch(() => {});
         }
       };
@@ -197,12 +211,38 @@ export default function AdminIncomingCallModal({
         sdp: answerDescription.sdp
       };
 
-      // 6. Update Firestore
+      // Send Answer via Supabase Realtime Broadcast
+      signaling.sendAnswer(answer, "agent_01", "অ্যাডমিন");
+
+      // Update Supabase and Firestore
+      updateSupabaseVoiceCall(incomingCall.id, {
+        answer: answer,
+        status: "connected",
+        assignedAgentId: "agent_01",
+        assignedAgentName: "অ্যাডমিন",
+        connectedAt: new Date().toISOString()
+      }).catch(() => {});
+
       await updateDoc(callDocRef, {
         answer: answer,
         status: "connected",
         connectedAt: serverTimestamp()
       });
+
+      // Listen to caller signals over Supabase
+      const unsubSignaling = signaling.subscribe((signal) => {
+        if (signal.type === "ice_candidate" && signal.sender === "caller" && signal.candidate) {
+          try {
+            pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
+          } catch {}
+        }
+        if (signal.type === "hangup") {
+          callAudioSynth.playDisconnectTone();
+          if (triggerToast) triggerToast("গ্রাহক কলটি শেষ করেছেন।", "Customer ended the call.");
+          cleanupCall();
+        }
+      });
+      unsubscribeSignalingRef.current = unsubSignaling;
 
       setCallStatus("connected");
       callAudioSynth.playConnectChime();
@@ -252,8 +292,17 @@ export default function AdminIncomingCallModal({
   // Reject Call
   const handleReject = async () => {
     callAudioSynth.playDisconnectTone();
+    if (signalingRef.current) {
+      signalingRef.current.sendHangup("agent");
+    }
     if (incomingCall) {
       try {
+        updateSupabaseVoiceCall(incomingCall.id, {
+          status: "rejected",
+          endedBy: "admin",
+          endedAt: new Date().toISOString()
+        }).catch(() => {});
+
         await updateDoc(doc(db, "voice_calls", incomingCall.id), {
           status: "rejected",
           endedAt: serverTimestamp(),
@@ -269,8 +318,18 @@ export default function AdminIncomingCallModal({
   // End Active Call
   const handleEndCall = async () => {
     callAudioSynth.playDisconnectTone();
+    if (signalingRef.current) {
+      signalingRef.current.sendHangup("agent");
+    }
     if (incomingCall) {
       try {
+        updateSupabaseVoiceCall(incomingCall.id, {
+          status: "ended",
+          endedBy: "admin",
+          durationSeconds: durationRef.current,
+          endedAt: new Date().toISOString()
+        }).catch(() => {});
+
         await updateDoc(doc(db, "voice_calls", incomingCall.id), {
           status: "ended",
           endedAt: serverTimestamp(),

@@ -1,4 +1,5 @@
 import { db, doc, getDoc, updateDoc, setDoc, increment, serverTimestamp, collection, addDoc } from "./firebase";
+import { supabase } from "./supabase";
 
 export interface RewardGift {
   id: string;
@@ -202,6 +203,29 @@ export async function redeemRewardGift(
     // Save claim in both reward_claims and redemptions collections for dispatching
     await setDoc(doc(db, "reward_claims", claimId), claimRecord);
     await setDoc(doc(db, "redemptions", claimId), claimRecord).catch(() => {});
+
+    // Mirror to Supabase reward_claims table
+    try {
+      await supabase.from("reward_claims").insert({
+        id: claimId,
+        user_id: userId,
+        user_name: claimRecord.userName,
+        customer_phone: claimRecord.customerPhone,
+        delivery_address: claimRecord.deliveryAddress,
+        notes: claimRecord.notes,
+        gift_id: claimRecord.giftId,
+        gift_name_bn: claimRecord.giftNameBn,
+        gift_name_en: claimRecord.giftNameEn,
+        gift_image: claimRecord.giftImage,
+        points_deducted: claimRecord.pointsDeducted,
+        market_value_taka: claimRecord.marketValueTaka,
+        status: "pending",
+        claim_date: nowIso.split("T")[0],
+        created_at: nowIso
+      });
+    } catch (sbErr) {
+      console.warn("Supabase reward claim mirror note:", sbErr);
+    }
 
     // Notify customer
     await addDoc(collection(db, "notifications"), {

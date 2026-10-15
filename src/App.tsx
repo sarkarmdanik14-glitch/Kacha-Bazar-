@@ -37,6 +37,8 @@ import CheckoutModal from "./components/CheckoutModal";
 import CustomerLiveChat from "./components/CustomerLiveChat";
 import CustomerVoiceCallModal from "./components/CustomerVoiceCallModal";
 import { seedDatabase, db, collection, onSnapshot, auth, onAuthStateChanged, doc, getDoc, getDocs, setDoc, query, where, limit, orderBy, or, addDoc, deleteDoc, serverTimestamp } from "./lib/firebase";
+import { supabase } from "./lib/supabase";
+import { onSupabaseAuthStateChange, getSupabaseUser } from "./lib/supabaseAuth";
 import { calculateDeliveryFeeFromSettings } from "./lib/delivery";
 import { visitorTracker } from "./lib/visitorTracker";
 import { initVoiceWelcome, setWelcomeAudioUrl, setWelcomeVoiceEnabled } from "./lib/voiceWelcome";
@@ -471,6 +473,52 @@ export default function App() {
   useEffect(() => {
     let unsubUserDoc: (() => void) | null = null;
 
+    // 1. Initial check with Supabase user
+    getSupabaseUser().then((sbU) => {
+      if (sbU) {
+        setLoggedInUser(sbU as any);
+        if (sbU.photoURL) {
+          setUserProfilePhoto(sbU.photoURL);
+          setPhotoLoadError(false);
+          try {
+            localStorage.setItem("kb_user_photo", sbU.photoURL);
+          } catch {}
+        }
+        if (sbU.role) setUserRole(sbU.role);
+        if (sbU.referralCode) setUserReferralCode(sbU.referralCode);
+      }
+    });
+
+    // 2. Listen to Supabase Auth state changes
+    const unsubSb = onSupabaseAuthStateChange(async (sbUser) => {
+      if (sbUser) {
+        setLoggedInUser(sbUser as any);
+        if (sbUser.photoURL) {
+          setUserProfilePhoto(sbUser.photoURL);
+          setPhotoLoadError(false);
+          try {
+            localStorage.setItem("kb_user_photo", sbUser.photoURL);
+          } catch {}
+        }
+        if (sbUser.role) {
+          setUserRole(sbUser.role);
+        }
+        if (sbUser.referralCode) {
+          setUserReferralCode(sbUser.referralCode);
+        }
+      } else if (!auth.currentUser) {
+        setLoggedInUser(null);
+        setUserRole("customer");
+        setUserReferralCode("");
+        setUserProfilePhoto("");
+        setPhotoLoadError(false);
+        try {
+          localStorage.removeItem("kb_user_photo");
+        } catch {}
+      }
+    });
+
+    // 3. Fallback Firebase auth listener
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setLoggedInUser(user);
@@ -652,6 +700,7 @@ export default function App() {
     });
 
     return () => {
+      unsubSb();
       unsub();
       if (unsubUserDoc) {
         unsubUserDoc();

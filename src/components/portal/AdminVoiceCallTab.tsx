@@ -53,6 +53,12 @@ import {
   atomicallyAcceptCall 
 } from "../../lib/callCenterManager";
 import { createTranslator, formatTime, toBnNum } from "../../lib/formatUtils";
+import { 
+  SupabaseCallSignalingChannel, 
+  subscribeToSupabaseActiveCalls, 
+  updateSupabaseVoiceCall, 
+  updateSupabaseAgentStatus 
+} from "../../lib/supabaseVoiceCall";
 
 interface AdminVoiceCallTabProps {
   lang: "bn" | "en";
@@ -86,6 +92,8 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
   const durationRef = useRef<number>(0);
   const unsubscribeCallRef = useRef<(() => void) | null>(null);
   const unsubscribeCandidatesRef = useRef<(() => void) | null>(null);
+  const signalingRef = useRef<SupabaseCallSignalingChannel | null>(null);
+  const unsubscribeSignalingRef = useRef<(() => void) | null>(null);
 
   const getTranslation = createTranslator(lang);
   const toBanglaDigits = (num: number) => toBnNum(num);
@@ -108,25 +116,34 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
     return () => unsub();
   }, []);
 
-  // 2. Listen for active incoming / waiting / ringing / in-call sessions
+  // 2. Listen for active incoming / waiting / ringing / in-call sessions (Supabase Realtime + Firestore)
   useEffect(() => {
+    const unsubSb = subscribeToSupabaseActiveCalls((sbCalls) => {
+      if (sbCalls.length > 0) {
+        setActiveCalls(sbCalls);
+      }
+    });
+
     const q = query(
       collection(db, "voice_calls"),
       where("status", "in", ["waiting", "calling", "ringing", "connected", "in_call"]),
       orderBy("createdAt", "asc")
     );
 
-    const unsub = onSnapshot(q, (snapshot) => {
+    const unsubFs = onSnapshot(q, (snapshot) => {
       const calls: VoiceCallSession[] = [];
       snapshot.forEach((d) => {
         calls.push({ id: d.id, ...d.data() } as VoiceCallSession);
       });
-      setActiveCalls(calls);
+      setActiveCalls((prev) => (calls.length > 0 ? calls : prev));
     }, (err) => {
       console.warn("Active calls stream notice:", err.message);
     });
 
-    return () => unsub();
+    return () => {
+      unsubSb();
+      unsubFs();
+    };
   }, []);
 
   // 3. Listen for historical logs (ended, rejected, missed, cancelled)
@@ -169,6 +186,12 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
       unsubscribeCandidatesRef.current();
       unsubscribeCandidatesRef.current = null;
     }
+
+    if (unsubscribeSignalingRef.current) {
+      unsubscribeSignalingRef.current();
+      unsubscribeSignalingRef.current = null;
+    }
+    signalingRef.current = null;
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -236,9 +259,14 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
         }
       };
 
-      // Collect ICE candidates from Admin (callee)
+      // Initialize low-latency Supabase Realtime Broadcast signaling
+      const signaling = new SupabaseCallSignalingChannel(call.id);
+      signalingRef.current = signaling;
+
+      // Collect ICE candidates from Admin (callee) and send via Supabase Realtime
       pc.onicecandidate = (event) => {
         if (event.candidate) {
+          signaling.sendIceCandidate(event.candidate.toJSON(), "agent");
           addDoc(collection(db, "voice_calls", call.id, "calleeCandidates"), event.candidate.toJSON()).catch(() => {});
         }
       };
@@ -263,7 +291,18 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
         sdp: answerDescription.sdp
       };
 
-      // 6. Update Firestore with Answer
+      // Send Answer via Supabase Realtime Broadcast
+      signaling.sendAnswer(answer, selectedAgentId, agentName);
+
+      // 6. Update Supabase & Firestore with Answer
+      updateSupabaseVoiceCall(call.id, {
+        answer: answer,
+        status: "connected",
+        assignedAgentId: selectedAgentId,
+        assignedAgentName: agentName,
+        connectedAt: new Date().toISOString()
+      }).catch(() => {});
+
       await updateDoc(callDocRef, {
         answer: answer,
         status: "connected",
@@ -271,6 +310,22 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
         assignedAgentId: selectedAgentId,
         assignedAgentName: agentName
       });
+
+      // Listen for caller signals over Supabase Realtime
+      const unsubSignaling = signaling.subscribe((signal) => {
+        if (signal.type === "ice_candidate" && signal.sender === "caller" && signal.candidate) {
+          try {
+            pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
+          } catch {}
+        }
+        if (signal.type === "hangup") {
+          callAudioSynth.playDisconnectTone();
+          if (triggerToast) triggerToast("গ্রাহক কলটি শেষ করেছেন।", "Customer ended the call.");
+          updateSupabaseAgentStatus(selectedAgentId, "available").catch(() => {});
+          cleanupCall();
+        }
+      });
+      unsubscribeSignalingRef.current = unsubSignaling;
 
       setCallStatus("connected");
       callAudioSynth.playConnectChime();
@@ -338,7 +393,16 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
   // Reject Call
   const handleRejectCall = async (callId: string) => {
     callAudioSynth.playDisconnectTone();
+    if (signalingRef.current) {
+      signalingRef.current.sendHangup("agent");
+    }
     try {
+      updateSupabaseVoiceCall(callId, {
+        status: "rejected",
+        endedBy: "agent",
+        endedAt: new Date().toISOString()
+      }).catch(() => {});
+
       await updateDoc(doc(db, "voice_calls", callId), {
         status: "rejected",
         endedAt: serverTimestamp(),
@@ -353,8 +417,21 @@ export default function AdminVoiceCallTab({ lang, triggerToast }: AdminVoiceCall
   // End Active Call
   const handleEndCall = async () => {
     callAudioSynth.playDisconnectTone();
+    if (signalingRef.current) {
+      signalingRef.current.sendHangup("agent");
+    }
     if (currentCall) {
       try {
+        updateSupabaseVoiceCall(currentCall.id, {
+          status: "ended",
+          endedBy: "agent",
+          durationSeconds: durationRef.current,
+          notes: callNotes.trim() || "অর্ডার আলোচনা সম্পন্ন",
+          endedAt: new Date().toISOString()
+        }).catch(() => {});
+
+        updateSupabaseAgentStatus(selectedAgentId, "available").catch(() => {});
+
         await updateDoc(doc(db, "voice_calls", currentCall.id), {
           status: "ended",
           endedAt: serverTimestamp(),

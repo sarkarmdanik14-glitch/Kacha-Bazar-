@@ -10,6 +10,7 @@ import {
   RewardClaimRecord 
 } from "../../lib/rewardPoints";
 import { db, collection, query, where, getDocs } from "../../lib/firebase";
+import { supabase } from "../../lib/supabase";
 
 export interface RewardRedemptionViewProps {
   user: any;
@@ -60,6 +61,37 @@ export default function RewardRedemptionView({
     if (!user?.uid) return;
     setLoadingClaims(true);
     try {
+      // 1. Try Supabase
+      const { data, error } = await supabase
+        .from("reward_claims")
+        .select("*")
+        .eq("user_id", user.uid)
+        .order("created_at", { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        setMyClaims(
+          data.map((r: any) => ({
+            id: r.id,
+            userId: r.user_id,
+            userName: r.user_name,
+            customerPhone: r.customer_phone,
+            deliveryAddress: r.delivery_address,
+            notes: r.notes,
+            giftId: r.gift_id,
+            giftNameBn: r.gift_name_bn,
+            giftNameEn: r.gift_name_en,
+            giftImage: r.gift_image,
+            pointsDeducted: r.points_deducted,
+            marketValueTaka: Number(r.market_value_taka || 0),
+            status: r.status,
+            claimDate: r.claim_date,
+            createdAt: r.created_at
+          }))
+        );
+        return;
+      }
+
+      // 2. Fallback to Firestore
       const q = query(
         collection(db, "reward_claims"),
         where("userId", "==", user.uid)
@@ -69,7 +101,6 @@ export default function RewardRedemptionView({
       snap.forEach((d) => {
         records.push({ ...d.data(), id: d.id } as RewardClaimRecord);
       });
-      // Sort newest first
       records.sort((a, b) => new Date(b.claimDate || 0).getTime() - new Date(a.claimDate || 0).getTime());
       setMyClaims(records);
     } catch (err) {

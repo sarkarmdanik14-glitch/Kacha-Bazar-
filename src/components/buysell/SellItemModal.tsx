@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Upload, Plus, Trash2, MapPin, Tag, Phone, MessageSquare, AlertCircle, CheckCircle, Image as ImageIcon } from "lucide-react";
-import { db, collection, addDoc, doc, updateDoc, serverTimestamp } from "../../lib/firebase";
 import { BuySellListing, BUY_SELL_CATEGORIES, POPULAR_LOCATIONS } from "../../types/buySell";
+import { createBuySellListing, updateBuySellListing } from "../../lib/buysellSupabase";
 
 interface SellItemModalProps {
   currentUser: any;
@@ -170,19 +170,17 @@ export default function SellItemModal({
         status: listingToEdit?.status || "active",
         reportCount: listingToEdit?.reportCount || 0,
         views: listingToEdit?.views || 0,
-        updatedAt: serverTimestamp()
+        updatedAt: new Date().toISOString()
       };
 
       if (isEditing && listingToEdit) {
-        const docRef = doc(db, "buy_sell_listings", listingToEdit.id);
-        await updateDoc(docRef, listingData);
+        await updateBuySellListing(listingToEdit.id, listingData);
         triggerToast("বিজ্ঞাপন সফলভাবে আপডেট হয়েছে!", "Listing updated successfully!");
         onSuccess({ ...(listingToEdit as BuySellListing), ...listingData } as BuySellListing);
       } else {
-        listingData.createdAt = serverTimestamp();
-        const docRef = await addDoc(collection(db, "buy_sell_listings"), listingData);
+        const created = await createBuySellListing(listingData as Omit<BuySellListing, "id">);
         triggerToast("আপনার বিজ্ঞাপন সফলভাবে প্রকাশিত হয়েছে!", "Your listing is now live!");
-        onSuccess({ id: docRef.id, ...listingData } as BuySellListing);
+        onSuccess(created);
       }
       onClose();
     } catch (err: any) {

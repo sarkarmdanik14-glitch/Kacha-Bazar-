@@ -57,6 +57,17 @@ export function getApiAuthHeaders(user?: any): Record<string, string> {
       headers["x-session-id"] = sessionId;
     }
 
+    const supabaseToken = user?.supabaseToken || user?.accessToken ||
+      (typeof window !== "undefined"
+        ? (localStorage.getItem("kb_supabase_token") || sessionStorage.getItem("kb_supabase_token"))
+        : null);
+    if (supabaseToken) {
+      headers["x-supabase-token"] = supabaseToken;
+      if (!headers["Authorization"]) {
+        headers["Authorization"] = `Bearer ${supabaseToken}`;
+      }
+    }
+
     const firebaseToken = user?.firebaseToken || user?.idToken ||
       (typeof window !== "undefined"
         ? (localStorage.getItem("kb_firebase_id_token") || sessionStorage.getItem("kb_firebase_id_token") || localStorage.getItem("firebase_id_token"))

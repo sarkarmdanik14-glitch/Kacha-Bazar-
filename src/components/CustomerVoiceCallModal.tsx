@@ -13,6 +13,7 @@ import {
   orderBy,
   auth 
 } from "../lib/firebase";
+import { onSupabaseAuthStateChange, getSupabaseUser } from "../lib/supabaseAuth";
 import { 
   Phone, 
   PhoneOff, 
@@ -32,6 +33,11 @@ import {
 import { RTC_CONFIG, callAudioSynth, banglaCallWelcome, callBgMusic, VoiceCallSession } from "../lib/webrtcCall";
 import { tryImmediateAgentRouting } from "../lib/callCenterManager";
 import { createTranslator, formatTime, toBnNum } from "../lib/formatUtils";
+import { 
+  SupabaseCallSignalingChannel, 
+  initiateSupabaseVoiceCall, 
+  updateSupabaseVoiceCall 
+} from "../lib/supabaseVoiceCall";
 
 interface CustomerVoiceCallModalProps {
   lang: "bn" | "en";
@@ -63,15 +69,39 @@ export default function CustomerVoiceCallModal({
   const unsubscribeCallRef = useRef<(() => void) | null>(null);
   const unsubscribeQueueRef = useRef<(() => void) | null>(null);
   const unsubscribeCandidatesRef = useRef<(() => void) | null>(null);
+  const signalingRef = useRef<SupabaseCallSignalingChannel | null>(null);
+  const unsubscribeSignalingRef = useRef<(() => void) | null>(null);
 
   const getTranslation = createTranslator(lang);
 
-  // Monitor Auth state
+  // Monitor Auth state (Supabase primary + Firebase fallback)
   useEffect(() => {
-    const unsub = auth.onAuthStateChanged((user) => {
-      setCurrentUser(user || null);
+    getSupabaseUser().then((u) => {
+      if (u) setCurrentUser(u as any);
     });
-    return () => unsub();
+
+    const unsubSb = onSupabaseAuthStateChange((user) => {
+      if (user) {
+        setCurrentUser(user as any);
+      } else if (!auth.currentUser) {
+        setCurrentUser(null);
+      }
+    });
+
+    const unsubFb = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setCurrentUser(user);
+      } else {
+        getSupabaseUser().then((u) => {
+          if (!u) setCurrentUser(null);
+        });
+      }
+    });
+
+    return () => {
+      unsubSb();
+      unsubFb();
+    };
   }, []);
 
   const toBanglaDigits = (num: number) => toBnNum(num);
@@ -102,6 +132,12 @@ export default function CustomerVoiceCallModal({
       unsubscribeCandidatesRef.current();
       unsubscribeCandidatesRef.current = null;
     }
+
+    if (unsubscribeSignalingRef.current) {
+      unsubscribeSignalingRef.current();
+      unsubscribeSignalingRef.current = null;
+    }
+    signalingRef.current = null;
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -201,9 +237,14 @@ export default function CustomerVoiceCallModal({
       const callNumber = `CALL-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
       setCallId(newCallId);
 
-      // Collect ICE candidates from caller
+      // Initialize low-latency Supabase Realtime Broadcast signaling
+      const signaling = new SupabaseCallSignalingChannel(newCallId);
+      signalingRef.current = signaling;
+
+      // Collect ICE candidates from caller and send via Supabase Realtime
       pc.onicecandidate = (event) => {
         if (event.candidate) {
+          signaling.sendIceCandidate(event.candidate.toJSON(), "caller");
           addDoc(collection(db, "voice_calls", newCallId, "callerCandidates"), event.candidate.toJSON()).catch(() => {});
         }
       };
@@ -217,18 +258,60 @@ export default function CustomerVoiceCallModal({
         type: offerDescription.type
       };
 
-      // Save initial call record as 'waiting' in FIFO queue
-      await setDoc(callDocRef, {
+      // Persist in Supabase 'voice_calls' table and mirror to Firestore
+      await initiateSupabaseVoiceCall({
         id: newCallId,
-        callNumber: callNumber,
-        callerId: callerId,
-        callerName: callerName,
-        callerType: callerType,
-        status: "waiting", // Initially in waiting queue
-        offer: offer,
-        createdAt: serverTimestamp(),
-        durationSeconds: 0
+        callNumber,
+        callerId,
+        callerName,
+        callerType,
+        offer
       });
+
+      // Send initial offer over Supabase Realtime Broadcast
+      signaling.sendOffer(offer, callerName);
+
+      // Listen to Supabase Realtime signals (Answer, ICE candidates, Remote Hangup)
+      const unsubSignaling = signaling.subscribe((signal) => {
+        if (signal.type === "answer" && signal.answer) {
+          if (!pc.currentRemoteDescription || pc.currentRemoteDescription.sdp !== signal.answer.sdp) {
+            const answerDescription = new RTCSessionDescription(signal.answer);
+            pc.setRemoteDescription(answerDescription).then(() => {
+              setCallStatus("connected");
+              if (signal.agentName) setAssignedAgentName(signal.agentName);
+              setIsWelcomeSpeaking(false);
+              banglaCallWelcome.stop();
+              callBgMusic.stop();
+              callAudioSynth.stopSounds();
+              callAudioSynth.playConnectChime();
+
+              if (!timerRef.current) {
+                timerRef.current = setInterval(() => {
+                  durationRef.current += 1;
+                  setCallDuration(durationRef.current);
+                }, 1000);
+              }
+            }).catch((err) => {
+              console.warn("Supabase signaling set remote description notice:", err);
+            });
+          }
+        }
+
+        if (signal.type === "ice_candidate" && signal.sender === "agent" && signal.candidate) {
+          try {
+            pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
+          } catch {}
+        }
+
+        if (signal.type === "hangup") {
+          setIsWelcomeSpeaking(false);
+          banglaCallWelcome.stop();
+          callAudioSynth.playDisconnectTone();
+          setCallStatus("ended");
+          cleanupCall();
+        }
+      });
+      unsubscribeSignalingRef.current = unsubSignaling;
 
       setCallStatus("waiting");
 
@@ -355,9 +438,20 @@ export default function CustomerVoiceCallModal({
     banglaCallWelcome.stop();
     callAudioSynth.playDisconnectTone();
 
+    if (signalingRef.current) {
+      signalingRef.current.sendHangup("caller");
+    }
+
     if (callId) {
       try {
         const isLive = callStatus === "connected";
+        updateSupabaseVoiceCall(callId, {
+          status: isLive ? "ended" : "cancelled",
+          endedBy: "caller",
+          durationSeconds: durationRef.current,
+          endedAt: new Date().toISOString()
+        }).catch(() => {});
+
         await updateDoc(doc(db, "voice_calls", callId), {
           status: isLive ? "ended" : "cancelled",
           endedAt: serverTimestamp(),

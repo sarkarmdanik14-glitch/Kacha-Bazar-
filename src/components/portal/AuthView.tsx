@@ -26,6 +26,15 @@ import { apiClient } from "../../lib/apiClient";
 import { createTranslator } from "../../lib/formatUtils";
 import { generateMemberId } from "../../lib/memberIdUtils";
 import { APP_LOGO_URL } from "../../constants/branding";
+import { 
+  supabaseSignInWithEmail, 
+  supabaseSignUpWithEmail, 
+  supabaseSignInWithGoogle, 
+  supabaseSendPasswordResetEmail,
+  supabaseSignOut,
+  checkIsSupabaseAdmin
+} from "../../lib/supabaseAuth";
+import { supabase } from "../../lib/supabase";
 const loginPartnerWithCredentials = authenticatePartner;
 
 interface AuthViewProps {
@@ -145,9 +154,16 @@ export default function AuthView({
       return;
     }
 
-    // When user inputs an email, ensure standard Firebase Auth reset dispatch is invoked cleanly from client SDK
+    // When user inputs an email, ensure Supabase Auth and Firebase Auth reset dispatch are invoked cleanly
     let emailDispatched = false;
     if (isEmail || ident.includes("@")) {
+      try {
+        await supabaseSendPasswordResetEmail(ident);
+        emailDispatched = true;
+      } catch (sbErr) {
+        console.warn("Supabase password reset note:", sbErr);
+      }
+
       try {
         await sendPasswordResetEmail(auth, ident);
         emailDispatched = true;
@@ -290,48 +306,30 @@ export default function AuthView({
     }
   };
 
-  // Helper to verify if user is a real admin in Firestore
-  const checkIsAdmin = async (uid: string): Promise<boolean> => {
+  // Helper to verify if user is a real admin in Supabase / Firestore
+  const checkIsAdmin = async (uid: string, email?: string): Promise<boolean> => {
     try {
       if (!uid) return false;
-      const currentUid = auth.currentUser?.uid;
-      const authEmail = auth.currentUser?.email;
-
-      if (!currentUid || currentUid !== uid) {
-        return false;
+      const cleanEmail = (email || auth.currentUser?.email || "").toLowerCase().trim();
+      
+      // Designated founders and super admins
+      if (cleanEmail === "sarkarmdanik14@gmail.com" || cleanEmail === "grphics949@gmail.com" || cleanEmail === "kachabazar369@gmail.com") {
+        return true;
       }
 
+      // Check Supabase staff and users tables
+      const isSbAdmin = await checkIsSupabaseAdmin(uid, cleanEmail);
+      if (isSbAdmin) return true;
+
+      // Check Firestore as legacy fallback
       const adminDocRef = doc(db, "admins", uid);
       const adminDocSnap = await getDoc(adminDocRef);
-      if (!adminDocSnap.exists()) {
-        return false;
+      if (adminDocSnap.exists()) {
+        const adminData = adminDocSnap.data();
+        if (adminData && (adminData.isActive === undefined || adminData.isActive === true)) {
+          return true;
+        }
       }
-
-      const adminData = adminDocSnap.data();
-      if (!adminData) {
-        return false;
-      }
-
-      const uidValue = adminData.uid;
-      const emailValue = adminData.email;
-      const createdAtValue = adminData.createdAt;
-
-      if (typeof uidValue !== "string" || uidValue !== uid) {
-        return false;
-      }
-      if (typeof emailValue !== "string" || !createdAtValue) {
-        return false;
-      }
-
-      if (!authEmail || emailValue.toLowerCase() !== authEmail.toLowerCase()) {
-        return false;
-      }
-
-      if (adminData.isActive !== undefined && adminData.isActive !== true) {
-        return false;
-      }
-
-      return true;
     } catch (err: any) {
       if (!err?.message?.includes("offline")) {
         console.warn("Notice verifying admin permissions:", err?.message || err);
@@ -340,9 +338,29 @@ export default function AuthView({
     return false;
   };
 
-  // Helper to verify seller role and status in Firestore
+  // Helper to verify seller role and status in Supabase / Firestore
   const checkSellerStatus = async (uid: string): Promise<{ isSeller: boolean; status: string }> => {
     try {
+      // 1. Supabase check
+      const { data: sbSeller } = await supabase
+        .from("sellers")
+        .select("*")
+        .or(`id.eq.${uid},user_id.eq.${uid}`)
+        .single();
+      if (sbSeller) {
+        return { isSeller: true, status: sbSeller.status || "pending" };
+      }
+
+      const { data: sbUser } = await supabase
+        .from("users")
+        .select("role, status")
+        .or(`id.eq.${uid},uid.eq.${uid}`)
+        .single();
+      if (sbUser?.role === "seller") {
+        return { isSeller: true, status: sbUser.status || "pending" };
+      }
+
+      // 2. Firestore fallback
       const sellerDocSnap = await getDoc(doc(db, "sellers", uid));
       if (sellerDocSnap.exists()) {
         const data = sellerDocSnap.data();
@@ -363,9 +381,29 @@ export default function AuthView({
     return { isSeller: false, status: "none" };
   };
 
-  // Helper to verify rider role and status in Firestore
+  // Helper to verify rider role and status in Supabase / Firestore
   const checkRiderStatus = async (uid: string): Promise<{ isRider: boolean; status: string }> => {
     try {
+      // 1. Supabase check
+      const { data: sbRider } = await supabase
+        .from("riders")
+        .select("*")
+        .or(`id.eq.${uid},user_id.eq.${uid}`)
+        .single();
+      if (sbRider) {
+        return { isRider: true, status: sbRider.status || "pending" };
+      }
+
+      const { data: sbUser } = await supabase
+        .from("users")
+        .select("role, status")
+        .or(`id.eq.${uid},uid.eq.${uid}`)
+        .single();
+      if (sbUser?.role === "rider") {
+        return { isRider: true, status: sbUser.status || "pending" };
+      }
+
+      // 2. Firestore fallback
       const riderDocSnap = await getDoc(doc(db, "riders", uid));
       if (riderDocSnap.exists()) {
         const data = riderDocSnap.data();
@@ -746,94 +784,112 @@ export default function AuthView({
           // not matched in server verified store, proceed to standard Firebase auth
         }
 
-        // Sign in using real Firebase Authentication
-        let user: any = null;
+        // 1. Primary: Authenticate using Supabase Auth (supabase.auth.signInWithPassword)
+        let authenticatedUser: any = null;
+        let authenticatedRole = role;
+
         try {
-          const userCredential = await signInWithEmailAndPassword(auth, email, password);
-          user = userCredential.user;
-        } catch (fbAuthErr: any) {
-          // Double-check /api/auth/login-verify as fallback before throwing error
-          const fallbackData = await apiClient.post<any>("/api/auth/login-verify", {
-            identifier: email,
-            password: password
-          }, { silent: true }).catch(() => null);
-
-          if (fallbackData?.success && fallbackData?.user) {
-            const verifiedUser = fallbackData.user;
-            const targetRole = fallbackData.role || role;
-            if (fallbackData.sessionId) {
-              try {
-                localStorage.setItem("kb_staff_session", fallbackData.sessionId);
-                sessionStorage.setItem("kb_staff_session", fallbackData.sessionId);
-                if (verifiedUser.email) localStorage.setItem("kb_staff_email", verifiedUser.email);
-                if (verifiedUser.staffId) localStorage.setItem("kb_staff_id", verifiedUser.staffId);
-              } catch (e) {}
-            }
-            onAuthSuccess(verifiedUser, targetRole);
-            setLoading(false);
-            return;
+          const sbRes = await supabaseSignInWithEmail(email, password, role);
+          if (sbRes.success && sbRes.user) {
+            authenticatedUser = sbRes.user;
+            authenticatedRole = (sbRes.role || role) as any;
           }
+        } catch (sbErr) {
+          console.warn("[AuthView] Supabase Auth login note:", sbErr);
+        }
 
-          throw fbAuthErr;
+        // 2. Secondary fallback: Check server-verified credentials (Staff, Super Admin, OTP reset)
+        if (!authenticatedUser) {
+          try {
+            const fallbackData = await apiClient.post<any>("/api/auth/login-verify", {
+              identifier: email,
+              password: password
+            }, { silent: true }).catch(() => null);
+
+            if (fallbackData?.success && fallbackData?.user) {
+              authenticatedUser = fallbackData.user;
+              authenticatedRole = fallbackData.role || role;
+              if (fallbackData.sessionId) {
+                try {
+                  localStorage.setItem("kb_staff_session", fallbackData.sessionId);
+                  sessionStorage.setItem("kb_staff_session", fallbackData.sessionId);
+                  if (authenticatedUser.email) localStorage.setItem("kb_staff_email", authenticatedUser.email);
+                  if (authenticatedUser.staffId) localStorage.setItem("kb_staff_id", authenticatedUser.staffId);
+                } catch (e) {}
+              }
+            }
+          } catch (e) {}
+        }
+
+        // 3. Tertiary fallback: Firebase Auth (for pre-migration accounts)
+        if (!authenticatedUser) {
+          try {
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            const fbUser = userCredential.user;
+            authenticatedUser = {
+              uid: fbUser.uid,
+              id: fbUser.uid,
+              email: fbUser.email,
+              displayName: fbUser.displayName || "গ্রাহক",
+              role: role
+            };
+          } catch (fbAuthErr: any) {
+            throw fbAuthErr;
+          }
         }
 
         // Verify role authorization
+        const userUid = authenticatedUser.uid || authenticatedUser.id;
+        const userEmail = authenticatedUser.email;
+
         if (role === "admin") {
-          const isAdminUser = await checkIsAdmin(user.uid);
+          const isAdminUser = await checkIsAdmin(userUid, userEmail);
           if (!isAdminUser) {
-            await signOut(auth);
+            await supabaseSignOut();
+            await signOut(auth).catch(() => {});
             throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।", "Access denied. You are not authorized as an admin."));
           }
         } else if (role === "seller") {
-          const sRes = await checkSellerStatus(user.uid);
+          const sRes = await checkSellerStatus(userUid);
           if (!sRes.isSeller) {
-            await signOut(auth);
+            await supabaseSignOut();
+            await signOut(auth).catch(() => {});
             throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি বিক্রেতা হিসেবে নিবন্ধিত নয়।", "Access denied. This account is not registered as a seller."));
           }
           if (sRes.status === "rejected") {
-            await signOut(auth);
+            await supabaseSignOut();
+            await signOut(auth).catch(() => {});
             throw new Error(getTranslation("আপনার বিক্রেতা অ্যাকাউন্টটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your seller account application was rejected by admin."));
           }
         } else if (role === "rider") {
-          const rRes = await checkRiderStatus(user.uid);
+          const rRes = await checkRiderStatus(userUid);
           if (!rRes.isRider) {
-            await signOut(auth);
+            await supabaseSignOut();
+            await signOut(auth).catch(() => {});
             throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি রাইডার হিসেবে নিবন্ধিত নয়।", "Access denied. This account is not registered as a rider."));
           }
           if (rRes.status === "rejected") {
-            await signOut(auth);
+            await supabaseSignOut();
+            await signOut(auth).catch(() => {});
             throw new Error(getTranslation("আপনার রাইডার অ্যাকাউন্টটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your rider account application was rejected by admin."));
           }
         }
 
-        const userDocRef = doc(db, "users", user.uid);
-        const userDocSnap = await getDoc(userDocRef);
+        // Dual sync profile to Firestore in background for legacy listeners
+        try {
+          const userDocRef = doc(db, "users", userUid);
+          await setDoc(userDocRef, {
+            uid: userUid,
+            email: userEmail,
+            displayName: authenticatedUser.displayName || authenticatedUser.fullName || "গ্রাহক",
+            role: authenticatedRole,
+            updatedAt: serverTimestamp()
+          }, { merge: true }).catch(() => {});
+        } catch {}
 
-        let userRole = role;
-        let userData = null;
-
-        if (userDocSnap.exists()) {
-          userData = userDocSnap.data();
-          userRole = userData.role || role;
-        } else {
-          const resolvedName = user.displayName || "গ্রাহক";
-          userData = {
-            uid: user.uid,
-            email: user.email,
-            displayName: resolvedName,
-            fullName: resolvedName,
-            name: resolvedName,
-            role: userRole,
-            createdAt: serverTimestamp(),
-            address: getTranslation("চাঁচকৈড় বাজার, নাটোর", "Chanchkoir Bazar, Natore"),
-            referralCode: "REF" + user.uid.substring(0, 5).toUpperCase()
-          };
-          await setDoc(userDocRef, userData);
-        }
-
-        onAuthSuccess(userData, userRole);
+        onAuthSuccess(authenticatedUser, authenticatedRole);
       } else {
-        // Sign up
+        // Sign up with Supabase Auth (supabase.auth.signUp)
         const trimmedFullName = (fullName || "").trim();
         if (!trimmedFullName) {
           setError(getTranslation("অনুগ্রহ করে আপনার সম্পূর্ণ নাম লিখুন।", "Please enter your full name."));
@@ -841,87 +897,95 @@ export default function AuthView({
           return;
         }
 
-        const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        const user = userCredential.user;
-
-        // 1. Immediately after createUserWithEmailAndPassword succeeds:
-        // Call Firebase Auth's updateProfile(res.user, { displayName: fullName.trim() })
-        try {
-          await updateProfile(user, { displayName: trimmedFullName });
-        } catch (profileErr) {
-          console.warn("Could not set auth displayName:", profileErr);
-        }
-
-        const refCode = "REF" + user.uid.substring(0, 5).toUpperCase();
-        const customerId = generateMemberId(user.uid);
-        const sanitizedHandle = trimmedFullName
-          .toLowerCase()
-          .replace(/\s+/g, "_")
-          .replace(/[^\w\u0980-\u09FF]/gi, "") || customerId.toLowerCase();
-
-        // 2. Save user profile to Firestore users/{uid} document with exact required fields:
-        const userData: any = {
-          uid: user.uid,
-          displayName: trimmedFullName,
-          fullName: trimmedFullName,
-          name: trimmedFullName,
-          phone: phone.trim(),
-          phoneNumber: phone.trim(),
+        // 1. Primary: Create account via Supabase Auth
+        const sbSignUpRes = await supabaseSignUpWithEmail({
           email: email.trim(),
-          walletBalance: 0,
-          rewardPoints: 0,
-          balance: 0,
-          points: 0,
-          role: role || "customer",
-          createdAt: serverTimestamp(),
-          username: sanitizedHandle,
-          customerId: customerId,
-          address: getTranslation("চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর", "Chanchkoir Bazar, Gurudaspur, Natore"),
-          referralCode: refCode,
-          status: (role === "seller" || role === "rider") ? "pending" : "approved",
-          ...(role === "seller" ? { sellerStatus: "pending" } : {}),
-          ...(role === "rider" ? { riderStatus: "pending" } : {})
-        };
-
-        // Save into main users collection
-        await setDoc(doc(db, "users", user.uid), userData);
-
-        // Non-admin roles additional collections setup
-        if (role === "seller") {
-          await setDoc(doc(db, "sellers", user.uid), {
-            uid: user.uid,
-            email: user.email,
-            shopName: shopName || getTranslation("আমার কাচা বাজার", "My Kacha Bazar"),
-            ownerName: fullName,
-            phoneNumber: phone,
-            status: "pending",
-            createdAt: serverTimestamp(),
-            balance: 1000
-          });
-        } else if (role === "rider") {
-          await setDoc(doc(db, "riders", user.uid), {
-            uid: user.uid,
-            email: user.email,
-            name: fullName,
-            phoneNumber: phone,
-            vehicleType: vehicleType,
-            status: "pending",
-            createdAt: serverTimestamp(),
-            balance: 0,
-            currentOrderId: ""
-          });
-        }
-
-        // Initialize wallet with 0 balance
-        await setDoc(doc(db, "wallet", user.uid), {
-          userId: user.uid,
-          balance: 0,
-          updatedAt: serverTimestamp()
+          pass: password,
+          fullName: trimmedFullName,
+          phone: phone.trim(),
+          role: role,
+          shopName: shopName || getTranslation("আমার কাচা বাজার", "My Kacha Bazar"),
+          vehicleType: vehicleType,
+          referralCode: referralInput
         });
 
-        await linkReferral(user.uid, referralInput);
+        if (!sbSignUpRes.success || !sbSignUpRes.user) {
+          throw new Error(sbSignUpRes.error || getTranslation("অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে।", "Failed to create account."));
+        }
 
-        onAuthSuccess(userData, role);
+        const newUser = sbSignUpRes.user;
+
+        // 2. Dual-sync account to Firebase in background so legacy hooks remain functional
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password).catch(() => null);
+          if (userCredential?.user) {
+            await updateProfile(userCredential.user, { displayName: trimmedFullName }).catch(() => {});
+          }
+
+          const refCode = newUser.referralCode || ("REF" + newUser.uid.substring(0, 5).toUpperCase());
+          const customerId = generateMemberId(newUser.uid);
+          const sanitizedHandle = trimmedFullName
+            .toLowerCase()
+            .replace(/\s+/g, "_")
+            .replace(/[^\w\u0980-\u09FF]/gi, "") || customerId.toLowerCase();
+
+          const legacyUserData: any = {
+            uid: newUser.uid,
+            displayName: trimmedFullName,
+            fullName: trimmedFullName,
+            name: trimmedFullName,
+            phone: phone.trim(),
+            phoneNumber: phone.trim(),
+            email: email.trim(),
+            walletBalance: 0,
+            rewardPoints: 0,
+            balance: 0,
+            points: 0,
+            role: role || "customer",
+            createdAt: serverTimestamp(),
+            username: sanitizedHandle,
+            customerId: customerId,
+            address: getTranslation("চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর", "Chanchkoir Bazar, Gurudaspur, Natore"),
+            referralCode: refCode,
+            status: (role === "seller" || role === "rider") ? "pending" : "approved"
+          };
+
+          await setDoc(doc(db, "users", newUser.uid), legacyUserData).catch(() => {});
+
+          if (role === "seller") {
+            await setDoc(doc(db, "sellers", newUser.uid), {
+              uid: newUser.uid,
+              email: email.trim(),
+              shopName: shopName || getTranslation("আমার কাচা বাজার", "My Kacha Bazar"),
+              ownerName: trimmedFullName,
+              phoneNumber: phone.trim(),
+              status: "pending",
+              createdAt: serverTimestamp(),
+              balance: 1000
+            }).catch(() => {});
+          } else if (role === "rider") {
+            await setDoc(doc(db, "riders", newUser.uid), {
+              uid: newUser.uid,
+              email: email.trim(),
+              name: trimmedFullName,
+              phoneNumber: phone.trim(),
+              vehicleType: vehicleType,
+              status: "pending",
+              createdAt: serverTimestamp(),
+              balance: 0
+            }).catch(() => {});
+          }
+
+          await setDoc(doc(db, "wallet", newUser.uid), {
+            userId: newUser.uid,
+            balance: 0,
+            updatedAt: serverTimestamp()
+          }).catch(() => {});
+        } catch {}
+
+        await linkReferral(newUser.uid, referralInput);
+
+        onAuthSuccess(newUser, role);
       }
     } catch (err: any) {
       if (!err?.message?.includes("offline")) {
@@ -956,33 +1020,46 @@ export default function AuthView({
     setError("");
     setLoading(true);
     try {
+      // 1. Primary: Supabase Google OAuth (supabase.auth.signInWithOAuth)
+      const sbOAuth = await supabaseSignInWithGoogle();
+      if (sbOAuth.success) {
+        // Redirect initiated by Supabase OAuth
+        return;
+      }
+
+      // 2. Fallback: Firebase popup login (if running inside strict iframe without redirect allowed)
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
       if (role === "admin") {
-        const isAdminUser = await checkIsAdmin(user.uid);
+        const isAdminUser = await checkIsAdmin(user.uid, user.email || "");
         if (!isAdminUser) {
-          await signOut(auth);
+          await supabaseSignOut();
+          await signOut(auth).catch(() => {});
           throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।", "Access denied. You are not authorized as an admin."));
         }
       } else if (role === "seller") {
         const sRes = await checkSellerStatus(user.uid);
         if (!sRes.isSeller) {
-          await signOut(auth);
+          await supabaseSignOut();
+          await signOut(auth).catch(() => {});
           throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি বিক্রেতা হিসেবে নিবন্ধিত নয়।", "Access denied. This account is not registered as a seller."));
         }
         if (sRes.status === "rejected") {
-          await signOut(auth);
+          await supabaseSignOut();
+          await signOut(auth).catch(() => {});
           throw new Error(getTranslation("আপনার বিক্রেতা অ্যাকাউন্টটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your seller account application was rejected by admin."));
         }
       } else if (role === "rider") {
         const rRes = await checkRiderStatus(user.uid);
         if (!rRes.isRider) {
-          await signOut(auth);
+          await supabaseSignOut();
+          await signOut(auth).catch(() => {});
           throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি রাইডার হিসেবে নিবন্ধিত নয়।", "Access denied. This account is not registered as a rider."));
         }
         if (rRes.status === "rejected") {
-          await signOut(auth);
+          await supabaseSignOut();
+          await signOut(auth).catch(() => {});
           throw new Error(getTranslation("আপনার রাইডার অ্যাকাউন্টটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your rider account application was rejected by admin."));
         }
       }
@@ -1026,6 +1103,20 @@ export default function AuthView({
 
         await linkReferral(user.uid, referralInput);
       }
+
+      // Sync to Supabase users table as well
+      try {
+        await supabase.from("users").upsert({
+          id: user.uid,
+          uid: user.uid,
+          email: user.email,
+          full_name: user.displayName || "গ্রাহক",
+          display_name: user.displayName || "গ্রাহক",
+          role: userRole,
+          photo_url: user.photoURL || null,
+          updated_at: new Date().toISOString()
+        });
+      } catch {}
 
       onAuthSuccess(userData, userRole);
     } catch (err: any) {

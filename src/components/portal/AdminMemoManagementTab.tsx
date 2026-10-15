@@ -15,6 +15,7 @@ import { downloadMemoPDF } from "../../lib/pdfUtils";
 import { createTranslator } from "../../lib/formatUtils";
 import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 import { APP_LOGO_URL } from "../../constants/branding";
+import { saveSupabaseMemo, deleteSupabaseMemo } from "../../lib/memoSupabase";
 
 interface AdminMemoManagementTabProps {
   orders?: any[];
@@ -555,6 +556,9 @@ export default function AdminMemoManagementTab({
         createdAt: serverTimestamp()
       }, { merge: true });
 
+      // Mirror into Supabase memos table
+      await saveSupabaseMemo(memoId, memoPayload);
+
       triggerToast("মেমো ক্লাউড ফায়ারস্টোরে সফলভাবে সংরক্ষিত হয়েছে!", "Official memo saved to Firestore database!");
     } catch (err: any) {
       console.error("Error saving memo to Firestore:", err);
@@ -575,6 +579,7 @@ export default function AdminMemoManagementTab({
       } catch {
         // optional mirror delete
       }
+      await deleteSupabaseMemo(memoId);
       setSavedMemos(prev => prev.filter(m => m.id !== memoId));
       triggerToast("মেমো সফলভাবে মুছে ফেলা হয়েছে!", "Memo deleted permanently from database!");
     } catch (err: any) {
@@ -646,6 +651,9 @@ export default function AdminMemoManagementTab({
         status: payload.paymentStatus,
         createdAt: serverTimestamp()
       });
+
+      // Mirror into Supabase memos table
+      await saveSupabaseMemo(memoId, payload);
 
       triggerToast("নতুন কাস্টম মেমো সফলভাবে ডাটাবেজে যুক্ত হয়েছে!", "Manual invoice created successfully in Firestore!");
       setShowCreateMemoModal(false);

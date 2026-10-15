@@ -19,6 +19,7 @@ import {
 import { MessageSquare, X, Send, User, Sparkles, LogIn, Check, CheckCheck, Edit2, ShieldCheck } from "lucide-react";
 import { createTranslator } from "../lib/formatUtils";
 import { sendSupabaseChatMessage, subscribeToSupabaseChatMessages } from "../lib/supabaseChat";
+import { onSupabaseAuthStateChange, getSupabaseUser } from "../lib/supabaseAuth";
 
 interface CustomerLiveChatProps {
   lang: "bn" | "en";
@@ -94,16 +95,34 @@ export default function CustomerLiveChat({
     ? (currentUser.email || "")
     : (lang === "bn" ? "গেস্ট ভিজিটর" : "Guest Visitor");
 
-  // 1. Monitor auth state
+  // 1. Monitor auth state (Supabase primary + Firebase fallback)
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    getSupabaseUser().then((u) => {
+      if (u) setCurrentUser(u as any);
+    });
+
+    const unsubSb = onSupabaseAuthStateChange((user) => {
       if (user) {
-        setCurrentUser(user);
-      } else {
+        setCurrentUser(user as any);
+      } else if (!auth.currentUser) {
         setCurrentUser(null);
       }
     });
-    return () => unsubscribe();
+
+    const unsubFb = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setCurrentUser(user);
+      } else {
+        getSupabaseUser().then((u) => {
+          if (!u) setCurrentUser(null);
+        });
+      }
+    });
+
+    return () => {
+      unsubSb();
+      unsubFb();
+    };
   }, []);
 
   // 2. Sync with user's chat room & calculate customer-unread support messages

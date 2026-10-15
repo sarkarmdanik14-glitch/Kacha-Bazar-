@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X, MapPin, Phone, MessageCircle, MessageSquare, Flag, Share2, Calendar, Eye, ShieldCheck, CheckCircle, Trash2, Edit, AlertCircle } from "lucide-react";
-import { db, doc, updateDoc, increment, deleteDoc } from "../../lib/firebase";
 import { BuySellListing, BUY_SELL_CATEGORIES } from "../../types/buySell";
+import { updateBuySellListing, deleteBuySellListing } from "../../lib/buysellSupabase";
 
 interface BuySellDetailsModalProps {
   listing: BuySellListing;
@@ -36,14 +36,9 @@ export default function BuySellDetailsModal({
 
   // Increment view counter once per view
   useEffect(() => {
-    try {
-      const docRef = doc(db, "buy_sell_listings", listing.id);
-      updateDoc(docRef, {
-        views: increment(1)
-      }).catch(() => {});
-    } catch {
-      // Ignore view increment error
-    }
+    updateBuySellListing(listing.id, {
+      views: (listing.views || 0) + 1
+    }).catch(() => {});
   }, [listing.id]);
 
   const images = listing.images && listing.images.length > 0 
@@ -95,8 +90,7 @@ export default function BuySellDetailsModal({
     setUpdatingStatus(true);
     try {
       const newStatus = isSold ? "active" : "sold";
-      const docRef = doc(db, "buy_sell_listings", listing.id);
-      await updateDoc(docRef, { status: newStatus });
+      await updateBuySellListing(listing.id, { status: newStatus });
       setCurrentStatus(newStatus);
       triggerToast(
         newStatus === "sold" ? "পণ্যটি বিক্রিত হিসেবে চিহ্নিত করা হয়েছে।" : "পণ্যটি আবার সক্রিয় করা হয়েছে।",
@@ -112,8 +106,7 @@ export default function BuySellDetailsModal({
 
   const handleDeleteListing = async () => {
     try {
-      const docRef = doc(db, "buy_sell_listings", listing.id);
-      await deleteDoc(docRef);
+      await deleteBuySellListing(listing.id);
       triggerToast("বিজ্ঞাপনটি সফলভাবে মুছে ফেলা হয়েছে।", "Listing deleted successfully.");
       if (onDelete) {
         onDelete(listing.id);
