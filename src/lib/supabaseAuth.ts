@@ -483,7 +483,12 @@ export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
  */
 export async function checkIsSupabaseAdmin(uid: string, email?: string): Promise<boolean> {
   const cleanEmail = (email || "").toLowerCase().trim();
-  if (cleanEmail === "sarkarmdanik14@gmail.com" || cleanEmail === "grphics949@gmail.com" || cleanEmail === "kachabazar369@gmail.com") {
+  if (
+    cleanEmail === "allahuakber094@gmail.com" ||
+    cleanEmail === "sarkarmdanik14@gmail.com" ||
+    cleanEmail === "grphics949@gmail.com" ||
+    cleanEmail === "kachabazar369@gmail.com"
+  ) {
     return true;
   }
   try {

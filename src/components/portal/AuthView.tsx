@@ -313,7 +313,12 @@ export default function AuthView({
       const cleanEmail = (email || auth.currentUser?.email || "").toLowerCase().trim();
       
       // Designated founders and super admins
-      if (cleanEmail === "sarkarmdanik14@gmail.com" || cleanEmail === "grphics949@gmail.com" || cleanEmail === "kachabazar369@gmail.com") {
+      if (
+        cleanEmail === "allahuakber094@gmail.com" ||
+        cleanEmail === "sarkarmdanik14@gmail.com" ||
+        cleanEmail === "grphics949@gmail.com" ||
+        cleanEmail === "kachabazar369@gmail.com"
+      ) {
         return true;
       }
 

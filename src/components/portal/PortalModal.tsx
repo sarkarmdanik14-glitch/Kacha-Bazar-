@@ -58,7 +58,7 @@ export default function PortalModal({
   // Helper to check if role allows tab
   const isTabAllowed = (tab: string, role: string) => {
     const r = role?.toLowerCase();
-    if (r === "admin" || r === "founder") return true;
+    if (r === "admin" || r === "super_admin" || r === "founder") return true;
     if (tab === "customer") return true;
     if (tab === "partner" && (r === "partner" || currentPartner !== null)) return true;
     if (tab === "seller" && r === "seller") return true;
@@ -136,7 +136,12 @@ export default function PortalModal({
           let adminData: any = null;
 
           // 1. Designated admin emails
-          if (email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com") {
+          if (
+            email === "allahuakber094@gmail.com" ||
+            email === "sarkarmdanik14@gmail.com" ||
+            email === "grphics949@gmail.com" ||
+            email === "kachabazar369@gmail.com"
+          ) {
             isAdminUser = true;
           }
 
@@ -351,7 +356,12 @@ export default function PortalModal({
           // Customer App default authentication handling
           // Check if admin
           let isAdminUser = false;
-          if (email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com") {
+          if (
+            email === "allahuakber094@gmail.com" ||
+            email === "sarkarmdanik14@gmail.com" ||
+            email === "grphics949@gmail.com" ||
+            email === "kachabazar369@gmail.com"
+          ) {
             isAdminUser = true;
           } else {
             isAdminUser = await checkIsSupabaseAdmin(uid, email);
@@ -460,9 +470,18 @@ export default function PortalModal({
     if (role === "partner") {
       setCurrentPartner(userData);
     }
-    setCurrentUser(userData);
-    setUserRole(role);
-    setActivePortalTab(role);
+    const cleanEmail = (userData?.email || "").toLowerCase().trim();
+    const isSuperOrAdmin = role === "admin" || role === "super_admin" || role === "founder" || 
+      userData?.role === "admin" || userData?.role === "super_admin" || userData?.isSuperAdmin ||
+      cleanEmail === "sarkarmdanik14@gmail.com" || cleanEmail === "allahuakber094@gmail.com" ||
+      cleanEmail === "grphics949@gmail.com" || cleanEmail === "kachabazar369@gmail.com";
+
+    const effectiveRole = isSuperOrAdmin ? "admin" : role;
+    const effectiveUser = isSuperOrAdmin ? { ...userData, role: "admin", isSuperAdmin: true } : userData;
+
+    setCurrentUser(effectiveUser);
+    setUserRole(effectiveRole);
+    setActivePortalTab(effectiveRole);
     triggerToast(
       "লগইন সফল হয়েছে! কাচা বাজার পোর্টালে স্বাগতম।",
       "Login successful! Welcome to the Kacha Bazar system portal."
@@ -580,7 +599,7 @@ export default function PortalModal({
                   </div>
                 ) : (
                   <div className="h-full w-full min-h-0">
-                    {activePortalTab === "admin" && (
+                    {(activePortalTab === "admin" || activePortalTab === "super_admin") && (
                       <AdminPanel 
                         user={currentUser} 
                         onLogout={handleLogout} 

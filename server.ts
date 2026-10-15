@@ -543,6 +543,39 @@ app.get("/health", (req, res) => {
 });
 
 // ==========================================
+// DATA ENGINE MODE TOGGLE (Supabase <-> Firebase)
+// ==========================================
+let serverDataEngineMode: "supabase" | "firebase" = "supabase";
+const ENGINE_CONFIG_FILE = path.resolve(process.cwd(), "data", "engine_mode.json");
+
+try {
+  if (fs.existsSync(ENGINE_CONFIG_FILE)) {
+    const saved = JSON.parse(fs.readFileSync(ENGINE_CONFIG_FILE, "utf-8"));
+    if (saved?.mode === "supabase" || saved?.mode === "firebase") {
+      serverDataEngineMode = saved.mode;
+    }
+  }
+} catch {}
+
+app.get("/api/engine/mode", (req, res) => {
+  res.json({ mode: serverDataEngineMode, timestamp: new Date().toISOString() });
+});
+
+app.post("/api/engine/mode", (req, res) => {
+  const { mode } = req.body || {};
+  if (mode === "supabase" || mode === "firebase") {
+    serverDataEngineMode = mode;
+    try {
+      const dir = path.dirname(ENGINE_CONFIG_FILE);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(ENGINE_CONFIG_FILE, JSON.stringify({ mode: serverDataEngineMode, updatedAt: new Date().toISOString() }, null, 2));
+    } catch {}
+    return res.json({ success: true, mode: serverDataEngineMode });
+  }
+  return res.status(400).json({ success: false, error: "Invalid mode. Allowed: supabase | firebase" });
+});
+
+// ==========================================
 // REAL-TIME APP VISITOR ANALYTICS SYSTEM
 // ==========================================
 /**
@@ -1471,32 +1504,9 @@ function getStaffFromSession(req: express.Request): { staffId: string; email: st
   return null;
 }
 
-// Cache for Google's public x509 signing certificates
-let googlePublicCertsCache: { [kid: string]: string } | null = null;
-let googleCertsExpiry = 0;
-
-async function getGooglePublicCerts(): Promise<{ [kid: string]: string }> {
-  const now = Date.now();
-  if (googlePublicCertsCache && now < googleCertsExpiry) {
-    return googlePublicCertsCache;
-  }
-  try {
-    const res = await fetch("https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com");
-    if (res.ok) {
-      const certs = await res.json();
-      googlePublicCertsCache = certs;
-      googleCertsExpiry = now + 3600 * 1000;
-      return certs;
-    }
-  } catch (err) {
-    console.warn("Notice fetching Google public certificates:", err);
-  }
-  return googlePublicCertsCache || {};
-}
-
 /**
  * Cryptographically verifies authentication token using Supabase Auth (supabase.auth.getUser(jwt)).
- * Serves as the primary token validation mechanism for all requests.
+ * Serves as the authoritative token validation mechanism for all requests.
  */
 async function verifySupabaseToken(token: string): Promise<{ email: string; uid: string; role?: string } | null> {
   if (!token || typeof token !== "string" || token.length < 20) return null;
@@ -1524,13 +1534,12 @@ async function verifySupabaseToken(token: string): Promise<{ email: string; uid:
 }
 
 /**
- * Cryptographically verifies tokens with fallback for legacy tokens.
- * Prioritizes Supabase Auth, then falls back to cryptographic Google public certificate check.
+ * Token verification using Supabase Auth (supabase.auth.getUser).
+ * Maintained with legacy alias for full compatibility.
  */
 async function verifyFirebaseIdToken(token: string): Promise<{ email: string; uid?: string; email_verified?: boolean } | null> {
   if (!token || typeof token !== "string" || token.length < 20) return null;
 
-  // 1. Primary: Verify with Supabase Auth (supabase.auth.getUser(token))
   try {
     const sbUser = await verifySupabaseToken(token);
     if (sbUser) {
@@ -1542,76 +1551,19 @@ async function verifyFirebaseIdToken(token: string): Promise<{ email: string; ui
     }
   } catch (sbErr) {}
 
-  // 2. Cryptographically verify RS256 signature against Google's public x509 certificates
-  try {
-    const parts = token.split(".");
-    if (parts.length === 3) {
-      const [headerB64, payloadB64, signatureB64] = parts;
-      const header = JSON.parse(Buffer.from(headerB64, "base64url").toString("utf-8"));
-      const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf-8"));
-
-      if (header.alg === "RS256" && header.kid) {
-        const certs = await getGooglePublicCerts();
-        const cert = certs[header.kid];
-        if (cert) {
-          const verifier = crypto.createVerify("RSA-SHA256");
-          verifier.update(`${headerB64}.${payloadB64}`);
-          const isSignatureValid = verifier.verify(cert, signatureB64, "base64url");
-          if (isSignatureValid) {
-            const nowSeconds = Math.floor(Date.now() / 1000);
-            const expectedProjectId = firebaseAppletConfig.projectId || "ai-studio-premiumgroceryst-5b277faa-b6cb-4c5d-a20e-2d825b9bf041";
-            
-            const isNotExpired = payload.exp && Number(payload.exp) > nowSeconds;
-            const isAudienceValid = payload.aud === expectedProjectId;
-            const isIssuerValid = payload.iss === `https://securetoken.google.com/${expectedProjectId}`;
-            const hasValidSubject = typeof payload.sub === "string" && payload.sub.length > 0;
-
-            if (isNotExpired && isAudienceValid && isIssuerValid && hasValidSubject) {
-              const email = (payload.email || "").toLowerCase().trim();
-              const uid = payload.sub || payload.user_id || "";
-              return {
-                email,
-                uid,
-                email_verified: payload.email_verified === true || payload.email_verified === "true"
-              };
-            }
-          }
-        }
-      }
-    }
-  } catch (certVerifyErr) {
-    console.warn("Public certificate cryptographic verification notice:", certVerifyErr);
-  }
-
-  // 3. Cryptographically verified Google OAuth2 tokeninfo check for Google OAuth ID tokens
-  try {
-    const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`);
-    if (verifyRes.ok) {
-      const payload: any = await verifyRes.json();
-      const nowSeconds = Math.floor(Date.now() / 1000);
-      const isNotExpired = payload.exp && Number(payload.exp) > nowSeconds;
-      const email = (payload.email || "").toLowerCase().trim();
-      const emailVerified = payload.email_verified === "true" || payload.email_verified === true;
-      if (isNotExpired && email && emailVerified) {
-        return {
-          email,
-          uid: payload.sub || "",
-          email_verified: true
-        };
-      }
-    }
-  } catch (oauthErr) {}
-
   return null;
 }
 
+/**
+ * Server-Authoritative Staff & Admin Token Authentication via Supabase Auth.
+ * Parses Bearer JWT, x-supabase-token, or legacy token headers and verifies against Supabase.
+ */
 async function verifyFirebaseTokenAuth(req: express.Request): Promise<{ staffId: string; email: string; role: string; isSuperAdmin: boolean } | null> {
   const token = (req.headers["x-supabase-token"] as string) ||
     (req.headers["x-firebase-id-token"] as string) || 
     (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.substring(7) : "");
   if (!token || token.length < 20) return null;
 
-  // 1. Primary: Verify with Supabase Auth (supabase.auth.getUser)
   try {
     const sbUser = await verifySupabaseToken(token);
     if (sbUser?.email || sbUser?.uid) {
@@ -1624,7 +1576,7 @@ async function verifyFirebaseTokenAuth(req: express.Request): Promise<{ staffId:
         (uid && s.id === uid)
       );
 
-      if (!staff && (email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com")) {
+      if (!staff && (email === "allahuakber094@gmail.com" || email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com")) {
         return {
           staffId: "CFI-KB-001",
           email: email,
@@ -1678,43 +1630,10 @@ async function verifyFirebaseTokenAuth(req: express.Request): Promise<{ staffId:
         } catch {}
       }
     }
-  } catch (sbErr) {}
+  } catch (sbErr) {
+    console.warn("[Auth Middleware] Supabase token auth notice:", sbErr);
+  }
 
-  // 2. Fallback to Firebase token verification
-  try {
-    const verified = await verifyFirebaseIdToken(token);
-    if (!verified) return null;
-
-    const email = verified.email;
-    const uid = verified.uid || "";
-
-    const staffList = readStaffDb();
-    let staff = staffList.find(s => 
-      (email && s.email && s.email.toLowerCase() === email) ||
-      (uid && s.id === uid)
-    );
-
-    if (!staff && (email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com")) {
-      staff = staffList.find(s => s.role === "super_admin" || s.isSuperAdmin);
-      if (!staff) {
-        return {
-          staffId: "CFI-KB-001",
-          email: email,
-          role: "super_admin",
-          isSuperAdmin: true
-        };
-      }
-    }
-
-    if (staff && staff.status === "active") {
-      return {
-        staffId: staff.staffId,
-        email: staff.email,
-        role: staff.role,
-        isSuperAdmin: staff.role === "super_admin" || !!staff.isSuperAdmin
-      };
-    }
-  } catch (e) {}
   return null;
 }
 
@@ -4291,31 +4210,27 @@ app.post("/api/auth/forgot-password/reset", rateLimiter(20, 60000), async (req, 
       console.warn("Notice saving customer password record:", cErr);
     }
 
-    // 4. Try Firebase Admin Auth update if available
+    // 4. Update password via Supabase Auth Admin API
     try {
-      if (!getAdminApps().length) {
-        initAdminApp({
-          projectId: firebaseAppletConfig.projectId
-        });
-      }
-      const adminApps = getAdminApps();
-      if (adminApps.length > 0) {
-        const { getAuth: getAdminAuth } = await import("firebase-admin/auth");
-        let targetUid = userId;
+      const sb = getServerSupabase();
+      if (sb) {
+        let targetAuthId = userId;
         if (matchedRecord.email) {
           try {
-            const userRecord = await getAdminAuth(adminApps[0]).getUserByEmail(matchedRecord.email);
-            if (userRecord && userRecord.uid) {
-              targetUid = userRecord.uid;
+            const { data: uRow } = await sb.from("users").select("id, uid").eq("email", matchedRecord.email.toLowerCase().trim()).maybeSingle();
+            if (uRow?.uid || uRow?.id) {
+              targetAuthId = uRow.uid || uRow.id;
             }
-          } catch (e) {}
+          } catch {}
         }
-        await getAdminAuth(adminApps[0]).updateUser(targetUid, {
-          password: cleanPass
-        });
+        if (targetAuthId && sb.auth?.admin?.updateUserById) {
+          await sb.auth.admin.updateUserById(targetAuthId, {
+            password: cleanPass
+          });
+        }
       }
-    } catch (aErr: any) {
-      // Admin SDK notice logged quietly
+    } catch (sbAuthErr: any) {
+      console.warn("[Supabase Auth] Password update notice:", sbAuthErr?.message || sbAuthErr);
     }
 
     // Invalidate reset token so it cannot be reused
@@ -4383,22 +4298,16 @@ app.post("/api/auth/profile/change-password", rateLimiter(25, 60000), async (req
       }
     } catch (sErr) {}
 
-    // 3. Try Firebase Admin Auth update if available
+    // 3. Update password in Supabase Auth
     try {
-      if (!getAdminApps().length) {
-        initAdminApp({
-          projectId: firebaseAppletConfig.projectId
-        });
-      }
-      const adminApps = getAdminApps();
-      if (adminApps.length > 0) {
-        const { getAuth: getAdminAuth } = await import("firebase-admin/auth");
-        await getAdminAuth(adminApps[0]).updateUser(cleanUserId, {
+      const sb = getServerSupabase();
+      if (sb && sb.auth?.admin?.updateUserById) {
+        await sb.auth.admin.updateUserById(cleanUserId, {
           password: cleanPass
         });
       }
-    } catch (aErr: any) {
-      console.warn("Notice: Firebase Admin updateUser notice:", aErr?.message || aErr);
+    } catch (sbErr: any) {
+      console.warn("[Supabase Auth] Profile change password notice:", sbErr?.message || sbErr);
     }
 
     return res.status(200).json({
@@ -4591,7 +4500,7 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
       }
 
       // Safe Super Admin / Owner self-recovery if credentials match canonical default admin password
-      if (!isMatch && (staff.role === "super_admin" || staff.isSuperAdmin || staff.email === "sarkarmdanik14@gmail.com")) {
+      if (!isMatch && (staff.role === "super_admin" || staff.isSuperAdmin || staff.email === "allahuakber094@gmail.com" || staff.email === "sarkarmdanik14@gmail.com")) {
         if (password === "admin1234" || password === "admin123" || password === "123456" || password === "cfikb001") {
           isMatch = true;
           const newCreds = hashStaffPassword(password);
@@ -5021,7 +4930,7 @@ app.post("/api/staff/firebase-session", rateLimiter(20, 60000), async (req, res)
     );
 
     // If verified email is the designated founder / super_admin or current project owner
-    if (!staff && (email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com")) {
+    if (!staff && (email === "allahuakber094@gmail.com" || email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com")) {
       staff = staffList.find(s => s.role === "super_admin" || s.isSuperAdmin);
       if (!staff) {
         staff = {
@@ -5124,7 +5033,7 @@ app.post("/api/staff/supabase-session", rateLimiter(20, 60000), async (req, res)
     );
 
     // If designated founder / super_admin
-    if (!staff && (email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com")) {
+    if (!staff && (email === "allahuakber094@gmail.com" || email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com")) {
       staff = staffList.find(s => s.role === "super_admin" || s.isSuperAdmin);
       if (!staff) {
         staff = {
