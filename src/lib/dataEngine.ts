@@ -1,41 +1,46 @@
 /**
- * Data Engine Switch Manager (Supabase <-> Firebase Toggle)
- * Allows seamlessly toggling between Pure Supabase (PostgreSQL + R2) and Legacy Firebase (Firestore + Storage)
- * with zero downtime, instant rollback, and real-time state synchronization.
+ * Data Engine Switch Manager (Supabase <-> Firebase ON/OFF Toggle)
+ * Allows seamlessly toggling between:
+ *  1. Pure Supabase (PostgreSQL + Cloudflare R2) - 100% Supabase Test Mode
+ *  2. Dual Sync (Hybrid Mode) - Supabase Primary with Live Firebase Dual-Sync & Fallback
+ *  3. Pure Firebase (Firestore + Storage) - Legacy Fallback Mode
+ * 
+ * Provides zero downtime, 1-click instant rollback, and real-time state synchronization
+ * across the entire application and dev server.
  */
 
-export type DataEngineMode = "supabase" | "firebase";
+export type DataEngineMode = "supabase" | "dual" | "firebase";
 
 const STORAGE_KEY = "kb_data_engine_mode";
 const EVENT_NAME = "kb-data-engine-changed";
 
-// Default to Supabase as requested, with instant fallback to Firebase available via toggle
+// Default to "dual" or saved mode to guarantee zero disruption while testing
 let currentMode: DataEngineMode = (() => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "supabase" || saved === "firebase") {
-      return saved;
+    if (saved === "supabase" || saved === "dual" || saved === "firebase") {
+      return saved as DataEngineMode;
     }
   } catch {}
-  return "supabase";
+  return "dual";
 })();
 
 /**
- * Get current active data engine mode ("supabase" | "firebase")
+ * Get current active data engine mode ("supabase" | "dual" | "firebase")
  */
 export function getDataEngineMode(): DataEngineMode {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "supabase" || saved === "firebase") {
-      currentMode = saved;
+    if (saved === "supabase" || saved === "dual" || saved === "firebase") {
+      currentMode = saved as DataEngineMode;
     }
   } catch {}
   return currentMode;
 }
 
 /**
- * Set active data engine mode ("supabase" | "firebase")
- * Persists to localStorage and notifies all running components across tabs
+ * Set active data engine mode ("supabase" | "dual" | "firebase")
+ * Persists to localStorage, notifies all running components across tabs, and synchronizes with server
  */
 export function setDataEngineMode(mode: DataEngineMode): void {
   currentMode = mode;
@@ -49,7 +54,7 @@ export function setDataEngineMode(mode: DataEngineMode): void {
     window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { mode } }));
   }
 
-  // Also notify server in background
+  // Synchronize server-side engine mode in background
   try {
     fetch("/api/engine/mode", {
       method: "POST",
@@ -60,21 +65,43 @@ export function setDataEngineMode(mode: DataEngineMode): void {
 }
 
 /**
- * Check if Supabase Engine is currently active
+ * Check if Supabase is active (primary in "supabase" or "dual" modes)
  */
-export function isSupabaseEngineActive(): boolean {
+export function isSupabasePrimary(): boolean {
+  const m = getDataEngineMode();
+  return m === "supabase" || m === "dual";
+}
+
+/**
+ * Check if Pure Supabase test mode is active (100% Supabase, zero Firebase)
+ */
+export function isPureSupabase(): boolean {
   return getDataEngineMode() === "supabase";
 }
 
 /**
- * Check if Firebase Engine is currently active
+ * Check if Dual Sync / Hybrid mode is active
  */
-export function isFirebaseEngineActive(): boolean {
-  return getDataEngineMode() === "firebase";
+export function isDualMode(): boolean {
+  return getDataEngineMode() === "dual";
 }
 
 /**
- * Subscribe to data engine changes in real-time
+ * Check if Firebase fallback is enabled (active in "firebase" and "dual" modes)
+ */
+export function isFirebaseEnabled(): boolean {
+  const m = getDataEngineMode();
+  return m === "firebase" || m === "dual";
+}
+
+/**
+ * Legacy compatibility aliases
+ */
+export const isSupabaseEngineActive = isSupabasePrimary;
+export const isFirebaseEngineActive = () => getDataEngineMode() === "firebase";
+
+/**
+ * Subscribe to data engine mode changes in real-time
  */
 export function subscribeToEngineMode(callback: (mode: DataEngineMode) => void): () => void {
   const handler = (e: Event) => {
@@ -100,4 +127,26 @@ export function subscribeToEngineMode(callback: (mode: DataEngineMode) => void):
       window.removeEventListener(EVENT_NAME, handler);
     }
   };
+}
+
+/**
+ * Initialize engine mode from server on startup
+ */
+export async function initEngineModeFromServer(): Promise<DataEngineMode> {
+  try {
+    const res = await fetch("/api/engine/mode");
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.mode && (data.mode === "supabase" || data.mode === "dual" || data.mode === "firebase")) {
+        const serverMode = data.mode as DataEngineMode;
+        // Keep local if user explicitly set it, or sync with server
+        const local = localStorage.getItem(STORAGE_KEY);
+        if (!local) {
+          setDataEngineMode(serverMode);
+        }
+        return getDataEngineMode();
+      }
+    }
+  } catch {}
+  return getDataEngineMode();
 }

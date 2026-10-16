@@ -551,7 +551,7 @@ const ENGINE_CONFIG_FILE = path.resolve(process.cwd(), "data", "engine_mode.json
 try {
   if (fs.existsSync(ENGINE_CONFIG_FILE)) {
     const saved = JSON.parse(fs.readFileSync(ENGINE_CONFIG_FILE, "utf-8"));
-    if (saved?.mode === "supabase" || saved?.mode === "firebase") {
+    if (saved?.mode === "supabase" || saved?.mode === "dual" || saved?.mode === "firebase") {
       serverDataEngineMode = saved.mode;
     }
   }
@@ -563,7 +563,7 @@ app.get("/api/engine/mode", (req, res) => {
 
 app.post("/api/engine/mode", (req, res) => {
   const { mode } = req.body || {};
-  if (mode === "supabase" || mode === "firebase") {
+  if (mode === "supabase" || mode === "dual" || mode === "firebase") {
     serverDataEngineMode = mode;
     try {
       const dir = path.dirname(ENGINE_CONFIG_FILE);
@@ -572,7 +572,7 @@ app.post("/api/engine/mode", (req, res) => {
     } catch {}
     return res.json({ success: true, mode: serverDataEngineMode });
   }
-  return res.status(400).json({ success: false, error: "Invalid mode. Allowed: supabase | firebase" });
+  return res.status(400).json({ success: false, error: "Invalid mode. Allowed: supabase | dual | firebase" });
 });
 
 // ==========================================
@@ -4499,7 +4499,7 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
         }
       }
 
-      // Safe Super Admin / Owner self-recovery if credentials match canonical default admin password
+      // Safe Super Admin / Owner self-recovery & Firebase credential verification
       if (!isMatch && (staff.role === "super_admin" || staff.isSuperAdmin || staff.email === "allahuakber094@gmail.com" || staff.email === "sarkarmdanik14@gmail.com")) {
         if (password === "admin1234" || password === "admin123" || password === "123456" || password === "cfikb001") {
           isMatch = true;
@@ -4509,6 +4509,52 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
           staff.hash = newCreds.hash;
           staff.salt = newCreds.salt;
           writeStaffDb(staffList);
+        } else if (firebaseAppletConfig?.apiKey && staff.email) {
+          // Check if password matches their original Firebase Auth credentials
+          try {
+            const fbVerifyRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${firebaseAppletConfig.apiKey}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email: staff.email,
+                password: password,
+                returnSecureToken: true
+              })
+            });
+            const fbVerifyData: any = await fbVerifyRes.json();
+            if (fbVerifyData && fbVerifyData.idToken) {
+              isMatch = true;
+              const newCreds = hashStaffPassword(password);
+              staff.passwordHash = newCreds.hash;
+              staff.passwordSalt = newCreds.salt;
+              staff.hash = newCreds.hash;
+              staff.salt = newCreds.salt;
+              writeStaffDb(staffList);
+
+              // Seamlessly update Supabase Auth with this verified password
+              try {
+                const sb = getServerSupabase();
+                if (sb?.auth?.admin) {
+                  const { data: userListData } = await sb.auth.admin.listUsers();
+                  const targetSbUser = userListData?.users?.find((u: any) => u.email?.toLowerCase() === staff.email.toLowerCase());
+                  if (targetSbUser) {
+                    await sb.auth.admin.updateUserById(targetSbUser.id, { password: password });
+                  } else {
+                    await sb.auth.admin.createUser({
+                      email: staff.email,
+                      password: password,
+                      email_confirm: true,
+                      user_metadata: { role: "admin", isSuperAdmin: true, full_name: staff.fullName }
+                    });
+                  }
+                }
+              } catch (sbSyncErr) {
+                console.warn("Notice syncing Supabase password for super admin:", sbSyncErr);
+              }
+            }
+          } catch (fbErr) {
+            console.warn("Notice verifying with Firebase Auth toolkit:", fbErr);
+          }
         }
       }
 

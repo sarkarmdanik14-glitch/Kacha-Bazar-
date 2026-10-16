@@ -18,6 +18,7 @@ import { SUPABASE_SCHEMA_SQL } from "../../lib/supabaseSchemaCode";
 import { CATEGORIES, ALL_PRODUCTS } from "../../data";
 import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 import { apiClient } from "../../lib/apiClient";
+import { getDataEngineMode, setDataEngineMode, subscribeToEngineMode, DataEngineMode } from "../../lib/dataEngine";
 
 interface AdminSettingsTabProps {
   settings: any;
@@ -31,6 +32,33 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
 
   const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "notice" | "delivery" | "banners" | "pwa" | "supabase" | "r2">("global");
   const [savingSettings, setSavingSettings] = useState<boolean>(false);
+  const [engineMode, setEngineMode] = useState<DataEngineMode>(getDataEngineMode());
+
+  useEffect(() => {
+    const unsub = subscribeToEngineMode((m) => setEngineMode(m));
+    return unsub;
+  }, []);
+
+  const handleEngineChange = (mode: DataEngineMode) => {
+    setDataEngineMode(mode);
+    setEngineMode(mode);
+    if (mode === "supabase") {
+      triggerToast(
+        "🟢 ১০০% সুপাবেস টেস্ট মোড চালু করা হয়েছে!",
+        "Pure Supabase Test Mode Activated! Running 100% on Supabase + Cloudflare R2."
+      );
+    } else if (mode === "dual") {
+      triggerToast(
+        "⚡ ডুয়াল-সিঙ্ক হাইব্রিড মোড সক্রিয় করা হয়েছে!",
+        "Dual-Sync Hybrid Mode Activated! Supabase primary with live Firebase mirror backup."
+      );
+    } else {
+      triggerToast(
+        "🔵 ফায়ারবেস লিগ্যাসি মোড সক্রিয় করা হয়েছে!",
+        "Firebase Legacy Fallback Mode Activated."
+      );
+    }
+  };
 
   // Supabase Migration & Test State
   const [checkingSupabase, setCheckingSupabase] = useState<boolean>(false);
@@ -722,6 +750,104 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
   return (
     <div className="space-y-6 text-slate-700">
       
+      {/* 🟢 CLOUD ENGINE & DATABASE ON/OFF CONTROL SWITCHER */}
+      <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 border-2 border-emerald-500/30 rounded-3xl p-5 sm:p-6 shadow-xl text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+                <HardDrive className="w-5 h-5" />
+              </span>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-black tracking-tight text-white">
+                    {getTranslation("ক্লাউড ইঞ্জিন ও ডেটাবেস সুইচ (ON / OFF System)", "Cloud Engine & Database Switcher")}
+                  </h3>
+                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                    engineMode === "supabase" ? "bg-emerald-500 text-slate-950 font-black animate-pulse" :
+                    engineMode === "dual" ? "bg-teal-400 text-slate-950 font-black" :
+                    "bg-amber-400 text-slate-950 font-black"
+                  }`}>
+                    {engineMode === "supabase" ? "🟢 Pure Supabase ON" : engineMode === "dual" ? "⚡ Dual Sync ON (Safe)" : "🔵 Firebase Mode"}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300">
+                  {getTranslation(
+                    "ফায়ারবেস চিরতরে অপসারণের পূর্বে ১০০% নিরাপদে সুপাবেস টেস্ট করার অন/অফ সিস্টেম। কোনো ডাউনটাইম ছাড়াই এক ক্লিকে ইঞ্জিন পরিবর্তন করুন।",
+                    "Seamless toggle to test Supabase 100% safely before removing Firebase SDK. Switch between engines anytime with zero downtime."
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 3-State Toggle Switch Buttons */}
+          <div className="bg-slate-800/90 p-1.5 rounded-2xl border border-slate-700/80 flex items-center gap-1.5 shrink-0 self-start md:self-auto flex-wrap sm:flex-nowrap">
+            <button
+              type="button"
+              onClick={() => handleEngineChange("supabase")}
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                engineMode === "supabase"
+                  ? "bg-emerald-500 text-slate-950 shadow-md font-black"
+                  : "text-slate-300 hover:text-white hover:bg-slate-700/60"
+              }`}
+            >
+              <CheckCircle2 className={`w-3.5 h-3.5 ${engineMode === "supabase" ? "text-slate-950" : "text-emerald-400"}`} />
+              <span>{getTranslation("১০০% সুপাবেস (ON)", "Pure Supabase")}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleEngineChange("dual")}
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                engineMode === "dual"
+                  ? "bg-teal-400 text-slate-950 shadow-md font-black"
+                  : "text-slate-300 hover:text-white hover:bg-slate-700/60"
+              }`}
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${engineMode === "dual" ? "text-slate-950" : "text-teal-400"}`} />
+              <span>{getTranslation("ডুয়াল সিঙ্ক (সেফ)", "Dual Sync")}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleEngineChange("firebase")}
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                engineMode === "firebase"
+                  ? "bg-amber-400 text-slate-950 shadow-md font-black"
+                  : "text-slate-300 hover:text-white hover:bg-slate-700/60"
+              }`}
+            >
+              <Database className={`w-3.5 h-3.5 ${engineMode === "firebase" ? "text-slate-950" : "text-amber-400"}`} />
+              <span>{getTranslation("ফায়ারবেস (OFF)", "Firebase Fallback")}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Engine status detail indicators */}
+        <div className="mt-4 pt-3 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 text-[11px]">
+          <div className="flex items-center gap-2 bg-slate-800/40 px-3 py-1.5 rounded-lg border border-slate-700/40">
+            <span className="text-slate-400 font-bold">{getTranslation("ডেটাবেস ইঞ্জিন:", "Database:")}</span>
+            <span className="font-extrabold text-emerald-400">
+              {engineMode === "firebase" ? "Firestore NoSQL" : "Supabase PostgreSQL"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 bg-slate-800/40 px-3 py-1.5 rounded-lg border border-slate-700/40">
+            <span className="text-slate-400 font-bold">{getTranslation("ইমেজ ও ফাইল স্টোরেজ:", "Storage:")}</span>
+            <span className="font-extrabold text-amber-300">
+              {engineMode === "firebase" ? "Firebase Storage" : "Cloudflare R2 (S3 API)"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 bg-slate-800/40 px-3 py-1.5 rounded-lg border border-slate-700/40">
+            <span className="text-slate-400 font-bold">{getTranslation("ইউজার অথেনটিকেশন:", "Auth:")}</span>
+            <span className="font-extrabold text-teal-300">
+              {engineMode === "firebase" ? "Firebase Auth" : "Supabase Auth + Session"}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Settings Sub Navigation */}
       <div className="flex border-b border-slate-100 shrink-0 overflow-x-auto scrollbar-none">
         <button 

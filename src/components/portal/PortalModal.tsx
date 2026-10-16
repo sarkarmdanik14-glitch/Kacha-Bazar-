@@ -131,19 +131,16 @@ export default function PortalModal({
         const uid = user.uid || user.id;
         const email = (user.email || "").toLowerCase().trim();
 
-        if (forcedRole === "admin") {
-          let isAdminUser = false;
-          let adminData: any = null;
+        const isSuperAdminEmail = 
+          email === "allahuakber094@gmail.com" ||
+          email === "sarkarmdanik14@gmail.com" ||
+          email === "grphics949@gmail.com" ||
+          email === "kachabazar369@gmail.com" ||
+          user.role === "admin" || user.role === "super_admin" || user.isSuperAdmin;
 
-          // 1. Designated admin emails
-          if (
-            email === "allahuakber094@gmail.com" ||
-            email === "sarkarmdanik14@gmail.com" ||
-            email === "grphics949@gmail.com" ||
-            email === "kachabazar369@gmail.com"
-          ) {
-            isAdminUser = true;
-          }
+        if (forcedRole === "admin" || isSuperAdminEmail) {
+          let isAdminUser = isSuperAdminEmail;
+          let adminData: any = null;
 
           // 2. Supabase admin check
           if (!isAdminUser) {

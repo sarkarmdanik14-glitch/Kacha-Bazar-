@@ -38,8 +38,16 @@ export async function supabaseSignInWithEmail(
   preferredRole: string = "customer"
 ): Promise<{ success: boolean; user?: SupabaseUserProfile; role?: string; error?: string }> {
   const cleanEmail = email.trim();
+  const lowerEmail = cleanEmail.toLowerCase();
+  const isSuperAdminEmail = 
+    lowerEmail === "sarkarmdanik14@gmail.com" ||
+    lowerEmail === "allahuakber094@gmail.com" ||
+    lowerEmail === "grphics949@gmail.com" ||
+    lowerEmail === "kachabazar369@gmail.com";
 
-  // 1. Direct Partner Shop / Staff credential check
+  const effectivePreferredRole = isSuperAdminEmail ? "admin" : preferredRole;
+
+  // 1. Direct Partner Shop / Staff credential check (covers super_admin like sarkarmdanik14@gmail.com)
   try {
     const verifyData = await apiClient.post<any>("/api/auth/login-verify", {
       identifier: cleanEmail,
@@ -48,7 +56,7 @@ export async function supabaseSignInWithEmail(
 
     if (verifyData?.success && verifyData?.user) {
       const u = verifyData.user;
-      const targetRole = verifyData.role || preferredRole;
+      const targetRole = isSuperAdminEmail ? "admin" : (verifyData.role || effectivePreferredRole);
       if (verifyData.sessionId) {
         try {
           localStorage.setItem("kb_staff_session", verifyData.sessionId);
@@ -64,9 +72,9 @@ export async function supabaseSignInWithEmail(
           uid: u.uid || u.id || u.staffId,
           id: u.id || u.staffId,
           email: u.email || cleanEmail,
-          displayName: u.name || u.fullName || u.displayName || "স্টাফ মেম্বার",
-          fullName: u.fullName || u.name || "স্টাফ মেম্বার",
-          role: targetRole,
+          displayName: u.name || u.fullName || u.displayName || (isSuperAdminEmail ? "Sarkar Md Anik (Super Admin)" : "স্টাফ মেম্বার"),
+          fullName: u.fullName || u.name || (isSuperAdminEmail ? "Sarkar Md Anik (Super Admin)" : "স্টাফ মেম্বার"),
+          role: targetRole as any,
           photoURL: u.photoURL || u.photo_url || ""
         },
         role: targetRole
@@ -82,8 +90,56 @@ export async function supabaseSignInWithEmail(
     });
 
     if (error) {
-      // If user is not yet confirmed or not in Supabase Auth, check if they exist in staff table
-      if (error.message.toLowerCase().includes("invalid login credentials")) {
+      // If user entered original Firebase credentials or is super admin, check Firebase Auth fallback
+      if (isSuperAdminEmail || error.message.toLowerCase().includes("invalid login credentials")) {
+        try {
+          const { auth, signInWithEmailAndPassword } = await import("./firebase");
+          const fbCred = await signInWithEmailAndPassword(auth, cleanEmail, pass).catch(() => null);
+          if (fbCred?.user) {
+            // User successfully authenticated via Firebase Auth!
+            // Seamlessly register or sync to Supabase Auth in background
+            try {
+              await supabase.auth.signUp({
+                email: cleanEmail,
+                password: pass,
+                options: { data: { role: isSuperAdminEmail ? "admin" : effectivePreferredRole, full_name: fbCred.user.displayName || "Admin" } }
+              });
+            } catch {}
+
+            // Exchange staff session if admin
+            if (isSuperAdminEmail || effectivePreferredRole === "admin") {
+              try {
+                const idTok = await fbCred.user.getIdToken();
+                const sessionRes = await apiClient.post<any>("/api/staff/firebase-session", { idToken: idTok, token: idTok }, { silent: true });
+                if (sessionRes?.sessionId) {
+                  localStorage.setItem("kb_staff_session", sessionRes.sessionId);
+                  sessionStorage.setItem("kb_staff_session", sessionRes.sessionId);
+                  if (sessionRes.staff?.staffId) localStorage.setItem("kb_staff_id", sessionRes.staff.staffId);
+                  if (sessionRes.staff?.email) localStorage.setItem("kb_staff_email", sessionRes.staff.email);
+                }
+              } catch {}
+            }
+
+            const verifiedAdminProfile: SupabaseUserProfile = {
+              uid: fbCred.user.uid,
+              id: fbCred.user.uid,
+              email: cleanEmail,
+              displayName: fbCred.user.displayName || (isSuperAdminEmail ? "Sarkar Md Anik (Super Admin)" : "Admin"),
+              fullName: fbCred.user.displayName || (isSuperAdminEmail ? "Sarkar Md Anik (Super Admin)" : "Admin"),
+              role: isSuperAdminEmail ? "admin" : (effectivePreferredRole as any),
+              photoURL: fbCred.user.photoURL || ""
+            };
+
+            return {
+              success: true,
+              user: verifiedAdminProfile,
+              role: verifiedAdminProfile.role
+            };
+          }
+        } catch (fbFallbackErr) {
+          console.warn("Notice in Firebase fallback verification:", fbFallbackErr);
+        }
+
         // Check staff table in Supabase
         const { data: staffData } = await supabase
           .from("staff")
@@ -127,7 +183,7 @@ export async function supabaseSignInWithEmail(
     if (!profile) {
       // Auto-create user profile in public.users if not exists
       const meta = data.user.user_metadata || {};
-      const resolvedName = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || "গ্রাহক";
+      const resolvedName = meta.full_name || meta.display_name || (isSuperAdminEmail ? "Sarkar Md Anik (Super Admin)" : cleanEmail.split("@")[0]) || "গ্রাহক";
       profile = {
         uid,
         id: uid,
@@ -136,7 +192,7 @@ export async function supabaseSignInWithEmail(
         fullName: resolvedName,
         phone: meta.phone || data.user.phone || "",
         phoneNumber: meta.phone || data.user.phone || "",
-        role: (meta.role || preferredRole || "customer") as any,
+        role: (isSuperAdminEmail ? "admin" : (meta.role || effectivePreferredRole || "customer")) as any,
         referralCode: "REF" + uid.substring(0, 5).toUpperCase(),
         address: "চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর",
         walletBalance: 0,
@@ -146,8 +202,12 @@ export async function supabaseSignInWithEmail(
       await saveUserProfile(profile);
     }
 
+    if (isSuperAdminEmail && profile) {
+      profile.role = "admin";
+    }
+
     // Exchange staff session if admin or staff
-    if (profile.role === "admin" || preferredRole === "admin") {
+    if (profile.role === "admin" || effectivePreferredRole === "admin" || isSuperAdminEmail) {
       try {
         const sessionRes = await apiClient.post<any>("/api/staff/supabase-session", {
           accessToken: data.session?.access_token,
@@ -167,7 +227,7 @@ export async function supabaseSignInWithEmail(
     return {
       success: true,
       user: profile,
-      role: profile.role
+      role: isSuperAdminEmail ? "admin" : profile.role
     };
   } catch (err: any) {
     console.error("[Supabase Auth] Login error:", err);

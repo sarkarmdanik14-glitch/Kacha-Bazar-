@@ -844,11 +844,27 @@ export default function AuthView({
         }
 
         // Verify role authorization
-        const userUid = authenticatedUser.uid || authenticatedUser.id;
-        const userEmail = authenticatedUser.email;
+        const userUid = authenticatedUser?.uid || authenticatedUser?.id || "";
+        const userEmail = authenticatedUser?.email || email || "";
 
-        if (role === "admin") {
-          const isAdminUser = await checkIsAdmin(userUid, userEmail);
+        // Designated Super Admin check
+        const cleanUserEmail = (userEmail || email || "").toLowerCase().trim();
+        const isSuperAdminUser = 
+          cleanUserEmail === "sarkarmdanik14@gmail.com" ||
+          cleanUserEmail === "allahuakber094@gmail.com" ||
+          cleanUserEmail === "grphics949@gmail.com" ||
+          cleanUserEmail === "kachabazar369@gmail.com";
+
+        if (isSuperAdminUser) {
+          authenticatedRole = "admin";
+          if (authenticatedUser) {
+            authenticatedUser.role = "admin";
+            authenticatedUser.isSuperAdmin = true;
+          }
+        }
+
+        if (role === "admin" || isSuperAdminUser) {
+          const isAdminUser = isSuperAdminUser || await checkIsAdmin(userUid, userEmail);
           if (!isAdminUser) {
             await supabaseSignOut();
             await signOut(auth).catch(() => {});
