@@ -743,11 +743,11 @@ export default function App() {
     if (cached && cached.length > 0) return cached;
     // Deduplicate by ID so 'all' (সকল পণ্য) or other categories never duplicate
     const seen = new Set<string>();
-    return CATEGORIES.filter(c => {
+    return mergeCategoryCards(CATEGORIES.filter(c => {
       if (!c?.id || seen.has(c.id)) return false;
       seen.add(c.id);
       return true;
-    });
+    }));
   });
   const [loadingCategories, setLoadingCategories] = useState<boolean>(() => {
     const cached = getCachedCategories();
@@ -942,16 +942,7 @@ export default function App() {
 
     fetchAllCategoriesFromSupabase().then((spCats) => {
       if (spCats && spCats.length > 0 && isMounted) {
-        const allCat: Category = {
-          id: "all",
-          nameBn: "সকল পণ্য",
-          nameEn: "All Products",
-          iconName: "LayoutGrid",
-          colorClass: "from-emerald-500 to-teal-600",
-          borderColor: "border-emerald-200",
-          displayOrder: 0
-        };
-        setCategories(mergeCategoryCards([allCat, ...spCats]));
+        setCategories(spCats);
         setLoadingCategories(false);
       } else if (isMounted) {
         setLoadingCategories(false);
@@ -981,167 +972,13 @@ export default function App() {
     const unsubSupabaseCats = subscribeToSupabaseCategories(() => {
       fetchAllCategoriesFromSupabase().then((spCats) => {
         if (spCats && spCats.length > 0 && isMounted) {
-          const allCat: Category = {
-            id: "all",
-            nameBn: "সকল পণ্য",
-            nameEn: "All Products",
-            iconName: "LayoutGrid",
-            colorClass: "from-emerald-500 to-teal-600",
-            borderColor: "border-emerald-200",
-            displayOrder: 0
-          };
-          setCategories(mergeCategoryCards([allCat, ...spCats]));
+          setCategories(spCats);
         }
       });
     });
 
-    setLoadingCategories(true);
-    const unsubCategories = onSnapshot(
-      collection(db, "categories"), 
-      (snap) => {
-        const cats: Category[] = [];
-        // Virtual "All Products" category tab for UI
-        const allCat: Category = {
-          id: "all",
-          nameBn: "সকল পণ্য",
-          nameEn: "All Products",
-          iconName: "LayoutGrid",
-          colorClass: "from-emerald-500 to-teal-600",
-          borderColor: "border-emerald-200",
-          displayOrder: 0
-        };
-        cats.push(allCat);
-
-        if (!snap.empty) {
-          snap.forEach((doc) => {
-            const data = doc.data();
-            const catId = doc.id || data.id;
-
-            // Permanently ignore empty/obsolete home-appliances or duplicate mobile zone cards
-            if (
-              catId === "home-appliances" ||
-              ((data.nameBn === "মোবাইল জোন" || data.nameEn === "Mobile Zone") &&
-                catId !== "mobile-zone" &&
-                catId !== "mobile" &&
-                catId !== "mobiles")
-            ) {
-              return;
-            }
-
-            // Permanently ignore standalone "মসলা ও রান্নার তেল" (merged into "মুদি পণ্য")
-            if (
-              catId === "spices-oils" ||
-              catId === "spices" ||
-              catId === "oil-spices" ||
-              catId === "staples" ||
-              (data.nameBn && (data.nameBn.includes("মসলা ও রান্নার তেল") || (data.nameBn.includes("মসলা") && data.nameBn.includes("তেল")))) ||
-              (data.nameEn && data.nameEn.toLowerCase().includes("spices & cooking"))
-            ) {
-              return;
-            }
-
-            const isFrozenCat = catId === "frozen" || data.nameBn === "হিমায়িত খাদ্য";
-            const catImg = (data.image || data.imageUrl || data.banner || data.bannerUrl || "").trim();
-            cats.push({
-              id: catId,
-              nameBn: isFrozenCat ? "ড্রাই ফুড" : data.nameBn,
-              nameEn: isFrozenCat ? "Dry Food" : data.nameEn,
-              iconName: isFrozenCat ? "Package" : (data.iconName || "Sparkles"),
-              colorClass: data.colorClass || "from-emerald-500 to-teal-600",
-              borderColor: data.borderColor || "border-slate-200",
-              image: catImg,
-              imageUrl: catImg,
-              banner: catImg,
-              isAvailable: data.isAvailable !== false,
-              displayOrder: typeof data.displayOrder === "number" ? data.displayOrder : (typeof data.order === "number" ? data.order : undefined),
-              order: typeof data.order === "number" ? data.order : (typeof data.displayOrder === "number" ? data.displayOrder : undefined)
-            } as Category);
-          });
-        }
-
-        // Also add default categories if not already present
-        CATEGORIES.forEach((defaultCat) => {
-          if (!cats.some(c => c.id === defaultCat.id)) {
-            cats.push(defaultCat);
-          }
-        });
-
-        // Merge categories and enforce single Mobile Zone card
-        const mergedCats = mergeCategoryCards(cats);
-
-        // Priority order map for required categories
-        const PRIORITY_ORDER_MAP: Record<string, number> = {
-          "vegetables": 1,
-          "groceries": 2,
-          "staples": 2,
-          "spices-oils": 2,
-          "bakery-sweets": 3,
-          "restaurant": 3,
-          "bakery": 3,
-          "fish": 4,
-          "snacks-biscuits": 5,
-          "confectionery": 5,
-          "beverages": 5,
-          "meat": 6,
-          "fruits": 7,
-          "dairy-eggs": 8,
-          "frozen": 9,
-          "personal-care": 10,
-          "household": 11,
-          "pharmacy": 12,
-          "baby-care": 12,
-          "offers": 13,
-          "buy-sell": 14,
-          "organic-herbal": 14,
-          "buysell": 14,
-          "pet-care": 15,
-          "pet-food-care": 16,
-          "event-management": 16,
-          "event": 16,
-          "events": 16,
-          "vehicles": 17,
-          "transport": 17,
-          "car-rental": 17,
-          "mobile-zone": 18,
-          "mobile": 18,
-          "mobiles": 18
-        };
-
-        // Remove duplicates strictly by ID and nameBn so only one "মোবাইল জোন" is ever rendered
-        const uniqueCats = mergedCats.filter((c, index, self) =>
-          index === self.findIndex((t) => t.id === c.id) &&
-          index === self.findIndex((t) => t.nameBn === c.nameBn)
-        );
-
-        // Sort categories according to explicit displayOrder, PRIORITY_ORDER_MAP, or name
-        uniqueCats.sort((a, b) => {
-          if (a.id === "all") return -1;
-          if (b.id === "all") return 1;
-
-          const orderA = typeof (a as any).displayOrder === "number" 
-            ? (a as any).displayOrder 
-            : (typeof (a as any).order === "number" ? (a as any).order : (PRIORITY_ORDER_MAP[a.id] ?? 999));
-          const orderB = typeof (b as any).displayOrder === "number" 
-            ? (b as any).displayOrder 
-            : (typeof (b as any).order === "number" ? (b as any).order : (PRIORITY_ORDER_MAP[b.id] ?? 999));
-
-          if (orderA !== orderB) {
-            return orderA - orderB;
-          }
-          return (a.nameEn || "").localeCompare(b.nameEn || "");
-        });
-        if (!isSupabaseLoaded) {
-          setCategories(uniqueCats);
-          setLoadingCategories(false);
-        }
-      },
-      (err) => {
-        console.warn("Firestore categories sync notice:", err.message);
-        if (!isSupabaseLoaded) {
-          setLoadingCategories(false);
-        }
-      }
-    );
+    // Supabase is 100% authoritative for categories; conflicting Firestore listener removed
+    const unsubCategories = () => {};
 
     const unsubReviews = onSnapshot(
       collection(db, "reviews"), 

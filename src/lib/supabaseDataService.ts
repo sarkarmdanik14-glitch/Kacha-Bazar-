@@ -6,7 +6,7 @@
 import { supabase } from "./supabase";
 import { Product, Category, Subcategory } from "../types";
 import { mapDocToProduct } from "./productWeightUtils";
-import { shouldKeepProductGroceryFiltered } from "./categoryUtils";
+import { shouldKeepProductGroceryFiltered, mergeCategoryCards } from "./categoryUtils";
 import { OFFICIAL_MEDICINE_PRICES } from "../data";
 
 /**
@@ -155,11 +155,12 @@ export function saveCachedProducts(products: Product[]): void {
  */
 export function getCachedCategories(): Category[] | null {
   try {
+    if (typeof window === "undefined" || typeof localStorage === "undefined") return null;
     const raw = localStorage.getItem(CATEGORIES_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+      return mergeCategoryCards(parsed);
     }
     return null;
   } catch {
@@ -172,6 +173,7 @@ export function getCachedCategories(): Category[] | null {
  */
 export function saveCachedCategories(categories: Category[]): void {
   try {
+    if (typeof window === "undefined" || typeof localStorage === "undefined") return;
     if (!categories || categories.length === 0) return;
     localStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(categories));
   } catch (e) {
@@ -258,9 +260,21 @@ export async function fetchAllCategoriesFromSupabase(): Promise<Category[]> {
       return cached && cached.length > 0 ? cached : [];
     }
 
-    const categories = data
+    const rawCategories = data
       .filter((r) => r.is_available !== false)
       .map(mapSupabaseCategoryRow);
+
+    const allCat: Category = {
+      id: "all",
+      nameBn: "সকল পণ্য",
+      nameEn: "All Products",
+      iconName: "LayoutGrid",
+      colorClass: "from-emerald-500 to-teal-600",
+      borderColor: "border-emerald-200",
+      displayOrder: 0
+    };
+
+    const categories = mergeCategoryCards([allCat, ...rawCategories]);
 
     if (categories.length > 0) {
       saveCachedCategories(categories);

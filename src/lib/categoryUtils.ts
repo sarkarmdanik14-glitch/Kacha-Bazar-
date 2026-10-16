@@ -908,13 +908,18 @@ export function mergeCategoryCards(categories: any[]): any[] {
     return true;
   });
 
-  // Ensure items have exact serial ordering
+  // Ensure items have exact, stable serial ordering
   unique.sort((a, b) => {
     if (a.id === "all") return -1;
     if (b.id === "all") return 1;
-    const orderA = typeof a.displayOrder === "number" ? a.displayOrder : (typeof a.order === "number" ? a.order : (CATEGORY_SERIAL_MAP[a.id] ?? 9999));
-    const orderB = typeof b.displayOrder === "number" ? b.displayOrder : (typeof b.order === "number" ? b.order : (CATEGORY_SERIAL_MAP[b.id] ?? 9999));
-    return orderA - orderB;
+    const rawOrderA = typeof a.displayOrder === "number" ? a.displayOrder : (typeof a.order === "number" ? a.order : undefined);
+    const rawOrderB = typeof b.displayOrder === "number" ? b.displayOrder : (typeof b.order === "number" ? b.order : undefined);
+    const orderA = (rawOrderA !== undefined && rawOrderA > 0) ? rawOrderA : (CATEGORY_SERIAL_MAP[a.id] ?? 9999);
+    const orderB = (rawOrderB !== undefined && rawOrderB > 0) ? rawOrderB : (CATEGORY_SERIAL_MAP[b.id] ?? 9999);
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    return (a.nameEn || "").localeCompare(b.nameEn || "");
   });
 
   return unique;
