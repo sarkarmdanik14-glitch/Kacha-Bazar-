@@ -1039,10 +1039,47 @@ export default function App() {
       setLoadingBanners(false);
     }
 
+    // 1. Primary: Load leadership and home configuration directly from Supabase / server settings
+    fetch("/api/settings/leadership")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.settings && isMounted) {
+          const lData = data.settings;
+          setLeadership({
+            chairman: {
+              nameEn: lData.chairman?.nameEn || "MST HOSNE ARA BEGUM",
+              nameBn: lData.chairman?.nameBn || "এমএসটি হোসনে আরা বেগম",
+              image: lData.chairman?.image || chairmanImg
+            },
+            viceChairman: {
+              nameEn: lData.viceChairman?.nameEn || "MD ABU HANIF SARKAR",
+              nameBn: lData.viceChairman?.nameBn || "মোঃ আবু হানিফ সরকার",
+              image: lData.viceChairman?.image || viceChairmanImg
+            },
+            founder: {
+              nameEn: lData.founder?.nameEn || "MD ANIK SARKAR",
+              nameBn: lData.founder?.nameBn || "মোঃ অনিক সরকার",
+              image: lData.founder?.image || founderImg
+            },
+            additionalMembers: Array.isArray(lData.additionalMembers) ? lData.additionalMembers : []
+          });
+        }
+      })
+      .catch(() => {});
+
+    fetch("/api/settings/home_config")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.settings && isMounted) {
+          setHomeConfig(data.settings);
+        }
+      })
+      .catch(() => {});
+
     const unsubLeadership = onSnapshot(
       doc(db, "settings", "leadership"), 
       (docSnap) => {
-        if (docSnap.exists()) {
+        if (docSnap.exists() && isMounted) {
           const data = docSnap.data();
           setLeadership({
             chairman: {
@@ -1070,7 +1107,7 @@ export default function App() {
     const unsubHome = onSnapshot(
       doc(db, "settings", "home"), 
       (docSnap) => {
-        if (docSnap.exists()) {
+        if (docSnap.exists() && isMounted) {
           setHomeConfig(docSnap.data());
         }
       },

@@ -241,11 +241,10 @@ export default function CustomerVoiceCallModal({
       const signaling = new SupabaseCallSignalingChannel(newCallId);
       signalingRef.current = signaling;
 
-      // Collect ICE candidates from caller and send via Supabase Realtime
+      // Collect ICE candidates from caller and send instantly via Supabase Realtime Broadcast
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           signaling.sendIceCandidate(event.candidate.toJSON(), "caller");
-          addDoc(collection(db, "voice_calls", newCallId, "callerCandidates"), event.candidate.toJSON()).catch(() => {});
         }
       };
 

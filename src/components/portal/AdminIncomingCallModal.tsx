@@ -183,11 +183,10 @@ export default function AdminIncomingCallModal({
       const signaling = new SupabaseCallSignalingChannel(incomingCall.id);
       signalingRef.current = signaling;
 
-      // Collect ICE candidates from Admin (callee) and send via Supabase Realtime
+      // Collect ICE candidates from Admin (callee) and send instantly via Supabase Realtime Broadcast
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           signaling.sendIceCandidate(event.candidate.toJSON(), "agent");
-          addDoc(collection(db, "voice_calls", incomingCall.id, "calleeCandidates"), event.candidate.toJSON()).catch(() => {});
         }
       };
 
