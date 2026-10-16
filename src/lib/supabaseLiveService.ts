@@ -302,3 +302,85 @@ export function subscribeToSupabaseLiveNotice(onUpdate: (notice: any) => void): 
     supabase.removeChannel(channel).catch(() => {});
   };
 }
+
+export async function saveLiveNoticeToSupabase(notice: {
+  isActive: boolean;
+  badgeBn?: string;
+  badgeEn?: string;
+  titleBn: string;
+  titleEn?: string;
+  messageBn: string;
+  messageEn?: string;
+  theme?: string;
+  showDotPulse?: boolean;
+  orderDisabled?: boolean;
+}): Promise<boolean> {
+  try {
+    const payload = {
+      id: "default_notice",
+      is_active: notice.isActive !== false,
+      badge_bn: notice.badgeBn || "🔴 LIVE UPDATE",
+      badge_en: notice.badgeEn || "🔴 LIVE UPDATE",
+      title_bn: notice.titleBn,
+      title_en: notice.titleEn || "",
+      message_bn: notice.messageBn,
+      message_en: notice.messageEn || "",
+      theme: notice.theme || "rose",
+      show_dot_pulse: notice.showDotPulse !== false,
+      order_disabled: !!notice.orderDisabled,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from("live_notices").upsert(payload, { onConflict: "id" });
+    if (error) {
+      console.warn("[Supabase] Notice save notice:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("[Supabase] Notice save exception:", err);
+    return false;
+  }
+}
+
+export async function saveBannerToSupabase(banner: {
+  id: string;
+  titleBn?: string;
+  titleEn?: string;
+  tagBn?: string;
+  tagEn?: string;
+  bgGradient?: string;
+  image?: string;
+  targetUrl?: string;
+  isActive?: boolean;
+  displayOrder?: number;
+}): Promise<boolean> {
+  try {
+    const payload = {
+      id: banner.id,
+      title_bn: banner.titleBn || "",
+      title_en: banner.titleEn || "",
+      tag_bn: banner.tagBn || "",
+      tag_en: banner.tagEn || "",
+      bg_gradient: banner.bgGradient || "from-emerald-800 via-teal-900 to-slate-900",
+      image: banner.image || "",
+      target_url: banner.targetUrl || "",
+      is_active: banner.isActive !== false,
+      display_order: Number(banner.displayOrder || 0),
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from("banners").upsert(payload, { onConflict: "id" });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteBannerFromSupabase(bannerId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from("banners").delete().eq("id", bannerId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+

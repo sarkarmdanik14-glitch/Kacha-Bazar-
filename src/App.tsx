@@ -4600,6 +4600,19 @@ export default function App() {
             setShowPortalModal(false);
             setShowCart(true);
           }}
+          initialUser={loggedInUser}
+          onUserChange={(updatedUser) => {
+            setLoggedInUser(updatedUser);
+            if (updatedUser?.role) setUserRole(updatedUser.role);
+            if (updatedUser?.referralCode) setUserReferralCode(updatedUser.referralCode);
+            if (updatedUser?.photoURL) {
+              setUserProfilePhoto(updatedUser.photoURL);
+              setPhotoLoadError(false);
+              try {
+                localStorage.setItem("kb_user_photo", updatedUser.photoURL);
+              } catch {}
+            }
+          }}
         />
       )}
 

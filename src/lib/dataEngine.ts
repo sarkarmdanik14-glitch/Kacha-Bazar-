@@ -68,30 +68,28 @@ export function setDataEngineMode(mode: DataEngineMode): void {
  * Check if Supabase is active (primary in "supabase" or "dual" modes)
  */
 export function isSupabasePrimary(): boolean {
-  const m = getDataEngineMode();
-  return m === "supabase" || m === "dual";
+  return true;
 }
 
 /**
  * Check if Pure Supabase test mode is active (100% Supabase, zero Firebase)
  */
 export function isPureSupabase(): boolean {
-  return getDataEngineMode() === "supabase";
+  return true;
 }
 
 /**
  * Check if Dual Sync / Hybrid mode is active
  */
 export function isDualMode(): boolean {
-  return getDataEngineMode() === "dual";
+  return false;
 }
 
 /**
  * Check if Firebase fallback is enabled (active in "firebase" and "dual" modes)
  */
 export function isFirebaseEnabled(): boolean {
-  const m = getDataEngineMode();
-  return m === "firebase" || m === "dual";
+  return false;
 }
 
 /**

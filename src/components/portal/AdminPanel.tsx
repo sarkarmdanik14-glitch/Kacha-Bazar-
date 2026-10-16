@@ -36,6 +36,7 @@ import {
   subscribeToSupabaseBanners, 
   updateOrderStatusInSupabase 
 } from "../../lib/supabaseLiveService";
+import { apiClient } from "../../lib/apiClient";
 
 // Import modular sub-panels
 import AdminDashboardReport from "./AdminDashboardReport";
@@ -459,20 +460,15 @@ export default function AdminPanel({
       );
     }
 
-    // Listen to global settings - skip if provided via props
-    let unsubSettings = () => {};
+    // Listen to global settings from server/Supabase
     if (initialSettings) {
       setSettings(initialSettings);
     } else {
-      unsubSettings = onSnapshot(
-        doc(db, "settings", "global"), 
-        (docSnap) => {
-          if (docSnap.exists()) {
-            setSettings(docSnap.data());
-          }
-        },
-        (err) => console.warn("Admin settings sync notice:", err.message)
-      );
+      apiClient.get<any>("/api/settings/global", { silent: true }).then((res) => {
+        if (res?.settings) {
+          setSettings(res.settings);
+        }
+      }).catch(() => {});
     }
 
     return () => {
@@ -485,7 +481,6 @@ export default function AdminPanel({
       unsubTx();
       unsubRef();
       unsubBanners();
-      unsubSettings();
     };
   }, []);
 

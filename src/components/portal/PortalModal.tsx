@@ -29,6 +29,8 @@ interface PortalModalProps {
   globalSettings?: any;
   onProductSaved?: (product: any) => void;
   onOpenCart?: () => void;
+  initialUser?: any | null;
+  onUserChange?: (user: any | null) => void;
 }
 
 export default function PortalModal({ 
@@ -44,13 +46,29 @@ export default function PortalModal({
   banners,
   globalSettings,
   onProductSaved,
-  onOpenCart
+  onOpenCart,
+  initialUser,
+  onUserChange
 }: PortalModalProps) {
-  const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const resolveInitialRole = () => {
+    if (forcedRole && forcedRole !== "customer") return forcedRole;
+    if (initialUser?.role) return initialUser.role;
+    return "customer";
+  };
+
+  const initialRole = resolveInitialRole();
+  const [currentUser, setCurrentUser] = useState<any | null>(() => initialUser || null);
   const [currentPartner, setCurrentPartner] = useState<PartnerShop | null>(null);
-  const [userRole, setUserRole] = useState<string>("customer");
-  const [activePortalTab, setActivePortalTab] = useState<string>("customer");
-  const [loading, setLoading] = useState<boolean>(true);
+  const [userRole, setUserRole] = useState<string>(initialRole);
+  const [activePortalTab, setActivePortalTab] = useState<string>(() => {
+    if (forcedRole && forcedRole !== "customer") return forcedRole;
+    if (initialRole === "admin" || initialRole === "super_admin") return "admin";
+    if (initialRole === "seller") return "seller";
+    if (initialRole === "rider") return "rider";
+    if (initialRole === "partner") return "partner";
+    return "customer";
+  });
+  const [loading, setLoading] = useState<boolean>(() => !initialUser && forcedRole !== "partner");
   const [toasts, setToasts] = useState<{ id: number; bn: string; en: string }[]>([]);
 
   const getTranslation = createTranslator(lang);
@@ -82,6 +100,27 @@ export default function PortalModal({
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 4000);
   };
+
+  // Keep in sync if initialUser updates from parent
+  useEffect(() => {
+    if (initialUser && (!currentUser || currentUser.uid !== initialUser.uid || currentUser.id !== initialUser.id)) {
+      setCurrentUser(initialUser);
+      const role = (forcedRole && forcedRole !== "customer") ? forcedRole : (initialUser.role || "customer");
+      setUserRole(role);
+      if (forcedRole && forcedRole !== "customer") {
+        setActivePortalTab(forcedRole);
+      } else if (role === "admin" || role === "super_admin") {
+        setActivePortalTab("admin");
+      } else if (role === "seller") {
+        setActivePortalTab("seller");
+      } else if (role === "rider") {
+        setActivePortalTab("rider");
+      } else {
+        setActivePortalTab("customer");
+      }
+      setLoading(false);
+    }
+  }, [initialUser, forcedRole]);
 
   useEffect(() => {
     if (isOpen) {
@@ -119,6 +158,10 @@ export default function PortalModal({
 
     const handleUserSession = async (user: any, sbAccessToken?: string) => {
       if (!user) {
+        // If we already have initialUser or currentUser (and not logging out), don't wipe it out on spurious null events
+        if (currentUser || initialUser) {
+          return;
+        }
         setCurrentUser(null);
         setUserRole("customer");
         setActivePortalTab("customer");
@@ -126,7 +169,9 @@ export default function PortalModal({
         return;
       }
 
-      setLoading(true);
+      if (!currentUser && !initialUser) {
+        setLoading(true);
+      }
       try {
         const uid = user.uid || user.id;
         const email = (user.email || "").toLowerCase().trim();
@@ -429,7 +474,10 @@ export default function PortalModal({
           const targetRole = (userData?.role || "customer") as any;
           setCurrentUser(userData);
           setUserRole(targetRole);
-          setActivePortalTab(targetRole === "admin" ? "admin" : (targetRole === "seller" ? "seller" : (targetRole === "rider" ? "rider" : "customer")));
+          if (!forcedRole || forcedRole === "customer") {
+            setActivePortalTab(targetRole === "admin" ? "admin" : (targetRole === "seller" ? "seller" : (targetRole === "rider" ? "rider" : "customer")));
+          }
+          onUserChange?.(userData);
           setLoading(false);
         }
       } catch (err) {
@@ -479,6 +527,7 @@ export default function PortalModal({
     setCurrentUser(effectiveUser);
     setUserRole(effectiveRole);
     setActivePortalTab(effectiveRole);
+    onUserChange?.(effectiveUser);
     triggerToast(
       "লগইন সফল হয়েছে! কাচা বাজার পোর্টালে স্বাগতম।",
       "Login successful! Welcome to the Kacha Bazar system portal."
@@ -504,6 +553,7 @@ export default function PortalModal({
       setCurrentUser(null);
       setUserRole("customer");
       setActivePortalTab("customer");
+      onUserChange?.(null);
       triggerToast(
         "সফলভাবে লগআউট করা হয়েছে।",
         "Successfully logged out of your session."

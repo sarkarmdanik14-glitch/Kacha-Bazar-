@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import { APP_LOGO_URL } from "../../constants/branding";
-import { auth, db, doc, setDoc, deleteDoc, collection, serverTimestamp, onSnapshot, getDocs } from "../../lib/firebase";
+import { saveLiveNoticeToSupabase, subscribeToSupabaseLiveNotice, saveBannerToSupabase, deleteBannerFromSupabase } from "../../lib/supabaseLiveService";
 import { DeliveryZone, DEFAULT_DELIVERY_ZONES, DEFAULT_STORE_LOCATION } from "../../lib/delivery";
 import { LiveNoticeConfig, DEFAULT_LIVE_NOTICE } from "../../types";
 import { createTranslator } from "../../lib/formatUtils";
@@ -197,41 +197,25 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
     }
   }, [settings]);
 
-  // Sync Live Notice config directly from Firestore
+  // Sync Live Notice config directly from Supabase
   useEffect(() => {
-    const unsub = onSnapshot(
-      doc(db, "settings", "notice"),
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const d = docSnap.data();
-          if (d.isActive !== undefined) setNoticeActive(d.isActive);
-          if (d.badgeBn) setNoticeBadgeBn(d.badgeBn);
-          if (d.badgeEn) setNoticeBadgeEn(d.badgeEn);
-          if (d.titleBn) setNoticeTitleBn(d.titleBn);
-          if (d.titleEn !== undefined) setNoticeTitleEn(d.titleEn);
-          if (d.messageBn) setNoticeMsgBn(d.messageBn);
-          if (d.messageEn !== undefined) setNoticeMsgEn(d.messageEn);
-          if (d.theme) setNoticeTheme(d.theme);
-          if (d.showDotPulse !== undefined) setNoticePulse(d.showDotPulse);
-        } else if (settings?.notice) {
-          const d = settings.notice;
-          if (d.isActive !== undefined) setNoticeActive(d.isActive);
-          if (d.badgeBn) setNoticeBadgeBn(d.badgeBn);
-          if (d.badgeEn) setNoticeBadgeEn(d.badgeEn);
-          if (d.titleBn) setNoticeTitleBn(d.titleBn);
-          if (d.titleEn !== undefined) setNoticeTitleEn(d.titleEn);
-          if (d.messageBn) setNoticeMsgBn(d.messageBn);
-          if (d.messageEn !== undefined) setNoticeMsgEn(d.messageEn);
-          if (d.theme) setNoticeTheme(d.theme);
-          if (d.showDotPulse !== undefined) setNoticePulse(d.showDotPulse);
-        }
-      },
-      (err) => console.warn("Notice doc sync notice:", err.message)
-    );
+    const unsub = subscribeToSupabaseLiveNotice((d) => {
+      if (d) {
+        if (d.isActive !== undefined) setNoticeActive(d.isActive);
+        if (d.badgeBn) setNoticeBadgeBn(d.badgeBn);
+        if (d.badgeEn) setNoticeBadgeEn(d.badgeEn);
+        if (d.titleBn) setNoticeTitleBn(d.titleBn);
+        if (d.titleEn !== undefined) setNoticeTitleEn(d.titleEn);
+        if (d.messageBn) setNoticeMsgBn(d.messageBn);
+        if (d.messageEn !== undefined) setNoticeMsgEn(d.messageEn);
+        if (d.theme) setNoticeTheme(d.theme);
+        if (d.showDotPulse !== undefined) setNoticePulse(d.showDotPulse);
+      }
+    });
     return () => unsub();
   }, []);
 
-  // Save Live Notice handler
+  // Save Live Notice handler to Supabase
   const handleSaveNotice = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setSavingNotice(true);
@@ -246,15 +230,11 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         messageEn: noticeMsgEn.trim() || (DEFAULT_LIVE_NOTICE.messageEn || ""),
         theme: noticeTheme,
         showDotPulse: noticePulse,
-        orderDisabled: true,
-        updatedAt: serverTimestamp()
+        orderDisabled: true
       };
 
-      await setDoc(doc(db, "settings", "notice"), payload, { merge: true });
-      await setDoc(doc(db, "settings", "global"), {
-        notice: payload,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      await saveLiveNoticeToSupabase(payload);
+      await apiClient.post("/api/settings/notice", { settings: payload }, { silent: true }).catch(() => {});
 
       triggerToast("লাইভ নোটিশ সফলভাবে সংরক্ষিত হয়েছে!", "Live notice updated successfully!");
     } catch (err) {
@@ -392,7 +372,7 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
   const handleToggleBannerActive = async (banner: any) => {
     try {
       const nextActive = !banner.isActive;
-      await setDoc(doc(db, "banners", banner.id), { isActive: nextActive }, { merge: true });
+      await saveBannerToSupabase({ ...banner, isActive: nextActive });
       triggerToast(
         nextActive ? "ব্যানার সক্রিয় করা হয়েছে!" : "ব্যানার নিষ্ক্রিয় করা হয়েছে!",
         nextActive ? "Banner activated successfully!" : "Banner deactivated successfully!"
@@ -517,10 +497,10 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         welcomeAudioUrl: welcomeAudioUrl.trim(),
         enableWelcomeVoice,
         deliveryChargesByLocation: deliveryChargesMap,
-        updatedAt: serverTimestamp()
+        updatedAt: new Date().toISOString()
       };
 
-      await setDoc(doc(db, "settings", "global"), payload, { merge: true });
+      await apiClient.post("/api/settings/global", { settings: payload });
       triggerToast("সেটিংস সফলভাবে সংরক্ষিত!", "Global settings successfully updated!");
     } catch (err) {
       console.error(err);
@@ -540,10 +520,9 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         lat: Number(storeLat),
         lng: Number(storeLng)
       };
-      await setDoc(doc(db, "settings", "global"), {
-        storeLocation,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      await apiClient.post("/api/settings/global", {
+        settings: { storeLocation, updatedAt: new Date().toISOString() }
+      });
       triggerToast("স্টোর লোকেশন সফলভাবে আপডেট করা হয়েছে!", "Store location successfully updated!");
     } catch (err) {
       console.error(err);
@@ -603,9 +582,9 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         updatedZones.push(zonePayload);
       }
 
-      await setDoc(doc(db, "settings", "global"), {
-        deliveryZones: updatedZones
-      }, { merge: true });
+      await apiClient.post("/api/settings/global", {
+        settings: { deliveryZones: updatedZones, updatedAt: new Date().toISOString() }
+      });
 
       setDeliveryZones(updatedZones);
       setShowZoneForm(false);
@@ -624,9 +603,9 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
       const updatedZones = deliveryZones.map((z) =>
         z.id === zoneId ? { ...z, isActive: !z.isActive } : z
       );
-      await setDoc(doc(db, "settings", "global"), {
-        deliveryZones: updatedZones
-      }, { merge: true });
+      await apiClient.post("/api/settings/global", {
+        settings: { deliveryZones: updatedZones, updatedAt: new Date().toISOString() }
+      });
       setDeliveryZones(updatedZones);
       triggerToast("জোনের স্ট্যাটাস পরিবর্তিত হয়েছে!", "Zone status updated!");
     } catch (err) {
@@ -639,9 +618,9 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
     if (!confirm(getTranslation("আপনি কি এই ডেলিভারি জোনটি ডিলিট করতে চান?", "Delete this delivery zone?"))) return;
     try {
       const updatedZones = deliveryZones.filter((z) => z.id !== zoneId);
-      await setDoc(doc(db, "settings", "global"), {
-        deliveryZones: updatedZones
-      }, { merge: true });
+      await apiClient.post("/api/settings/global", {
+        settings: { deliveryZones: updatedZones, updatedAt: new Date().toISOString() }
+      });
       setDeliveryZones(updatedZones);
       triggerToast("ডেলিভারি জোন ডিলিট করা হয়েছে!", "Delivery zone deleted!");
     } catch (err) {
@@ -652,10 +631,13 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
   // Save Above Max Distance Policy
   const handleSaveAboveMaxPolicy = async () => {
     try {
-      await setDoc(doc(db, "settings", "global"), {
-        aboveMaxDistanceFee: Number(aboveMaxDistanceFee),
-        deliveryUnavailableAboveMax: deliveryUnavailableAboveMax
-      }, { merge: true });
+      await apiClient.post("/api/settings/global", {
+        settings: {
+          aboveMaxDistanceFee: Number(aboveMaxDistanceFee),
+          deliveryUnavailableAboveMax: deliveryUnavailableAboveMax,
+          updatedAt: new Date().toISOString()
+        }
+      });
       triggerToast("সর্বোচ্চ দূরত্বের পলিসি সংরক্ষিত!", "Above max distance delivery policy saved!");
     } catch (err) {
       console.error(err);
@@ -667,9 +649,9 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
     if (!locationName.trim()) return;
     try {
       const nextMap = { ...deliveryChargesMap, [locationName.trim()]: Number(locationCharge) };
-      await setDoc(doc(db, "settings", "global"), {
-        deliveryChargesByLocation: nextMap
-      }, { merge: true });
+      await apiClient.post("/api/settings/global", {
+        settings: { deliveryChargesByLocation: nextMap, updatedAt: new Date().toISOString() }
+      });
       setLocationName("");
       setLocationCharge(0);
       triggerToast("ডেলিভারি ট্যারিফ আপডেট করা হয়েছে!", "Location delivery tariff successfully saved!");
@@ -683,9 +665,9 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
     try {
       const nextMap = { ...deliveryChargesMap };
       delete nextMap[locName];
-      await setDoc(doc(db, "settings", "global"), {
-        deliveryChargesByLocation: nextMap
-      }, { merge: true });
+      await apiClient.post("/api/settings/global", {
+        settings: { deliveryChargesByLocation: nextMap, updatedAt: new Date().toISOString() }
+      });
       triggerToast("ট্যারিফ ডিলিট করা হয়েছে!", "Location delivery tariff deleted!");
     } catch (err) {
       console.error(err);
@@ -710,16 +692,10 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         tagEn: banTagEn,
         bgGradient: banGradient,
         image: banImage || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=200&q=80",
-        isActive: banActive,
-        updatedAt: serverTimestamp()
+        isActive: banActive
       };
 
-      await setDoc(doc(db, "banners", payload.id), payload, { merge: true });
-      try {
-        await setDoc(doc(db, "banner_management", payload.id), payload, { merge: true });
-      } catch {
-        // optional mirror sync
-      }
+      await saveBannerToSupabase(payload);
       triggerToast("ব্যানার সংরক্ষিত হয়েছে!", "Banner configuration saved!");
       setShowBannerForm(false);
     } catch (err) {
@@ -734,12 +710,7 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
   const handleDeleteBanner = async (id: string) => {
     if (!confirm(getTranslation("ব্যানার ডিলিট করতে চান?", "Delete this promotional banner?"))) return;
     try {
-      await deleteDoc(doc(db, "banners", id));
-      try {
-        await deleteDoc(doc(db, "banner_management", id));
-      } catch {
-        // optional mirror delete
-      }
+      await deleteBannerFromSupabase(id);
       triggerToast("ব্যানার ডিলিট করা হয়েছে!", "Banner successfully removed!");
     } catch (err) {
       console.error(err);
@@ -2881,45 +2852,14 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
                   setSyncProgress({ step: "ডেটা লোড হচ্ছে...", total: 0, completed: 0, status: "running" });
 
                   try {
-                    // Refresh and attach authenticated Firebase token if logged in
-                    if (auth.currentUser) {
-                      try {
-                        const freshToken = await auth.currentUser.getIdToken(true);
-                        if (freshToken) {
-                          localStorage.setItem("kb_firebase_id_token", freshToken);
-                          sessionStorage.setItem("kb_firebase_id_token", freshToken);
-                        }
-                      } catch (tErr) {}
-                    }
+                    const categories = [...CATEGORIES];
+                    const products = [...ALL_PRODUCTS];
+                    const staff: any[] = [];
+                    const partnerShops: any[] = [];
+                    const orders: any[] = [];
 
-                    // Fetch from Firestore
-                    const [catSnap, subcatSnap, prodSnap, staffSnap, shopSnap, ordSnap] = await Promise.all([
-                      getDocs(collection(db, "categories")).catch(() => ({ docs: [] } as any)),
-                      getDocs(collection(db, "subcategories")).catch(() => ({ docs: [] } as any)),
-                      getDocs(collection(db, "products")).catch(() => ({ docs: [] } as any)),
-                      getDocs(collection(db, "staff")).catch(() => ({ docs: [] } as any)),
-                      getDocs(collection(db, "partner_shops")).catch(() => ({ docs: [] } as any)),
-                      getDocs(collection(db, "orders")).catch(() => ({ docs: [] } as any)),
-                    ]);
-
-                    const firestoreCats = (catSnap.docs || []).map((d: any) => ({ ...d.data(), id: d.id }));
-                    const firestoreSubcats = (subcatSnap.docs || []).map((d: any) => ({ ...d.data(), id: d.id }));
-                    const firestoreProds = (prodSnap.docs || []).map((d: any) => ({ ...d.data(), id: d.id }));
-                    const staff = (staffSnap.docs || []).map((d: any) => ({ ...d.data(), id: d.id }));
-                    const partnerShops = (shopSnap.docs || []).map((d: any) => ({ ...d.data(), id: d.id }));
-                    const orders = (ordSnap.docs || []).map((d: any) => ({ ...d.data(), id: d.id }));
-
-                    // Merge baseline catalog categories and firestore categories
-                    const categories = [...CATEGORIES, ...firestoreCats];
-
-                    // Merge baseline products and firestore products
-                    const products = [...ALL_PRODUCTS, ...firestoreProds];
-
-                    // Build subcategories map from products and any from Firestore
+                    // Build subcategories map from products
                     const subcatMap = new Map<string, any>();
-                    for (const s of firestoreSubcats) {
-                      if (s && s.id) subcatMap.set(String(s.id), s);
-                    }
                     for (const p of products) {
                       const subName = p.subcategory || p.subCategory;
                       const catId = p.categoryId || p.category;
@@ -2930,7 +2870,7 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
                           subcatMap.set(subId, {
                             id: subId,
                             nameBn: subName,
-                            nameEn: p.subcategoryEn || subName,
+                            nameEn: (p as any).subcategoryEn || subName,
                             categoryId: String(catId),
                             categorySlug: String(catId),
                             displayOrder: 0,

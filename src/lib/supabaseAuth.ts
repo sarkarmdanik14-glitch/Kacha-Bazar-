@@ -380,7 +380,7 @@ export async function supabaseSendPasswordResetEmail(email: string): Promise<{ s
 export function onSupabaseAuthStateChange(
   callback: (user: SupabaseUserProfile | null) => void
 ): () => void {
-  const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+  const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
     if (session?.user) {
       const uid = session.user.id;
       if (session.access_token) {
@@ -406,7 +406,21 @@ export function onSupabaseAuthStateChange(
       }
       callback(profile);
     } else {
-      callback(null);
+      if (event === "SIGNED_OUT") {
+        callback(null);
+      } else if (event === "INITIAL_SESSION") {
+        // Double check active session before prematurely dispatching null
+        try {
+          const { data: { session: activeSession } } = await supabase.auth.getSession();
+          if (!activeSession) {
+            callback(null);
+          }
+        } catch {
+          callback(null);
+        }
+      } else {
+        callback(null);
+      }
     }
   });
 
