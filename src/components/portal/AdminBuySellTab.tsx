@@ -15,7 +15,7 @@ import {
   Clock,
   Filter
 } from "lucide-react";
-import { db, collection, query, onSnapshot, doc, updateDoc, deleteDoc } from "../../lib/firebase";
+import { supabase } from "../../lib/supabase";
 import { BuySellListing, BuySellReport, BUY_SELL_CATEGORIES } from "../../types/buySell";
 import { subscribeToBuySellListings, updateBuySellListing, deleteBuySellListing } from "../../lib/buysellSupabase";
 import BuySellDetailsModal from "../buysell/BuySellDetailsModal";
@@ -61,26 +61,43 @@ export default function AdminBuySellTab({
       }
     );
 
-    // Real-time listener for reports
-    const qReports = query(collection(db, "buy_sell_reports"));
-    const unsubReports = onSnapshot(qReports, (snap) => {
-      const items: BuySellReport[] = [];
-      snap.forEach((d) => {
-        items.push({ id: d.id, ...d.data() } as BuySellReport);
-      });
-      items.sort((a, b) => {
-        const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-        const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-        return tB - tA;
-      });
-      setReports(items);
-    }, (err) => {
-      console.warn("Admin reports listener error:", err);
-    });
+    // Supabase listener for reports
+    const loadReports = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("buy_sell_reports")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (!error && data) {
+          setReports(
+            data.map((r: any) => ({
+              id: r.id,
+              listingId: r.listing_id,
+              reportedByUid: r.reported_by_uid,
+              reportedByName: r.reported_by_name,
+              reason: r.reason,
+              details: r.details,
+              status: r.status,
+              createdAt: r.created_at
+            }))
+          );
+        }
+      } catch (err) {
+        console.warn("Admin reports listener error:", err);
+      }
+    };
+
+    loadReports();
+
+    const channel = supabase
+      .channel("admin_reports_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "buy_sell_reports" }, () => loadReports())
+      .subscribe();
 
     return () => {
       unsubListings();
-      unsubReports();
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -129,9 +146,10 @@ export default function AdminBuySellTab({
 
   const handleDismissReport = async (reportId: string) => {
     try {
-      await updateDoc(doc(db, "buy_sell_reports", reportId), {
+      await supabase.from("buy_sell_reports").update({
         status: "dismissed"
-      });
+      }).eq("id", reportId);
+      setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: "dismissed" } : r));
       triggerToast("রিপোর্ট বাতিল করা হয়েছে।", "Report dismissed.");
     } catch (err) {
       console.error(err);
@@ -144,9 +162,10 @@ export default function AdminBuySellTab({
       // Delete listing
       await deleteBuySellListing(report.listingId);
       // Update report status
-      await updateDoc(doc(db, "buy_sell_reports", report.id), {
+      await supabase.from("buy_sell_reports").update({
         status: "removed"
-      });
+      }).eq("id", report.id);
+      setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: "removed" } : r));
       triggerToast("বিজ্ঞাপন মুছে ফেলা হয়েছে এবং রিপোর্ট নিষ্পত্তি হয়েছে।", "Listing removed and report resolved.");
     } catch (err) {
       console.error(err);

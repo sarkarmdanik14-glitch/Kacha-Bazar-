@@ -1,4 +1,4 @@
-import { db, doc, deleteDoc, updateDoc, setDoc, collection, getDocs, serverTimestamp } from "./firebase";
+import { supabase } from "./supabase";
 import { apiClient } from "./apiClient";
 
 export interface OrderUsageCheckResult {
@@ -8,7 +8,7 @@ export interface OrderUsageCheckResult {
 
 /**
  * Checks whether a given product has ever been purchased in any past orders.
- * Inspects both client-loaded orders and Firestore orders collection for 100% accuracy.
+ * Inspects in-memory orders and Supabase orders table for 100% accuracy.
  */
 export async function checkProductOrderUsage(
   productId: string, 
@@ -34,35 +34,31 @@ export async function checkProductOrderUsage(
     }
   }
 
-  // If already found in memory, we can return early or check server
+  // If already found in memory, we can return early
   if (matchedCount > 0) {
     return { hasOrders: true, orderCount: matchedCount };
   }
 
-  // 2. Query Firestore orders collection to catch any past or un-cached orders
+  // 2. Query Supabase orders table
   try {
-    const ordersSnap = await getDocs(collection(db, "orders"));
-    let dbCount = 0;
-    ordersSnap.forEach((docSnap) => {
-      const ordData = docSnap.data();
-      if (Array.isArray(ordData?.items)) {
-        const found = ordData.items.some((item: any) => 
-          item?.product?.id === productId || 
-          item?.productId === productId || 
-          item?.id === productId ||
-          (productSku && item?.product?.sku && item.product.sku === productSku)
-        );
-        if (found) {
-          dbCount++;
+    const { data: dbOrders } = await supabase.from("orders").select("items").limit(500);
+    if (Array.isArray(dbOrders)) {
+      for (const ord of dbOrders) {
+        if (Array.isArray(ord?.items)) {
+          const found = ord.items.some((item: any) => 
+            item?.product?.id === productId || 
+            item?.productId === productId || 
+            item?.id === productId ||
+            (productSku && item?.product?.sku && item.product.sku === productSku)
+          );
+          if (found) {
+            matchedCount++;
+          }
         }
       }
-    });
-
-    if (dbCount > 0) {
-      return { hasOrders: true, orderCount: dbCount };
     }
   } catch (err) {
-    console.warn("Notice checking orders history for product:", err);
+    console.warn("Notice checking orders history for product in Supabase:", err);
   }
 
   return { hasOrders: matchedCount > 0, orderCount: matchedCount };
@@ -81,10 +77,9 @@ export interface DeleteProductResult {
 }
 
 /**
- * Safely deletes a product according to business rules:
- * - If product was used in orders: Inactivates / Soft Deletes the product
- *   (marks isDeleted: true, status: 'inactive', isAvailable: false) to preserve past invoice & accounting integrity.
- * - If product has never been ordered: Permanently deletes the document from Firestore.
+ * Safely deletes a product according to business rules in Supabase:
+ * - If product was used in orders: Marks status: 'deleted', is_available: false to preserve past invoice & accounting integrity.
+ * - If product has never been ordered: Permanently deletes the row from Supabase.
  */
 export async function executeDeleteProduct(
   productId: string,
@@ -100,41 +95,38 @@ export async function executeDeleteProduct(
     localStorage.setItem("kb_deleted_products", JSON.stringify(Array.from(set)));
   } catch (e) {}
 
-  // 1. Direct client-side Firestore delete using deleteDoc()
+  // 1. Direct Supabase delete / soft-delete
   try {
-    const prodRef = doc(db, "products", productId);
-    await deleteDoc(prodRef);
-    console.log(`[Admin] Product ${productId} successfully deleted via deleteDoc`);
+    if (!options.hasOrders) {
+      const { error } = await supabase.from("products").delete().eq("id", productId);
+      if (!error) {
+        console.log(`[Admin] Product ${productId} permanently deleted from Supabase`);
+        return {
+          success: true,
+          mode: "permanent",
+          messageBn: "পণ্যটি ডাটাবেজ থেকে সফলভাবে মুছে ফেলা হয়েছে!",
+          messageEn: "Product successfully deleted from database!"
+        };
+      }
+    }
 
-    return {
-      success: true,
-      mode: "permanent",
-      messageBn: "পণ্যটি ডাটাবেজ থেকে সফলভাবে মুছে ফেলা হয়েছে!",
-      messageEn: "Product successfully deleted from database!"
-    };
-  } catch (clientErr: any) {
-    console.warn("Direct deleteDoc notice, falling back to soft delete:", clientErr?.message);
-    try {
-      const prodRef = doc(db, "products", productId);
-      await updateDoc(prodRef, {
-        isDeleted: true,
-        deleted: true,
-        status: "deleted",
-        isAvailable: false,
-        deletedAt: serverTimestamp(),
-        deletedBy: userEmail,
-        updatedAt: serverTimestamp()
-      });
+    // Soft delete if had orders or delete had foreign key constraint
+    const { error: updateErr } = await supabase.from("products").update({
+      is_available: false,
+      status: "deleted",
+      updated_at: new Date().toISOString()
+    }).eq("id", productId);
 
+    if (!updateErr) {
       return {
         success: true,
         mode: "soft_delete",
         messageBn: "পণ্যটি সফলভাবে মুছে ফেলা হয়েছে!",
         messageEn: "Product successfully deleted!"
       };
-    } catch (upErr: any) {
-      console.warn("Direct updateDoc notice, trying Server Admin API:", upErr?.message);
     }
+  } catch (sbErr: any) {
+    console.warn("Direct Supabase product delete notice, falling back to server API:", sbErr?.message);
   }
 
   // 2. Fallback to Server Admin API

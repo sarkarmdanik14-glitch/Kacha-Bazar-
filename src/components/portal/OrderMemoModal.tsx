@@ -6,7 +6,7 @@ import {
 import QRCode from "qrcode";
 import { downloadMemoPDF, imageToDataUrl } from "../../lib/pdfUtils";
 import { printOrderMemo } from "../../lib/printUtils";
-import { db, doc, getDoc } from "../../lib/firebase";
+import { supabase } from "../../lib/supabase";
 import { fetchStaffMembers } from "../../lib/staffManager";
 import { StaffMember } from "../../types";
 import { APP_LOGO_URL as defaultLogoImg } from "../../constants/branding";
@@ -60,13 +60,19 @@ export default function OrderMemoModal({
     if (propSettings && Object.keys(propSettings).length > 0) {
       setMemoConfig(propSettings);
     } else if (isOpen) {
-      getDoc(doc(db, "settings", "global"))
-        .then((docSnap) => {
-          if (docSnap.exists()) {
-            setMemoConfig(docSnap.data());
-          }
-        })
-        .catch((err) => console.warn("Notice: Sync memo settings error:", err));
+      supabase
+        .from("site_settings")
+        .select("settings")
+        .eq("key", "global")
+        .maybeSingle()
+        .then(
+          ({ data }) => {
+            if (data?.settings) {
+              setMemoConfig(data.settings);
+            }
+          },
+          (err) => console.warn("Notice: Sync memo settings error:", err)
+        );
     }
   }, [propSettings, isOpen]);
 

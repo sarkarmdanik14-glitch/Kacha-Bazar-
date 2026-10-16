@@ -1,4 +1,3 @@
-import { storage, ref, uploadBytes, getDownloadURL } from "./firebase";
 import { apiClient } from "./apiClient";
 
 export interface UploadImageOptions {
@@ -135,33 +134,7 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
     // Graceful fallback to next tier
   }
 
-  // TIER 3: Firebase Storage Fallback (Protected with 10s timeout)
-  try {
-    if (storage) {
-      const filename = `${folder}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      const storageRef = ref(storage, filename);
-      
-      const uploadPromise = (async () => {
-        const snap = await uploadBytes(storageRef, compressedBlob, {
-          contentType: file.type || "image/jpeg"
-        });
-        return await getDownloadURL(snap.ref);
-      })();
-
-      const timeoutPromise = new Promise<string>((_, reject) => 
-        setTimeout(() => reject(new Error("Firebase Storage upload timed out")), 10000)
-      );
-
-      const downloadUrl = await Promise.race([uploadPromise, timeoutPromise]);
-      if (downloadUrl) {
-        return downloadUrl;
-      }
-    }
-  } catch (fsErr) {
-    // Graceful fallback to base64
-  }
-
-  // TIER 4: High-efficiency Base64 Data URL Fallback
+  // TIER 3: High-efficiency Base64 Data URL Fallback
   if (compressedDataUrl) {
     return compressedDataUrl;
   }

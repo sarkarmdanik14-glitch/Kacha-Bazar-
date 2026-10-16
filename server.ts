@@ -376,31 +376,41 @@ async function deletePartnerShopFromSupabaseServer(id: string): Promise<boolean>
   }
 }
 
-function getAdminDb() {
-  if (!getAdminApps().length) {
-    initAdminApp({
-      projectId: firebaseAppletConfig.projectId
-    });
+function getAdminDb(): any {
+  try {
+    if (!firebaseAppletConfig?.projectId) return null;
+    if (!getAdminApps().length) {
+      initAdminApp({
+        projectId: firebaseAppletConfig.projectId
+      });
+    }
+    const dbId = firebaseAppletConfig.firestoreDatabaseId || "(default)";
+    return getAdminFirestore(getAdminApps()[0], dbId);
+  } catch {
+    return null;
   }
-  const dbId = firebaseAppletConfig.firestoreDatabaseId || "(default)";
-  return getAdminFirestore(getAdminApps()[0], dbId);
 }
 
-function getWebFirestore() {
-  let app;
-  if (!getWebApps().length) {
-    app = initWebApp({
-      apiKey: firebaseAppletConfig.apiKey,
-      authDomain: firebaseAppletConfig.authDomain,
-      projectId: firebaseAppletConfig.projectId,
-      storageBucket: firebaseAppletConfig.storageBucket,
-      messagingSenderId: firebaseAppletConfig.messagingSenderId,
-      appId: firebaseAppletConfig.appId
-    });
-  } else {
-    app = getWebApps()[0];
+function getWebFirestore(): any {
+  try {
+    if (!firebaseAppletConfig?.apiKey || !firebaseAppletConfig?.projectId) return null;
+    let app;
+    if (!getWebApps().length) {
+      app = initWebApp({
+        apiKey: firebaseAppletConfig.apiKey,
+        authDomain: firebaseAppletConfig.authDomain,
+        projectId: firebaseAppletConfig.projectId,
+        storageBucket: firebaseAppletConfig.storageBucket,
+        messagingSenderId: firebaseAppletConfig.messagingSenderId,
+        appId: firebaseAppletConfig.appId
+      });
+    } else {
+      app = getWebApps()[0];
+    }
+    return getWebFirestoreSdk(app, firebaseAppletConfig.firestoreDatabaseId || "(default)");
+  } catch {
+    return null;
   }
-  return getWebFirestoreSdk(app, firebaseAppletConfig.firestoreDatabaseId || "(default)");
 }
 
 async function getCollectionDocs(colName: string): Promise<Array<{ id: string; data: any; update: (data: any) => Promise<any> }>> {
@@ -573,6 +583,70 @@ app.post("/api/engine/mode", (req, res) => {
     return res.json({ success: true, mode: serverDataEngineMode });
   }
   return res.status(400).json({ success: false, error: "Invalid mode. Allowed: supabase | dual | firebase" });
+});
+
+// ==========================================
+// SITE SETTINGS STORAGE (GLOBAL, HOME, LEADERSHIP)
+// ==========================================
+const SITE_SETTINGS_FILE = path.resolve(process.cwd(), "data", "site_settings.json");
+
+function readSiteSettingsFile(): Record<string, any> {
+  try {
+    if (fs.existsSync(SITE_SETTINGS_FILE)) {
+      return JSON.parse(fs.readFileSync(SITE_SETTINGS_FILE, "utf-8")) || {};
+    }
+  } catch {}
+  return {};
+}
+
+function writeSiteSettingsFile(data: Record<string, any>): void {
+  try {
+    const dir = path.dirname(SITE_SETTINGS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(SITE_SETTINGS_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch (e) {
+    console.warn("[Settings] File write error:", e);
+  }
+}
+
+app.get("/api/settings/:key", async (req: express.Request, res: express.Response) => {
+  const key = String(req.params.key || "").trim().toLowerCase();
+  const fileSettings = readSiteSettingsFile();
+  let result = fileSettings[key] || null;
+
+  const sb = getServerSupabase();
+  if (sb) {
+    try {
+      const { data } = await sb.from("site_settings").select("settings").eq("key", key).maybeSingle();
+      if (data?.settings) {
+        result = { ...result, ...data.settings };
+      }
+    } catch {}
+  }
+
+  return res.json({ success: true, key, settings: result });
+});
+
+app.post("/api/settings/:key", async (req: express.Request, res: express.Response) => {
+  const key = String(req.params.key || "").trim().toLowerCase();
+  const incoming = req.body?.settings || req.body || {};
+
+  const fileSettings = readSiteSettingsFile();
+  fileSettings[key] = { ...(fileSettings[key] || {}), ...incoming, updatedAt: new Date().toISOString() };
+  writeSiteSettingsFile(fileSettings);
+
+  const sb = getServerSupabase();
+  if (sb) {
+    try {
+      await sb.from("site_settings").upsert({
+        key,
+        settings: fileSettings[key],
+        updated_at: new Date().toISOString()
+      });
+    } catch {}
+  }
+
+  return res.json({ success: true, key, settings: fileSettings[key] });
 });
 
 // ==========================================
@@ -1033,9 +1107,24 @@ app.post("/api/orders/checkout", rateLimiter(30, 60000), async (req, res) => {
         }));
 
     const cleanOrderId = String(orderId).trim();
-    const adminDb = getAdminDb();
+    const sb = getServerSupabase();
 
-    // Prevent duplicate order IDs from overwriting existing orders
+    // 1. Duplicate order check (Supabase first, then Firestore)
+    if (sb) {
+      try {
+        const { data: existingSbOrder } = await sb.from("orders").select("id").eq("id", cleanOrderId).maybeSingle();
+        if (existingSbOrder && existingSbOrder.id) {
+          return res.status(409).json({
+            success: false,
+            error: "Duplicate order ID detected. This order has already been processed.",
+            code: "DUPLICATE_ORDER"
+          });
+        }
+      } catch (sbDupErr) {
+        console.warn("[Checkout] Supabase duplicate check notice:", sbDupErr);
+      }
+    }
+
     const existingOrderDoc = await getSingleDoc("orders", cleanOrderId);
     if (existingOrderDoc && existingOrderDoc.exists) {
       return res.status(409).json({
@@ -1047,40 +1136,42 @@ app.post("/api/orders/checkout", rateLimiter(30, 60000), async (req, res) => {
 
     let secureOrderPayload: any = null;
 
-    try {
-      // Atomic Transaction using Firebase Admin SDK
-      await adminDb.runTransaction(async (transaction: any) => {
+    // 2. PRIMARY: Supabase-Authoritative Stock Validation & Order Processing
+    if (sb) {
+      try {
         const uniqueProdIds: string[] = Array.from(new Set(cartItems.map((item: any) => item.productId).filter(Boolean)));
+        
+        // Fetch products from Supabase
+        const { data: dbProducts, error: prodFetchErr } = await sb
+          .from("products")
+          .select("id, name_bn, name_en, price, stock, options, sold_count")
+          .in("id", uniqueProdIds);
 
-        // Read all product documents inside the transaction before any writes
-        const prodSnapsMap = new Map<string, any>();
-        for (const prodId of uniqueProdIds) {
-          const prodRef = adminDb.collection("products").doc(prodId);
-          const prodSnap = await transaction.get(prodRef);
-          prodSnapsMap.set(prodId, prodSnap);
+        if (prodFetchErr) {
+          console.warn("[Checkout] Supabase products fetch error:", prodFetchErr.message);
         }
 
-        const updatesToApply: { ref: any; updates: any }[] = [];
+        const prodMap = new Map<string, any>();
+        (dbProducts || []).forEach((p: any) => prodMap.set(p.id, p));
+
+        // Validate stock for all items
+        const stockUpdatesToApply: { id: string; stock: number | null; options: any[] | null; sold_count?: number }[] = [];
 
         for (const prodId of uniqueProdIds) {
-          const prodSnap = prodSnapsMap.get(prodId);
-          if (!prodSnap || !prodSnap.exists) {
+          let pData = prodMap.get(prodId);
+          // If not found in Supabase, try local fallback
+          if (!pData) {
             const sampleItem = cartItems.find((i: any) => i.productId === prodId)?.sampleItem;
             const name = sampleItem ? (sampleItem.product?.nameBn || sampleItem.product?.nameEn || prodId) : prodId;
             throw new Error(`PRODUCT_NOT_FOUND:${name}`);
           }
 
-          const prodData = prodSnap.data() || {};
-          const dbOptions = Array.isArray(prodData.options)
-            ? prodData.options.map((opt: any) => ({ ...opt }))
-            : null;
-          let baseStock = typeof prodData.stock === "number" ? prodData.stock : null;
+          const dbOptions = Array.isArray(pData.options) ? pData.options.map((opt: any) => ({ ...opt })) : null;
+          let baseStock = typeof pData.stock === "number" ? pData.stock : 100;
 
           const itemsForProd = cartItems.filter((i: any) => i.productId === prodId);
-
           for (const aggItem of itemsForProd) {
             const requestedQty = Number(aggItem.totalQuantity) || 1;
-
             if (aggItem.selectedOption) {
               const optIndex = dbOptions
                 ? dbOptions.findIndex((opt: any) => opt.value === aggItem.selectedOption?.value && opt.unit === aggItem.selectedOption?.unit)
@@ -1116,31 +1207,28 @@ app.post("/api/orders/checkout", rateLimiter(30, 60000), async (req, res) => {
             }
           }
 
-          const docUpdates: any = {};
-          if (dbOptions !== null) docUpdates.options = dbOptions;
-          if (baseStock !== null) docUpdates.stock = baseStock;
-          if (typeof prodData.soldCount === "number") {
-            docUpdates.soldCount = prodData.soldCount + 1;
-          }
-
-          updatesToApply.push({
-            ref: adminDb.collection("products").doc(prodId),
-            updates: docUpdates
+          const currentSoldCount = typeof pData.sold_count === "number" ? pData.sold_count : 0;
+          stockUpdatesToApply.push({
+            id: prodId,
+            stock: baseStock,
+            options: dbOptions,
+            sold_count: currentSoldCount + 1
           });
         }
 
-        // Apply all stock deductions
-        for (const { ref, updates } of updatesToApply) {
-          transaction.update(ref, updates);
+        // Apply all stock deductions in Supabase
+        for (const upd of stockUpdatesToApply) {
+          const updatePayload: any = { stock: upd.stock, sold_count: upd.sold_count };
+          if (upd.options !== null) updatePayload.options = upd.options;
+          await sb.from("products").update(updatePayload).eq("id", upd.id);
         }
 
-        // Verify and sanitize total calculations to prevent client price-tampering
+        // Authoritative pricing verification
         let authoritativeItemsTotal = 0;
         for (const item of items) {
           const prodId = item.productId || item.id;
-          const prodSnap = prodSnapsMap.get(prodId);
-          const pData = prodSnap?.data() || {};
-          const authoritativePrice = typeof pData.price === "number" && pData.price > 0 
+          const pData = prodMap.get(prodId);
+          const authoritativePrice = typeof pData?.price === "number" && pData.price > 0 
             ? pData.price 
             : (Number(item.price) || 0);
           const itemQty = Math.max(1, Number(item.quantity) || 1);
@@ -1160,38 +1248,143 @@ app.post("/api/orders/checkout", rateLimiter(30, 60000), async (req, res) => {
           serverVerified: true
         };
 
-        // Persist order document
-        const orderRef = adminDb.collection("orders").doc(cleanOrderId);
-        transaction.set(orderRef, {
-          ...secureOrderPayload,
-          createdAt: FieldValue.serverTimestamp()
-        });
+        // Persist order in Supabase
+        await syncOrderToSupabaseServer(secureOrderPayload);
 
-        // Persist payment document if applicable
-        if (paymentPayload && paymentPayload.id) {
-          const payRef = adminDb.collection("payments").doc(paymentPayload.id);
-          transaction.set(payRef, {
-            ...paymentPayload,
-            createdAt: FieldValue.serverTimestamp()
+        // Optional non-blocking Firestore mirror for safety
+        try {
+          const adminDb = getAdminDb();
+          if (adminDb) {
+            await adminDb.collection("orders").doc(cleanOrderId).set({
+              ...secureOrderPayload,
+              createdAt: FieldValue.serverTimestamp()
+            }).catch(() => {});
+          }
+        } catch {}
+
+      } catch (sbErr: any) {
+        if (sbErr.message && (sbErr.message.startsWith("INSUFFICIENT_STOCK:") || sbErr.message.startsWith("PRODUCT_NOT_FOUND:"))) {
+          return res.status(400).json({
+            success: false,
+            error: sbErr.message,
+            code: "INSUFFICIENT_STOCK"
           });
         }
-      });
-    } catch (txErr: any) {
-      if (txErr.message && (txErr.message.startsWith("INSUFFICIENT_STOCK:") || txErr.message.startsWith("PRODUCT_NOT_FOUND:"))) {
-        return res.status(400).json({
+        console.warn("[Checkout] Supabase primary flow error, trying fallback:", sbErr.message);
+      }
+    }
+
+    // 3. FALLBACK: Firebase Transaction if Supabase didn't complete
+    if (!secureOrderPayload) {
+      try {
+        const adminDb = getAdminDb();
+        await adminDb.runTransaction(async (transaction: any) => {
+          const uniqueProdIds: string[] = Array.from(new Set(cartItems.map((item: any) => item.productId).filter(Boolean)));
+          const prodSnapsMap = new Map<string, any>();
+          for (const prodId of uniqueProdIds) {
+            const prodRef = adminDb.collection("products").doc(prodId);
+            const prodSnap = await transaction.get(prodRef);
+            prodSnapsMap.set(prodId, prodSnap);
+          }
+
+          const updatesToApply: { ref: any; updates: any }[] = [];
+          for (const prodId of uniqueProdIds) {
+            const prodSnap = prodSnapsMap.get(prodId);
+            if (!prodSnap || !prodSnap.exists) {
+              const sampleItem = cartItems.find((i: any) => i.productId === prodId)?.sampleItem;
+              const name = sampleItem ? (sampleItem.product?.nameBn || sampleItem.product?.nameEn || prodId) : prodId;
+              throw new Error(`PRODUCT_NOT_FOUND:${name}`);
+            }
+
+            const prodData = prodSnap.data() || {};
+            const dbOptions = Array.isArray(prodData.options) ? prodData.options.map((opt: any) => ({ ...opt })) : null;
+            let baseStock = typeof prodData.stock === "number" ? prodData.stock : null;
+
+            const itemsForProd = cartItems.filter((i: any) => i.productId === prodId);
+            for (const aggItem of itemsForProd) {
+              const requestedQty = Number(aggItem.totalQuantity) || 1;
+              if (aggItem.selectedOption) {
+                const optIndex = dbOptions ? dbOptions.findIndex((opt: any) => opt.value === aggItem.selectedOption?.value && opt.unit === aggItem.selectedOption?.unit) : -1;
+                if (optIndex !== -1 && dbOptions) {
+                  const currentOptStock = dbOptions[optIndex].stock;
+                  if (typeof currentOptStock === "number" && currentOptStock < requestedQty) {
+                    const nameBn = `${aggItem.sampleItem?.product?.nameBn || aggItem.sampleItem?.product?.nameEn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
+                    const nameEn = `${aggItem.sampleItem?.product?.nameEn || aggItem.sampleItem?.product?.nameBn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
+                    throw new Error(`INSUFFICIENT_STOCK:${nameBn}/${nameEn}:${currentOptStock}`);
+                  }
+                  if (typeof currentOptStock === "number") dbOptions[optIndex].stock = currentOptStock - requestedQty;
+                } else if (baseStock !== null) {
+                  if (typeof baseStock === "number" && baseStock < requestedQty) {
+                    const nameBn = `${aggItem.sampleItem?.product?.nameBn || aggItem.sampleItem?.product?.nameEn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
+                    const nameEn = `${aggItem.sampleItem?.product?.nameEn || aggItem.sampleItem?.product?.nameBn || ""} (${aggItem.selectedOption.value}${aggItem.selectedOption.unit})`;
+                    throw new Error(`INSUFFICIENT_STOCK:${nameBn}/${nameEn}:${baseStock}`);
+                  }
+                  baseStock = baseStock - requestedQty;
+                }
+              } else {
+                if (typeof baseStock === "number" && baseStock < requestedQty) {
+                  const nameBn = aggItem.sampleItem?.product?.nameBn || aggItem.sampleItem?.product?.nameEn || "";
+                  const nameEn = aggItem.sampleItem?.product?.nameEn || aggItem.sampleItem?.product?.nameBn || "";
+                  throw new Error(`INSUFFICIENT_STOCK:${nameBn}/${nameEn}:${baseStock}`);
+                }
+                if (typeof baseStock === "number") baseStock = baseStock - requestedQty;
+              }
+            }
+
+            const docUpdates: any = {};
+            if (dbOptions !== null) docUpdates.options = dbOptions;
+            if (baseStock !== null) docUpdates.stock = baseStock;
+            if (typeof prodData.soldCount === "number") docUpdates.soldCount = prodData.soldCount + 1;
+
+            updatesToApply.push({ ref: adminDb.collection("products").doc(prodId), updates: docUpdates });
+          }
+
+          for (const { ref, updates } of updatesToApply) {
+            transaction.update(ref, updates);
+          }
+
+          let authoritativeItemsTotal = 0;
+          for (const item of items) {
+            const prodId = item.productId || item.id;
+            const prodSnap = prodSnapsMap.get(prodId);
+            const pData = prodSnap?.data() || {};
+            const authoritativePrice = typeof pData.price === "number" && pData.price > 0 ? pData.price : (Number(item.price) || 0);
+            const itemQty = Math.max(1, Number(item.quantity) || 1);
+            authoritativeItemsTotal += authoritativePrice * itemQty;
+          }
+
+          const safeItemsTotal = authoritativeItemsTotal > 0 ? authoritativeItemsTotal : Math.max(1, Number(total) || 1);
+          const deliveryFee = Math.max(0, Number(orderPayload.deliveryFee || orderPayload.deliveryCharge) || 0);
+          const discountAmt = Math.max(0, Number(orderPayload.discountAmount || orderPayload.discount) || 0);
+          const computedGrandTotal = Math.max(1, safeItemsTotal + deliveryFee - discountAmt);
+
+          secureOrderPayload = {
+            ...orderPayload,
+            id: cleanOrderId,
+            total: safeItemsTotal,
+            grandTotal: computedGrandTotal,
+            serverVerified: true
+          };
+
+          const orderRef = adminDb.collection("orders").doc(cleanOrderId);
+          transaction.set(orderRef, { ...secureOrderPayload, createdAt: FieldValue.serverTimestamp() });
+
+          if (paymentPayload && paymentPayload.id) {
+            const payRef = adminDb.collection("payments").doc(paymentPayload.id);
+            transaction.set(payRef, { ...paymentPayload, createdAt: FieldValue.serverTimestamp() });
+          }
+        });
+      } catch (txErr: any) {
+        if (txErr.message && (txErr.message.startsWith("INSUFFICIENT_STOCK:") || txErr.message.startsWith("PRODUCT_NOT_FOUND:"))) {
+          return res.status(400).json({ success: false, error: txErr.message, code: "INSUFFICIENT_STOCK" });
+        }
+        console.error("[Checkout] Order transaction failure:", txErr?.message || txErr);
+        return res.status(500).json({
           success: false,
-          error: txErr.message,
-          code: "INSUFFICIENT_STOCK"
+          error: "অর্ডার প্রক্রিয়াকরণ সম্পন্ন করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।",
+          code: "TRANSACTION_FAILED"
         });
       }
-
-      console.error("[Checkout] Order transaction failure:", txErr?.message || txErr);
-      // Requirement 3: Never save unverified orders if Firebase transactions fail.
-      return res.status(500).json({
-        success: false,
-        error: "অর্ডার প্রক্রিয়াকরণ সম্পন্ন করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।",
-        code: "TRANSACTION_FAILED"
-      });
     }
 
     // Asynchronous notifications (non-blocking)

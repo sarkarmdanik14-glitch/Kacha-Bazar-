@@ -3,7 +3,7 @@ import {
   User, Award, Upload, RefreshCw, Check, Sparkles, 
   Image as ImageIcon, Camera, Save, RefreshCcw, Plus, Trash2, Edit, X, Link as LinkIcon
 } from "lucide-react";
-import { db, doc, getDoc, setDoc, onSnapshot } from "../../lib/firebase";
+import { supabase } from "../../lib/supabase";
 import { createTranslator } from "../../lib/formatUtils";
 import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 
@@ -100,30 +100,45 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
   // Input file refs
   const fileInputRefMap = useRef<Record<string, HTMLInputElement | null>>({});
   const newMemberFileRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
-    // Listen in real-time to doc settings/leadership
-    const unsub = onSnapshot(doc(db, "settings", "leadership"), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setDefaults({
-          chairman: { ...defaultProfiles.chairman, ...(data.chairman || {}) },
-          viceChairman: { ...defaultProfiles.viceChairman, ...(data.viceChairman || {}) },
-          founder: { ...defaultProfiles.founder, ...(data.founder || {}) }
-        });
-        if (Array.isArray(data.additionalMembers)) {
-          setAdditionalMembers(data.additionalMembers);
-        } else {
-          setAdditionalMembers([]);
-        }
-      }
-      setLoading(false);
-    }, (error) => {
-      console.error("Leadership listener error:", error);
-      setLoading(false);
-    });
+    const loadLeadershipData = async () => {
+      try {
+        const { data: row } = await supabase
+          .from("site_settings")
+          .select("settings")
+          .eq("key", "leadership")
+          .maybeSingle();
 
-    return () => unsub();
+        const data = row?.settings;
+        if (data) {
+          setDefaults({
+            chairman: { ...defaultProfiles.chairman, ...(data.chairman || {}) },
+            viceChairman: { ...defaultProfiles.viceChairman, ...(data.viceChairman || {}) },
+            founder: { ...defaultProfiles.founder, ...(data.founder || {}) }
+          });
+          if (Array.isArray(data.additionalMembers)) {
+            setAdditionalMembers(data.additionalMembers);
+          } else {
+            setAdditionalMembers([]);
+          }
+        }
+      } catch (error) {
+        console.error("Leadership listener error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadLeadershipData();
+
+    const channel = supabase
+      .channel("leadership_settings_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings", filter: "key=eq.leadership" }, () => loadLeadershipData())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Product-management style image upload handler
@@ -224,9 +239,12 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
         roleEn: profile.roleEn.trim().toUpperCase()
       };
 
-      const docRef = doc(db, "settings", "leadership");
-      const docSnap = await getDoc(docRef);
-      const currentData = docSnap.exists() ? docSnap.data() : {};
+      const { data: row } = await supabase
+        .from("site_settings")
+        .select("settings")
+        .eq("key", "leadership")
+        .maybeSingle();
+      const currentData = row?.settings || {};
 
       const nextData = {
         ...currentData,
@@ -234,7 +252,11 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
         updatedAt: new Date().toISOString()
       };
 
-      await setDoc(docRef, nextData, { merge: true });
+      await supabase.from("site_settings").upsert({
+        key: "leadership",
+        settings: nextData,
+        updated_at: new Date().toISOString()
+      });
 
       triggerToast(
         `${getTranslation(formatted.roleBn, formatted.roleEn)} প্রোফাইল আপডেট সম্পন্ন হয়েছে!`,
@@ -261,15 +283,22 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
       const nextList = additionalMembers.map(m => m.id === updatedMember.id ? formattedMember : m);
       setAdditionalMembers(nextList);
 
-      const docRef = doc(db, "settings", "leadership");
-      const docSnap = await getDoc(docRef);
-      const currentData = docSnap.exists() ? docSnap.data() : {};
+      const { data: row } = await supabase
+        .from("site_settings")
+        .select("settings")
+        .eq("key", "leadership")
+        .maybeSingle();
+      const currentData = row?.settings || {};
 
-      await setDoc(docRef, {
-        ...currentData,
-        additionalMembers: nextList,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      await supabase.from("site_settings").upsert({
+        key: "leadership",
+        settings: {
+          ...currentData,
+          additionalMembers: nextList,
+          updatedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      });
 
       triggerToast(
         `${getTranslation(formattedMember.roleBn, formattedMember.roleEn)} তথ্য আপডেট হয়েছে!`,
@@ -292,15 +321,22 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
       const nextList = additionalMembers.filter(m => m.id !== memberId);
       setAdditionalMembers(nextList);
 
-      const docRef = doc(db, "settings", "leadership");
-      const docSnap = await getDoc(docRef);
-      const currentData = docSnap.exists() ? docSnap.data() : {};
+      const { data: row } = await supabase
+        .from("site_settings")
+        .select("settings")
+        .eq("key", "leadership")
+        .maybeSingle();
+      const currentData = row?.settings || {};
 
-      await setDoc(docRef, {
-        ...currentData,
-        additionalMembers: nextList,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      await supabase.from("site_settings").upsert({
+        key: "leadership",
+        settings: {
+          ...currentData,
+          additionalMembers: nextList,
+          updatedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      });
 
       triggerToast(
         "সদস্য সফলভাবে মুছে ফেলা হয়েছে!",
@@ -350,15 +386,22 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
 
       const nextList = [...additionalMembers, newMember];
 
-      const docRef = doc(db, "settings", "leadership");
-      const docSnap = await getDoc(docRef);
-      const currentData = docSnap.exists() ? docSnap.data() : {};
+      const { data: row } = await supabase
+        .from("site_settings")
+        .select("settings")
+        .eq("key", "leadership")
+        .maybeSingle();
+      const currentData = row?.settings || {};
 
-      await setDoc(docRef, {
-        ...currentData,
-        additionalMembers: nextList,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      await supabase.from("site_settings").upsert({
+        key: "leadership",
+        settings: {
+          ...currentData,
+          additionalMembers: nextList,
+          updatedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      });
 
       // Reset form
       setNewRoleEn("");
@@ -388,15 +431,22 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
     setSavingKey(key);
     try {
       const defaultData = defaultProfiles[key];
-      const docRef = doc(db, "settings", "leadership");
-      const docSnap = await getDoc(docRef);
-      const currentData = docSnap.exists() ? docSnap.data() : {};
+      const { data: row } = await supabase
+        .from("site_settings")
+        .select("settings")
+        .eq("key", "leadership")
+        .maybeSingle();
+      const currentData = row?.settings || {};
 
-      await setDoc(docRef, {
-        ...currentData,
-        [key]: defaultData,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      await supabase.from("site_settings").upsert({
+        key: "leadership",
+        settings: {
+          ...currentData,
+          [key]: defaultData,
+          updatedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      });
 
       triggerToast(
         `${getTranslation(defaultData.roleBn, defaultData.roleEn)} ডিফল্ট হিসেবে রিসেট হয়েছে!`,

@@ -4,7 +4,6 @@
  */
 
 import { supabase } from "./supabase";
-import { db, doc, getDoc, updateDoc, setDoc, increment, serverTimestamp, collection, addDoc } from "./firebase";
 import { RewardClaimRecord } from "./rewardPoints";
 
 const TABLE_CLAIMS = "reward_claims";
@@ -41,24 +40,16 @@ export async function createSupabaseRewardClaim(
     console.warn("Supabase reward_claims insert note:", err);
   }
 
-  // 2. Firestore mirror write
+  // 2. Deduct points from user profile in Supabase
   try {
-    const claimDocRef = doc(db, "reward_claims", id);
-    await setDoc(claimDocRef, {
-      ...claimData,
-      id,
-      status: "pending",
-      claimDate: today,
-      createdAt: serverTimestamp()
-    });
-
-    // Also deduct points from user profile in Firestore
-    const userDocRef = doc(db, "users", claimData.userId);
-    await updateDoc(userDocRef, {
-      rewardPoints: increment(-claimData.pointsDeducted)
-    });
-  } catch (fsErr) {
-    console.warn("Firestore reward deduction fallback note:", fsErr);
+    const { data: uData } = await supabase.from("users").select("reward_points").eq("id", claimData.userId).single();
+    if (uData) {
+      const currentPoints = Number(uData.reward_points || 0);
+      const newPoints = Math.max(0, currentPoints - claimData.pointsDeducted);
+      await supabase.from("users").update({ reward_points: newPoints }).eq("id", claimData.userId);
+    }
+  } catch (ptsErr) {
+    console.warn("Supabase points deduction note:", ptsErr);
   }
 
   return {

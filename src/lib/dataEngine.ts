@@ -14,7 +14,7 @@ export type DataEngineMode = "supabase" | "dual" | "firebase";
 const STORAGE_KEY = "kb_data_engine_mode";
 const EVENT_NAME = "kb-data-engine-changed";
 
-// Default to "dual" or saved mode to guarantee zero disruption while testing
+// Default to "supabase" (100% pure Supabase mode)
 let currentMode: DataEngineMode = (() => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -22,7 +22,7 @@ let currentMode: DataEngineMode = (() => {
       return saved as DataEngineMode;
     }
   } catch {}
-  return "dual";
+  return "supabase";
 })();
 
 /**

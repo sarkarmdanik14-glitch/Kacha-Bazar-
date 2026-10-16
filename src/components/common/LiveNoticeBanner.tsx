@@ -3,7 +3,6 @@ import {
   AlertCircle, Info, Bell, Sparkles, ChevronDown, ChevronUp, 
   X, Megaphone, Clock, ShoppingBag
 } from "lucide-react";
-import { db, doc, onSnapshot } from "../../lib/firebase";
 import { LiveNoticeConfig, DEFAULT_LIVE_NOTICE } from "../../types";
 import { subscribeToSupabaseLiveNotice } from "../../lib/supabaseLiveService";
 
@@ -55,38 +54,8 @@ export const LiveNoticeBanner: React.FC<LiveNoticeBannerProps> = ({
       });
     } catch {}
 
-    const unsubFirestore = onSnapshot(
-      doc(db, "settings", "notice"),
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data() as Partial<LiveNoticeConfig>;
-          const merged: LiveNoticeConfig = {
-            isActive: data.isActive !== undefined ? data.isActive : true,
-            badgeBn: data.badgeBn || DEFAULT_LIVE_NOTICE.badgeBn,
-            badgeEn: data.badgeEn || DEFAULT_LIVE_NOTICE.badgeEn,
-            titleBn: data.titleBn || DEFAULT_LIVE_NOTICE.titleBn,
-            titleEn: data.titleEn || DEFAULT_LIVE_NOTICE.titleEn,
-            messageBn: data.messageBn || DEFAULT_LIVE_NOTICE.messageBn,
-            messageEn: data.messageEn || DEFAULT_LIVE_NOTICE.messageEn,
-            theme: data.theme || DEFAULT_LIVE_NOTICE.theme,
-            showDotPulse: data.showDotPulse !== undefined ? data.showDotPulse : true,
-            orderDisabled: data.orderDisabled !== undefined ? data.orderDisabled : true,
-            updatedAt: data.updatedAt
-          };
-          setNotice(merged);
-          if (onNoticeStateChange) {
-            onNoticeStateChange(merged.isActive, merged);
-          }
-        }
-      },
-      (err) => {
-        console.warn("Notice banner real-time sync notice:", err.message);
-      }
-    );
-
     return () => {
       unsubSupa();
-      unsubFirestore();
     };
   }, [noticeOverride]);
 

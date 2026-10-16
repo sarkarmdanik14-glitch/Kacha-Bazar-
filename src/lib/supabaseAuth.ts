@@ -90,54 +90,24 @@ export async function supabaseSignInWithEmail(
     });
 
     if (error) {
-      // If user entered original Firebase credentials or is super admin, check Firebase Auth fallback
       if (isSuperAdminEmail || error.message.toLowerCase().includes("invalid login credentials")) {
+        // Try server staff verification directly via Supabase backend
         try {
-          const { auth, signInWithEmailAndPassword } = await import("./firebase");
-          const fbCred = await signInWithEmailAndPassword(auth, cleanEmail, pass).catch(() => null);
-          if (fbCred?.user) {
-            // User successfully authenticated via Firebase Auth!
-            // Seamlessly register or sync to Supabase Auth in background
-            try {
-              await supabase.auth.signUp({
-                email: cleanEmail,
-                password: pass,
-                options: { data: { role: isSuperAdminEmail ? "admin" : effectivePreferredRole, full_name: fbCred.user.displayName || "Admin" } }
-              });
-            } catch {}
+          const verifyRes = await apiClient.post<any>("/api/auth/staff-verify", {
+            email: cleanEmail,
+            password: pass,
+            preferredRole: effectivePreferredRole
+          }, { silent: true });
 
-            // Exchange staff session if admin
-            if (isSuperAdminEmail || effectivePreferredRole === "admin") {
-              try {
-                const idTok = await fbCred.user.getIdToken();
-                const sessionRes = await apiClient.post<any>("/api/staff/firebase-session", { idToken: idTok, token: idTok }, { silent: true });
-                if (sessionRes?.sessionId) {
-                  localStorage.setItem("kb_staff_session", sessionRes.sessionId);
-                  sessionStorage.setItem("kb_staff_session", sessionRes.sessionId);
-                  if (sessionRes.staff?.staffId) localStorage.setItem("kb_staff_id", sessionRes.staff.staffId);
-                  if (sessionRes.staff?.email) localStorage.setItem("kb_staff_email", sessionRes.staff.email);
-                }
-              } catch {}
-            }
-
-            const verifiedAdminProfile: SupabaseUserProfile = {
-              uid: fbCred.user.uid,
-              id: fbCred.user.uid,
-              email: cleanEmail,
-              displayName: fbCred.user.displayName || (isSuperAdminEmail ? "Sarkar Md Anik (Super Admin)" : "Admin"),
-              fullName: fbCred.user.displayName || (isSuperAdminEmail ? "Sarkar Md Anik (Super Admin)" : "Admin"),
-              role: isSuperAdminEmail ? "admin" : (effectivePreferredRole as any),
-              photoURL: fbCred.user.photoURL || ""
-            };
-
+          if (verifyRes?.success && verifyRes?.user) {
             return {
               success: true,
-              user: verifiedAdminProfile,
-              role: verifiedAdminProfile.role
+              user: verifyRes.user,
+              role: verifyRes.user.role || effectivePreferredRole
             };
           }
-        } catch (fbFallbackErr) {
-          console.warn("Notice in Firebase fallback verification:", fbFallbackErr);
+        } catch (serverErr) {
+          // Fall through to direct table check
         }
 
         // Check staff table in Supabase

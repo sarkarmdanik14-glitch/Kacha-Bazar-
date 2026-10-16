@@ -3,7 +3,7 @@ import {
   User, Store, Bike, DollarSign, Check, X, RefreshCw, 
   Award, FileText, Gift, PlusCircle, ArrowRight 
 } from "lucide-react";
-import { db, doc, setDoc, updateDoc, collection, serverTimestamp } from "../../lib/firebase";
+import { supabase } from "../../lib/supabase";
 import { createTranslator } from "../../lib/formatUtils";
 import { normalizeMemberId } from "../../lib/memberIdUtils";
 
@@ -41,12 +41,8 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
       const normalized = normalizeMemberId(currentId, uId);
       if (currentId !== normalized) {
         try {
-          await updateDoc(doc(db, "users", uId), {
-            customerId: normalized
-          });
-        } catch {
-          await setDoc(doc(db, "users", uId), { customerId: normalized }, { merge: true }).catch(() => {});
-        }
+          await supabase.from("users").update({ customer_id: normalized }).eq("id", uId);
+        } catch {}
       }
     });
   }, [users]);
@@ -66,12 +62,9 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
         const normalized = normalizeMemberId(currentId, uId);
         if (currentId !== normalized) {
           try {
-            await updateDoc(doc(db, "users", uId), { customerId: normalized });
+            await supabase.from("users").update({ customer_id: normalized }).eq("id", uId);
             updatedCount++;
-          } catch {
-            await setDoc(doc(db, "users", uId), { customerId: normalized }, { merge: true }).catch(() => {});
-            updatedCount++;
-          }
+          } catch {}
         }
       }
       if (updatedCount > 0) {
@@ -103,14 +96,11 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
   // Approved status triggers
   const handleSetSellerStatus = async (sellerId: string, nextStatus: "pending" | "approved" | "rejected" | "suspended") => {
     try {
-      await updateDoc(doc(db, "sellers", sellerId), {
-        status: nextStatus
-      });
-      // also update in main users collection
-      await updateDoc(doc(db, "users", sellerId), {
+      await supabase.from("users").update({
         status: nextStatus,
-        sellerStatus: nextStatus
-      });
+        seller_status: nextStatus
+      }).eq("id", sellerId);
+
       triggerToast(
         `সেলার স্ট্যাটাস আপডেট সম্পন্ন হয়েছে!`,
         `Seller profile registration status set to ${nextStatus} successfully!`
@@ -123,9 +113,10 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
 
   const handleUpdateUserRole = async (userId: string, newRole: string) => {
     try {
-      await updateDoc(doc(db, "users", userId), {
+      await supabase.from("users").update({
         role: newRole
-      });
+      }).eq("id", userId);
+
       triggerToast(
         `রোল পরিবর্তন সম্পন্ন হয়েছে!`,
         `User role updated to ${newRole} successfully!`
@@ -138,14 +129,11 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
 
   const handleSetRiderStatus = async (riderId: string, nextStatus: "pending" | "approved" | "rejected" | "suspended") => {
     try {
-      await updateDoc(doc(db, "riders", riderId), {
-        status: nextStatus
-      });
-      // also update in main users collection
-      await updateDoc(doc(db, "users", riderId), {
+      await supabase.from("users").update({
         status: nextStatus,
-        riderStatus: nextStatus
-      });
+        rider_status: nextStatus
+      }).eq("id", riderId);
+
       triggerToast(
         `রাইডার স্ট্যাটাস আপডেট সম্পন্ন হয়েছে!`,
         `Rider profile registration status set to ${nextStatus} successfully!`
@@ -175,7 +163,7 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
     setSavingWallet(true);
     try {
       const uId = selectedUser.uid || selectedUser.id;
-      const currentBalance = Number(selectedUser.balance) || 0;
+      const currentBalance = Number(selectedUser.balance || selectedUser.wallet_balance || selectedUser.walletBalance) || 0;
       
       const multiplier = adjustType === "deposit" ? 1 : -1;
       const amountToApply = adjustAmount * multiplier;
@@ -187,36 +175,23 @@ export default function AdminUsersTab({ users, transactions, referrals, lang, tr
         return;
       }
 
-      // 1. Update wallet balance in primary users collection
-      await updateDoc(doc(db, "users", uId), {
+      // 1. Update wallet balance in Supabase users table
+      await supabase.from("users").update({
         balance: finalBalance,
-        walletBalance: finalBalance
-      });
+        wallet_balance: finalBalance,
+        updated_at: new Date().toISOString()
+      }).eq("id", uId);
 
-      // 2. Also try updating role specific sub-collections
-      if (selectedUser.role === "seller") {
-        await updateDoc(doc(db, "sellers", uId), { balance: finalBalance }).catch(() => {});
-      } else if (selectedUser.role === "rider") {
-        await updateDoc(doc(db, "riders", uId), { balance: finalBalance }).catch(() => {});
-      }
-
-      // 3. Update dedicated wallet doc
-      await setDoc(doc(db, "wallet", uId), {
-        userId: uId,
-        balance: finalBalance,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      // 4. Log custom transaction record for audit trails
+      // 2. Log custom transaction record in Supabase
       const txId = "tx_admin_" + Date.now().toString(36);
-      await setDoc(doc(db, "transactions", txId), {
+      await supabase.from("transactions").insert({
         id: txId,
-        userId: uId,
-        userName: selectedUser.displayName || "User",
+        user_id: uId,
+        user_name: selectedUser.displayName || selectedUser.full_name || "User",
         type: adjustType,
         amount: adjustAmount,
         description: adjustReason || getTranslation("এডমিন দ্বারা ওয়ালেট সমন্বয়", "Admin manual wallet adjustment"),
-        createdAt: serverTimestamp()
+        created_at: new Date().toISOString()
       });
 
       triggerToast("ওয়ালেট ব্যালেন্স আপডেট হয়েছে!", "Wallet balance adjusted and audited successfully!");

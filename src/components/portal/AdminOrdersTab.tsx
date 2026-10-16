@@ -6,7 +6,8 @@ import {
   Package, Check, X, ShieldAlert, Sparkles, Copy, ArrowUpDown,
   Trash2, Plus
 } from "lucide-react";
-import { db, doc, setDoc, deleteDoc, serverTimestamp } from "../../lib/firebase";
+import { supabase } from "../../lib/supabase";
+import { syncSingleOrderToSupabase } from "../../lib/supabaseSync";
 import { createTranslator } from "../../lib/formatUtils";
 import { normalizeMemberId } from "../../lib/memberIdUtils";
 
@@ -157,8 +158,8 @@ export default function AdminOrdersTab({
       if (handleDeleteOrder) {
         await handleDeleteOrder(orderId);
       } else {
-        if (!confirm(getTranslation("আপনি কি নিশ্চিতভাবে এই অর্ডারটি ডাটাবেজ থেকে মুছে ফেলতে চান?", "Are you sure you want to permanently delete this order?"))) return;
-        await deleteDoc(doc(db, "orders", orderId));
+        // 1. PRIMARY: Delete from Supabase
+        await supabase.from("orders").delete().eq("id", orderId);
         triggerToast("অর্ডার সফলভাবে মুছে ফেলা হয়েছে!", "Order deleted successfully from database!");
       }
       if (expandedOrderId === orderId) setExpandedOrderId(null);
@@ -211,11 +212,15 @@ export default function AdminOrdersTab({
         paymentMethod: manualPaymentMethod,
         paymentStatus: manualPaymentStatus,
         notes: manualNotes.trim(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
-      await setDoc(doc(db, "orders", orderId), newOrder);
+      // 1. PRIMARY: Insert into Supabase
+      await syncSingleOrderToSupabase(newOrder).catch((err) => {
+        console.warn("[Supabase] Manual order sync notice:", err);
+      });
+
       triggerToast("নতুন অর্ডার সফলভাবে তৈরি করা হয়েছে!", "Manual order added successfully to database!");
       setShowCreateOrderModal(false);
       setManualCustomerName("");

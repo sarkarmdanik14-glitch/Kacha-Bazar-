@@ -27,6 +27,7 @@ import {
   signInWithPhoneNumber
 } from "../../lib/firebase";
 import type { ConfirmationResult } from "firebase/auth";
+import { supabase } from "../../lib/supabase";
 import { 
   User, CreditCard, ShoppingBag, Gift, MapPin, 
   ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, 
@@ -839,26 +840,61 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       (err) => console.warn("Customer user sync notice:", err.message)
     );
 
-    // Listen to orders
-    const ordersQuery = query(
-      collection(db, "orders"),
-      where("customerId", "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
-    const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
-      const ords: any[] = [];
-      snapshot.forEach((doc) => {
-        ords.push({ id: doc.id, ...doc.data() });
+    // 1. PRIMARY: Fetch orders from Supabase
+    const fetchSupabaseCustomerOrders = async () => {
+      try {
+        const { data: supaOrders, error: sErr } = await supabase
+          .from("orders")
+          .select("*")
+          .or(`customer_id.eq.${user.uid},customer_phone.eq.${user.phoneNumber || ""}`)
+          .order("created_at", { ascending: false });
+
+        if (!sErr && supaOrders && supaOrders.length > 0) {
+          const mapped = supaOrders.map((o: any) => ({
+            ...o,
+            orderNumber: o.order_number || o.id,
+            customerId: o.customer_id,
+            customerName: o.customer_name,
+            customerPhone: o.customer_phone,
+            deliveryAddress: o.delivery_address,
+            orderStatus: o.order_status,
+            paymentStatus: o.payment_status,
+            createdAt: o.created_at
+          }));
+          setOrders(mapped);
+          setLoading(false);
+          checkAndUpgradePremiumMembership(user.uid);
+        }
+      } catch (e) {
+        console.warn("[Supabase] Customer orders load notice:", e);
+      }
+    };
+    fetchSupabaseCustomerOrders();
+
+    // 2. Fallback / parallel Firestore listener
+    let unsubOrders = () => {};
+    try {
+      const ordersQuery = query(
+        collection(db, "orders"),
+        where("customerId", "==", user.uid),
+        orderBy("createdAt", "desc")
+      );
+      unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
+        const ords: any[] = [];
+        snapshot.forEach((doc) => {
+          ords.push({ id: doc.id, ...doc.data() });
+        });
+        if (ords.length > 0) {
+          setOrders(ords);
+        }
+        setLoading(false);
+        checkAndUpgradePremiumMembership(user.uid);
+      }, (err) => {
+        setLoading(false);
       });
-      setOrders(ords);
+    } catch {
       setLoading(false);
-      checkAndUpgradePremiumMembership(user.uid);
-    }, (err) => {
-      console.warn("Error reading customer orders:", err.message);
-      // Fallback with empty if not permitted
-      setOrders([]);
-      setLoading(false);
-    });
+    }
 
     // Listen to Wallet balance & transactions
     const unsubWallet = onSnapshot(

@@ -4,7 +4,6 @@
  */
 
 import { supabase } from "./supabase";
-import { db, collection, addDoc, serverTimestamp, query, where, onSnapshot } from "./firebase";
 
 export interface AppNotification {
   id: string;
@@ -21,13 +20,13 @@ export interface AppNotification {
 const TABLE_NOTIFICATIONS = "notifications";
 
 /**
- * Send notification (Writes to Supabase + mirrors to Firestore for seamless compatibility)
+ * Send notification (Writes to Supabase)
  */
 export async function sendNotification(notif: Omit<AppNotification, "id" | "createdAt" | "isRead">): Promise<void> {
   const id = "notif_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 6);
   const now = new Date().toISOString();
 
-  // 1. Supabase write
+  // Supabase write
   try {
     await supabase.from(TABLE_NOTIFICATIONS).insert({
       id,
@@ -42,20 +41,6 @@ export async function sendNotification(notif: Omit<AppNotification, "id" | "crea
     });
   } catch (err) {
     console.warn("Supabase notification insert note:", err);
-  }
-
-  // 2. Firestore mirror write
-  try {
-    await addDoc(collection(db, "notifications"), {
-      userId: notif.userId,
-      titleBn: notif.title,
-      messageBn: notif.message,
-      isRead: false,
-      createdAt: now,
-      serverTime: serverTimestamp()
-    });
-  } catch (fsErr) {
-    console.warn("Firestore notification mirror fallback note:", fsErr);
   }
 }
 

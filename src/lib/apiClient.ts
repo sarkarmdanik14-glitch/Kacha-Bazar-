@@ -7,7 +7,7 @@
  * 3. Never throws "Unexpected token '<', <html>..." when HTML or text is returned by server.
  * 6. Logs real API errors in development mode for easy debugging.
  */
-import { auth } from "./firebase";
+import { supabase } from "./supabase";
 
 export class ApiError extends Error {
   public status: number;
@@ -140,18 +140,14 @@ export async function apiRequest<T = any>(
       if (value) headers.set(key, value);
     }
 
-    // Dynamic Firebase Auth token resolution if missing from headers
-    if (!headers.has("x-firebase-id-token") && typeof window !== "undefined") {
+    // Dynamic Supabase Auth token resolution if missing from headers
+    if (!headers.has("Authorization") && typeof window !== "undefined") {
       try {
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-          const freshToken = await currentUser.getIdToken();
-          if (freshToken) {
-            headers.set("x-firebase-id-token", freshToken);
-            if (!headers.has("Authorization")) {
-              headers.set("Authorization", `Bearer ${freshToken}`);
-            }
-          }
+        const { data } = await supabase.auth.getSession();
+        const freshToken = data?.session?.access_token;
+        if (freshToken) {
+          headers.set("Authorization", `Bearer ${freshToken}`);
+          headers.set("x-supabase-token", freshToken);
         }
       } catch (authErr) {
         // Non-blocking

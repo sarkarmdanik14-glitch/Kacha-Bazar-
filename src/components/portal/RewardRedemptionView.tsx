@@ -9,7 +9,6 @@ import {
   redeemRewardGift, 
   RewardClaimRecord 
 } from "../../lib/rewardPoints";
-import { db, collection, query, where, getDocs } from "../../lib/firebase";
 import { supabase } from "../../lib/supabase";
 
 export interface RewardRedemptionViewProps {
@@ -88,21 +87,7 @@ export default function RewardRedemptionView({
             createdAt: r.created_at
           }))
         );
-        return;
       }
-
-      // 2. Fallback to Firestore
-      const q = query(
-        collection(db, "reward_claims"),
-        where("userId", "==", user.uid)
-      );
-      const snap = await getDocs(q);
-      const records: RewardClaimRecord[] = [];
-      snap.forEach((d) => {
-        records.push({ ...d.data(), id: d.id } as RewardClaimRecord);
-      });
-      records.sort((a, b) => new Date(b.claimDate || 0).getTime() - new Date(a.claimDate || 0).getTime());
-      setMyClaims(records);
     } catch (err) {
       console.warn("Notice loading reward claims:", err);
     } finally {

@@ -527,31 +527,37 @@ export default function AdminPanel({
   }, [initialSettings]);
 
   // Update order status
+  // Update order status
   const handleUpdateOrderStatus = async (orderId: string, status: string) => {
     try {
-      await updateDoc(doc(db, "orders", orderId), {
-        orderStatus: status,
-        updatedAt: serverTimestamp()
+      // 1. PRIMARY: Update directly in Supabase
+      await updateOrderStatusInSupabase(orderId, status).catch((err) => {
+        console.warn("[Supabase] Update status notice:", err);
       });
+      syncSingleOrderToSupabase({ id: orderId, orderStatus: status }).catch(() => {});
 
-      // Real-time automatic sync to Supabase
-      syncSingleOrderToSupabase({ id: orderId, orderStatus: status }).catch((err) => {
-        console.warn("[Supabase] Notice auto-syncing order status:", err);
-      });
+      // 2. Safe non-blocking mirror to Firestore
+      try {
+        await updateDoc(doc(db, "orders", orderId), {
+          orderStatus: status,
+          updatedAt: serverTimestamp()
+        }).catch(() => {});
+      } catch {}
 
       triggerToast(`অর্ডার স্ট্যাটাস আপডেট করা হয়েছে: ${status}`, `Order status updated to: ${status}`);
 
       if (status === "delivered" || status === "completed") {
-        const orderSnap = await getDoc(doc(db, "orders", orderId));
-        if (orderSnap.exists()) {
-          const orderData = orderSnap.data();
-          const customerId = orderData.customerId || orderData.userId;
-          if (customerId) {
-            await checkAndRewardReferral(customerId);
+        try {
+          const orderSnap = await getDoc(doc(db, "orders", orderId));
+          if (orderSnap.exists()) {
+            const orderData = orderSnap.data();
+            const customerId = orderData.customerId || orderData.userId;
+            if (customerId) {
+              await checkAndRewardReferral(customerId).catch(() => {});
+            }
+            await awardOrderRewardPoints(orderId, orderData).catch(() => {});
           }
-          // Real-time reward points calculation & Firestore user increment
-          await awardOrderRewardPoints(orderId, orderData);
-        }
+        } catch {}
       }
     } catch (err) {
       console.error("Error updating order status:", err);
@@ -561,19 +567,7 @@ export default function AdminPanel({
   // Update payment status (Securely handles admin manual payment verification and refund processing)
   const handleUpdatePaymentStatus = async (orderId: string, status: string) => {
     try {
-      const orderRef = doc(db, "orders", orderId);
-      const orderSnap = await getDoc(orderRef);
-      if (!orderSnap.exists()) return;
-      const orderData = orderSnap.data();
-
-      // Update paymentStatus in Firestore
-      await updateDoc(orderRef, {
-        paymentStatus: status,
-        // If status is refunded, also mark orderStatus as refunded
-        ...(status === "refunded" ? { orderStatus: "refunded" } : {})
-      });
-
-      // Real-time automatic sync to Supabase
+      // 1. PRIMARY: Sync to Supabase
       syncSingleOrderToSupabase({
         id: orderId,
         paymentStatus: status,
@@ -582,67 +576,36 @@ export default function AdminPanel({
         console.warn("[Supabase] Notice auto-syncing payment status:", err);
       });
 
-      // Handle wallet credit if setting status to refunded
-      if (status === "refunded" && orderData.customerId && orderData.customerId !== "guest") {
-        const refundAmount = orderData.total || orderData.totalAmount || 0;
-        
-        // 1. Update wallet balance
-        const walletRef = doc(db, "wallet", orderData.customerId);
-        const walletSnap = await getDoc(walletRef);
-        if (walletSnap.exists()) {
-          await updateDoc(walletRef, {
-            balance: increment(refundAmount),
-            updatedAt: serverTimestamp()
+      // 2. Safe non-blocking mirror to Firestore
+      try {
+        const orderRef = doc(db, "orders", orderId);
+        const orderSnap = await getDoc(orderRef);
+        if (orderSnap.exists()) {
+          const orderData = orderSnap.data();
+          await updateDoc(orderRef, {
+            paymentStatus: status,
+            ...(status === "refunded" ? { orderStatus: "refunded" } : {})
           });
-        } else {
-          await setDoc(walletRef, {
-            balance: refundAmount,
-            updatedAt: serverTimestamp()
-          });
+
+          // Handle wallet credit if setting status to refunded
+          if (status === "refunded" && orderData.customerId && orderData.customerId !== "guest") {
+            const refundAmount = orderData.total || orderData.totalAmount || 0;
+            const walletRef = doc(db, "wallet", orderData.customerId);
+            const walletSnap = await getDoc(walletRef);
+            if (walletSnap.exists()) {
+              await updateDoc(walletRef, {
+                balance: increment(refundAmount),
+                updatedAt: serverTimestamp()
+              }).catch(() => {});
+            } else {
+              await setDoc(walletRef, {
+                balance: refundAmount,
+                updatedAt: serverTimestamp()
+              }).catch(() => {});
+            }
+          }
         }
-
-        // Also update users/{customerId} walletBalance and balance atomically
-        const userDocRef = doc(db, "users", orderData.customerId);
-        try {
-          await updateDoc(userDocRef, {
-            walletBalance: increment(refundAmount),
-            balance: increment(refundAmount),
-            updatedAt: serverTimestamp()
-          });
-        } catch {
-          await setDoc(userDocRef, {
-            walletBalance: refundAmount,
-            balance: refundAmount,
-            updatedAt: serverTimestamp()
-          }, { merge: true });
-        }
-
-        // 2. Create transaction record
-        const txId = "refund_" + orderId + "_" + Date.now();
-        await setDoc(doc(db, "transactions", txId), {
-          id: txId,
-          userId: orderData.customerId,
-          type: "refund",
-          amount: refundAmount,
-          description: getTranslation(
-            `অর্ডার #${orderId.slice(-6).toUpperCase()} এর রিফান্ড অনুমোদন করা হয়েছে।`,
-            `Refund approved and credited for Order #${orderId.slice(-6).toUpperCase()}.`
-          ),
-          createdAt: serverTimestamp(),
-          referenceId: orderId
-        });
-
-        // 3. Send notification to user
-        await addDoc(collection(db, "notifications"), {
-          userId: orderData.customerId,
-          titleBn: "রিফান্ড অনুমোদন",
-          titleEn: "Refund Approved",
-          messageBn: `আপনার অর্ডার #${orderId.slice(-6).toUpperCase()} এর রিফান্ড আপনার ওয়ালেটে যোগ করা হয়েছে।`,
-          messageEn: `The refund for Order #${orderId.slice(-6).toUpperCase()} has been credited to your wallet.`,
-          isRead: false,
-          createdAt: serverTimestamp()
-        });
-      }
+      } catch {}
 
       triggerToast(`পেমেন্ট স্ট্যাটাস আপডেট করা হয়েছে: ${status}`, `Payment status updated to: ${status}`);
     } catch (err) {

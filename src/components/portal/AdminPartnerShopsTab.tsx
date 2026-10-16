@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { PartnerShop, PartnerShopStatus } from "../../types";
-import { db, collection, onSnapshot } from "../../lib/firebase";
+import { subscribeToSupabaseOrders } from "../../lib/supabaseLiveService";
 import { 
   subscribeToPartnerShops, 
   createPartnerShop, 
@@ -67,12 +67,9 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
   // Real-time subscription to orders for dynamic sales & commission reporting
   const [allOrders, setAllOrders] = useState<any[]>([]);
   useEffect(() => {
-    const unsub = onSnapshot(
-      collection(db, "orders"),
-      (snap) => {
-        const list: any[] = [];
-        snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
-        setAllOrders(list);
+    const unsub = subscribeToSupabaseOrders(
+      (list) => {
+        setAllOrders(list || []);
       },
       (err) => {
         console.warn("Orders subscription in AdminPartnerShopsTab:", err);

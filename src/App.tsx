@@ -31,6 +31,7 @@ import {
   getCachedProducts,
   getCachedCategories
 } from "./lib/supabaseDataService";
+import { subscribeToSupabaseBanners } from "./lib/supabaseLiveService";
 
 import PortalModal from "./components/portal/PortalModal";
 import CheckoutModal from "./components/CheckoutModal";
@@ -1167,21 +1168,39 @@ export default function App() {
     );
 
     setLoadingBanners(true);
-    const unsubBanners = onSnapshot(
-      collection(db, "banners"), 
-      (snap) => {
-        const bList: any[] = [];
-        snap.forEach((doc) => {
-          bList.push({ id: doc.id, ...doc.data() });
-        });
-        setBanners(bList);
-        setLoadingBanners(false);
-      },
-      (err) => {
-        console.warn("Firestore banners sync notice:", err.message);
-        setLoadingBanners(false);
-      }
-    );
+    let unsubSupabaseBanners = () => {};
+    try {
+      unsubSupabaseBanners = subscribeToSupabaseBanners((bList) => {
+        if (bList && bList.length > 0 && isMounted) {
+          setBanners(bList);
+          setLoadingBanners(false);
+        }
+      });
+    } catch (sbBanErr) {
+      console.warn("Supabase banners listener notice:", sbBanErr);
+    }
+
+    let unsubBanners = () => {};
+    try {
+      unsubBanners = onSnapshot(
+        collection(db, "banners"), 
+        (snap) => {
+          const bList: any[] = [];
+          snap.forEach((doc) => {
+            bList.push({ id: doc.id, ...doc.data() });
+          });
+          if (bList.length > 0 && isMounted) {
+            setBanners(bList);
+          }
+          setLoadingBanners(false);
+        },
+        (err) => {
+          setLoadingBanners(false);
+        }
+      );
+    } catch {
+      setLoadingBanners(false);
+    }
 
     const unsubLeadership = onSnapshot(
       doc(db, "settings", "leadership"), 
@@ -1232,6 +1251,7 @@ export default function App() {
       unsubCategories();
       unsubSubcategories();
       unsubReviews();
+      unsubSupabaseBanners?.();
       unsubBanners();
       unsubLeadership();
       unsubHome();

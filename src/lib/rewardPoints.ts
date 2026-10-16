@@ -1,5 +1,5 @@
-import { db, doc, getDoc, updateDoc, setDoc, increment, serverTimestamp, collection, addDoc } from "./firebase";
 import { supabase } from "./supabase";
+import { sendNotification } from "./notificationSupabase";
 
 export interface RewardGift {
   id: string;
@@ -132,10 +132,10 @@ export const REWARD_GIFTS_CATALOG: RewardGift[] = [
 ];
 
 /**
- * Handles claiming/redeeming a reward gift:
- * 1. Checks that the user has sufficient reward points.
- * 2. Deducts the points from Firestore (`users/{userId}`).
- * 3. Records the claim in `reward_claims` and `redemptions` collection.
+ * Handles claiming/redeeming a reward gift in Supabase:
+ * 1. Checks that the user has sufficient reward points in Supabase users table.
+ * 2. Deducts the points from `users`.
+ * 3. Records the claim in `reward_claims`.
  * 4. Creates an in-app confirmation notification.
  */
 export async function redeemRewardGift(
@@ -153,15 +153,18 @@ export async function redeemRewardGift(
       return { success: false, reason: "গ্রাহক তথ্য বা উপহার নির্বাচন সঠিক নয়।" };
     }
 
-    const userRef = doc(db, "users", userId);
-    const userSnap = await getDoc(userRef);
+    // Fetch user points from Supabase
+    const { data: userData, error: userFetchErr } = await supabase
+      .from("users")
+      .select("reward_points, points, full_name, display_name, phone, phone_number, address")
+      .eq("id", userId)
+      .maybeSingle();
 
-    if (!userSnap.exists()) {
+    if (userFetchErr || !userData) {
       return { success: false, reason: "গ্রাহক অ্যাকাউন্ট পাওয়া যায়নি।" };
     }
 
-    const userData = userSnap.data() || {};
-    const currentPoints = Number(userData.rewardPoints ?? userData.points ?? 0);
+    const currentPoints = Number(userData.reward_points ?? userData.points ?? 0);
 
     if (currentPoints < gift.pointsRequired) {
       return { 
@@ -172,12 +175,12 @@ export async function redeemRewardGift(
 
     const newPoints = Math.max(0, currentPoints - gift.pointsRequired);
 
-    // Atomically deduct points
-    await updateDoc(userRef, {
-      rewardPoints: increment(-gift.pointsRequired),
-      points: increment(-gift.pointsRequired),
-      updatedAt: serverTimestamp()
-    });
+    // Atomically deduct points in Supabase
+    await supabase.from("users").update({
+      reward_points: newPoints,
+      points: newPoints,
+      updated_at: new Date().toISOString()
+    }).eq("id", userId);
 
     const claimId = `claim_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const nowIso = new Date().toISOString();
@@ -185,8 +188,8 @@ export async function redeemRewardGift(
     const claimRecord: RewardClaimRecord = {
       id: claimId,
       userId,
-      userName: shippingDetails?.customerName || userData.displayName || userData.fullName || "সম্মানিত গ্রাহক",
-      customerPhone: shippingDetails?.phone || userData.phone || userData.phoneNumber || "",
+      userName: shippingDetails?.customerName || userData.display_name || userData.full_name || "সম্মানিত গ্রাহক",
+      customerPhone: shippingDetails?.phone || userData.phone || userData.phone_number || "",
       deliveryAddress: shippingDetails?.address || userData.address || "চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর",
       notes: shippingDetails?.notes || "",
       giftId: gift.id,
@@ -196,15 +199,11 @@ export async function redeemRewardGift(
       pointsDeducted: gift.pointsRequired,
       marketValueTaka: gift.marketValueTaka,
       status: "pending",
-      createdAt: serverTimestamp(),
-      claimDate: nowIso
+      createdAt: nowIso,
+      claimDate: nowIso.split("T")[0]
     };
 
-    // Save claim in both reward_claims and redemptions collections for dispatching
-    await setDoc(doc(db, "reward_claims", claimId), claimRecord);
-    await setDoc(doc(db, "redemptions", claimId), claimRecord).catch(() => {});
-
-    // Mirror to Supabase reward_claims table
+    // Save claim to Supabase reward_claims table
     try {
       await supabase.from("reward_claims").insert({
         id: claimId,
@@ -224,29 +223,23 @@ export async function redeemRewardGift(
         created_at: nowIso
       });
     } catch (sbErr) {
-      console.warn("Supabase reward claim mirror note:", sbErr);
+      console.warn("Supabase reward claim insert notice:", sbErr);
     }
 
-    // Notify customer
-    await addDoc(collection(db, "notifications"), {
+    // Notify customer via Supabase
+    sendNotification({
       userId,
-      titleBn: "🎁 উপহার দাবি সফল হয়েছে!",
-      titleEn: "🎁 Gift Redemption Successful!",
-      messageBn: `অভিনন্দন! আপনি "${gift.nameBn}" দাবি করেছেন (${gift.pointsRequired} পয়েন্ট কাটা হয়েছে)। আমাদের ডেলিভারি টিম শীঘ্রই উপহারটি পৌঁছে দেবে।`,
-      messageEn: `Congratulations! You claimed "${gift.nameEn}" (${gift.pointsRequired} pts deducted). Our team will dispatch it soon.`,
-      isRead: false,
-      createdAt: nowIso
+      title: "🎁 উপহার দাবি সফল হয়েছে!",
+      message: `অভিনন্দন! আপনি "${gift.nameBn}" দাবি করেছেন (${gift.pointsRequired} পয়েন্ট কাটা হয়েছে)। আমাদের ডেলিভারি টিম শীঘ্রই উপহারটি পৌঁছে দেবে।`,
+      type: "reward"
     }).catch(() => {});
 
-    // Notify Admin
-    await addDoc(collection(db, "notifications"), {
+    // Notify Admin via Supabase
+    sendNotification({
       userId: "admin-default",
-      titleBn: "নতুন রিওয়ার্ড উপহার দাবি!",
-      titleEn: "New Reward Gift Claim Request!",
-      messageBn: `গ্রাহক ${claimRecord.userName} (${claimRecord.customerPhone}) "${gift.nameBn}" উপহার দাবি করেছেন। ডেলিভারি প্রস্তুত করুন।`,
-      messageEn: `Customer ${claimRecord.userName} (${claimRecord.customerPhone}) claimed "${gift.nameEn}". Please prepare delivery.`,
-      isRead: false,
-      createdAt: nowIso
+      title: "নতুন রিওয়ার্ড উপহার দাবি!",
+      message: `গ্রাহক ${claimRecord.userName} (${claimRecord.customerPhone}) "${gift.nameBn}" উপহার দাবি করেছেন। ডেলিভারি প্রস্তুত করুন।`,
+      type: "reward"
     }).catch(() => {});
 
     return {
@@ -277,8 +270,8 @@ export function calculateRewardPoints(orderTotal: number): number {
  * Awards reward points when an order transitions to 'delivered' or 'completed'.
  * - Award points ONLY when an order's status transitions to 'delivered' or 'completed'.
  * - Prevents duplicate point credits if already awarded.
- * - Atomically increments user's `rewardPoints` and `points` in Firestore under `users/{userId}`.
- * - Flags the order as `rewardPointsAwarded` and records `rewardPointsEarned`.
+ * - Atomically increments user's `reward_points` in Supabase `users` table.
+ * - Flags the order in Supabase as `rewardPointsAwarded` and records `rewardPointsEarned`.
  */
 export async function awardOrderRewardPoints(
   orderId: string,
@@ -290,17 +283,16 @@ export async function awardOrderRewardPoints(
     }
 
     let orderData = cachedOrderData;
-    const orderRef = doc(db, "orders", orderId);
 
     if (!orderData) {
-      const snap = await getDoc(orderRef);
-      if (!snap.exists()) {
+      const { data: dbOrder } = await supabase.from("orders").select("*").eq("id", orderId).maybeSingle();
+      if (!dbOrder) {
         return { success: false, pointsAwarded: 0, reason: "Order not found" };
       }
-      orderData = snap.data();
+      orderData = dbOrder;
     }
 
-    const currentStatus = (orderData.orderStatus || orderData.status || "").toLowerCase();
+    const currentStatus = (orderData.order_status || orderData.orderStatus || orderData.status || "").toLowerCase();
     if (currentStatus !== "delivered" && currentStatus !== "completed") {
       return { 
         success: false, 
@@ -310,7 +302,7 @@ export async function awardOrderRewardPoints(
     }
 
     // Check if points were already awarded to prevent duplicate credits
-    if (orderData.rewardPointsAwarded) {
+    if (orderData.rewardPointsAwarded || orderData.reward_points_awarded) {
       return { 
         success: false, 
         pointsAwarded: 0, 
@@ -318,7 +310,7 @@ export async function awardOrderRewardPoints(
       };
     }
 
-    const targetUserId = orderData.customerId || orderData.userId;
+    const targetUserId = orderData.customer_id || orderData.customerId || orderData.user_id || orderData.userId;
     if (!targetUserId || targetUserId === "guest" || targetUserId === "manual_admin") {
       return { 
         success: false, 
@@ -333,38 +325,34 @@ export async function awardOrderRewardPoints(
 
     if (pointsToCredit <= 0) {
       // Mark as processed so it doesn't re-run
-      await updateDoc(orderRef, {
-        rewardPointsAwarded: true,
-        rewardPointsEarned: 0,
-        rewardPointsAwardedAt: serverTimestamp()
-      }).catch(() => {});
+      await supabase.from("orders").update({
+        reward_points_awarded: true,
+        reward_points_earned: 0,
+        updated_at: new Date().toISOString()
+      }).eq("id", orderId);
       return { success: true, pointsAwarded: 0 };
     }
 
-    const userRef = doc(db, "users", targetUserId);
-
-    // Atomically increment user's points balance in Firestore
+    // Atomically increment user's points balance in Supabase
     try {
-      await updateDoc(userRef, {
-        rewardPoints: increment(pointsToCredit),
-        points: increment(pointsToCredit),
-        updatedAt: serverTimestamp()
-      });
-    } catch {
-      // If user document didn't exist or updateDoc failed, use setDoc with merge: true
-      await setDoc(userRef, {
-        rewardPoints: pointsToCredit,
-        points: pointsToCredit,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      const { data: uData } = await supabase.from("users").select("reward_points").eq("id", targetUserId).maybeSingle();
+      const currentPts = Number(uData?.reward_points || 0);
+      const updatedPts = currentPts + pointsToCredit;
+      await supabase.from("users").update({
+        reward_points: updatedPts,
+        points: updatedPts,
+        updated_at: new Date().toISOString()
+      }).eq("id", targetUserId);
+    } catch (uErr) {
+      console.warn("Supabase points increment notice:", uErr);
     }
 
-    // Mark order as awarded
-    await updateDoc(orderRef, {
-      rewardPointsAwarded: true,
-      rewardPointsEarned: pointsToCredit,
-      rewardPointsAwardedAt: serverTimestamp()
-    }).catch(() => {});
+    // Mark order as awarded in Supabase
+    await supabase.from("orders").update({
+      reward_points_awarded: true,
+      reward_points_earned: pointsToCredit,
+      updated_at: new Date().toISOString()
+    }).eq("id", orderId);
 
     console.log(`[Reward Points] Successfully awarded ${pointsToCredit} points to user ${targetUserId} for completed order ${orderId} (Total: ৳${rawTotal})`);
     return { success: true, pointsAwarded: pointsToCredit };

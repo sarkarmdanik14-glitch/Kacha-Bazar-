@@ -5,7 +5,7 @@ import {
   MapPin, Mail, Phone, Sparkles, RefreshCw, Award, Zap, CheckCircle, 
   Truck, Droplet, User, ExternalLink, Sliders, LayoutTemplate, Info, Save
 } from "lucide-react";
-import { db, doc, setDoc, getDoc, collection, getDocs } from "../../lib/firebase";
+import { supabase } from "../../lib/supabase";
 import { createTranslator } from "../../lib/formatUtils";
 import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 
@@ -242,10 +242,14 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
     async function loadData() {
       setLoading(true);
       try {
-        const docRef = doc(db, "settings", "home");
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const data = snap.data();
+        const { data: row } = await supabase
+          .from("site_settings")
+          .select("settings")
+          .eq("key", "home")
+          .maybeSingle();
+
+        const data = row?.settings;
+        if (data) {
           setHomeConfig((prev: any) => ({
             ...prev,
             ...data,
@@ -269,12 +273,16 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
     loadData();
   }, []);
 
-  // Save Home Settings to Firestore
+  // Save Home Settings to Supabase
   const handleSaveHomeConfig = async (updatedConfig?: any) => {
     setSaving(true);
     try {
       const configToSave = updatedConfig || homeConfig;
-      await setDoc(doc(db, "settings", "home"), configToSave, { merge: true });
+      await supabase.from("site_settings").upsert({
+        key: "home",
+        settings: configToSave,
+        updated_at: new Date().toISOString()
+      });
       triggerToast(
         "হোম পেজ সেটিংস সফলভাবে সেভ করা হয়েছে!",
         "Home Page settings saved successfully!"

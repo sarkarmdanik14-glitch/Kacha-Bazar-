@@ -1,11 +1,10 @@
 /**
  * Supabase Buy & Sell Marketplace Service
  * High-performance, real-time marketplace service backed by Supabase PostgreSQL.
- * Provides resilient fallback to Firestore during migration phase.
+ * Fully decoupled from Firebase.
  */
 
 import { supabase } from "./supabase";
-import { db, collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, serverTimestamp } from "./firebase";
 import { BuySellListing, BuySellReport, BuySellChat, BuySellChatMessage } from "../types/buySell";
 
 const TABLE_LISTINGS = "buy_sell_listings";
@@ -43,7 +42,7 @@ export function mapRowToListing(row: any): BuySellListing {
 }
 
 /**
- * Maps BuySellListing to Supabase DB payload
+ * Maps client BuySellListing to Supabase DB payload
  */
 export function mapListingToDb(listing: Partial<BuySellListing>): any {
   const payload: any = {};
@@ -66,62 +65,50 @@ export function mapListingToDb(listing: Partial<BuySellListing>): any {
   if (listing.status !== undefined) payload.status = listing.status;
   if (listing.views !== undefined) payload.views = listing.views;
   if (listing.reportCount !== undefined) payload.report_count = listing.reportCount;
-  payload.updated_at = new Date().toISOString();
   return payload;
 }
 
 /**
- * Real-time subscription to Buy & Sell Listings.
- * Primary: Supabase Realtime + postgres_changes.
- * Resilient fallback: Firestore onSnapshot if Supabase table is not yet provisioned.
+ * Subscribe to listings in real time via Supabase
  */
 export function subscribeToBuySellListings(
-  onUpdate: (listings: BuySellListing[]) => void,
+  categoryFilterOrCb?: string | ((listings: BuySellListing[]) => void),
+  onUpdateOrError?: ((listings: BuySellListing[]) => void) | ((err: any) => void),
   onError?: (err: any) => void
 ): () => void {
-  let isSupabaseActive = true;
-  let firestoreUnsub: (() => void) | null = null;
+  const categoryFilter = typeof categoryFilterOrCb === "string" ? categoryFilterOrCb : undefined;
+  const onUpdate = typeof categoryFilterOrCb === "function" 
+    ? categoryFilterOrCb 
+    : (typeof onUpdateOrError === "function" ? onUpdateOrError : () => {});
+  const errHandler = typeof categoryFilterOrCb === "function"
+    ? (typeof onUpdateOrError === "function" ? (onUpdateOrError as (err: any) => void) : undefined)
+    : onError;
 
-  // 1. Initial fetch from Supabase
+  let isMounted = true;
+
   const loadSupabaseData = async () => {
     try {
-      const { data, error } = await supabase
+      let queryBuilder = supabase
         .from(TABLE_LISTINGS)
         .select("*")
+        .eq("status", "active")
         .order("created_at", { ascending: false });
 
-      if (error || !data) {
-        throw error || new Error("No data returned");
+      if (categoryFilter && categoryFilter !== "all") {
+        queryBuilder = queryBuilder.eq("category", categoryFilter);
       }
 
-      onUpdate(data.map(mapRowToListing));
-    } catch (err) {
-      console.warn("Supabase buy_sell_listings unavailable, falling back to Firestore listener:", err);
-      isSupabaseActive = false;
-      fallbackToFirestore();
-    }
-  };
+      const { data, error } = await queryBuilder;
+      if (error) {
+        throw error;
+      }
 
-  const fallbackToFirestore = () => {
-    if (firestoreUnsub) return;
-    try {
-      const q = query(collection(db, "buy_sell_listings"));
-      firestoreUnsub = onSnapshot(q, (snapshot) => {
-        const items: BuySellListing[] = [];
-        snapshot.forEach((d) => {
-          items.push({ id: d.id, ...d.data() } as BuySellListing);
-        });
-        items.sort((a, b) => {
-          const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
-          const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
-          return tB - tA;
-        });
-        onUpdate(items);
-      }, (err) => {
-        if (onError) onError(err);
-      });
-    } catch (e) {
-      if (onError) onError(e);
+      if (isMounted && data) {
+        onUpdate(data.map(mapRowToListing));
+      }
+    } catch (err) {
+      console.warn("Supabase buy_sell_listings query notice:", err);
+      if ((errHandler || onError) && isMounted) (errHandler || onError)!(err);
     }
   };
 
@@ -134,7 +121,7 @@ export function subscribeToBuySellListings(
       "postgres_changes",
       { event: "*", schema: "public", table: TABLE_LISTINGS },
       () => {
-        if (isSupabaseActive) {
+        if (isMounted) {
           loadSupabaseData();
         }
       }
@@ -142,15 +129,13 @@ export function subscribeToBuySellListings(
     .subscribe();
 
   return () => {
+    isMounted = false;
     supabase.removeChannel(channel);
-    if (firestoreUnsub) {
-      firestoreUnsub();
-    }
   };
 }
 
 /**
- * Create a new Buy & Sell listing (Supabase primary + Firestore mirror for smooth transition)
+ * Create a new listing in Supabase
  */
 export async function createBuySellListing(listing: Omit<BuySellListing, "id">): Promise<BuySellListing> {
   const id = "bs_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 6);
@@ -162,95 +147,67 @@ export async function createBuySellListing(listing: Omit<BuySellListing, "id">):
     created_at: now
   };
 
-  // 1. Supabase write
   try {
     const { error } = await supabase.from(TABLE_LISTINGS).insert(dbPayload);
     if (error) {
-      console.warn("Supabase insert listing failed, falling back to Firestore:", error);
+      console.warn("Supabase insert listing notice:", error);
     }
   } catch (err) {
     console.warn("Supabase insert exception:", err);
   }
 
-  // 2. Firestore mirror write so both stay 100% synced during migration
-  try {
-    const fsDocRef = doc(db, "buy_sell_listings", id);
-    await setDoc(fsDocRef, {
-      ...listing,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-  } catch (fsErr) {
-    console.warn("Firestore mirror write note:", fsErr);
-  }
-
   return {
-    id,
     ...listing,
+    id,
     createdAt: now,
     updatedAt: now
-  } as BuySellListing;
+  };
 }
 
 /**
- * Update an existing listing
+ * Update an existing listing in Supabase
  */
 export async function updateBuySellListing(id: string, updates: Partial<BuySellListing>): Promise<void> {
   const dbPayload = mapListingToDb(updates);
-
-  // 1. Supabase update
   try {
     await supabase.from(TABLE_LISTINGS).update(dbPayload).eq("id", id);
   } catch (err) {
     console.warn("Supabase update error:", err);
   }
-
-  // 2. Firestore mirror update
-  try {
-    const fsDocRef = doc(db, "buy_sell_listings", id);
-    await updateDoc(fsDocRef, {
-      ...updates,
-      updatedAt: serverTimestamp()
-    });
-  } catch (err) {
-    console.warn("Firestore update error:", err);
-  }
 }
 
 /**
- * Delete a listing
+ * Delete a listing from Supabase
  */
 export async function deleteBuySellListing(id: string): Promise<void> {
-  // 1. Supabase delete
   try {
     await supabase.from(TABLE_LISTINGS).delete().eq("id", id);
   } catch (err) {
     console.warn("Supabase delete error:", err);
   }
+}
 
-  // 2. Firestore mirror delete
+/**
+ * Increment view count
+ */
+export async function incrementBuySellViews(id: string): Promise<void> {
   try {
-    const fsDocRef = doc(db, "buy_sell_listings", id);
-    await deleteDoc(fsDocRef);
+    const { data: item } = await supabase.from(TABLE_LISTINGS).select("views").eq("id", id).single();
+    const currentViews = item?.views || 0;
+    await supabase.from(TABLE_LISTINGS).update({ views: currentViews + 1 }).eq("id", id);
   } catch (err) {
-    console.warn("Firestore delete error:", err);
+    console.warn("Supabase views update error:", err);
   }
 }
 
 /**
- * Submit a report for a listing
+ * Report a listing
  */
 export async function reportBuySellListing(report: Omit<BuySellReport, "id" | "createdAt">): Promise<void> {
-  const id = "rep_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 6);
   const now = new Date().toISOString();
-
-  // 1. Supabase
   try {
     await supabase.from(TABLE_REPORTS).insert({
-      id,
       listing_id: report.listingId,
-      listing_title: report.listingTitle,
-      seller_uid: report.sellerUid,
       reported_by_uid: report.reportedByUid,
       reported_by_name: report.reportedByName,
       reason: report.reason,
@@ -259,17 +216,7 @@ export async function reportBuySellListing(report: Omit<BuySellReport, "id" | "c
       created_at: now
     });
   } catch (e) {
-    console.warn("Supabase report insert fallback:", e);
-  }
-
-  // 2. Firestore fallback
-  try {
-    await addDoc(collection(db, "buy_sell_reports"), {
-      ...report,
-      createdAt: serverTimestamp()
-    });
-  } catch (e) {
-    console.warn("Firestore report fallback:", e);
+    console.warn("Supabase report insert error:", e);
   }
 }
 
@@ -290,7 +237,6 @@ export async function sendBuySellMessage(
   },
   newMsg: BuySellChatMessage
 ): Promise<void> {
-  // 1. Supabase upsert
   try {
     const { data: existing } = await supabase
       .from(TABLE_CHATS)
@@ -317,44 +263,18 @@ export async function sendBuySellMessage(
       updated_at: new Date().toISOString()
     });
   } catch (err) {
-    console.warn("Supabase chat upsert fallback:", err);
-  }
-
-  // 2. Firestore mirror
-  try {
-    const chatDocRef = doc(db, "buy_sell_chats", chatId);
-    const snap = await getDoc(chatDocRef);
-    if (!snap.exists()) {
-      await setDoc(chatDocRef, {
-        ...meta,
-        lastMessage: newMsg.text,
-        lastMessageAt: serverTimestamp(),
-        messages: [newMsg],
-        createdAt: serverTimestamp()
-      });
-    } else {
-      const data = snap.data();
-      const msgs = Array.isArray(data.messages) ? data.messages : [];
-      await updateDoc(chatDocRef, {
-        lastMessage: newMsg.text,
-        lastMessageAt: serverTimestamp(),
-        messages: [...msgs, newMsg]
-      });
-    }
-  } catch (fsErr) {
-    console.warn("Firestore chat mirror fallback:", fsErr);
+    console.warn("Supabase chat upsert notice:", err);
   }
 }
 
 /**
- * Buyer-Seller Chat: Subscribe to real-time chat updates
+ * Buyer-Seller Chat: Subscribe to real-time chat updates via Supabase
  */
 export function subscribeToBuySellChat(
   chatId: string,
   onUpdate: (chat: BuySellChat | null) => void
 ): () => void {
-  let isSupabaseActive = true;
-  let firestoreUnsub: (() => void) | null = null;
+  let isMounted = true;
 
   const loadSupabaseChat = async () => {
     try {
@@ -365,41 +285,28 @@ export function subscribeToBuySellChat(
         .single();
 
       if (error || !data) {
-        throw error || new Error("No chat data");
+        return;
       }
 
-      onUpdate({
-        id: data.id,
-        listingId: data.listing_id,
-        listingTitle: data.listing_title,
-        listingPrice: Number(data.listing_price || 0),
-        listingImage: data.listing_image,
-        sellerUid: data.seller_uid,
-        sellerName: data.seller_name,
-        buyerUid: data.buyer_uid,
-        buyerName: data.buyer_name,
-        lastMessage: data.last_message,
-        lastMessageAt: data.last_message_at,
-        messages: data.messages || []
-      });
-    } catch {
-      isSupabaseActive = false;
-      fallbackFirestoreChat();
+      if (isMounted) {
+        onUpdate({
+          id: data.id,
+          listingId: data.listing_id,
+          listingTitle: data.listing_title,
+          listingPrice: Number(data.listing_price || 0),
+          listingImage: data.listing_image,
+          sellerUid: data.seller_uid,
+          sellerName: data.seller_name,
+          buyerUid: data.buyer_uid,
+          buyerName: data.buyer_name,
+          lastMessage: data.last_message,
+          lastMessageAt: data.last_message_at,
+          messages: data.messages || []
+        });
+      }
+    } catch (err) {
+      console.warn("Supabase chat load error:", err);
     }
-  };
-
-  const fallbackFirestoreChat = () => {
-    if (firestoreUnsub) return;
-    try {
-      const docRef = doc(db, "buy_sell_chats", chatId);
-      firestoreUnsub = onSnapshot(docRef, (docSnap) => {
-        if (docSnap.exists()) {
-          onUpdate({ id: docSnap.id, ...docSnap.data() } as BuySellChat);
-        } else {
-          onUpdate(null);
-        }
-      });
-    } catch {}
   };
 
   loadSupabaseChat();
@@ -410,7 +317,7 @@ export function subscribeToBuySellChat(
       "postgres_changes",
       { event: "*", schema: "public", table: TABLE_CHATS, filter: `id=eq.${chatId}` },
       () => {
-        if (isSupabaseActive) {
+        if (isMounted) {
           loadSupabaseChat();
         }
       }
@@ -418,7 +325,7 @@ export function subscribeToBuySellChat(
     .subscribe();
 
   return () => {
+    isMounted = false;
     supabase.removeChannel(channel);
-    if (firestoreUnsub) firestoreUnsub();
   };
 }

@@ -26,8 +26,8 @@ export interface BuySellListing {
 export interface BuySellReport {
   id: string;
   listingId: string;
-  listingTitle: string;
-  sellerUid: string;
+  listingTitle?: string;
+  sellerUid?: string;
   reportedByUid?: string;
   reportedByName?: string;
   reason: string;
