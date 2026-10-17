@@ -380,7 +380,7 @@ service cloud.firestore {
       allow create: if isAdmin() || isStaff() || (isSignedIn() && (
         request.resource.data.senderId == request.auth.uid || 
         request.resource.data.userId == request.auth.uid
-      )) || (request.resource.data.chatId != null && request.resource.data.text != null && request.resource.data.text.size() <= 2000);
+      ));
       allow update, delete: if isAdmin();
     }
 
@@ -399,10 +399,18 @@ service cloud.firestore {
       allow delete: if isAdmin() || isStaff();
 
       match /callerCandidates/{candidateId} {
-        allow read, write: if isAdmin() || isStaff() || isSignedIn();
+        allow read, write: if isAdmin() || isStaff() || (isSignedIn() && (
+          get(/databases/$(database)/documents/voice_calls/$(callId)).data.callerId == request.auth.uid ||
+          get(/databases/$(database)/documents/voice_calls/$(callId)).data.calleeId == request.auth.uid ||
+          get(/databases/$(database)/documents/voice_calls/$(callId)).data.customerId == request.auth.uid
+        ));
       }
       match /calleeCandidates/{candidateId} {
-        allow read, write: if isAdmin() || isStaff() || isSignedIn();
+        allow read, write: if isAdmin() || isStaff() || (isSignedIn() && (
+          get(/databases/$(database)/documents/voice_calls/$(callId)).data.callerId == request.auth.uid ||
+          get(/databases/$(database)/documents/voice_calls/$(callId)).data.calleeId == request.auth.uid ||
+          get(/databases/$(database)/documents/voice_calls/$(callId)).data.customerId == request.auth.uid
+        ));
       }
     }
 
@@ -444,7 +452,14 @@ service cloud.firestore {
 
     // Visitor Analytics - Sessions & Real-time Live Tracking
     match /visitor_sessions/{visitorId} {
-      allow read: if true;
+      allow read: if isAdmin() || isStaff();
+      allow create, update: if true;
+      allow delete: if isAdmin();
+    }
+
+    // Daily Analytics Aggregation (Today's views and unique visitors)
+    match /analytics_daily/{dateId} {
+      allow read: if isAdmin() || isStaff();
       allow create, update: if true;
       allow delete: if isAdmin();
     }

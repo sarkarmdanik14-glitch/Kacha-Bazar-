@@ -26,17 +26,17 @@ dotenv.config();
 
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 
-// Cloudflare R2 Object Storage Client Configuration
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "f28557b34a31123a24324c3124b05180";
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "5fee722d943a23b2184e7a44e72553a2";
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "5ce5e1826dd3f97f0a0c2e489c42c43713dc7ca5147b78af89e5aba7b0a6b073";
+// Cloudflare R2 Object Storage Client Configuration (Securely loaded from .env)
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "";
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "";
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "";
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "kachabazar-image";
 const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev").replace(/\/+$/, "");
-const R2_ENDPOINT = process.env.R2_ENDPOINT || `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+const R2_ENDPOINT = process.env.R2_ENDPOINT || (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : "");
 
 const r2Client = new S3Client({
   region: "auto",
-  endpoint: R2_ENDPOINT,
+  endpoint: R2_ENDPOINT || "https://f28557b34a31123a24324c3124b05180.r2.cloudflarestorage.com",
   credentials: {
     accessKeyId: R2_ACCESS_KEY_ID,
     secretAccessKey: R2_SECRET_ACCESS_KEY,
@@ -376,92 +376,53 @@ async function deletePartnerShopFromSupabaseServer(id: string): Promise<boolean>
   }
 }
 
+// 100% Pure Supabase Engine - Firebase disabled
 function getAdminDb(): any {
-  try {
-    if (!firebaseAppletConfig?.projectId) return null;
-    if (!getAdminApps().length) {
-      initAdminApp({
-        projectId: firebaseAppletConfig.projectId
-      });
-    }
-    const dbId = firebaseAppletConfig.firestoreDatabaseId || "(default)";
-    return getAdminFirestore(getAdminApps()[0], dbId);
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 function getWebFirestore(): any {
-  try {
-    if (!firebaseAppletConfig?.apiKey || !firebaseAppletConfig?.projectId) return null;
-    let app;
-    if (!getWebApps().length) {
-      app = initWebApp({
-        apiKey: firebaseAppletConfig.apiKey,
-        authDomain: firebaseAppletConfig.authDomain,
-        projectId: firebaseAppletConfig.projectId,
-        storageBucket: firebaseAppletConfig.storageBucket,
-        messagingSenderId: firebaseAppletConfig.messagingSenderId,
-        appId: firebaseAppletConfig.appId
-      });
-    } else {
-      app = getWebApps()[0];
-    }
-    return getWebFirestoreSdk(app, firebaseAppletConfig.firestoreDatabaseId || "(default)");
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 async function getCollectionDocs(colName: string): Promise<Array<{ id: string; data: any; update: (data: any) => Promise<any> }>> {
-  // First try adminDb
-  try {
-    const adminDb = getAdminDb();
-    const snap = await adminDb.collection(colName).get();
-    if (snap && snap.docs.length > 0) {
-      return snap.docs.map((d: any) => ({
-        id: d.id,
-        data: d.data(),
-        update: (u: any) => d.ref.update(u)
-      }));
+  const sb = getServerSupabase();
+  if (sb) {
+    try {
+      const { data, error } = await sb.from(colName).select("*");
+      if (!error && Array.isArray(data)) {
+        return data.map((row: any) => ({
+          id: row.id,
+          data: row,
+          update: async (u: any) => {
+            await sb.from(colName).update(u).eq("id", row.id);
+          }
+        }));
+      }
+    } catch (err: any) {
+      console.warn(`[Supabase Engine] Read notice for ${colName}:`, err?.message || err);
     }
-  } catch (err: any) {
-    // fallback
-  }
-
-  // Fallback to Web Firestore SDK
-  try {
-    const webDb = getWebFirestore();
-    const snap = await getDocs(collection(webDb, colName));
-    return snap.docs.map((d: any) => ({
-      id: d.id,
-      data: d.data(),
-      update: (u: any) => updateDoc(doc(webDb, colName, d.id), u)
-    }));
-  } catch (err: any) {
-    console.warn(`Firestore read notice for ${colName}:`, err?.message);
   }
   return [];
 }
 
 async function getSingleDoc(colName: string, docId: string): Promise<{ id: string; data: any; exists: boolean } | null> {
   const cleanId = String(docId).trim();
-  try {
-    const adminDb = getAdminDb();
-    const snap = await adminDb.collection(colName).doc(cleanId).get();
-    if (snap.exists) {
-      return { id: snap.id, data: snap.data(), exists: true };
+  const sb = getServerSupabase();
+  if (sb) {
+    try {
+      const { data, error } = await sb.from(colName).select("*").eq("id", cleanId).maybeSingle();
+      if (!error && data) {
+        return { id: data.id || cleanId, data: data, exists: true };
+      }
+      if (colName === "coupons") {
+        const { data: cData } = await sb.from("coupons").select("*").eq("code", cleanId.toUpperCase()).maybeSingle();
+        if (cData) return { id: cData.id || cleanId, data: cData, exists: true };
+      }
+    } catch (err: any) {
+      console.warn(`[Supabase Engine] Single doc read notice for ${colName}/${cleanId}:`, err?.message || err);
     }
-  } catch (err: any) {}
-
-  try {
-    const webDb = getWebFirestore();
-    const snap = await getDoc(doc(webDb, colName, cleanId));
-    if (snap.exists()) {
-      return { id: snap.id, data: snap.data(), exists: true };
-    }
-  } catch (err: any) {}
-
+  }
   return null;
 }
 
@@ -571,7 +532,7 @@ app.get("/api/engine/mode", (req, res) => {
   res.json({ mode: serverDataEngineMode, timestamp: new Date().toISOString() });
 });
 
-app.post("/api/engine/mode", (req, res) => {
+app.post("/api/engine/mode", rateLimiter(30, 60000), requireAdminAuth, (req, res) => {
   const { mode } = req.body || {};
   if (mode === "supabase" || mode === "dual" || mode === "firebase") {
     serverDataEngineMode = mode;
@@ -627,7 +588,7 @@ app.get("/api/settings/:key", async (req: express.Request, res: express.Response
   return res.json({ success: true, key, settings: result });
 });
 
-app.post("/api/settings/:key", async (req: express.Request, res: express.Response) => {
+app.post("/api/settings/:key", rateLimiter(60, 60000), requireAdminAuth, async (req: express.Request, res: express.Response) => {
   const key = String(req.params.key || "").trim().toLowerCase();
   const incoming = req.body?.settings || req.body || {};
 
@@ -1126,6 +1087,58 @@ app.get("/api/cart/:userId", rateLimiter(60, 60000), async (req, res) => {
   }
 });
 
+async function calculateVerifiedDiscount(
+  rawCoupon: string,
+  requestedDiscount: number,
+  itemsTotal: number,
+  sb: SupabaseClient | null
+): Promise<number> {
+  const reqDisc = Math.max(0, Number(requestedDiscount) || 0);
+  if (reqDisc <= 0) return 0;
+  const cleanCode = (rawCoupon || "").toString().trim().toUpperCase();
+  if (!cleanCode) {
+    // No coupon provided; client-controlled unverified discount rejected
+    return 0;
+  }
+
+  try {
+    let couponRecord: any = null;
+    if (sb) {
+      const { data: dbCoupon } = await sb.from("coupons").select("*").eq("code", cleanCode).maybeSingle();
+      couponRecord = dbCoupon;
+    }
+    if (!couponRecord) {
+      const cpDoc = await getSingleDoc("coupons", cleanCode);
+      if (cpDoc && cpDoc.exists) couponRecord = cpDoc.data;
+    }
+
+    if (!couponRecord || couponRecord.isActive === false || couponRecord.status === "expired") {
+      return 0;
+    }
+
+    const minSpend = Number(couponRecord.minimumSpend || couponRecord.minSpend || couponRecord.minAmount || 0);
+    if (itemsTotal < minSpend) {
+      return 0;
+    }
+
+    let authoritativeMaxDiscount = 0;
+    if (couponRecord.discountType === "percentage" || couponRecord.type === "percentage") {
+      const pct = Math.min(100, Math.max(0, Number(couponRecord.discountPercentage || couponRecord.percentage || couponRecord.discount || 0)));
+      const calculated = (itemsTotal * pct) / 100;
+      const maxCap = Number(couponRecord.maxDiscount || couponRecord.maxAmount || itemsTotal);
+      authoritativeMaxDiscount = Math.min(calculated, maxCap);
+    } else {
+      authoritativeMaxDiscount = Number(couponRecord.discountAmount || couponRecord.amount || couponRecord.discount || 0);
+    }
+
+    authoritativeMaxDiscount = Math.min(authoritativeMaxDiscount, itemsTotal);
+    return Math.min(reqDisc, authoritativeMaxDiscount);
+  } catch (err) {
+    console.warn("[Checkout Security] Coupon verification notice:", err);
+    return 0;
+  }
+}
+
 // -----------------------------------------------------------------------------------
 // API ROUTE: Server-Authoritative Checkout & Stock Management (Task 5 / CWE Remediation)
 // Uses Firebase Admin SDK to atomically validate stock, deduct inventory, and persist orders
@@ -1294,13 +1307,20 @@ app.post("/api/orders/checkout", rateLimiter(30, 60000), async (req, res) => {
 
         const safeItemsTotal = authoritativeItemsTotal > 0 ? authoritativeItemsTotal : Math.max(1, Number(total) || 1);
         const deliveryFee = Math.max(0, Number(orderPayload.deliveryFee || orderPayload.deliveryCharge) || 0);
-        const discountAmt = Math.max(0, Number(orderPayload.discountAmount || orderPayload.discount) || 0);
+        const discountAmt = await calculateVerifiedDiscount(
+          orderPayload.couponUsed || orderPayload.coupon || "",
+          orderPayload.discountAmount || orderPayload.discount || 0,
+          safeItemsTotal,
+          sb
+        );
         const computedGrandTotal = Math.max(1, safeItemsTotal + deliveryFee - discountAmt);
 
         secureOrderPayload = {
           ...orderPayload,
           id: cleanOrderId,
           total: safeItemsTotal,
+          discount: discountAmt,
+          discountAmount: discountAmt,
           grandTotal: computedGrandTotal,
           serverVerified: true
         };
@@ -1412,13 +1432,20 @@ app.post("/api/orders/checkout", rateLimiter(30, 60000), async (req, res) => {
 
           const safeItemsTotal = authoritativeItemsTotal > 0 ? authoritativeItemsTotal : Math.max(1, Number(total) || 1);
           const deliveryFee = Math.max(0, Number(orderPayload.deliveryFee || orderPayload.deliveryCharge) || 0);
-          const discountAmt = Math.max(0, Number(orderPayload.discountAmount || orderPayload.discount) || 0);
+          const discountAmt = await calculateVerifiedDiscount(
+            orderPayload.couponUsed || orderPayload.coupon || "",
+            orderPayload.discountAmount || orderPayload.discount || 0,
+            safeItemsTotal,
+            sb
+          );
           const computedGrandTotal = Math.max(1, safeItemsTotal + deliveryFee - discountAmt);
 
           secureOrderPayload = {
             ...orderPayload,
             id: cleanOrderId,
             total: safeItemsTotal,
+            discount: discountAmt,
+            discountAmount: discountAmt,
             grandTotal: computedGrandTotal,
             serverVerified: true
           };
@@ -3176,8 +3203,7 @@ app.get("/api/r2/migrate-progress", (req, res) => {
   return res.json({ success: true, ...activeMigrationState });
 });
 
-// 4.10 POST /api/r2/migrate-from-cloudinary - 1-Click Migration from Cloudinary to R2
-app.post("/api/r2/migrate-from-cloudinary", async (req, res) => {
+app.post("/api/r2/migrate-from-cloudinary", rateLimiter(10, 60000), requireAdminAuth, async (req, res) => {
   if (activeMigrationState.running) {
     return res.json({
       success: true,
@@ -3862,9 +3888,7 @@ app.post("/api/auth/phone/verify-otp", rateLimiter(40, 60000), async (req, res) 
     const record = phoneVerificationOtps.get(targetKey) || (cleanDigits ? phoneVerificationOtps.get(`phone_${cleanDigits}`) : null);
 
     const trimmedCode = code.trim();
-    const isValidCode = (record && record.code === trimmedCode && Date.now() <= record.expiresAt) ||
-      trimmedCode === "123456" ||
-      (record && record.code === trimmedCode);
+    const isValidCode = Boolean(record && record.code === trimmedCode && Date.now() <= record.expiresAt);
 
     if (!isValidCode) {
       return res.status(400).json({
@@ -4355,7 +4379,7 @@ app.post("/api/auth/forgot-password/verify-code", rateLimiter(40, 60000), async 
       });
     }
 
-    const isCodeValid = String(record.code).trim() === cleanCode || cleanCode === "123456";
+    const isCodeValid = String(record.code).trim() === cleanCode && (!record.expiresAt || Date.now() <= record.expiresAt);
     if (!isCodeValid) {
       return res.status(400).json({
         success: false,
@@ -4773,17 +4797,9 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
         }
       }
 
-      // Safe Super Admin / Owner self-recovery & Firebase credential verification
+      // Legitimate Firebase credential verification fallback if configured
       if (!isMatch && (staff.role === "super_admin" || staff.isSuperAdmin || staff.email === "allahuakber094@gmail.com" || staff.email === "sarkarmdanik14@gmail.com")) {
-        if (password === "admin1234" || password === "admin123" || password === "123456" || password === "cfikb001") {
-          isMatch = true;
-          const newCreds = hashStaffPassword(password);
-          staff.passwordHash = newCreds.hash;
-          staff.passwordSalt = newCreds.salt;
-          staff.hash = newCreds.hash;
-          staff.salt = newCreds.salt;
-          writeStaffDb(staffList);
-        } else if (firebaseAppletConfig?.apiKey && staff.email) {
+        if (firebaseAppletConfig?.apiKey && staff.email) {
           // Check if password matches their original Firebase Auth credentials
           try {
             const fbVerifyRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${firebaseAppletConfig.apiKey}`, {
