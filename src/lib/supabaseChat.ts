@@ -192,39 +192,44 @@ export function subscribeToSupabaseChatMessages(
 
   chatChannel.on("broadcast", { event: "new_message" }, listener);
 
-  // Realtime postgres_changes listener for chat_messages
-  const pgChannel = supabase
-    .channel(`pg_chat_${chatId}`)
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "chat_messages", filter: `chat_id=eq.${chatId}` },
-      (payload) => {
-        const row = payload.new;
-        if (row) {
-          const newMsg: ChatMessage = {
-            id: row.id,
-            chatId: row.chat_id,
-            senderId: row.sender_id,
-            senderName: row.sender_name || "",
-            senderRole: row.sender_role,
-            text: row.text,
-            createdAt: row.created_at,
-            isRead: !!row.is_read
-          };
-          const current = getCachedMessages(chatId);
-          if (!current.some(m => m.id === newMsg.id)) {
-            const updated = [...current, newMsg];
-            saveCachedMessages(chatId, updated);
-            onMessage(updated);
+  // Realtime postgres_changes listener for chat_messages with unique channel ID
+  try {
+    const channelId = `pg_chat_${chatId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const pgChannel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_messages", filter: `chat_id=eq.${chatId}` },
+        (payload) => {
+          const row = payload.new;
+          if (row) {
+            const newMsg: ChatMessage = {
+              id: row.id,
+              chatId: row.chat_id,
+              senderId: row.sender_id,
+              senderName: row.sender_name || "",
+              senderRole: row.sender_role,
+              text: row.text,
+              createdAt: row.created_at,
+              isRead: !!row.is_read
+            };
+            const current = getCachedMessages(chatId);
+            if (!current.some(m => m.id === newMsg.id)) {
+              const updated = [...current, newMsg];
+              saveCachedMessages(chatId, updated);
+              onMessage(updated);
+            }
           }
         }
-      }
-    )
-    .subscribe();
+      )
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(pgChannel);
-  };
+    return () => {
+      supabase.removeChannel(pgChannel).catch(() => {});
+    };
+  } catch {
+    return () => {};
+  }
 }
 
 /**

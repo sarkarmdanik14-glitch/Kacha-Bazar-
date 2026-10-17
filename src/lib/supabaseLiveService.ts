@@ -72,61 +72,67 @@ export function subscribeToSupabaseOrders(
     if (onError) onError(err);
   });
 
-  // Supabase Realtime channel listener for instant push updates
-  const channel = supabase
-    .channel("public:orders")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "orders" },
-      (payload) => {
-        if (!isMounted) return;
-        const eventType = payload.eventType;
+  // Supabase Realtime channel listener with unique channel name to prevent collision
+  try {
+    const channelId = `orders_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders" },
+        (payload) => {
+          if (!isMounted) return;
+          const eventType = payload.eventType;
 
-        if (eventType === "INSERT") {
-          const rawNew = payload.new as any;
-          const newOrder = {
-            ...rawNew,
-            id: rawNew.id,
-            orderNumber: rawNew.order_number || rawNew.id,
-            customerName: rawNew.customer_name || "Customer",
-            customerPhone: rawNew.customer_phone || "",
-            deliveryAddress: rawNew.delivery_address || "",
-            orderStatus: rawNew.order_status || "Pending",
-            paymentStatus: rawNew.payment_status || "Pending",
-            total: Number(rawNew.total || 0),
-            items: Array.isArray(rawNew.items) ? rawNew.items : [],
-            createdAt: rawNew.created_at || new Date().toISOString()
-          };
-          currentOrders = [newOrder, ...currentOrders.filter(o => o.id !== newOrder.id)];
-          onUpdate([...currentOrders]);
-        } else if (eventType === "UPDATE") {
-          const rawNew = payload.new as any;
-          currentOrders = currentOrders.map((o) => {
-            if (o.id === rawNew.id) {
-              return {
-                ...o,
-                ...rawNew,
-                orderStatus: rawNew.order_status || o.orderStatus,
-                paymentStatus: rawNew.payment_status || o.paymentStatus,
-                riderId: rawNew.rider_id !== undefined ? rawNew.rider_id : o.riderId,
-                riderName: rawNew.rider_name !== undefined ? rawNew.rider_name : o.riderName
-              };
-            }
-            return o;
-          });
-          onUpdate([...currentOrders]);
-        } else if (eventType === "DELETE") {
-          currentOrders = currentOrders.filter(o => o.id !== payload.old.id);
-          onUpdate([...currentOrders]);
+          if (eventType === "INSERT") {
+            const rawNew = payload.new as any;
+            const newOrder = {
+              ...rawNew,
+              id: rawNew.id,
+              orderNumber: rawNew.order_number || rawNew.id,
+              customerName: rawNew.customer_name || "Customer",
+              customerPhone: rawNew.customer_phone || "",
+              deliveryAddress: rawNew.delivery_address || "",
+              orderStatus: rawNew.order_status || "Pending",
+              paymentStatus: rawNew.payment_status || "Pending",
+              total: Number(rawNew.total || 0),
+              items: Array.isArray(rawNew.items) ? rawNew.items : [],
+              createdAt: rawNew.created_at || new Date().toISOString()
+            };
+            currentOrders = [newOrder, ...currentOrders.filter(o => o.id !== newOrder.id)];
+            onUpdate([...currentOrders]);
+          } else if (eventType === "UPDATE") {
+            const rawNew = payload.new as any;
+            currentOrders = currentOrders.map((o) => {
+              if (o.id === rawNew.id) {
+                return {
+                  ...o,
+                  ...rawNew,
+                  orderStatus: rawNew.order_status || o.orderStatus,
+                  paymentStatus: rawNew.payment_status || o.paymentStatus,
+                  riderId: rawNew.rider_id !== undefined ? rawNew.rider_id : o.riderId,
+                  riderName: rawNew.rider_name !== undefined ? rawNew.rider_name : o.riderName
+                };
+              }
+              return o;
+            });
+            onUpdate([...currentOrders]);
+          } else if (eventType === "DELETE") {
+            currentOrders = currentOrders.filter(o => o.id !== payload.old.id);
+            onUpdate([...currentOrders]);
+          }
         }
-      }
-    )
-    .subscribe();
+      )
+      .subscribe();
 
-  return () => {
-    isMounted = false;
-    supabase.removeChannel(channel).catch(() => {});
-  };
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel).catch(() => {});
+    };
+  } catch (channelErr) {
+    console.warn("Orders realtime subscription note:", channelErr);
+    return () => { isMounted = false; };
+  }
 }
 
 export async function updateOrderStatusInSupabase(
@@ -181,19 +187,25 @@ export function subscribeToSupabaseCoupons(onUpdate: (coupons: any[]) => void): 
     if (isMounted) onUpdate(c);
   });
 
-  const channel = supabase
-    .channel("public:coupons")
-    .on("postgres_changes", { event: "*", schema: "public", table: "coupons" }, () => {
-      fetchCouponsFromSupabase().then((c) => {
-        if (isMounted) onUpdate(c);
-      });
-    })
-    .subscribe();
+  try {
+    const channelId = `coupons_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on("postgres_changes", { event: "*", schema: "public", table: "coupons" }, () => {
+        fetchCouponsFromSupabase().then((c) => {
+          if (isMounted) onUpdate(c);
+        });
+      })
+      .subscribe();
 
-  return () => {
-    isMounted = false;
-    supabase.removeChannel(channel).catch(() => {});
-  };
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel).catch(() => {});
+    };
+  } catch (err) {
+    console.warn("Coupons realtime subscription note:", err);
+    return () => { isMounted = false; };
+  }
 }
 
 // =====================================================================
@@ -236,19 +248,25 @@ export function subscribeToSupabaseBanners(onUpdate: (banners: any[]) => void): 
     if (isMounted) onUpdate(b);
   });
 
-  const channel = supabase
-    .channel("public:banners")
-    .on("postgres_changes", { event: "*", schema: "public", table: "banners" }, () => {
-      fetchBannersFromSupabase().then((b) => {
-        if (isMounted) onUpdate(b);
-      });
-    })
-    .subscribe();
+  try {
+    const channelId = `banners_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on("postgres_changes", { event: "*", schema: "public", table: "banners" }, () => {
+        fetchBannersFromSupabase().then((b) => {
+          if (isMounted) onUpdate(b);
+        });
+      })
+      .subscribe();
 
-  return () => {
-    isMounted = false;
-    supabase.removeChannel(channel).catch(() => {});
-  };
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel).catch(() => {});
+    };
+  } catch (err) {
+    console.warn("Banners realtime subscription note:", err);
+    return () => { isMounted = false; };
+  }
 }
 
 // =====================================================================
@@ -288,19 +306,25 @@ export function subscribeToSupabaseLiveNotice(onUpdate: (notice: any) => void): 
     if (isMounted && n) onUpdate(n);
   });
 
-  const channel = supabase
-    .channel("public:live_notices")
-    .on("postgres_changes", { event: "*", schema: "public", table: "live_notices" }, () => {
-      fetchLiveNoticeFromSupabase().then((n) => {
-        if (isMounted && n) onUpdate(n);
-      });
-    })
-    .subscribe();
+  try {
+    const channelId = `live_notices_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on("postgres_changes", { event: "*", schema: "public", table: "live_notices" }, () => {
+        fetchLiveNoticeFromSupabase().then((n) => {
+          if (isMounted && n) onUpdate(n);
+        });
+      })
+      .subscribe();
 
-  return () => {
-    isMounted = false;
-    supabase.removeChannel(channel).catch(() => {});
-  };
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel).catch(() => {});
+    };
+  } catch (err) {
+    console.warn("Live notices realtime subscription note:", err);
+    return () => { isMounted = false; };
+  }
 }
 
 export async function saveLiveNoticeToSupabase(notice: {

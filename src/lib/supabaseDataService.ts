@@ -329,8 +329,9 @@ export function subscribeToSupabaseProducts(onChange: () => void): () => void {
       }, 500);
     };
 
+    const channelId = `products_feed_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const channel = supabase
-      .channel("realtime:products_feed")
+      .channel(channelId)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "products" },
@@ -342,7 +343,7 @@ export function subscribeToSupabaseProducts(onChange: () => void): () => void {
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel).catch(() => {});
     };
   } catch {
     return () => {};
@@ -362,8 +363,9 @@ export function subscribeToSupabaseCategories(onChange: () => void): () => void 
       }, 500);
     };
 
+    const channelId = `categories_feed_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const channel = supabase
-      .channel("realtime:categories_feed")
+      .channel(channelId)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "categories" },
@@ -375,7 +377,7 @@ export function subscribeToSupabaseCategories(onChange: () => void): () => void 
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel).catch(() => {});
     };
   } catch {
     return () => {};

@@ -100,16 +100,21 @@ export function subscribeToSupabaseRewardClaims(
 
   loadClaims();
 
-  const channel = supabase
-    .channel("reward_claims_realtime")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: TABLE_CLAIMS },
-      () => loadClaims()
-    )
-    .subscribe();
+  try {
+    const channelId = `reward_claims_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: TABLE_CLAIMS },
+        () => loadClaims()
+      )
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
+    return () => {
+      supabase.removeChannel(channel).catch(() => {});
+    };
+  } catch {
+    return () => {};
+  }
 }

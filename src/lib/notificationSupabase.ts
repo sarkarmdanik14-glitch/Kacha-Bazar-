@@ -82,18 +82,23 @@ export function subscribeToNotifications(
 
   loadNotifications();
 
-  const channel = supabase
-    .channel(`notifs_${userId}`)
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: TABLE_NOTIFICATIONS },
-      () => loadNotifications()
-    )
-    .subscribe();
+  try {
+    const channelId = `notifs_${userId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: TABLE_NOTIFICATIONS },
+        () => loadNotifications()
+      )
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
+    return () => {
+      supabase.removeChannel(channel).catch(() => {});
+    };
+  } catch {
+    return () => {};
+  }
 }
 
 /**

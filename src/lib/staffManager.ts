@@ -11,6 +11,7 @@ import {
 } from "../types";
 import { 
   db, 
+  auth,
   collection, 
   doc, 
   getDoc, 
@@ -728,83 +729,76 @@ export async function fetchSingleStaffById(lookupId: string): Promise<StaffMembe
  * it bootstraps the default staff records from the server store into Firestore.
  */
 export async function fetchStaffFromFirestore(): Promise<StaffMember[]> {
-  try {
-    const staffColRef = collection(db, "staff");
-    const snapshot = await getDocs(staffColRef);
+  // If user is authenticated in Firebase Auth, attempt direct Firestore read:
+  if (auth.currentUser) {
+    try {
+      const staffColRef = collection(db, "staff");
+      const snapshot = await getDocs(staffColRef);
 
-    if (!snapshot.empty) {
-      const list: StaffMember[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        list.push({
-          id: docSnap.id,
-          staffId: data.staffId || docSnap.id,
-          username: data.username || "",
-          fullName: data.fullName || "Staff Member",
-          mobile: data.mobile || "",
-          email: data.email || "",
-          photoURL: data.photoURL || "",
-          digitalSignature: data.digitalSignature || data.signature || data.signatureURL || data.signatureUrl || "",
-          role: (data.role as StaffRole) || "order_manager",
-          designation: data.designation || "Staff Executive",
-          department: data.department || "General Operations",
-          joiningDate: data.joiningDate || new Date().toISOString().split("T")[0],
-          bloodGroup: data.bloodGroup || "N/A",
-          emergencyContact: data.emergencyContact || data.mobile || "",
-          monthlySalary: data.monthlySalary !== undefined && data.monthlySalary !== null ? Number(data.monthlySalary) : undefined,
-          salaryStatus: data.salaryStatus || "due",
-          lastPaymentDate: data.lastPaymentDate || "",
-          salaryHistory: Array.isArray(data.salaryHistory) ? data.salaryHistory : [],
-          status: (data.status as StaffStatus) || "active",
-          onlineStatus: (data.onlineStatus as StaffOnlineStatus) || "offline",
-          lastActiveAt: data.lastActiveAt || new Date().toISOString(),
-          isSuperAdmin: !!data.isSuperAdmin || data.role === "super_admin",
-          permissions: data.permissions || {},
-          assignedAgentDesk: (data.role === "call_center_agent" && data.assignedAgentDesk) ? Number(data.assignedAgentDesk) : null,
-          createdAt: data.createdAt || new Date().toISOString(),
-          updatedAt: data.updatedAt || new Date().toISOString()
+      if (!snapshot.empty) {
+        const list: StaffMember[] = [];
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          list.push({
+            id: docSnap.id,
+            staffId: data.staffId || docSnap.id,
+            username: data.username || "",
+            fullName: data.fullName || "Staff Member",
+            mobile: data.mobile || "",
+            email: data.email || "",
+            photoURL: data.photoURL || "",
+            digitalSignature: data.digitalSignature || data.signature || data.signatureURL || data.signatureUrl || "",
+            role: (data.role as StaffRole) || "order_manager",
+            designation: data.designation || "Staff Executive",
+            department: data.department || "General Operations",
+            joiningDate: data.joiningDate || new Date().toISOString().split("T")[0],
+            bloodGroup: data.bloodGroup || "N/A",
+            emergencyContact: data.emergencyContact || data.mobile || "",
+            monthlySalary: data.monthlySalary !== undefined && data.monthlySalary !== null ? Number(data.monthlySalary) : undefined,
+            salaryStatus: data.salaryStatus || "due",
+            lastPaymentDate: data.lastPaymentDate || "",
+            salaryHistory: Array.isArray(data.salaryHistory) ? data.salaryHistory : [],
+            status: (data.status as StaffStatus) || "active",
+            onlineStatus: (data.onlineStatus as StaffOnlineStatus) || "offline",
+            lastActiveAt: data.lastActiveAt || new Date().toISOString(),
+            isSuperAdmin: !!data.isSuperAdmin || data.role === "super_admin",
+            permissions: data.permissions || {},
+            assignedAgentDesk: (data.role === "call_center_agent" && data.assignedAgentDesk) ? Number(data.assignedAgentDesk) : null,
+            createdAt: data.createdAt || new Date().toISOString(),
+            updatedAt: data.updatedAt || new Date().toISOString()
+          });
         });
-      });
 
-      // Sort staff members by staffId (e.g. CFI-KB-001, CFI-KB-002)
-      list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
-      return list;
+        // Sort staff members by staffId (e.g. CFI-KB-001, CFI-KB-002)
+        list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
+        return list;
+      }
+    } catch (err: any) {
+      if (!err?.message?.includes("offline") && !err?.message?.includes("permissions")) {
+        console.warn("Notice reading staff from Firestore:", err?.message || err);
+      }
     }
+  }
 
-    // If Firestore collection is currently empty, seed from server store
-    console.info("Firestore staff collection is empty. Initializing and syncing seed data to Firestore...");
-    const data = await apiClient.get("/api/staff/list", {
+  // Primary path for Session/Supabase staff or public fallback
+  try {
+    const data = await apiClient.get<any>("/api/staff/list", {
       headers: getStaffAuthHeaders()
     });
-    if (data?.success && Array.isArray(data.staff) && data.staff.length > 0) {
-      for (const s of data.staff) {
-        const docRef = doc(db, "staff", s.id || `staff-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`);
-        const safeSeedData = sanitizeForFirestore({
-          ...s,
-          assignedAgentDesk: s.role === "call_center_agent" ? (Number(s.assignedAgentDesk) || 1) : null,
-          id: docRef.id,
-          updatedAt: new Date().toISOString()
-        });
-        await setDoc(docRef, safeSeedData, { merge: true }).catch(err => console.warn("Firestore staff seed doc warning:", err));
-      }
+    if (data?.success && Array.isArray(data.staff)) {
       return data.staff;
     }
-
-    return [];
-  } catch (err) {
-    console.error("Error fetching staff from Firestore, falling back to server API:", err);
+  } catch (e) {
+    // If unauthorized for full staff details (e.g. guest or memo view), load public active officers
     try {
-      const data = await apiClient.get("/api/staff/list", {
-        headers: getStaffAuthHeaders()
-      });
-      if (data?.success && Array.isArray(data.staff)) {
-        return data.staff;
+      const pubData = await apiClient.get<any>("/api/staff/public-officers");
+      if (pubData?.success && Array.isArray(pubData.officers)) {
+        return pubData.officers;
       }
-    } catch (e) {
-      console.error("Fallback server fetch also failed:", e);
-    }
-    return [];
+    } catch {}
   }
+
+  return [];
 }
 
 /**
@@ -817,6 +811,12 @@ export const fetchStaffMembers = fetchStaffFromFirestore;
  * Triggers callback immediately on changes across all sessions and devices.
  */
 export function subscribeToStaffCollection(callback: (staff: StaffMember[]) => void): () => void {
+  // If not authenticated in Firebase Auth, fetch initial staff data via server API
+  if (!auth.currentUser) {
+    fetchStaffFromFirestore().then(callback).catch(() => {});
+    return () => {};
+  }
+
   try {
     const staffColRef = collection(db, "staff");
     const unsubscribe = onSnapshot(staffColRef, (snapshot) => {
@@ -855,12 +855,13 @@ export function subscribeToStaffCollection(callback: (staff: StaffMember[]) => v
       list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
       callback(list);
     }, (error) => {
+      // Benign notice
       console.warn("Staff real-time listener notice:", error.message);
     });
 
     return unsubscribe;
   } catch (err) {
-    console.error("Failed to subscribe to Firestore staff collection:", err);
+    console.warn("Notice subscribing to Firestore staff collection:", err);
     return () => {};
   }
 }
@@ -1314,59 +1315,57 @@ export async function deleteStaffFromFirestore(
  * Fetch staff activity logs from Firestore with fallback to server API.
  */
 export async function fetchStaffLogsFromFirestore(limitCount: number = 150): Promise<StaffActivityLog[]> {
-  try {
-    const logsCol = collection(db, "staff_activity_logs");
-    const q = query(logsCol, orderBy("createdAt", "desc"), limit(limitCount));
-    const snapshot = await getDocs(q);
+  if (auth.currentUser) {
+    try {
+      const logsCol = collection(db, "staff_activity_logs");
+      const q = query(logsCol, orderBy("createdAt", "desc"), limit(limitCount));
+      const snapshot = await getDocs(q);
 
-    if (!snapshot.empty) {
-      const logs: StaffActivityLog[] = [];
-      snapshot.forEach(docSnap => {
-        const d = docSnap.data();
-        let createdAtStr = new Date().toISOString();
-        if (d.createdAt) {
-          if (typeof d.createdAt.toDate === "function") {
-            createdAtStr = d.createdAt.toDate().toISOString();
-          } else if (typeof d.createdAt === "string") {
-            createdAtStr = d.createdAt;
+      if (!snapshot.empty) {
+        const logs: StaffActivityLog[] = [];
+        snapshot.forEach(docSnap => {
+          const d = docSnap.data();
+          let createdAtStr = new Date().toISOString();
+          if (d.createdAt) {
+            if (typeof d.createdAt.toDate === "function") {
+              createdAtStr = d.createdAt.toDate().toISOString();
+            } else if (typeof d.createdAt === "string") {
+              createdAtStr = d.createdAt;
+            }
           }
-        }
-        logs.push({
-          id: docSnap.id,
-          staffId: d.staffId || "",
-          staffName: d.staffName || "Staff Member",
-          staffRole: d.staffRole || "admin",
-          action: d.action || "",
-          module: d.module || "staff_management",
-          details: d.details || "",
-          targetId: d.targetId || "",
-          createdAt: createdAtStr,
-          ipAddress: d.ipAddress || ""
+          logs.push({
+            id: docSnap.id,
+            staffId: d.staffId || "",
+            staffName: d.staffName || "Staff Member",
+            staffRole: d.staffRole || "admin",
+            action: d.action || "",
+            module: d.module || "staff_management",
+            details: d.details || "",
+            targetId: d.targetId || "",
+            createdAt: createdAtStr,
+            ipAddress: d.ipAddress || ""
+          });
         });
-      });
-      return logs;
+        return logs;
+      }
+    } catch (err: any) {
+      if (!err?.message?.includes("offline") && !err?.message?.includes("permissions")) {
+        console.warn("Notice reading staff logs from Firestore:", err?.message || err);
+      }
     }
+  }
 
-    // Fallback to server endpoint via apiClient
-    const data = await apiClient.get(`/api/staff/activity-logs?limit=${limitCount}`, {
+  // Primary path for Session/Supabase staff
+  try {
+    const data = await apiClient.get<any>(`/api/staff/activity-logs?limit=${limitCount}`, {
       headers: getStaffAuthHeaders()
     });
     if (data?.success && Array.isArray(data.logs)) {
       return data.logs;
     }
-    return [];
-  } catch (err) {
-    console.warn("Firestore logs fetch notice, falling back to server API:", err);
-    try {
-      const data = await apiClient.get(`/api/staff/activity-logs?limit=${limitCount}`, {
-        headers: getStaffAuthHeaders()
-      });
-      if (data?.success && Array.isArray(data.logs)) {
-        return data.logs;
-      }
-    } catch (e) {}
-    return [];
-  }
+  } catch (e) {}
+
+  return [];
 }
 
 /**
@@ -1374,6 +1373,12 @@ export async function fetchStaffLogsFromFirestore(limitCount: number = 150): Pro
  * Triggers callback immediately on any new or updated activity logs across all sessions.
  */
 export function subscribeToStaffLogsCollection(callback: (logs: StaffActivityLog[]) => void, limitCount: number = 150): () => void {
+  // If not authenticated in Firebase Auth, fetch initial logs via server API
+  if (!auth.currentUser) {
+    fetchStaffLogsFromFirestore(limitCount).then(callback).catch(() => {});
+    return () => {};
+  }
+
   try {
     const logsCol = collection(db, "staff_activity_logs");
     const q = query(logsCol, orderBy("createdAt", "desc"), limit(limitCount));
@@ -1409,7 +1414,7 @@ export function subscribeToStaffLogsCollection(callback: (logs: StaffActivityLog
 
     return unsubscribe;
   } catch (err) {
-    console.error("Failed to subscribe to Firestore staff logs collection:", err);
+    console.warn("Notice subscribing to Firestore staff logs collection:", err);
     return () => {};
   }
 }

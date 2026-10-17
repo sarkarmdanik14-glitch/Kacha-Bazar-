@@ -49,9 +49,17 @@ export default function OrderMemoModal({
   // Fetch staff members to automatically sync Seller Officer details
   useEffect(() => {
     if (isOpen) {
-      fetchStaffMembers()
-        .then((list) => setStaffList(list))
-        .catch((err) => console.warn("Notice: Fetch staff for memo:", err));
+      apiClient.get<any>("/api/staff/public-officers")
+        .then((data) => {
+          if (data?.success && Array.isArray(data.officers)) {
+            setStaffList(data.officers);
+          } else {
+            return fetchStaffMembers().then((list) => setStaffList(list));
+          }
+        })
+        .catch(() => {
+          fetchStaffMembers().then((list) => setStaffList(list)).catch(() => {});
+        });
     }
   }, [isOpen]);
 

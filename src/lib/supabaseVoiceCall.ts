@@ -270,18 +270,23 @@ export function subscribeToSupabaseActiveCalls(
 
   loadCalls();
 
-  const channel = supabase
-    .channel("active_calls_realtime")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: TABLE_CALLS },
-      () => loadCalls()
-    )
-    .subscribe();
+  try {
+    const channelId = `active_calls_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: TABLE_CALLS },
+        () => loadCalls()
+      )
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
+    return () => {
+      supabase.removeChannel(channel).catch(() => {});
+    };
+  } catch {
+    return () => {};
+  }
 }
 
 /**
@@ -323,18 +328,23 @@ export function subscribeToSupabaseAgents(
 
   loadAgents();
 
-  const channel = supabase
-    .channel("agents_realtime")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: TABLE_AGENTS },
-      () => loadAgents()
-    )
-    .subscribe();
+  try {
+    const channelId = `agents_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: TABLE_AGENTS },
+        () => loadAgents()
+      )
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
+    return () => {
+      supabase.removeChannel(channel).catch(() => {});
+    };
+  } catch {
+    return () => {};
+  }
 }
 
 /**

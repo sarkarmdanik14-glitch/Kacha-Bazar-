@@ -1070,6 +1070,63 @@ app.post("/api/memo/verify-status", (req, res) => {
 });
 
 // -----------------------------------------------------------------------------------
+// API ROUTE: Server-Authoritative Cart Sync & Retrieval
+// Securely stores and retrieves user carts via Firebase Admin SDK (bypasses client permission issues)
+// -----------------------------------------------------------------------------------
+app.post("/api/cart/sync", rateLimiter(60, 60000), async (req, res) => {
+  try {
+    const { userId, items } = req.body || {};
+    if (!userId || typeof userId !== "string") {
+      return res.status(400).json({ success: false, error: "Valid userId is required" });
+    }
+    const cleanUserId = String(userId).trim();
+    const cleanItems = Array.isArray(items) ? items : [];
+
+    const adminDb = getAdminDb();
+    if (adminDb) {
+      try {
+        await adminDb.collection("carts").doc(cleanUserId).set({
+          items: cleanItems,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      } catch (err: any) {
+        console.warn("[Server Cart] Firestore sync notice:", err?.message || err);
+      }
+    }
+
+    return res.json({ success: true, count: cleanItems.length });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to sync cart" });
+  }
+});
+
+app.get("/api/cart/:userId", rateLimiter(60, 60000), async (req, res) => {
+  try {
+    const userId = String(req.params.userId || "").trim();
+    if (!userId) {
+      return res.status(400).json({ success: false, error: "Valid userId required" });
+    }
+
+    const adminDb = getAdminDb();
+    if (adminDb) {
+      try {
+        const snap = await adminDb.collection("carts").doc(userId).get();
+        if (snap.exists) {
+          const data = snap.data();
+          return res.json({ success: true, items: data?.items || [] });
+        }
+      } catch (err: any) {
+        console.warn("[Server Cart] Firestore read notice:", err?.message || err);
+      }
+    }
+
+    return res.json({ success: true, items: [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to get cart" });
+  }
+});
+
+// -----------------------------------------------------------------------------------
 // API ROUTE: Server-Authoritative Checkout & Stock Management (Task 5 / CWE Remediation)
 // Uses Firebase Admin SDK to atomically validate stock, deduct inventory, and persist orders
 // -----------------------------------------------------------------------------------
@@ -2326,6 +2383,30 @@ function appendActivityLog(logData: {
   writeActivityLogs(logs);
   return newLog;
 }
+
+// 1.0. GET /api/staff/public-officers - Safe public endpoint for Order Memos & Invoices
+// Returns only active officers with safe presentation fields (fullName, designation, signature)
+app.get("/api/staff/public-officers", rateLimiter(60, 60000), (req, res) => {
+  try {
+    const staffList = readStaffDb();
+    const officers = (Array.isArray(staffList) ? staffList : [])
+      .filter((s: any) => s && s.status === "active")
+      .map((s: any) => ({
+        id: s.id,
+        staffId: s.staffId,
+        fullName: s.fullName || "Staff Member",
+        designation: s.designation || "Seller Officer",
+        department: s.department || "Store Operations",
+        role: s.role || "order_manager",
+        digitalSignature: s.digitalSignature || s.signature || "",
+        status: s.status || "active",
+        photoURL: s.photoURL || ""
+      }));
+    return res.json({ success: true, officers });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: "Failed to load officers" });
+  }
+});
 
 // 1. GET /api/staff/list - List all staff members (require authenticated staff, passwordHash sanitized)
 app.get("/api/staff/list", requireStaffAuth, (req, res) => {

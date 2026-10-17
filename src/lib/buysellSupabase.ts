@@ -115,23 +115,28 @@ export function subscribeToBuySellListings(
   loadSupabaseData();
 
   // Supabase Realtime channel
-  const channel = supabase
-    .channel("buy_sell_realtime")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: TABLE_LISTINGS },
-      () => {
-        if (isMounted) {
-          loadSupabaseData();
+  try {
+    const channelId = `buy_sell_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: TABLE_LISTINGS },
+        () => {
+          if (isMounted) {
+            loadSupabaseData();
+          }
         }
-      }
-    )
-    .subscribe();
+      )
+      .subscribe();
 
-  return () => {
-    isMounted = false;
-    supabase.removeChannel(channel);
-  };
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel).catch(() => {});
+    };
+  } catch {
+    return () => { isMounted = false; };
+  }
 }
 
 /**
@@ -311,21 +316,26 @@ export function subscribeToBuySellChat(
 
   loadSupabaseChat();
 
-  const channel = supabase
-    .channel(`buy_sell_chat_${chatId}`)
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: TABLE_CHATS, filter: `id=eq.${chatId}` },
-      () => {
-        if (isMounted) {
-          loadSupabaseChat();
+  try {
+    const channelId = `buy_sell_chat_${chatId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: TABLE_CHATS, filter: `id=eq.${chatId}` },
+        () => {
+          if (isMounted) {
+            loadSupabaseChat();
+          }
         }
-      }
-    )
-    .subscribe();
+      )
+      .subscribe();
 
-  return () => {
-    isMounted = false;
-    supabase.removeChannel(channel);
-  };
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel).catch(() => {});
+    };
+  } catch {
+    return () => { isMounted = false; };
+  }
 }

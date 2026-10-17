@@ -90,14 +90,15 @@ export default function AdminBuySellTab({
 
     loadReports();
 
+    const channelId = `admin_reports_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const channel = supabase
-      .channel("admin_reports_realtime")
+      .channel(channelId)
       .on("postgres_changes", { event: "*", schema: "public", table: "buy_sell_reports" }, () => loadReports())
       .subscribe();
 
     return () => {
       unsubListings();
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel).catch(() => {});
     };
   }, []);
 

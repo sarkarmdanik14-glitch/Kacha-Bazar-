@@ -131,13 +131,14 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
 
     loadLeadershipData();
 
+    const channelId = `leadership_settings_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const channel = supabase
-      .channel("leadership_settings_realtime")
+      .channel(channelId)
       .on("postgres_changes", { event: "*", schema: "public", table: "site_settings", filter: "key=eq.leadership" }, () => loadLeadershipData())
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel).catch(() => {});
     };
   }, []);
 

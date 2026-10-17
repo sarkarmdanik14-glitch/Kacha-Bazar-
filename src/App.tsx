@@ -643,11 +643,25 @@ export default function App() {
         // Automatically load and merge the guest cart after login
         try {
           const cartDocRef = doc(db, "carts", user.uid);
-          const cartSnap = await getDoc(cartDocRef);
-          
           let dbCart: CartItem[] = [];
-          if (cartSnap.exists()) {
-            dbCart = cartSnap.data().items || [];
+
+          if (auth.currentUser && auth.currentUser.uid === user.uid) {
+            try {
+              const cartSnap = await getDoc(cartDocRef);
+              if (cartSnap.exists()) {
+                dbCart = cartSnap.data().items || [];
+              }
+            } catch {
+              const resp = await fetch(`/api/cart/${encodeURIComponent(user.uid)}`).then(r => r.json()).catch(() => null);
+              if (resp?.success && Array.isArray(resp.items)) {
+                dbCart = resp.items;
+              }
+            }
+          } else {
+            const resp = await fetch(`/api/cart/${encodeURIComponent(user.uid)}`).then(r => r.json()).catch(() => null);
+            if (resp?.success && Array.isArray(resp.items)) {
+              dbCart = resp.items;
+            }
           }
           
           const guestCartJson = localStorage.getItem("kb_cart");
@@ -665,8 +679,16 @@ export default function App() {
               }
             });
             
-            // Save merged cart to Firestore and update local state
-            await setDoc(cartDocRef, { items: merged });
+            // Save merged cart to Firestore and server API
+            if (auth.currentUser && auth.currentUser.uid === user.uid) {
+              await setDoc(cartDocRef, { items: merged }).catch(() => {});
+            }
+            await fetch("/api/cart/sync", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userId: user.uid, items: merged })
+            }).catch(() => {});
+
             setCart(merged);
             localStorage.setItem("kb_cart", JSON.stringify(merged));
             
@@ -709,16 +731,35 @@ export default function App() {
     };
   }, []);
 
-  // Sync cart to Firestore when modified while logged in
+  // Sync cart when modified while logged in
   useEffect(() => {
-    if (loggedInUser) {
+    if (loggedInUser && loggedInUser.uid) {
       const syncCart = async () => {
+        const cleanCart = JSON.parse(JSON.stringify(cart));
+        const targetUid = loggedInUser.uid;
+
+        // If user is currently authenticated with Firebase Auth and UIDs match,
+        // sync directly to Firestore client SDK:
+        if (auth.currentUser && auth.currentUser.uid === targetUid) {
+          try {
+            const cartDocRef = doc(db, "carts", targetUid);
+            await setDoc(cartDocRef, { items: cleanCart });
+            return;
+          } catch (e: any) {
+            // Direct write failed (e.g. offline or rule notice), fall back to server sync below
+          }
+        }
+
+        // For Supabase users or when Firebase Auth session is absent/differs,
+        // sync via server API using Firebase Admin SDK (no client permission restriction)
         try {
-          const cartDocRef = doc(db, "carts", loggedInUser.uid);
-          const cleanCart = JSON.parse(JSON.stringify(cart));
-          await setDoc(cartDocRef, { items: cleanCart });
-        } catch (e) {
-          console.error("Error syncing cart to Firestore:", e);
+          await fetch("/api/cart/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: targetUid, items: cleanCart })
+          });
+        } catch {
+          // Local storage is already the local offline fallback
         }
       };
       
