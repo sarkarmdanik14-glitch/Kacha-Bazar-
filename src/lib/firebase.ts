@@ -1,157 +1,125 @@
 /**
- * Supabase-Authoritative Compatibility Layer (Pure Supabase Mode)
- * Replaces Firebase Firestore network calls with silent no-ops / Supabase routing.
- * Ensures zero network requests, zero bandwidth, and zero quota usage on Google Firebase.
+ * Zero-Dependency Supabase Authoritative Compatibility Shim
+ * Firebase has been completely removed in favor of 100% Supabase PostgreSQL & Realtime.
+ * This file provides zero-overhead stubs so legacy references resolve safely without
+ * any Google Firebase npm packages or network overhead.
  */
-import { initializeApp } from "firebase/app";
-import { 
-  getAuth, 
-  signOut as fbSignOut, 
-  onAuthStateChanged as fbOnAuthStateChanged,
-  GoogleAuthProvider,
-  User as FirebaseUser,
-  RecaptchaVerifier,
-  updateProfile as fbUpdateProfile,
-  sendEmailVerification as fbSendEmailVerification,
-  sendPasswordResetEmail as fbSendPasswordResetEmail,
-  updatePassword as fbUpdatePassword,
-  EmailAuthProvider,
-  reauthenticateWithCredential
-} from "firebase/auth";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { 
-  getFirestore, 
-  setLogLevel,
-  collection, 
-  doc, 
-  getDoc as fbGetDoc, 
-  getDocFromServer,
-  setDoc as fbSetDoc, 
-  getDocs as fbGetDocs, 
-  query, 
-  where, 
-  or,
-  addDoc as fbAddDoc, 
-  updateDoc as fbUpdateDoc, 
-  deleteDoc as fbDeleteDoc, 
-  increment,
-  Timestamp,
-  serverTimestamp,
-  orderBy,
-  limit,
-  onSnapshot as fbOnSnapshot,
-  writeBatch,
-  runTransaction,
-  arrayUnion
-} from "firebase/firestore";
-import config from "../../firebase-applet-config.json";
-import { isPureSupabase } from "./dataEngine";
 
-// Silence any benign logging
-setLogLevel("silent");
+export type FirebaseUser = any;
 
-const firebaseConfig = {
-  apiKey: config.apiKey,
-  authDomain: config.authDomain,
-  projectId: config.projectId,
-  storageBucket: config.storageBucket,
-  messagingSenderId: config.messagingSenderId,
-  appId: config.appId
+export const app: any = { name: "[DEFAULT]", options: {} };
+export const auth: any = {
+  currentUser: null,
+  signOut: async () => {},
+  onAuthStateChanged: (_cb: any) => () => {},
 };
+export const db: any = {};
+export const storage: any = {};
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const firestoreDbId = config.firestoreDatabaseId || "(default)";
-const db = getFirestore(app, firestoreDbId);
+export const getStorage = () => storage;
+export const ref = (_storage: any, path: string) => ({ fullPath: path });
+export const uploadBytes = async () => ({ ref: { fullPath: "" } });
+export const getDownloadURL = async () => "";
 
-const googleProvider = new GoogleAuthProvider();
-const storage = getStorage(app);
+export const googleProvider: any = {};
 
-// In Pure Supabase mode: bypass all Firestore listeners so no connection is held
-export const onSnapshot = (queryOrRef: any, onNext: any, onError?: any) => {
-  if (isPureSupabase()) {
-    return () => {};
+export const collection = (_db: any, ...pathSegments: string[]) => ({
+  path: pathSegments.join("/"),
+  type: "collection",
+});
+
+export const doc = (_db: any, ...pathSegments: string[]) => ({
+  id: pathSegments[pathSegments.length - 1] || "",
+  path: pathSegments.join("/"),
+  type: "document",
+});
+
+export const getDoc = async (docRef: any) => ({
+  id: docRef?.id || "",
+  exists: () => false,
+  data: () => null,
+});
+
+export const getDocFromServer = getDoc;
+
+export const getDocs = async (_queryOrRef: any) => ({
+  empty: true,
+  docs: [] as any[],
+  size: 0,
+  forEach: (_cb: any) => {},
+});
+
+export const setDoc = async (_docRef: any, _data: any, _options?: any) => {};
+export const addDoc = async (_colRef: any, _data: any) => ({ id: `sb_${Date.now()}` });
+export const updateDoc = async (_docRef: any, _data: any) => {};
+export const deleteDoc = async (_docRef: any) => {};
+
+export const increment = (n: number) => n;
+export const Timestamp = {
+  now: () => ({ toMillis: () => Date.now(), toDate: () => new Date(), seconds: Math.floor(Date.now() / 1000) }),
+  fromDate: (d: Date) => ({ toMillis: () => d.getTime(), toDate: () => d, seconds: Math.floor(d.getTime() / 1000) }),
+  fromMillis: (m: number) => ({ toMillis: () => m, toDate: () => new Date(m), seconds: Math.floor(m / 1000) })
+};
+export const serverTimestamp = () => new Date().toISOString();
+
+export const query = (queryRef: any, ..._ops: any[]) => queryRef;
+export const where = (..._args: any[]) => ({ type: "where" });
+export const orderBy = (..._args: any[]) => ({ type: "orderBy" });
+export const limit = (_n: number) => ({ type: "limit" });
+export const or = (..._args: any[]) => ({ type: "or" });
+
+export const onSnapshot = (_queryOrRef: any, _onNext: any, _onError?: any) => () => {};
+
+export const writeBatch = (_db?: any) => ({
+  set: (_ref: any, _data: any, _opt?: any) => {},
+  update: (_ref: any, _data: any) => {},
+  delete: (_ref: any) => {},
+  commit: async () => {},
+});
+
+export async function runTransaction<T = any>(_dbOrFn: any, updateFunction?: ((transaction: any) => Promise<T>) | any): Promise<T> {
+  const fn = typeof _dbOrFn === "function" ? _dbOrFn : updateFunction;
+  if (typeof fn === "function") {
+    const res = await fn({
+      get: async () => ({ exists: () => false, data: () => ({}) }),
+      set: () => {},
+      update: () => {},
+      delete: () => {},
+    });
+    return (res !== undefined ? res : ({ success: true } as any)) as T;
   }
-  return fbOnSnapshot(queryOrRef, onNext, onError);
+  return { success: true } as any;
+}
+
+export const arrayUnion = (...elements: any[]) => elements;
+
+export class RecaptchaVerifier {
+  constructor(..._args: any[]) {}
+  clear() {}
+  render() { return Promise.resolve(0); }
+}
+
+export const EmailAuthProvider = {
+  credential: (..._args: any[]) => ({}),
 };
 
-export const getDocs = async (queryOrRef: any) => {
-  if (isPureSupabase()) {
-    return { empty: true, docs: [], size: 0, forEach: () => {} } as any;
-  }
-  return fbGetDocs(queryOrRef);
+export const reauthenticateWithCredential = async (..._args: any[]) => {};
+export const signInWithPopup = async (..._args: any[]) => ({ user: null } as any);
+export const signInWithEmailAndPassword = async (..._args: any[]) => ({ user: null } as any);
+export const createUserWithEmailAndPassword = async (..._args: any[]) => ({ user: null } as any);
+export const signInWithPhoneNumber = async (..._args: any[]) => ({
+  confirm: async (_code: string) => ({ user: null })
+} as any);
+export const signOut = async (..._args: any[]) => {};
+export const onAuthStateChanged = (_auth: any, callback: any) => {
+  if (typeof callback === "function") callback(null);
+  return () => {};
 };
+export const updateProfile = async (..._args: any[]) => {};
+export const sendEmailVerification = async (..._args: any[]) => {};
+export const sendPasswordResetEmail = async (..._args: any[]) => {};
+export const updatePassword = async (..._args: any[]) => {};
 
-export const getDoc = async (docRef: any) => {
-  if (isPureSupabase()) {
-    return { exists: () => false, data: () => null, id: docRef?.id || "" } as any;
-  }
-  return fbGetDoc(docRef);
-};
-
-export const setDoc = async (docRef: any, data: any, options?: any) => {
-  if (isPureSupabase()) return;
-  return fbSetDoc(docRef, data, options);
-};
-
-export const addDoc = async (colRef: any, data: any) => {
-  if (isPureSupabase()) return { id: `sb_${Date.now()}` } as any;
-  return fbAddDoc(colRef, data);
-};
-
-export const updateDoc = async (docRef: any, data: any) => {
-  if (isPureSupabase()) return;
-  return fbUpdateDoc(docRef, data);
-};
-
-export const deleteDoc = async (docRef: any) => {
-  if (isPureSupabase()) return;
-  return fbDeleteDoc(docRef);
-};
-
-// Safe no-op auth fallbacks (primary is supabaseAuth.ts)
-export const signInWithPopup = async () => ({ user: null } as any);
-export const signInWithEmailAndPassword = async () => ({ user: null } as any);
-export const createUserWithEmailAndPassword = async () => ({ user: null } as any);
-export const signInWithPhoneNumber = async () => ({ confirm: async () => ({ user: null }) } as any);
-export const signOut = fbSignOut;
-export const onAuthStateChanged = fbOnAuthStateChanged;
-export const updateProfile = fbUpdateProfile;
-export const sendEmailVerification = fbSendEmailVerification;
-export const sendPasswordResetEmail = fbSendPasswordResetEmail;
-export const updatePassword = fbUpdatePassword;
-
-export { 
-  app, 
-  auth, 
-  db, 
-  storage,
-  getStorage,
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  googleProvider,
-  collection,
-  doc,
-  getDocFromServer,
-  query,
-  where,
-  or,
-  increment,
-  Timestamp,
-  serverTimestamp,
-  orderBy,
-  limit,
-  writeBatch,
-  runTransaction,
-  arrayUnion,
-  RecaptchaVerifier,
-  EmailAuthProvider,
-  reauthenticateWithCredential
-};
-
-// Seeding function: Pure Supabase mode has 1,650 products and 23 categories pre-seeded. No Firestore writes.
-export async function seedDatabase(initialCategories: any[], initialProducts: any[]) {
-  // Pure Supabase mode - database is already authoritative on Supabase PostgreSQL.
+export async function seedDatabase(_initialCategories?: any[], _initialProducts?: any[]) {
   return;
 }

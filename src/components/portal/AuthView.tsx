@@ -826,21 +826,9 @@ export default function AuthView({
           } catch (e) {}
         }
 
-        // 3. Tertiary fallback: Firebase Auth (for pre-migration accounts)
+        // 3. If credentials could not be verified by Supabase Auth or Server Auth
         if (!authenticatedUser) {
-          try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            const fbUser = userCredential.user;
-            authenticatedUser = {
-              uid: fbUser.uid,
-              id: fbUser.uid,
-              email: fbUser.email,
-              displayName: fbUser.displayName || "গ্রাহক",
-              role: role
-            };
-          } catch (fbAuthErr: any) {
-            throw fbAuthErr;
-          }
+          throw new Error(getTranslation("ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।", "Incorrect email or password. Please check your credentials."));
         }
 
         // Verify role authorization

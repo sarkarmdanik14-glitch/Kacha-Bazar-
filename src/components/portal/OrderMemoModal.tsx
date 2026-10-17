@@ -163,8 +163,6 @@ export default function OrderMemoModal({
     }
   }, [isOpen, order]);
 
-  if (!isOpen || !order) return null;
-
   const getTranslation = createTranslator(lang);
 
   // Dynamic Memo Fields with defaults
@@ -225,7 +223,7 @@ export default function OrderMemoModal({
     memoConfig?.sellerOfficer?.digitalSignature || 
     "";
 
-  // Pre-convert Seller Officer signature for canvas/PDF rendering
+  // Pre-convert Seller Officer signature for canvas/PDF rendering (Unconditional Hook)
   useEffect(() => {
     if (sellerOfficerSigRaw) {
       if (sellerOfficerSigRaw.startsWith("data:image/")) {
@@ -239,6 +237,8 @@ export default function OrderMemoModal({
       setSellerOfficerSigDataUrl("");
     }
   }, [sellerOfficerSigRaw]);
+
+  if (!isOpen || !order) return null;
 
   // 2. Resolve Authorized / Founder from Admin saved settings
   const founderName = memoConfig?.founderName || memoConfig?.authorizedName || "Md Anik Sarkar";
