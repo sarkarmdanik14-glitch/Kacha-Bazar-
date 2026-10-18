@@ -30,6 +30,7 @@ import {
   syncSingleProductToSupabase, 
   deleteProductFromSupabase, 
   syncSingleCategoryToSupabase, 
+  deleteCategoryFromSupabase,
   syncSingleSubcategoryToSupabase 
 } from "../../lib/supabaseSync";
 
@@ -41,9 +42,21 @@ interface AdminProductsTabProps {
   lang: "bn" | "en";
   triggerToast: (bn: string, en: string) => void;
   onProductSaved?: (product: any) => void;
+  onProductDeleted?: (productId: string) => void;
+  onCategoryDeleted?: (categoryId: string) => void;
 }
 
-export default function AdminProductsTab({ products, categories, orders = [], user, lang, triggerToast, onProductSaved }: AdminProductsTabProps) {
+export default function AdminProductsTab({ 
+  products, 
+  categories, 
+  orders = [], 
+  user, 
+  lang, 
+  triggerToast, 
+  onProductSaved,
+  onProductDeleted,
+  onCategoryDeleted
+}: AdminProductsTabProps) {
   const getTranslation = createTranslator(lang);
 
   // Delete Confirmation Modal state & optimistically deleted products set
@@ -69,6 +82,8 @@ export default function AdminProductsTab({ products, categories, orders = [], us
       } catch {}
       return next;
     });
+    // Notify parent state immediately
+    onProductDeleted?.(deletedId);
     // Automatic Real-Time Delete from Supabase
     deleteProductFromSupabase(deletedId).catch((err) => {
       console.warn("[Supabase] Notice syncing product delete:", err);
@@ -1269,6 +1284,10 @@ export default function AdminProductsTab({ products, categories, orders = [], us
 
     try {
       await deleteDoc(doc(db, "categories", id));
+      // Delete from Supabase PostgreSQL in real-time
+      await deleteCategoryFromSupabase(id).catch(e => console.warn("Notice deleting category in Supabase:", e));
+      onCategoryDeleted?.(id);
+
       triggerToast(
         `"${catName}" ক্যাটাগরি সফলভাবে ডিলিট করা হয়েছে!`,
         `Category "${catName}" successfully deleted!`

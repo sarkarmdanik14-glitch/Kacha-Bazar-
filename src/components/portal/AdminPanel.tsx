@@ -29,7 +29,7 @@ import { awardOrderRewardPoints } from "../../lib/rewardPoints";
 import { mergeCategoryCards, shouldKeepProductGroceryFiltered, isCategoryMatch } from "../../lib/categoryUtils";
 import { ALL_PRODUCTS, CATEGORIES, GROCERY_PRODUCTS_RAW } from "../../data";
 import { resolveAuthenticProductImage } from "../../lib/masterImageRegistry";
-import { syncSingleOrderToSupabase } from "../../lib/supabaseSync";
+import { syncSingleOrderToSupabase, deleteOrderFromSupabase, deleteCategoryFromSupabase } from "../../lib/supabaseSync";
 import { 
   subscribeToSupabaseOrders, 
   subscribeToSupabaseCoupons, 
@@ -71,6 +71,8 @@ interface AdminPanelProps {
   initialBanners?: any[];
   initialSettings?: any;
   onProductSaved?: (product: any) => void;
+  onProductDeleted?: (productId: string) => void;
+  onCategoryDeleted?: (categoryId: string) => void;
 }
 
 export default function AdminPanel({ 
@@ -82,7 +84,9 @@ export default function AdminPanel({
   initialCategories,
   initialBanners,
   initialSettings,
-  onProductSaved
+  onProductSaved,
+  onProductDeleted,
+  onCategoryDeleted
 }: AdminPanelProps) {
   // Collapsible sidebar navigation drawer toggle (hidden by default across all viewports)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
@@ -558,6 +562,16 @@ export default function AdminPanel({
     onProductSaved?.(savedProduct);
   };
 
+  const handleProductDeleted = (deletedProductId: string) => {
+    setProducts((prev: any[]) => prev.filter((p: any) => p.id !== deletedProductId));
+    onProductDeleted?.(deletedProductId);
+  };
+
+  const handleCategoryDeleted = (categoryId: string) => {
+    setCategories((prev: any[]) => prev.filter((c: any) => c.id !== categoryId));
+    onCategoryDeleted?.(categoryId);
+  };
+
   useEffect(() => {
     if (initialCategories && initialCategories.length > 0) {
       setCategories(initialCategories);
@@ -690,11 +704,17 @@ export default function AdminPanel({
     }
   };
 
-  // Delete Order permanently from Firestore
+  // Delete Order permanently from Supabase & state
   const handleDeleteOrder = async (orderId: string) => {
     if (!confirm(getTranslation("আপনি কি নিশ্চিতভাবে এই অর্ডারটি ডাটাবেজ থেকে সম্পূর্ণ মুছে ফেলতে চান?", "Are you sure you want to permanently delete this order from the database?"))) return;
     try {
-      await deleteDoc(doc(db, "orders", orderId));
+      // 1. Delete from Supabase in real-time
+      await deleteOrderFromSupabase(orderId).catch(err => console.warn("Supabase order delete notice:", err));
+      await deleteDoc(doc(db, "orders", orderId)).catch(() => {});
+      
+      // 2. Immediately remove from local UI state
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      
       triggerToast("অর্ডার সফলভাবে ডিলিট করা হয়েছে!", "Order deleted successfully from database!");
     } catch (err: any) {
       console.error("Error deleting order:", err);
@@ -1011,6 +1031,8 @@ export default function AdminPanel({
                   lang={lang} 
                   triggerToast={triggerToast} 
                   onProductSaved={handleProductSaved}
+                  onProductDeleted={handleProductDeleted}
+                  onCategoryDeleted={handleCategoryDeleted}
                 />
               </div>
             )}

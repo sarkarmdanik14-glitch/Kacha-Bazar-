@@ -243,6 +243,30 @@ async function deleteProductFromSupabaseServer(productId: string): Promise<boole
   }
 }
 
+async function deleteCategoryFromSupabaseServer(categoryId: string): Promise<boolean> {
+  const sb = getServerSupabase();
+  if (!sb || !categoryId) return false;
+  try {
+    const cleanId = String(categoryId).trim();
+    const { error } = await sb.from("categories").delete().eq("id", cleanId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+async function deleteOrderFromSupabaseServer(orderId: string): Promise<boolean> {
+  const sb = getServerSupabase();
+  if (!sb || !orderId) return false;
+  try {
+    const cleanId = String(orderId).trim();
+    const { error } = await sb.from("orders").delete().eq("id", cleanId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 async function syncCategoryToSupabaseServer(c: any): Promise<boolean> {
   const sb = getServerSupabase();
   if (!sb || !c || !c.id) return false;
@@ -5419,6 +5443,39 @@ app.post("/api/sync/category", rateLimiter(60, 60000), requireAdminAuth, async (
     return res.json({ success: synced });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message || "Failed to sync category" });
+  }
+});
+
+app.post("/api/sync/category-delete", rateLimiter(60, 60000), requireAdminAuth, async (req, res) => {
+  try {
+    if (!getServerSupabase()) {
+      return res.status(422).json({
+        success: false,
+        error: "SUPABASE_NOT_INITIALIZED",
+        message: "Supabase ক্লায়েন্ট প্রস্তুত করা যায়নি।"
+      });
+    }
+    const { categoryId } = req.body;
+    if (!categoryId) {
+      return res.status(400).json({ success: false, error: "Category ID is required" });
+    }
+    const deleted = await deleteCategoryFromSupabaseServer(String(categoryId));
+    return res.json({ success: deleted });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to delete category from Supabase" });
+  }
+});
+
+app.post(["/api/sync/order-delete", "/api/orders/delete"], rateLimiter(60, 60000), requireStaffAuth, async (req, res) => {
+  try {
+    const orderId = (req.body?.orderId || req.body?.id || "").toString().trim();
+    if (!orderId) {
+      return res.status(400).json({ success: false, error: "Order ID is required" });
+    }
+    const deleted = await deleteOrderFromSupabaseServer(orderId);
+    return res.json({ success: deleted });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to delete order" });
   }
 });
 

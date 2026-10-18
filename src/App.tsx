@@ -950,6 +950,20 @@ export default function App() {
     });
   };
 
+  const handleProductDeletedInApp = (deletedProductId: string) => {
+    setProducts((prev) => prev.filter((p) => p.id !== deletedProductId));
+    try {
+      const raw = localStorage.getItem("kb_deleted_products");
+      const set = raw ? new Set(JSON.parse(raw)) : new Set();
+      set.add(deletedProductId);
+      localStorage.setItem("kb_deleted_products", JSON.stringify(Array.from(set)));
+    } catch {}
+  };
+
+  const handleCategoryDeletedInApp = (categoryId: string) => {
+    setCategories((prev) => prev.filter((c) => c.id !== categoryId));
+  };
+
   // Disabled destructive grocery sync to protect custom images and deletions in Firestore
   useEffect(() => {
     // Database groceries are permanently preserved in Firestore
@@ -4511,6 +4525,8 @@ export default function App() {
           banners={banners}
           globalSettings={globalSettings}
           onProductSaved={handleProductSavedInApp}
+          onProductDeleted={handleProductDeletedInApp}
+          onCategoryDeleted={handleCategoryDeletedInApp}
           onOpenCart={() => {
             setShowPortalModal(false);
             setShowCart(true);

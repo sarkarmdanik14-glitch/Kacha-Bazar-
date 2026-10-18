@@ -474,6 +474,32 @@ export async function syncSingleCategoryToSupabase(c: any): Promise<boolean> {
   }
 }
 
+export async function deleteCategoryFromSupabase(categoryId: string): Promise<boolean> {
+  try {
+    if (!categoryId) return false;
+    // 1. Direct Supabase delete
+    await supabase.from("categories").delete().eq("id", categoryId);
+    // 2. Server sync delete
+    const res = await apiClient.post<any>("/api/sync/category-delete", { categoryId }, { silent: true });
+    return !!res?.success;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteOrderFromSupabase(orderId: string): Promise<boolean> {
+  try {
+    if (!orderId) return false;
+    // 1. Direct Supabase delete
+    await supabase.from("orders").delete().eq("id", orderId);
+    // 2. Server sync delete
+    const res = await apiClient.post<any>("/api/sync/order-delete", { orderId }, { silent: true });
+    return !!res?.success;
+  } catch {
+    return false;
+  }
+}
+
 export async function syncSingleSubcategoryToSupabase(s: any): Promise<boolean> {
   try {
     if (!s || !s.id) return false;

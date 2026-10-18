@@ -28,6 +28,8 @@ interface PortalModalProps {
   banners?: any[];
   globalSettings?: any;
   onProductSaved?: (product: any) => void;
+  onProductDeleted?: (productId: string) => void;
+  onCategoryDeleted?: (categoryId: string) => void;
   onOpenCart?: () => void;
   initialUser?: any | null;
   onUserChange?: (user: any | null) => void;
@@ -46,6 +48,8 @@ export default function PortalModal({
   banners,
   globalSettings,
   onProductSaved,
+  onProductDeleted,
+  onCategoryDeleted,
   onOpenCart,
   initialUser,
   onUserChange
@@ -652,6 +656,8 @@ export default function PortalModal({
                         initialBanners={banners}
                         initialSettings={globalSettings}
                         onProductSaved={onProductSaved}
+                        onProductDeleted={onProductDeleted}
+                        onCategoryDeleted={onCategoryDeleted}
                       />
                     )}
                     {activePortalTab === "partner" && (
