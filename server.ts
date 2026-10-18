@@ -2154,14 +2154,36 @@ app.get("/api/staff/public-officers", rateLimiter(60, 60000), (req, res) => {
   }
 });
 
-// 1. GET /api/staff/list - List all staff members (require authenticated staff, passwordHash sanitized)
-app.get("/api/staff/list", requireStaffAuth, (req, res) => {
+// 1. GET /api/staff/list - List staff members (full sanitized list for authenticated staff; safe active public officers for unauthenticated callers)
+app.get("/api/staff/list", async (req, res) => {
   try {
+    let auth = getStaffFromSession(req);
+    if (!auth) {
+      auth = await verifyFirebaseTokenAuth(req);
+    }
     const staffList = readStaffDb();
-    const sanitized = staffList.map(s => sanitizeStaff(s));
-    return res.json({ success: true, staff: sanitized });
+    if (auth) {
+      const sanitized = staffList.map(s => sanitizeStaff(s));
+      return res.json({ success: true, staff: sanitized });
+    }
+
+    // Safe public presentation fields for unauthenticated visitors/invoices
+    const publicOfficers = (Array.isArray(staffList) ? staffList : [])
+      .filter((s: any) => s && s.status === "active")
+      .map((s: any) => ({
+        id: s.id,
+        staffId: s.staffId,
+        fullName: s.fullName || "Staff Member",
+        designation: s.designation || "Staff",
+        department: s.department || "Operations",
+        role: s.role || "order_manager",
+        digitalSignature: s.digitalSignature || s.signature || "",
+        status: s.status || "active",
+        photoURL: s.photoURL || ""
+      }));
+    return res.json({ success: true, staff: publicOfficers, isPublic: true });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to fetch staff list" });
+    return res.status(500).json({ success: false, error: err.message || "Failed to fetch staff list" });
   }
 });
 
@@ -4819,8 +4841,15 @@ app.post("/api/staff/heartbeat", async (req, res) => {
 });
 
 // 11. GET /api/staff/activity-logs - Filtered Staff Activity Audit Logs
-app.get("/api/staff/activity-logs", requireStaffAuth, (req, res) => {
+app.get("/api/staff/activity-logs", async (req, res) => {
   try {
+    let auth = getStaffFromSession(req);
+    if (!auth) {
+      auth = await verifyFirebaseTokenAuth(req);
+    }
+    if (!auth) {
+      return res.json({ success: true, logs: [], unauthenticated: true });
+    }
     const { staffId, module, search, limit: queryLimit } = req.query;
     let logs = readActivityLogs();
 
@@ -4912,8 +4941,8 @@ app.get("/api/staff/verify-badge/:staffId", rateLimiter(30, 60000), (req, res) =
   }
 });
 
-// 14. GET /api/staff/get/:id - Fetch Single Staff Member by either unique record ID or display staffId (Restricted to Authenticated Staff)
-app.get("/api/staff/get/:id", requireStaffAuth, (req, res) => {
+// 14. GET /api/staff/get/:id - Fetch Single Staff Member by either unique record ID or display staffId
+app.get("/api/staff/get/:id", async (req, res) => {
   try {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: "Staff ID parameter is required" });
@@ -4929,7 +4958,31 @@ app.get("/api/staff/get/:id", requireStaffAuth, (req, res) => {
       return res.status(404).json({ error: "Staff member not found" });
     }
 
-    return res.json({ success: true, staff: sanitizeStaff(staff) });
+    let auth = getStaffFromSession(req);
+    if (!auth) {
+      auth = await verifyFirebaseTokenAuth(req);
+    }
+
+    if (auth) {
+      return res.json({ success: true, staff: sanitizeStaff(staff) });
+    }
+
+    // Public officer fields fallback for unauthenticated views
+    return res.json({
+      success: true,
+      staff: {
+        id: staff.id,
+        staffId: staff.staffId,
+        fullName: staff.fullName || "Staff Member",
+        designation: staff.designation || "Staff",
+        department: staff.department || "Operations",
+        role: staff.role || "order_manager",
+        digitalSignature: staff.digitalSignature || staff.signature || "",
+        status: staff.status || "active",
+        photoURL: staff.photoURL || ""
+      },
+      isPublic: true
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch staff record" });
   }

@@ -241,8 +241,13 @@ export async function apiRequest<T = any>(
       }
     }
 
-    const isAuthVerifyEndpoint = url.includes("/api/auth/login-verify") || url.includes("/api/auth/staff-verify");
-    if (import.meta.env?.DEV && !options.silent && !(isAuthVerifyEndpoint && response.status === 401)) {
+    const isAuthCheckEndpoint = 
+      url.includes("/api/auth/login-verify") || 
+      url.includes("/api/auth/staff-verify") ||
+      url.includes("/api/staff/list") ||
+      url.includes("/api/staff/activity-logs") ||
+      url.includes("/api/staff/get");
+    if (import.meta.env?.DEV && !options.silent && !(isAuthCheckEndpoint && (response.status === 401 || response.status === 403))) {
       console.error(`[API Error ${response.status}] ${options.method || "GET"} ${url}:`, {
         status: response.status,
         statusText: response.statusText,

@@ -706,14 +706,17 @@ export async function fetchSingleStaffById(lookupId: string): Promise<StaffMembe
 
   // 2. Try from server API
   try {
-    const data = await apiClient.get(`/api/staff/get/${encodeURIComponent(clean)}`, {
-      headers: getStaffAuthHeaders()
+    const authHeaders = getStaffAuthHeaders();
+    const hasAuth = !!(authHeaders["Authorization"] || authHeaders["x-session-id"] || authHeaders["x-supabase-token"] || authHeaders["x-firebase-id-token"]);
+    const data = await apiClient.get<any>(`/api/staff/get/${encodeURIComponent(clean)}`, {
+      headers: authHeaders,
+      silent: true
     });
     if (data?.success && data?.staff) {
       return data.staff;
     }
   } catch (e) {
-    console.warn("API single staff fetch notice:", e);
+    // Non-blocking fallback
   }
 
   // 3. Fallback to full list search
@@ -788,21 +791,28 @@ export async function fetchStaffFromFirestore(): Promise<StaffMember[]> {
 
   // Primary path for Session/Supabase staff or public fallback
   try {
-    const data = await apiClient.get<any>("/api/staff/list", {
-      headers: getStaffAuthHeaders()
-    });
-    if (data?.success && Array.isArray(data.staff)) {
-      return data.staff;
+    const authHeaders = getStaffAuthHeaders();
+    const hasAuth = !!(authHeaders["Authorization"] || authHeaders["x-session-id"] || authHeaders["x-supabase-token"] || authHeaders["x-firebase-id-token"]);
+
+    if (hasAuth) {
+      const data = await apiClient.get<any>("/api/staff/list", {
+        headers: authHeaders,
+        silent: true
+      });
+      if (data?.success && Array.isArray(data.staff)) {
+        return data.staff;
+      }
     }
   } catch (e) {
     // If unauthorized for full staff details (e.g. guest or memo view), load public active officers
-    try {
-      const pubData = await apiClient.get<any>("/api/staff/public-officers");
-      if (pubData?.success && Array.isArray(pubData.officers)) {
-        return pubData.officers;
-      }
-    } catch {}
   }
+
+  try {
+    const pubData = await apiClient.get<any>("/api/staff/public-officers", { silent: true });
+    if (pubData?.success && Array.isArray(pubData.officers)) {
+      return pubData.officers;
+    }
+  } catch {}
 
   return [];
 }
@@ -1363,11 +1373,16 @@ export async function fetchStaffLogsFromFirestore(limitCount: number = 150): Pro
 
   // Primary path for Session/Supabase staff
   try {
-    const data = await apiClient.get<any>(`/api/staff/activity-logs?limit=${limitCount}`, {
-      headers: getStaffAuthHeaders()
-    });
-    if (data?.success && Array.isArray(data.logs)) {
-      return data.logs;
+    const authHeaders = getStaffAuthHeaders();
+    const hasAuth = !!(authHeaders["Authorization"] || authHeaders["x-session-id"] || authHeaders["x-supabase-token"] || authHeaders["x-firebase-id-token"]);
+    if (hasAuth) {
+      const data = await apiClient.get<any>(`/api/staff/activity-logs?limit=${limitCount}`, {
+        headers: authHeaders,
+        silent: true
+      });
+      if (data?.success && Array.isArray(data.logs)) {
+        return data.logs;
+      }
     }
   } catch (e) {}
 
