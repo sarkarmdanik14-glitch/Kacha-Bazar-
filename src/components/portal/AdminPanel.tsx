@@ -102,15 +102,8 @@ export default function AdminPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isSidebarOpen]);
 
-  const cleanUserEmail = (user?.email || "").toLowerCase().trim();
-  const isSuperAdminEmail = 
-    cleanUserEmail === "admin@megabajar.com" ||
-    user?.id === "staff-super-admin-root" ||
-    user?.uid === "staff-super-admin-root";
-
   // Check authorization for all staff roles
   const isAuthorized = 
-    isSuperAdminEmail ||
     user?.role === "admin" || 
     user?.role === "super_admin" || 
     user?.role === "founder" || 

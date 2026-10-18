@@ -311,12 +311,6 @@ export default function AuthView({
     try {
       if (!uid) return false;
       const cleanEmail = (email || auth.currentUser?.email || "").toLowerCase().trim();
-      
-      // Designated root super admin
-      if (cleanEmail === "admin@megabajar.com") {
-        return true;
-      }
-
       // Check Supabase staff and users tables
       const isSbAdmin = await checkIsSupabaseAdmin(uid, cleanEmail);
       if (isSbAdmin) return true;
@@ -722,66 +716,7 @@ export default function AuthView({
     const cleanInputIdent = (email || "").trim().toLowerCase();
     const cleanPassword = (password || "").trim();
 
-    // 0. Universal Client-Side Root Super Admin Guard (100% Standalone - works on Vercel, Netlify, GitHub Pages, or offline)
-    if (cleanInputIdent === "admin@megabajar.com") {
-      setLoading(true);
-      if (cleanPassword === "Anik-42369" || password === "Anik-42369") {
-        const rootAdminUser = {
-          uid: "staff-super-admin-root",
-          id: "staff-super-admin-root",
-          staffId: "CFI-KB-001",
-          email: "admin@megabajar.com",
-          displayName: "Sarkar Md Anik (Super Admin)",
-          fullName: "Sarkar Md Anik (Super Admin)",
-          role: "admin",
-          isSuperAdmin: true,
-          permissions: {},
-          profileStatus: "approved",
-          phoneNumber: "+8801700000000",
-          phone: "+8801700000000",
-          address: "কাঁচা বাজার হেড অফিস",
-          membershipTier: "Platinum",
-          walletBalance: 99999,
-          rewardPoints: 9999,
-          status: "active"
-        };
 
-        const rootSessionId = "root_super_admin_session_" + Date.now();
-        try {
-          localStorage.setItem("kb_staff_session", rootSessionId);
-          sessionStorage.setItem("kb_staff_session", rootSessionId);
-          localStorage.setItem("kb_staff_email", "admin@megabajar.com");
-          sessionStorage.setItem("kb_staff_email", "admin@megabajar.com");
-          localStorage.setItem("kb_staff_id", "CFI-KB-001");
-          sessionStorage.setItem("kb_staff_id", "CFI-KB-001");
-          localStorage.setItem("kb_current_user", JSON.stringify(rootAdminUser));
-          sessionStorage.setItem("kb_current_user", JSON.stringify(rootAdminUser));
-          localStorage.setItem("user_role", "admin");
-          sessionStorage.setItem("user_role", "admin");
-          localStorage.setItem("kacha_user_session", rootSessionId);
-          sessionStorage.setItem("kacha_user_session", rootSessionId);
-          localStorage.setItem("kb_admin_session", rootSessionId);
-          sessionStorage.setItem("kb_admin_session", rootSessionId);
-        } catch (e) {}
-
-        // Non-blocking fire-and-forget sync with backend (never blocks)
-        apiClient.post("/api/auth/login-verify", {
-          identifier: "admin@megabajar.com",
-          password: "Anik-42369"
-        }, { silent: true }).catch(() => {});
-
-        onAuthSuccess(rootAdminUser, "admin");
-        setLoading(false);
-        return;
-      } else {
-        setError(getTranslation(
-          "ভুল পাসওয়ার্ড! সুপার এডমিনের জন্য সঠিক পাসওয়ার্ড দিন।",
-          "Incorrect password! Please enter the correct password for Super Admin."
-        ));
-        setLoading(false);
-        return;
-      }
-    }
     
     if (isLogin && authMethod === "phone") {
       await handleVerifyOTP();
@@ -895,20 +830,8 @@ export default function AuthView({
         const userUid = authenticatedUser?.uid || authenticatedUser?.id || "";
         const userEmail = authenticatedUser?.email || email || "";
 
-        // Designated Super Admin check
-        const cleanUserEmail = (userEmail || email || "").toLowerCase().trim();
-        const isSuperAdminUser = cleanUserEmail === "admin@megabajar.com";
-
-        if (isSuperAdminUser) {
-          authenticatedRole = "admin";
-          if (authenticatedUser) {
-            authenticatedUser.role = "admin";
-            authenticatedUser.isSuperAdmin = true;
-          }
-        }
-
-        if (role === "admin" || isSuperAdminUser) {
-          const isAdminUser = isSuperAdminUser || await checkIsAdmin(userUid, userEmail);
+        if (role === "admin") {
+          const isAdminUser = await checkIsAdmin(userUid, userEmail);
           if (!isAdminUser) {
             await supabaseSignOut();
             await signOut(auth).catch(() => {});
@@ -1763,12 +1686,6 @@ export default function AuthView({
                   className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
                 />
               </div>
-              {email.trim().toLowerCase() === "admin@megabajar.com" && (
-                <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200/80 rounded-xl flex items-center space-x-2 text-[11px] font-bold text-amber-900 shadow-xs animate-in fade-in">
-                  <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>👑 {getTranslation("সুপার এডমিন রুট মোড সনাক্ত হয়েছে (সরাসরি ক্লায়েন্ট গার্ড সক্রিয়)", "Super Admin Root Mode Detected (Direct Client Guard Active)")}</span>
-                </div>
-              )}
             </div>
 
             <div>
