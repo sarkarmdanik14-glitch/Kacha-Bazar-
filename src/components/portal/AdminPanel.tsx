@@ -36,6 +36,8 @@ import {
   subscribeToSupabaseBanners, 
   updateOrderStatusInSupabase 
 } from "../../lib/supabaseLiveService";
+import { supabase } from "../../lib/supabase";
+import { subscribeToStaffCollection } from "../../lib/staffManager";
 import { apiClient } from "../../lib/apiClient";
 
 // Import modular sub-panels
@@ -228,7 +230,7 @@ export default function AdminPanel({
       console.warn("Supabase orders listener notice:", e);
     }
 
-    // Fallback/parallel listener to Firestore orders
+    // Fallback/parallel listener to Firestore orders (only adds orders missing from Supabase)
     const unsubOrders = onSnapshot(
       collection(db, "orders"), 
       (snapshot) => {
@@ -238,9 +240,12 @@ export default function AdminPanel({
         });
         if (ords.length > 0) {
           setOrders(prev => {
-            const merged = [...ords];
-            for (const po of prev) {
-              if (!merged.some(m => m.id === po.id)) merged.push(po);
+            if (prev.length === 0) return ords;
+            const merged = [...prev];
+            for (const fo of ords) {
+              if (!merged.some(m => m.id === fo.id)) {
+                merged.push(fo);
+              }
             }
             return merged;
           });
@@ -333,18 +338,61 @@ export default function AdminPanel({
       );
     }
 
-    // Listen to users
-    const unsubUsers = onSnapshot(
-      collection(db, "users"), 
-      (snapshot) => {
-        const usrs: any[] = [];
-        snapshot.forEach((doc) => {
-          usrs.push({ id: doc.id, ...doc.data() });
-        });
-        setUsers(usrs);
-      },
-      (err) => console.warn("Admin users sync notice:", err.message)
-    );
+    // Listen to users from Supabase and Staff collection
+    let unsubStaff = () => {};
+    try {
+      unsubStaff = subscribeToStaffCollection((staffList) => {
+        if (Array.isArray(staffList) && staffList.length > 0) {
+          setUsers((prev) => {
+            const merged = [...prev];
+            for (const st of staffList) {
+              const idx = merged.findIndex((u) => u.id === st.id || u.email === st.email);
+              const userObj = {
+                id: st.id,
+                name: (st as any).fullName || (st as any).name || st.email,
+                email: st.email,
+                role: st.role || "staff",
+                phone: (st as any).mobile || (st as any).phone || "",
+                profileStatus: "approved",
+              };
+              if (idx >= 0) {
+                merged[idx] = { ...merged[idx], ...userObj };
+              } else {
+                merged.push(userObj);
+              }
+            }
+            return merged;
+          });
+        }
+      });
+    } catch (e) {
+      // ignore
+    }
+
+    // Initial Supabase users query
+    const fetchSupabaseUsers = async () => {
+      try {
+        const { data, error } = await supabase.from("users").select("*").limit(500);
+        if (!error && Array.isArray(data) && data.length > 0) {
+          setUsers((prev) => {
+            const merged = [...prev];
+            for (const u of data) {
+              if (!merged.some((m) => m.id === u.id)) {
+                merged.push(u);
+              }
+            }
+            return merged;
+          });
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+    fetchSupabaseUsers();
+
+    const unsubUsers = () => {
+      unsubStaff();
+    };
 
     // Listen to coupons
     const unsubCoupons = onSnapshot(

@@ -9,6 +9,7 @@ import {
   serverTimestamp 
 } from "./firebase";
 import { apiClient } from "./apiClient";
+import { isPureSupabase } from "./dataEngine";
 
 export interface VisitorAnalyticsData {
   todayViews: number;
@@ -209,42 +210,44 @@ class VisitorTracker {
       // sessionStorage fallback
     }
 
-    // 1. Synchronize to Firestore
-    try {
-      const dailyRef = doc(db, "analytics_daily", today);
-      const updates: any = {
-        date: today,
-        lastUpdated: serverTimestamp(),
-      };
-      if (isNewView) {
-        updates.views = increment(1);
-      }
-      if (isNewUnique) {
-        updates.uniqueVisitors = increment(1);
-      }
+    // 1. Synchronize to Firestore (Bypassed if Pure Supabase mode is active)
+    if (!isPureSupabase()) {
+      try {
+        const dailyRef = doc(db, "analytics_daily", today);
+        const updates: any = {
+          date: today,
+          lastUpdated: serverTimestamp(),
+        };
+        if (isNewView) {
+          updates.views = increment(1);
+        }
+        if (isNewUnique) {
+          updates.uniqueVisitors = increment(1);
+        }
 
-      if (isNewView || isNewUnique) {
-        setDoc(dailyRef, updates, { merge: true }).catch((err) => {
-          console.warn("Firestore daily analytics sync notice:", err?.message || err);
+        if (isNewView || isNewUnique) {
+          setDoc(dailyRef, updates, { merge: true }).catch((err) => {
+            console.warn("Firestore daily analytics sync notice:", err?.message || err);
+          });
+        }
+
+        // Update visitor session
+        const sessionRef = doc(db, "visitor_sessions", this.visitorId);
+        setDoc(sessionRef, {
+          visitorId: this.visitorId,
+          lastActive: Date.now(),
+          startedAt: Date.now(),
+          isOnline: true,
+          date: today,
+        }, { merge: true }).catch((err) => {
+          console.warn("Firestore visitor session sync notice:", err?.message || err);
         });
+      } catch (e) {
+        console.warn("Could not write visit to Firestore:", e);
       }
-
-      // Update visitor session
-      const sessionRef = doc(db, "visitor_sessions", this.visitorId);
-      setDoc(sessionRef, {
-        visitorId: this.visitorId,
-        lastActive: Date.now(),
-        startedAt: Date.now(),
-        isOnline: true,
-        date: today,
-      }, { merge: true }).catch((err) => {
-        console.warn("Firestore visitor session sync notice:", err?.message || err);
-      });
-    } catch (e) {
-      console.warn("Could not write visit to Firestore:", e);
     }
 
-    // 2. Synchronize to Backend Server API for persistence & redundancy
+    // 2. Synchronize to Backend Server API for persistence & redundancy (Primary authoritative)
     try {
       apiClient.post("/api/analytics/heartbeat", {
         visitorId: this.visitorId,
@@ -271,17 +274,19 @@ class VisitorTracker {
       return;
     }
 
-    // Update Firestore session timestamp
-    try {
-      const sessionRef = doc(db, "visitor_sessions", this.visitorId);
-      setDoc(sessionRef, {
-        visitorId: this.visitorId,
-        lastActive: now,
-        isOnline: true,
-        date: today,
-      }, { merge: true }).catch(() => {});
-    } catch (e) {
-      // ignore
+    // Update Firestore session timestamp if dual/firebase mode
+    if (!isPureSupabase()) {
+      try {
+        const sessionRef = doc(db, "visitor_sessions", this.visitorId);
+        setDoc(sessionRef, {
+          visitorId: this.visitorId,
+          lastActive: now,
+          isOnline: true,
+          date: today,
+        }, { merge: true }).catch(() => {});
+      } catch (e) {
+        // ignore
+      }
     }
 
     // Update Backend Server API
@@ -301,15 +306,17 @@ class VisitorTracker {
   }
 
   private notifyLeave() {
-    // 1. Direct Firestore session update
-    try {
-      const sessionRef = doc(db, "visitor_sessions", this.visitorId);
-      setDoc(sessionRef, {
-        isOnline: false,
-        lastActive: Date.now() - LIVE_ACTIVITY_THRESHOLD_MS - 1000,
-      }, { merge: true }).catch(() => {});
-    } catch (e) {
-      // ignore
+    // 1. Direct Firestore session update if dual/firebase mode
+    if (!isPureSupabase()) {
+      try {
+        const sessionRef = doc(db, "visitor_sessions", this.visitorId);
+        setDoc(sessionRef, {
+          isOnline: false,
+          lastActive: Date.now() - LIVE_ACTIVITY_THRESHOLD_MS - 1000,
+        }, { merge: true }).catch(() => {});
+      } catch (e) {
+        // ignore
+      }
     }
 
     // 2. Beacon to server
@@ -346,7 +353,16 @@ export function subscribeToVisitorAnalytics(
   let unsubscribeDaily: (() => void) | null = null;
   let unsubscribeSessions: (() => void) | null = null;
   let localFilterTimer: any = null;
-  let fallbackPollingTimer: any = null;
+  let serverPollingTimer: any = null;
+
+  // Track last emitted values to eliminate duplicate re-renders
+  let lastEmitted = {
+    todayViews: -1,
+    liveNow: -1,
+    todayUniqueVisitors: -1,
+    date: "",
+    loading: true,
+  };
 
   const emit = () => {
     if (!isMounted) return;
@@ -358,6 +374,24 @@ export function subscribeToVisitorAnalytics(
       }
     }
 
+    if (
+      lastEmitted.todayViews === latestViews &&
+      lastEmitted.liveNow === liveCount &&
+      lastEmitted.todayUniqueVisitors === latestUnique &&
+      lastEmitted.date === todayDate &&
+      lastEmitted.loading === false
+    ) {
+      return; // Identical, prevent unnecessary React render
+    }
+
+    lastEmitted = {
+      todayViews: latestViews,
+      liveNow: Math.max(0, liveCount),
+      todayUniqueVisitors: latestUnique,
+      date: todayDate,
+      loading: false,
+    };
+
     onUpdate({
       todayViews: latestViews,
       liveNow: Math.max(0, liveCount),
@@ -368,7 +402,7 @@ export function subscribeToVisitorAnalytics(
     });
   };
 
-  // Initial loading state
+  // Initial state
   onUpdate({
     todayViews: 0,
     liveNow: 0,
@@ -379,9 +413,9 @@ export function subscribeToVisitorAnalytics(
   });
 
   const setupFirestoreListeners = () => {
+    if (isPureSupabase()) return;
     todayDate = getDhakaDateString();
 
-    // 1. Listen to Today's Daily Stats document
     try {
       const dailyRef = doc(db, "analytics_daily", todayDate);
       unsubscribeDaily = onSnapshot(
@@ -399,14 +433,13 @@ export function subscribeToVisitorAnalytics(
         },
         (err) => {
           console.warn("Firestore analytics_daily notice:", err?.message || err);
-          fetchServerStatsFallback();
+          fetchServerStats();
         }
       );
     } catch (err) {
-      fetchServerStatsFallback();
+      fetchServerStats();
     }
 
-    // 2. Listen to Visitor Sessions collection
     try {
       const sessionsColl = collection(db, "visitor_sessions");
       unsubscribeSessions = onSnapshot(
@@ -425,47 +458,70 @@ export function subscribeToVisitorAnalytics(
         },
         (err) => {
           console.warn("Firestore visitor_sessions notice:", err?.message || err);
-          fetchServerStatsFallback();
+          fetchServerStats();
         }
       );
     } catch (err) {
-      fetchServerStatsFallback();
+      fetchServerStats();
     }
   };
 
-  // Fallback / Synchronization with Backend Server API
-  const fetchServerStatsFallback = async () => {
+  // Authoritative server-side sync
+  const fetchServerStats = async () => {
     try {
-      const json = await apiClient.get("/api/analytics/stats", { skipAuth: true });
-      if (json && json.date === todayDate) {
+      const json = await apiClient.get<any>("/api/analytics/stats", { skipAuth: true, silent: true });
+      if (!isMounted) return;
+      if (json && typeof json === "object") {
+        if (json.date) {
+          todayDate = json.date;
+        }
         latestViews = Math.max(latestViews, Number(json.todayViews) || 0);
         latestUnique = Math.max(latestUnique, Number(json.todayUniqueVisitors) || 0);
-        if (typeof json.liveNow === "number" && Object.keys(currentSessions).length === 0) {
-          onUpdate({
-            todayViews: latestViews,
-            liveNow: Number(json.liveNow) || 0,
-            todayUniqueVisitors: latestUnique,
-            date: todayDate,
-            loading: false,
-            error: null,
-          });
+        const live = Math.max(0, Number(json.liveNow) || 0);
+
+        if (
+          lastEmitted.todayViews === latestViews &&
+          lastEmitted.liveNow === live &&
+          lastEmitted.todayUniqueVisitors === latestUnique &&
+          lastEmitted.date === todayDate &&
+          lastEmitted.loading === false
+        ) {
           return;
         }
+
+        lastEmitted = {
+          todayViews: latestViews,
+          liveNow: live,
+          todayUniqueVisitors: latestUnique,
+          date: todayDate,
+          loading: false,
+        };
+
+        onUpdate({
+          todayViews: latestViews,
+          liveNow: live,
+          todayUniqueVisitors: latestUnique,
+          date: todayDate,
+          loading: false,
+          error: null,
+        });
+        return;
       }
       emit();
     } catch (e) {
-      // ignore
+      if (isMounted) {
+        emit();
+      }
     }
   };
 
   setupFirestoreListeners();
-  fetchServerStatsFallback();
+  fetchServerStats();
 
-  // Local tick timer every 4 seconds to drop expired live sessions automatically
+  // Local tick timer to drop expired live sessions automatically
   localFilterTimer = setInterval(() => {
     const currentDay = getDhakaDateString();
     if (currentDay !== todayDate) {
-      // Midnight rollover! Reset and reconnect listeners
       todayDate = currentDay;
       latestViews = 0;
       latestUnique = 0;
@@ -474,16 +530,36 @@ export function subscribeToVisitorAnalytics(
       setupFirestoreListeners();
     }
     emit();
-  }, 4000);
+  }, 5000);
 
-  // Background server sync every 15 seconds
-  fallbackPollingTimer = setInterval(fetchServerStatsFallback, 15000);
+  // Background server sync every 8 seconds for responsive real-time accuracy
+  serverPollingTimer = setInterval(fetchServerStats, 8000);
 
   return () => {
     isMounted = false;
     if (unsubscribeDaily) unsubscribeDaily();
     if (unsubscribeSessions) unsubscribeSessions();
     if (localFilterTimer) clearInterval(localFilterTimer);
-    if (fallbackPollingTimer) clearInterval(fallbackPollingTimer);
+    if (serverPollingTimer) clearInterval(serverPollingTimer);
   };
+}
+
+// Force a manual instant sync from the server
+export async function forceRefreshVisitorStats(): Promise<VisitorAnalyticsData | null> {
+  try {
+    const json = await apiClient.get<any>("/api/analytics/stats", { skipAuth: true, silent: true });
+    if (json && typeof json === "object") {
+      return {
+        todayViews: Number(json.todayViews) || 0,
+        liveNow: Math.max(0, Number(json.liveNow) || 0),
+        todayUniqueVisitors: Number(json.todayUniqueVisitors) || 0,
+        date: json.date || getDhakaDateString(),
+        loading: false,
+        error: null,
+      };
+    }
+  } catch (e) {
+    // ignore
+  }
+  return null;
 }

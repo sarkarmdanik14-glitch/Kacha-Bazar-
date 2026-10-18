@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { 
   TrendingUp, ShoppingBag, User, Store, Bike, DollarSign, 
   CheckCircle, Clock, X, ChevronRight, Award, FileText,
-  Activity, Users, RefreshCw, AlertCircle
+  Activity, Users, RefreshCw, AlertCircle, ShieldCheck
 } from "lucide-react";
-import { subscribeToVisitorAnalytics, VisitorAnalyticsData } from "../../lib/visitorTracker";
+import { subscribeToVisitorAnalytics, forceRefreshVisitorStats, VisitorAnalyticsData } from "../../lib/visitorTracker";
 import { normalizeCategoryId } from "../../lib/categoryUtils";
 import { createTranslator } from "../../lib/formatUtils";
 
@@ -15,8 +15,18 @@ interface AdminDashboardReportProps {
   lang: "bn" | "en";
 }
 
+// Helpers for robust cross-database field normalization (Supabase & Firestore)
+const getNormalizedStatus = (o: any): string => {
+  return String(o?.orderStatus || o?.order_status || o?.status || "").toLowerCase().trim();
+};
+
+const getOrderAmount = (o: any): number => {
+  return Number(o?.totalAmount || o?.total || o?.subtotal || 0) || 0;
+};
+
 export default function AdminDashboardReport({ orders, products, users, lang }: AdminDashboardReportProps) {
   const getTranslation = createTranslator(lang);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // Real-time Visitor Analytics State
   const [visitorData, setVisitorData] = useState<VisitorAnalyticsData>({
@@ -28,6 +38,20 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
     error: null,
   });
 
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const refreshed = await forceRefreshVisitorStats();
+      if (refreshed) {
+        setVisitorData(refreshed);
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 400);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = subscribeToVisitorAnalytics((data) => {
       setVisitorData(data);
@@ -37,45 +61,103 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
     };
   }, []);
 
-  // Core stats calculation
-  const totalOrders = orders.length;
-  
-  // Delivered sales
-  const deliveredOrders = orders.filter(o => o.orderStatus === "delivered");
-  const totalSales = deliveredOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-  const totalCommission = totalSales * 0.1; // 10% system fee
-  
-  // Role groups
-  const customers = users.filter(u => u.role === "customer" || !u.role);
-  const sellers = users.filter(u => u.role === "seller");
-  const riders = users.filter(u => u.role === "rider");
+  // Performance-optimized metrics calculation using useMemo
+  const metrics = useMemo(() => {
+    const totalOrders = orders.length;
+    
+    // Delivered sales (handles case-insensitive 'delivered', 'completed')
+    const deliveredOrders = orders.filter(o => {
+      const s = getNormalizedStatus(o);
+      return s === "delivered" || s === "completed";
+    });
 
-  // Order status counts
-  const pendingOrdersCount = orders.filter(o => o.orderStatus === "pending").length;
-  const confirmedOrdersCount = orders.filter(o => o.orderStatus === "confirmed").length;
-  const pickedUpOrdersCount = orders.filter(o => o.orderStatus === "picked up").length;
-  const deliveredOrdersCount = deliveredOrders.length;
-  const cancelledOrdersCount = orders.filter(o => o.orderStatus === "cancelled" || o.orderStatus === "refunded").length;
+    const totalSales = deliveredOrders.reduce((sum, o) => sum + getOrderAmount(o), 0);
+    const totalCommission = Math.round(totalSales * 0.1); // 10% system fee
+    
+    // Order status counts
+    const pendingOrdersCount = orders.filter(o => {
+      const s = getNormalizedStatus(o);
+      return !s || s === "pending";
+    }).length;
 
-  // Category distribution
-  const categorySalesMap: { [key: string]: number } = {};
-  deliveredOrders.forEach(o => {
-    if (Array.isArray(o.items)) {
-      o.items.forEach((item: any) => {
-        const rawCat = item.product?.category || "Other";
-        const cat = normalizeCategoryId(rawCat);
-        const price = item.selectedOption ? item.selectedOption.price : (item.product?.price || 0);
-        const cost = (Number(price) || 0) * (Number(item.quantity) || 1);
-        categorySalesMap[cat] = (categorySalesMap[cat] || 0) + cost;
-      });
-    }
-  });
+    const confirmedOrdersCount = orders.filter(o => {
+      const s = getNormalizedStatus(o);
+      return s === "confirmed";
+    }).length;
 
-  const categorySales = Object.entries(categorySalesMap)
-    .map(([category, amount]) => ({ category, amount }))
-    .sort((a, b) => b.amount - a.amount);
+    const pickedUpOrdersCount = orders.filter(o => {
+      const s = getNormalizedStatus(o);
+      return s === "picked up" || s === "picked_up" || s === "processing";
+    }).length;
 
-  const maxCategorySales = categorySales.length > 0 ? categorySales[0].amount : 1;
+    const deliveredOrdersCount = deliveredOrders.length;
+
+    const cancelledOrdersCount = orders.filter(o => {
+      const s = getNormalizedStatus(o);
+      return s === "cancelled" || s === "canceled" || s === "refunded";
+    }).length;
+
+    // Category distribution (handles Supabase items, cart items, manual memo items)
+    const categorySalesMap: { [key: string]: number } = {};
+    deliveredOrders.forEach(o => {
+      if (Array.isArray(o.items)) {
+        o.items.forEach((item: any) => {
+          const rawCat = item.product?.category || item.category || item.categoryId || "groceries";
+          const cat = normalizeCategoryId(rawCat);
+          const price = item.selectedOption 
+            ? item.selectedOption.price 
+            : (item.product?.price || item.price || item.unitPrice || 0);
+          const qty = Math.max(1, Number(item.quantity) || 1);
+          const cost = (Number(price) || 0) * qty;
+          categorySalesMap[cat] = (categorySalesMap[cat] || 0) + cost;
+        });
+      }
+    });
+
+    const categorySales = Object.entries(categorySalesMap)
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const maxCategorySales = categorySales.length > 0 && categorySales[0].amount > 0 ? categorySales[0].amount : 1;
+
+    // Role groups with case-insensitive normalization & partner support
+    const customers = users.filter(u => {
+      const r = String(u?.role || "").toLowerCase().trim();
+      return !r || r === "customer";
+    });
+
+    const sellers = users.filter(u => {
+      const r = String(u?.role || "").toLowerCase().trim();
+      return r === "seller" || r === "vendor" || r === "partner" || r === "shop_owner";
+    });
+
+    const riders = users.filter(u => {
+      const r = String(u?.role || "").toLowerCase().trim();
+      return r === "rider" || r === "delivery";
+    });
+
+    const staff = users.filter(u => {
+      const r = String(u?.role || "").toLowerCase().trim();
+      return r && r !== "customer" && r !== "seller" && r !== "vendor" && r !== "partner" && r !== "shop_owner" && r !== "rider" && r !== "delivery";
+    });
+
+    return {
+      totalOrders,
+      totalSales,
+      totalCommission,
+      pendingOrdersCount,
+      confirmedOrdersCount,
+      pickedUpOrdersCount,
+      deliveredOrdersCount,
+      cancelledOrdersCount,
+      categorySales,
+      maxCategorySales,
+      customersCount: customers.length,
+      sellersCount: sellers.length,
+      ridersCount: riders.length,
+      staffCount: staff.length,
+    };
+  }, [orders, users]);
 
   return (
     <div className="space-y-6 text-slate-700">
@@ -107,6 +189,15 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
               {getTranslation("রিয়েল-টাইম", "Real-Time")}
             </span>
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-1 text-[10px] font-bold text-slate-600 hover:text-emerald-700 bg-slate-100 hover:bg-emerald-50 px-2 py-0.5 rounded-full transition border border-slate-200"
+              title={getTranslation("এখনই রিফ্রেশ করুন", "Refresh stats now")}
+            >
+              <RefreshCw className={`w-3 h-3 ${isRefreshing ? "animate-spin text-emerald-600" : ""}`} />
+              <span>{isRefreshing ? getTranslation("আপডেট হচ্ছে...", "Syncing...") : getTranslation("রিফ্রেশ", "Refresh")}</span>
+            </button>
           </div>
           <span className="text-[10px] text-slate-400 font-medium">
             {getTranslation("বাংলাদেশ সময় (Asia/Dhaka) • রাত ১২:০০ টায় রিসেট", "Bangladesh Time (Asia/Dhaka) • Resets at 12:00 AM")}
@@ -221,7 +312,7 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
             </div>
           </div>
           <div className="mt-4">
-            <h3 className="text-lg sm:text-2xl font-black text-slate-800">৳{totalSales.toLocaleString()}</h3>
+            <h3 className="text-lg sm:text-2xl font-black text-slate-800">৳{metrics.totalSales.toLocaleString()}</h3>
             <span className="text-[10px] text-slate-400 block mt-1">{getTranslation("ডেলিভারি সম্পন্ন হওয়া অর্ডার", "Completed deliveries")}</span>
           </div>
         </div>
@@ -235,7 +326,7 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
             </div>
           </div>
           <div className="mt-4">
-            <h3 className="text-lg sm:text-2xl font-black text-slate-800">{totalOrders}</h3>
+            <h3 className="text-lg sm:text-2xl font-black text-slate-800">{metrics.totalOrders}</h3>
             <span className="text-[10px] text-slate-400 block mt-1">{getTranslation("সিস্টেমের মোট অর্ডার", "Total system requests")}</span>
           </div>
         </div>
@@ -249,7 +340,7 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
             </div>
           </div>
           <div className="mt-4">
-            <h3 className="text-lg sm:text-2xl font-black text-slate-800">৳{totalCommission.toLocaleString()}</h3>
+            <h3 className="text-lg sm:text-2xl font-black text-slate-800">৳{metrics.totalCommission.toLocaleString()}</h3>
             <span className="text-[10px] text-slate-400 block mt-1">{getTranslation("কাচা বাজার নিট আয়", "Kacha Bazar net earnings")}</span>
           </div>
         </div>
@@ -271,23 +362,29 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
 
       {/* Secondary Roster Statistics Card */}
       <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-        <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4">
-          {getTranslation("সিস্টেম ব্যবহারকারী ও অংশীদার প্রতিবেদন", "System User & Partner Report")}
+        <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4 flex items-center justify-between">
+          <span>{getTranslation("সিস্টেম ব্যবহারকারী ও অংশীদার প্রতিবেদন", "System User & Partner Report")}</span>
+          {metrics.staffCount > 0 && (
+            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-emerald-600" />
+              <span>{getTranslation(`${metrics.staffCount} জন স্টাফ/এডমিন`, `${metrics.staffCount} Staff/Admin`)}</span>
+            </span>
+          )}
         </h3>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
             <User className="w-5 h-5 text-indigo-500 mx-auto mb-1" />
-            <div className="text-xl font-extrabold text-slate-800">{customers.length}</div>
+            <div className="text-xl font-extrabold text-slate-800">{metrics.customersCount}</div>
             <div className="text-[10px] text-slate-400 font-bold uppercase mt-1">{getTranslation("গ্রাহক", "Customers")}</div>
           </div>
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
             <Store className="w-5 h-5 text-amber-500 mx-auto mb-1" />
-            <div className="text-xl font-extrabold text-slate-800">{sellers.length}</div>
-            <div className="text-[10px] text-slate-400 font-bold uppercase mt-1">{getTranslation("বিক্রেতা", "Sellers")}</div>
+            <div className="text-xl font-extrabold text-slate-800">{metrics.sellersCount}</div>
+            <div className="text-[10px] text-slate-400 font-bold uppercase mt-1">{getTranslation("বিক্রেতা ও পার্টনার", "Sellers & Partners")}</div>
           </div>
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
             <Bike className="w-5 h-5 text-emerald-500 mx-auto mb-1" />
-            <div className="text-xl font-extrabold text-slate-800">{riders.length}</div>
+            <div className="text-xl font-extrabold text-slate-800">{metrics.ridersCount}</div>
             <div className="text-[10px] text-slate-400 font-bold uppercase mt-1">{getTranslation("রাইডার", "Riders")}</div>
           </div>
         </div>
@@ -307,10 +404,10 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
               <div>
                 <div className="flex justify-between text-xs font-bold mb-1">
                   <span>{getTranslation("অপেক্ষমান অর্ডার (Pending)", "Pending Orders")}</span>
-                  <span>{pendingOrdersCount} ({totalOrders > 0 ? Math.round((pendingOrdersCount / totalOrders) * 100) : 0}%)</span>
+                  <span>{metrics.pendingOrdersCount} ({metrics.totalOrders > 0 ? Math.round((metrics.pendingOrdersCount / metrics.totalOrders) * 100) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-amber-500 h-full rounded-full animate-pulse" style={{ width: `${totalOrders > 0 ? (pendingOrdersCount / totalOrders) * 100 : 0}%` }}></div>
+                  <div className="bg-amber-500 h-full rounded-full animate-pulse" style={{ width: `${metrics.totalOrders > 0 ? (metrics.pendingOrdersCount / metrics.totalOrders) * 100 : 0}%` }}></div>
                 </div>
               </div>
 
@@ -318,21 +415,21 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
               <div>
                 <div className="flex justify-between text-xs font-bold mb-1">
                   <span>{getTranslation("নিশ্চিতকৃত অর্ডার (Confirmed)", "Confirmed Orders")}</span>
-                  <span>{confirmedOrdersCount} ({totalOrders > 0 ? Math.round((confirmedOrdersCount / totalOrders) * 100) : 0}%)</span>
+                  <span>{metrics.confirmedOrdersCount} ({metrics.totalOrders > 0 ? Math.round((metrics.confirmedOrdersCount / metrics.totalOrders) * 100) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-blue-500 h-full rounded-full" style={{ width: `${totalOrders > 0 ? (confirmedOrdersCount / totalOrders) * 100 : 0}%` }}></div>
+                  <div className="bg-blue-500 h-full rounded-full" style={{ width: `${metrics.totalOrders > 0 ? (metrics.confirmedOrdersCount / metrics.totalOrders) * 100 : 0}%` }}></div>
                 </div>
               </div>
 
               {/* Picked up */}
               <div>
                 <div className="flex justify-between text-xs font-bold mb-1">
-                  <span>{getTranslation("ডেলিভারির জন্য চলন্ত (Picked Up)", "Picked Up Orders")}</span>
-                  <span>{pickedUpOrdersCount} ({totalOrders > 0 ? Math.round((pickedUpOrdersCount / totalOrders) * 100) : 0}%)</span>
+                  <span>{getTranslation("ডেলিভারির জন্য চলন্ত (Picked Up / Processing)", "Picked Up / Processing Orders")}</span>
+                  <span>{metrics.pickedUpOrdersCount} ({metrics.totalOrders > 0 ? Math.round((metrics.pickedUpOrdersCount / metrics.totalOrders) * 100) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${totalOrders > 0 ? (pickedUpOrdersCount / totalOrders) * 100 : 0}%` }}></div>
+                  <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${metrics.totalOrders > 0 ? (metrics.pickedUpOrdersCount / metrics.totalOrders) * 100 : 0}%` }}></div>
                 </div>
               </div>
 
@@ -340,10 +437,10 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
               <div>
                 <div className="flex justify-between text-xs font-bold mb-1">
                   <span>{getTranslation("ডেলিভারি সম্পন্ন (Delivered)", "Delivered Orders")}</span>
-                  <span>{deliveredOrdersCount} ({totalOrders > 0 ? Math.round((deliveredOrdersCount / totalOrders) * 100) : 0}%)</span>
+                  <span>{metrics.deliveredOrdersCount} ({metrics.totalOrders > 0 ? Math.round((metrics.deliveredOrdersCount / metrics.totalOrders) * 100) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${totalOrders > 0 ? (deliveredOrdersCount / totalOrders) * 100 : 0}%` }}></div>
+                  <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${metrics.totalOrders > 0 ? (metrics.deliveredOrdersCount / metrics.totalOrders) * 100 : 0}%` }}></div>
                 </div>
               </div>
 
@@ -351,10 +448,10 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
               <div>
                 <div className="flex justify-between text-xs font-bold mb-1">
                   <span>{getTranslation("বাতিল/ফেরতকৃত (Cancelled/Refunded)", "Cancelled / Refunded")}</span>
-                  <span>{cancelledOrdersCount} ({totalOrders > 0 ? Math.round((cancelledOrdersCount / totalOrders) * 100) : 0}%)</span>
+                  <span>{metrics.cancelledOrdersCount} ({metrics.totalOrders > 0 ? Math.round((metrics.cancelledOrdersCount / metrics.totalOrders) * 100) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-red-500 h-full rounded-full" style={{ width: `${totalOrders > 0 ? (cancelledOrdersCount / totalOrders) * 100 : 0}%` }}></div>
+                  <div className="bg-red-500 h-full rounded-full" style={{ width: `${metrics.totalOrders > 0 ? (metrics.cancelledOrdersCount / metrics.totalOrders) * 100 : 0}%` }}></div>
                 </div>
               </div>
             </div>
@@ -366,14 +463,14 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
           <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-4">
             {getTranslation("ক্যাটাগরি অনুযায়ী বিক্রয় বিশ্লেষণ (৳)", "Sales Distribution by Category (৳)")}
           </h3>
-          {categorySales.length === 0 ? (
+          {metrics.categorySales.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-350">
               <FileText className="w-10 h-10 mb-2 stroke-1" />
               <p className="text-xs font-bold">{getTranslation("কোন তথ্য পাওয়া যায়নি", "No sales distribution data available yet.")}</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {categorySales.slice(0, 5).map((item, index) => (
+              {metrics.categorySales.slice(0, 5).map((item) => (
                 <div key={item.category}>
                   <div className="flex justify-between text-xs font-bold mb-1">
                     <span className="capitalize">{item.category}</span>
@@ -382,7 +479,7 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
                   <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                     <div 
                       className="bg-emerald-500 h-full rounded-full" 
-                      style={{ width: `${(item.amount / maxCategorySales) * 100}%` }}
+                      style={{ width: `${Math.min(100, Math.max(0, (item.amount / metrics.maxCategorySales) * 100))}%` }}
                     ></div>
                   </div>
                 </div>

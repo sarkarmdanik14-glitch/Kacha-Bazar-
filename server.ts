@@ -658,6 +658,7 @@ interface ServerAnalyticsStore {
       views: number;
       uniqueVisitors: number;
       visitorIds: string[];
+      countedSessions?: string[];
     };
   };
   sessions: {
@@ -733,10 +734,10 @@ function saveAnalyticsStoreDebounced() {
   }, 1000);
 }
 
-// 1. Heartbeat & Visit Event
-app.post("/api/analytics/heartbeat", (req, res) => {
+// 1. Heartbeat & Visit Event (Protected with rateLimiter and session deduplication)
+app.post("/api/analytics/heartbeat", rateLimiter(300, 60000), (req, res) => {
   try {
-    const { visitorId, isNewView, isNewUnique, dhakaDate } = req.body || {};
+    const { visitorId, sessionId, isNewView, isNewUnique, dhakaDate } = req.body || {};
     if (!visitorId || typeof visitorId !== "string" || visitorId.length > 80) {
       return res.status(400).json({ error: "Valid visitorId is required" });
     }
@@ -761,9 +762,19 @@ app.post("/api/analytics/heartbeat", (req, res) => {
       isOnline: true,
     };
 
-    // Increment today's views
+    // Increment today's views with session deduplication
+    if (!store.daily[dateKey].countedSessions) {
+      store.daily[dateKey].countedSessions = [];
+    }
+    const sessionKey = (sessionId && typeof sessionId === "string") ? sessionId : `${visitorId}_${Math.floor(now / (1000 * 60 * 30))}`;
     if (isNewView) {
-      store.daily[dateKey].views = (store.daily[dateKey].views || 0) + 1;
+      if (!store.daily[dateKey].countedSessions.includes(sessionKey)) {
+        store.daily[dateKey].countedSessions.push(sessionKey);
+        store.daily[dateKey].views = (store.daily[dateKey].views || 0) + 1;
+        if (store.daily[dateKey].countedSessions.length > 10000) {
+          store.daily[dateKey].countedSessions.shift();
+        }
+      }
     }
 
     // Deduplicate and track unique visitors for today
@@ -828,7 +839,7 @@ app.post("/api/analytics/leave", (req, res) => {
   }
 });
 
-// 3. Analytics Stats Endpoint
+// 3. Analytics Stats Endpoint (Publicly accessible for real-time dashboard monitoring)
 app.get("/api/analytics/stats", (req, res) => {
   try {
     const dateKey = getDhakaDateStringServer();
