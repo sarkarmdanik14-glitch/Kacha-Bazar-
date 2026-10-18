@@ -24,9 +24,9 @@ import {
   updatePassword,
   sendPasswordResetEmail,
   RecaptchaVerifier,
-  signInWithPhoneNumber
+  signInWithPhoneNumber,
+  type ConfirmationResult
 } from "../../lib/firebase";
-import type { ConfirmationResult } from "firebase/auth";
 import { supabase } from "../../lib/supabase";
 import { 
   User, CreditCard, ShoppingBag, Gift, MapPin, 

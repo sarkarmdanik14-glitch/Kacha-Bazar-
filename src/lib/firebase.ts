@@ -6,6 +6,7 @@
  */
 
 export type FirebaseUser = any;
+export type ConfirmationResult = any;
 
 export const app: any = { name: "[DEFAULT]", options: {} };
 export const auth: any = {

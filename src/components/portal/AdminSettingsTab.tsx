@@ -8,24 +8,22 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import { APP_LOGO_URL } from "../../constants/branding";
-import { saveLiveNoticeToSupabase, subscribeToSupabaseLiveNotice, saveBannerToSupabase, deleteBannerFromSupabase } from "../../lib/supabaseLiveService";
+import { saveLiveNoticeToSupabase, subscribeToSupabaseLiveNotice } from "../../lib/supabaseLiveService";
 import { DeliveryZone, DEFAULT_DELIVERY_ZONES, DEFAULT_STORE_LOCATION } from "../../lib/delivery";
 import { LiveNoticeConfig, DEFAULT_LIVE_NOTICE } from "../../types";
 import { createTranslator } from "../../lib/formatUtils";
-import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 import { apiClient } from "../../lib/apiClient";
 
 interface AdminSettingsTabProps {
   settings: any;
-  banners: any[];
   lang: "bn" | "en";
   triggerToast: (bn: string, en: string) => void;
 }
 
-export default function AdminSettingsTab({ settings, banners, lang, triggerToast }: AdminSettingsTabProps) {
+export default function AdminSettingsTab({ settings, lang, triggerToast }: AdminSettingsTabProps) {
   const getTranslation = createTranslator(lang);
 
-  const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "notice" | "delivery" | "banners" | "pwa">("global");
+  const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "notice" | "delivery" | "pwa">("global");
   const [savingSettings, setSavingSettings] = useState<boolean>(false);
 
   // Live Notice / Announcement State
@@ -194,19 +192,6 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
     triggerToast("ডিফল্ট নোটিশ টেমপ্লেট লোড করা হয়েছে!", "Default notice template loaded!");
   };
 
-  // Banners state
-  const [showBannerForm, setShowBannerForm] = useState<boolean>(false);
-  const [editingBanner, setEditingBanner] = useState<any | null>(null);
-  const [banId, setBanId] = useState<string>("");
-  const [banTitleBn, setBanTitleBn] = useState<string>("");
-  const [banTitleEn, setBanTitleEn] = useState<string>("");
-  const [banTagBn, setBanTagBn] = useState<string>("");
-  const [banTagEn, setBanTagEn] = useState<string>("");
-  const [banGradient, setBanGradient] = useState<string>("from-emerald-600 to-teal-500");
-  const [banImage, setBanImage] = useState<string>("");
-  const [banActive, setBanActive] = useState<boolean>(true);
-  const [savingBanner, setSavingBanner] = useState<boolean>(false);
-
   // PWA Subtab states
   const [adminPwaUrl, setAdminPwaUrl] = useState<string>(
     typeof window !== "undefined" ? `${window.location.origin}/?pwa_install=true` : ""
@@ -235,59 +220,6 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
         setAdminQrGenerating(false);
       });
   }, [adminPwaUrl]);
-
-  // Banner Image Upload (Cloudflare R2 + fallback)
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [uploadingImage, setUploadingImage] = useState<boolean>(false);
-
-  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingImage(true);
-    try {
-      const uploadedUrl = await uploadImageWithFallback(file, { folder: "banners" });
-      if (uploadedUrl) {
-        setBanImage(uploadedUrl);
-        triggerToast("ব্যানার ইমেজ Cloudflare R2-তে আপলোড হয়েছে!", "Banner image uploaded successfully to Cloudflare R2!");
-      } else {
-        throw new Error("No secure image URL returned");
-      }
-    } catch (err: any) {
-      console.error("Banner upload failed:", err);
-      triggerToast("ছবি আপলোড ব্যর্থ হয়েছে!", "Image upload failed! " + (err?.message || ""));
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const handleToggleBannerActive = async (banner: any) => {
-    try {
-      const nextActive = !banner.isActive;
-      await saveBannerToSupabase({ ...banner, isActive: nextActive });
-      triggerToast(
-        nextActive ? "ব্যানার সক্রিয় করা হয়েছে!" : "ব্যানার নিষ্ক্রিয় করা হয়েছে!",
-        nextActive ? "Banner activated successfully!" : "Banner deactivated successfully!"
-      );
-    } catch (err) {
-      console.error("Error toggling banner active state:", err);
-      triggerToast("কার্যক্রম ব্যর্থ হয়েছে।", "Failed to toggle banner activity.");
-    }
-  };
-
-  const handleOpenEditBanner = (b: any) => {
-    setEditingBanner(b);
-    setBanId(b.id);
-    setBanTitleBn(b.titleBn || "");
-    setBanTitleEn(b.titleEn || "");
-    setBanTagBn(b.tagBn || "");
-    setBanTagEn(b.tagEn || "");
-    setBanGradient(b.bgGradient || "from-emerald-600 to-teal-500");
-    setBanImage(b.image || "");
-    setBanActive(b.isActive !== false);
-    setShowBannerForm(true);
-  };
-
 
   // Handle Custom Welcome Voice Audio Upload
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -566,50 +498,6 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
     }
   };
 
-  // Save banner
-  const handleSaveBanner = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!banId.trim() || !banTitleEn.trim()) {
-      triggerToast("প্রয়োজনীয় তথ্য দিন।", "Please fill required banner details.");
-      return;
-    }
-
-    setSavingBanner(true);
-    try {
-      const payload = {
-        id: banId.trim(),
-        titleBn: banTitleBn,
-        titleEn: banTitleEn,
-        tagBn: banTagBn,
-        tagEn: banTagEn,
-        bgGradient: banGradient,
-        image: banImage || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=200&q=80",
-        isActive: banActive
-      };
-
-      await saveBannerToSupabase(payload);
-      triggerToast("ব্যানার সংরক্ষিত হয়েছে!", "Banner configuration saved!");
-      setShowBannerForm(false);
-    } catch (err) {
-      console.error(err);
-      triggerToast("ব্যানার সংরক্ষণ করতে সমস্যা হয়েছে!", "Failed to save banner.");
-    } finally {
-      setSavingBanner(false);
-    }
-  };
-
-  // Delete banner
-  const handleDeleteBanner = async (id: string) => {
-    if (!confirm(getTranslation("ব্যানার ডিলিট করতে চান?", "Delete this promotional banner?"))) return;
-    try {
-      await deleteBannerFromSupabase(id);
-      triggerToast("ব্যানার ডিলিট করা হয়েছে!", "Banner successfully removed!");
-    } catch (err) {
-      console.error(err);
-      triggerToast("ব্যানার মুছতে সমস্যা হয়েছে!", "Failed to delete banner.");
-    }
-  };
-
   return (
     <div className="space-y-6 text-slate-700">
       
@@ -651,14 +539,6 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
           }`}
         >
           {getTranslation("এলাকাভিত্তিক ডেলিভারি", "Location Delivery Tariffs")}
-        </button>
-        <button 
-          onClick={() => setActiveSettingsSubTab("banners")}
-          className={`px-5 py-2.5 text-xs font-black cursor-pointer uppercase tracking-wider border-b-2 shrink-0 whitespace-nowrap ${
-            activeSettingsSubTab === "banners" ? "border-emerald-600 text-emerald-600" : "border-transparent text-slate-400 hover:text-slate-600"
-          }`}
-        >
-          {getTranslation("ব্যানার এডিটর", "Home Promo Banners")}
         </button>
         <button 
           onClick={() => setActiveSettingsSubTab("pwa")}
@@ -729,7 +609,7 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
               </span>
             </div>
 
-            {/* Simulated Banner Container */}
+            {/* Simulated Live Notice Box */}
             <div className={`p-4 rounded-2xl border transition-all ${
               noticeTheme === "rose" 
                 ? "bg-gradient-to-r from-rose-50 via-red-50 to-amber-50 border-rose-200 text-rose-950" 
@@ -1542,179 +1422,6 @@ export default function AdminSettingsTab({ settings, banners, lang, triggerToast
             </div>
           </div>
 
-        </div>
-      )}
-
-      {activeSettingsSubTab === "banners" && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <button 
-              onClick={() => {
-                setEditingBanner(null);
-                setBanId("banner_" + Date.now().toString(36));
-                setBanTitleBn("");
-                setBanTitleEn("");
-                setBanTagBn("");
-                setBanTagEn("");
-                setBanGradient("from-emerald-600 to-teal-500");
-                setBanImage("");
-                setShowBannerForm(true);
-              }}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-4 py-2 text-xs font-black flex items-center gap-2 cursor-pointer transition uppercase"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{getTranslation("নতুন ব্যানার", "Add Promo Banner")}</span>
-            </button>
-          </div>
-
-          {showBannerForm && (
-            <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl animate-fade-in">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">
-                {getTranslation("ব্যানার কন্টেন্ট এডিটর", "Banner Asset Editor")}
-              </h3>
-              <form onSubmit={handleSaveBanner} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Banner Unique Key *</label>
-                  <input type="text" required placeholder="e.g. referral_offer" value={banId} onChange={(e) => setBanId(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Tailwind Gradient Classes</label>
-                  <input type="text" value={banGradient} onChange={(e) => setBanGradient(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Title (English) *</label>
-                  <input type="text" required value={banTitleEn} onChange={(e) => setBanTitleEn(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Title (Bangla) *</label>
-                  <input type="text" required value={banTitleBn} onChange={(e) => setBanTitleBn(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Tag / Promo Subtext (English)</label>
-                  <input type="text" value={banTagEn} onChange={(e) => setBanTagEn(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Tag / Promo Subtext (Bangla)</label>
-                  <input type="text" value={banTagBn} onChange={(e) => setBanTagBn(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs" />
-                </div>
-                <div className="md:col-span-2 space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Banner Graphic Image</label>
-                  <div className="flex items-center gap-3">
-                    <input 
-                      type="text" 
-                      placeholder="Paste Image URL or Upload File" 
-                      value={banImage} 
-                      onChange={(e) => setBanImage(e.target.value)}
-                      className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs"
-                    />
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      onChange={handleImageFileChange} 
-                      accept="image/*" 
-                      className="hidden" 
-                    />
-                    <button 
-                      type="button"
-                      disabled={uploadingImage}
-                      onClick={() => fileInputRef.current?.click()}
-                      className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer"
-                    >
-                      {uploadingImage ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                      <span>{getTranslation("ফাইল আপলোড", "Upload Image")}</span>
-                    </button>
-                  </div>
-                  {banImage && (
-                    <div className="relative w-32 h-16 rounded-xl overflow-hidden border border-slate-200 mt-2 bg-white">
-                      <img src={banImage} alt="Preview" className="w-full h-full object-cover" />
-                      <button 
-                        type="button" 
-                        onClick={() => setBanImage("")} 
-                        className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="md:col-span-2 flex items-center gap-2">
-                  <input 
-                    type="checkbox" 
-                    id="banActive" 
-                    checked={banActive} 
-                    onChange={(e) => setBanActive(e.target.checked)} 
-                    className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer" 
-                  />
-                  <label htmlFor="banActive" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
-                    {getTranslation("সক্রিয় রাখুন (Active / Enabled)", "Keep active and show on home slider")}
-                  </label>
-                </div>
-
-                <div className="md:col-span-2 flex justify-end gap-2 mt-2">
-                  <button type="button" onClick={() => setShowBannerForm(false)} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-xs font-black uppercase">{getTranslation("বাতিল", "Cancel")}</button>
-                  <button type="submit" disabled={savingBanner} className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-1">
-                    {savingBanner && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                    <span>{getTranslation("সংরক্ষণ", "Save Banner")}</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {banners.map((b) => (
-              <div key={b.id} className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm flex flex-col justify-between">
-                <div>
-                  {b.image && (
-                    <div className={`w-full h-24 rounded-xl mb-3 overflow-hidden bg-gradient-to-r ${b.bgGradient || "from-emerald-600 to-teal-500"} relative flex items-center justify-between p-4 text-white`}>
-                      <div className="z-10 max-w-[60%]">
-                        <span className="text-[8px] uppercase font-black tracking-wider opacity-85">{getTranslation(b.tagBn, b.tagEn)}</span>
-                        <h4 className="text-xs font-black line-clamp-2 leading-tight mt-0.5">{getTranslation(b.titleBn, b.titleEn)}</h4>
-                      </div>
-                      <img src={b.image} alt={b.titleEn} className="absolute right-2 bottom-0 h-20 w-auto object-contain z-0 drop-shadow referrer-policy" referrerPolicy="no-referrer" />
-                    </div>
-                  )}
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase font-mono">{b.id}</span>
-                      <h4 className="font-extrabold text-sm text-slate-800 mt-0.5">{getTranslation(b.titleBn, b.titleEn)}</h4>
-                      <p className="text-xs text-slate-400 font-medium mt-0.5">{getTranslation(b.tagBn, b.tagEn)}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between border-t border-slate-50 pt-3 mt-4">
-                  <button 
-                    onClick={() => handleToggleBannerActive(b)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${
-                      b.isActive !== false 
-                        ? "bg-emerald-50 text-emerald-600 border border-emerald-100" 
-                        : "bg-slate-50 text-slate-400 border border-slate-200"
-                    }`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${b.isActive !== false ? "bg-emerald-500" : "bg-slate-400"}`}></span>
-                    <span>{b.isActive !== false ? getTranslation("সক্রিয়", "Active") : getTranslation("নিষ্ক্রিয়", "Inactive")}</span>
-                  </button>
-                  <div className="flex items-center gap-1">
-                    <button 
-                      onClick={() => handleOpenEditBanner(b)}
-                      className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition cursor-pointer"
-                      title="Edit Banner"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteBanner(b.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition cursor-pointer"
-                      title="Delete Banner"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 

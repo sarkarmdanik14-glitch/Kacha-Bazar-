@@ -1854,10 +1854,10 @@ async function verifyFirebaseTokenAuth(req: express.Request): Promise<{ staffId:
         (uid && s.id === uid)
       );
 
-      if (!staff && (email === "allahuakber094@gmail.com" || email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com")) {
+      if (!staff && email === "admin@megabajar.com") {
         return {
           staffId: "CFI-KB-001",
-          email: email,
+          email: "admin@megabajar.com",
           role: "super_admin",
           isSuperAdmin: true
         };
@@ -1992,22 +1992,61 @@ function generateNextStaffId(staffList: any[]): string {
   return `CFI-KB-${String(nextNum).padStart(3, "0")}`;
 }
 
+function getRootSuperAdminProfile() {
+  const { hash, salt } = hashStaffPassword("Anik-42369");
+  return {
+    id: "staff-super-admin-root",
+    staffId: "CFI-KB-001",
+    username: "admin@megabajar.com",
+    fullName: "MegaBajar Super Admin",
+    email: "admin@megabajar.com",
+    role: "super_admin",
+    designation: "Chief Administrator / Super Admin",
+    department: "Executive Administration",
+    isSuperAdmin: true,
+    status: "active",
+    permissions: {},
+    passwordHash: hash,
+    passwordSalt: salt,
+    hash: hash,
+    salt: salt,
+    monthlySalary: 75000,
+    salaryStatus: "paid"
+  };
+}
+
 // Read staff database
 function readStaffDb(): any[] {
+  let list: any[] = [];
   try {
     if (fs.existsSync(STAFF_FILE)) {
       const data = fs.readFileSync(STAFF_FILE, "utf-8");
-      const list = JSON.parse(data);
-      if (Array.isArray(list)) {
-        return list;
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) {
+        list = parsed;
       }
     }
   } catch (e) {
     console.error("Error reading staff DB:", e);
   }
   
-  // Clean initial staff database - starts empty so user can add custom staff members
-  return [];
+  // Ensure root super admin (admin@megabajar.com) is ALWAYS present
+  const rootIndex = list.findIndex(s => s && ((s.email && s.email.toLowerCase() === "admin@megabajar.com") || (s.username && s.username.toLowerCase() === "admin@megabajar.com")));
+  if (rootIndex === -1) {
+    const rootAdmin = getRootSuperAdminProfile();
+    list.unshift(rootAdmin);
+    writeStaffDb(list);
+  } else {
+    const rootAdmin = list[rootIndex];
+    if (rootAdmin.status !== "active" || rootAdmin.role !== "super_admin" || !rootAdmin.isSuperAdmin) {
+      rootAdmin.status = "active";
+      rootAdmin.role = "super_admin";
+      rootAdmin.isSuperAdmin = true;
+      writeStaffDb(list);
+    }
+  }
+
+  return list;
 }
 
 function writeStaffDb(staffList: any[]) {
@@ -2525,7 +2564,7 @@ app.post("/api/staff/delete", rateLimiter(15, 60000), requireSuperAdminAuth, asy
     }
 
     // SUPER ADMIN PROTECTION: Strictly prevent deleting Super Admin
-    if (target.isSuperAdmin || target.role === "super_admin" || target.email === "sarkarmdanik14@gmail.com") {
+    if (target.isSuperAdmin || target.role === "super_admin" || target.email === "admin@megabajar.com" || target.username === "admin@megabajar.com") {
       return res.status(403).json({ success: false, error: "নিরাপত্তা সতর্কতা: সুপার এডমিন অ্যাকাউন্ট ডিলিট করা সম্পূর্ণ নিষিদ্ধ!", message: "Super admin cannot be deleted." });
     }
 
@@ -3335,7 +3374,7 @@ app.post("/api/staff/reset-password", rateLimiter(15, 60000), requireAdminAuth, 
     }
 
     // PRIVILEGE ESCALATION CHECK (CWE-269):
-    const isTargetSuperAdmin = target.role === "super_admin" || target.isSuperAdmin === true || target.email === "sarkarmdanik14@gmail.com";
+    const isTargetSuperAdmin = target.role === "super_admin" || target.isSuperAdmin === true || target.email === "admin@megabajar.com" || target.username === "admin@megabajar.com";
     const caller = (req as any).staffUser || (req as any).staff;
 
     if (isTargetSuperAdmin && (!caller || !caller.isSuperAdmin)) {
@@ -3485,15 +3524,16 @@ app.post("/api/auth/phone/send-verification-otp", rateLimiter(30, 60000), async 
     if (userId) {
       try {
         const sdb = await getServerDb();
-        const { collection: fCol, addDoc: fAddDoc, serverTimestamp: fTimestamp } = await import("firebase/firestore");
-        await fAddDoc(fCol(sdb, "notifications"), {
-          userId,
-          title: "মোবাইল ভেরিফিকেশন ওটিপি (OTP)",
-          message: `আপনার কাঁচাবাজার মোবাইল নম্বর ভেরিফিকেশন কোড: ${code}। মেয়াদ ১০ মিনিট।`,
-          type: "system",
-          read: false,
-          createdAt: fTimestamp()
-        });
+        if (sdb) {
+          await addDoc(collection(sdb, "notifications"), {
+            userId,
+            title: "মোবাইল ভেরিফিকেশন ওটিপি (OTP)",
+            message: `আপনার কাঁচাবাজার মোবাইল নম্বর ভেরিফিকেশন কোড: ${code}। মেয়াদ ১০ মিনিট।`,
+            type: "system",
+            read: false,
+            createdAt: FieldValue.serverTimestamp()
+          });
+        }
       } catch (notifyErr: any) {
         console.warn("Notice: could not create notification document:", notifyErr?.message || notifyErr);
       }
@@ -3544,13 +3584,14 @@ app.post("/api/auth/phone/verify-otp", rateLimiter(40, 60000), async (req, res) 
     if (userId) {
       try {
         const sdb = await getServerDb();
-        const { doc: fDoc, setDoc: fSetDoc, serverTimestamp: fTimestamp } = await import("firebase/firestore");
-        await fSetDoc(fDoc(sdb, "users", userId), {
-          uid: userId,
-          isPhoneVerified: true,
-          phone: phone ? phone.trim() : (record?.phone || ""),
-          updatedAt: fTimestamp()
-        }, { merge: true });
+        if (sdb) {
+          await setDoc(doc(sdb, "users", userId), {
+            uid: userId,
+            isPhoneVerified: true,
+            phone: phone ? phone.trim() : (record?.phone || ""),
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
       } catch (dbErr: any) {
         console.warn("Notice: could not update user in serverDb:", dbErr?.message || dbErr);
       }
@@ -3676,15 +3717,16 @@ app.post("/api/auth/send-email-otp", rateLimiter(30, 60000), async (req, res) =>
       } catch (adminErr) {
         try {
           const sdb = await getServerDb();
-          const { doc: fDoc, setDoc: fSetDoc, serverTimestamp: fTimestamp } = await import("firebase/firestore");
-          await fSetDoc(fDoc(sdb, "email_verifications", cleanUserId), {
-            code,
-            userId: cleanUserId,
-            email: cleanEmail,
-            expiresAt,
-            createdAt: fTimestamp(),
-            verified: false
-          });
+          if (sdb) {
+            await setDoc(doc(sdb, "email_verifications", cleanUserId), {
+              code,
+              userId: cleanUserId,
+              email: cleanEmail,
+              expiresAt,
+              createdAt: FieldValue.serverTimestamp(),
+              verified: false
+            });
+          }
         } catch (webErr) {
           console.warn("Notice: could not persist email verification in Firestore:", webErr);
         }
@@ -3698,17 +3740,18 @@ app.post("/api/auth/send-email-otp", rateLimiter(30, 60000), async (req, res) =>
     if (cleanUserId) {
       try {
         const sdb = await getServerDb();
-        const { collection: fCol, addDoc: fAddDoc, serverTimestamp: fTimestamp } = await import("firebase/firestore");
-        await fAddDoc(fCol(sdb, "notifications"), {
-          userId: cleanUserId,
-          titleBn: "ইমেইল ভেরিফিকেশন কোড",
-          titleEn: "Email Verification Code",
-          messageBn: `আপনার কাঁচা বাজার ইমেইল ভেরিফিকেশন কোড: ${code}। মেয়াদ ১০ মিনিট।`,
-          messageEn: `Your Kacha Bazar email verification code is: ${code}. Valid for 10 minutes.`,
-          type: "system",
-          read: false,
-          createdAt: fTimestamp()
-        }).catch(() => {});
+        if (sdb) {
+          await addDoc(collection(sdb, "notifications"), {
+            userId: cleanUserId,
+            titleBn: "ইমেইল ভেরিফিকেশন কোড",
+            titleEn: "Email Verification Code",
+            messageBn: `আপনার কাঁচা বাজার ইমেইল ভেরিফিকেশন কোড: ${code}। মেয়াদ ১০ মিনিট।`,
+            messageEn: `Your Kacha Bazar email verification code is: ${code}. Valid for 10 minutes.`,
+            type: "system",
+            read: false,
+            createdAt: FieldValue.serverTimestamp()
+          }).catch(() => {});
+        }
       } catch (e) {}
     }
 
@@ -3762,18 +3805,19 @@ app.post("/api/auth/verify-email-otp", rateLimiter(40, 60000), async (req, res) 
       } catch (err) {
         try {
           const sdb = await getServerDb();
-          const { doc: fDoc, getDoc: fGetDoc } = await import("firebase/firestore");
-          const snap = await fGetDoc(fDoc(sdb, "email_verifications", cleanUserId));
-          if (snap.exists()) {
-            const data = snap.data();
-            if (data && String(data.code).trim() === cleanCode) {
-              if (data.expiresAt && Date.now() > data.expiresAt) {
-                return res.status(400).json({
-                  success: false,
-                  error: "ভেরিফিকেশন কোডের মেয়াদ শেষ হয়ে গেছে। অনুগ্রহ করে নতুন কোড পাঠান।"
-                });
+          if (sdb) {
+            const snap = await getDoc(doc(sdb, "email_verifications", cleanUserId));
+            if (snap.exists()) {
+              const data = snap.data();
+              if (data && String(data.code).trim() === cleanCode) {
+                if (data.expiresAt && Date.now() > data.expiresAt) {
+                  return res.status(400).json({
+                    success: false,
+                    error: "ভেরিফিকেশন কোডের মেয়াদ শেষ হয়ে গেছে। অনুগ্রহ করে নতুন কোড পাঠান।"
+                  });
+                }
+                isMatched = true;
               }
-              isMatched = true;
             }
           }
         } catch (e) {}
@@ -3801,12 +3845,13 @@ app.post("/api/auth/verify-email-otp", rateLimiter(40, 60000), async (req, res) 
       } catch (err) {
         try {
           const sdb = await getServerDb();
-          const { doc: fDoc, setDoc: fSetDoc, serverTimestamp: fTimestamp } = await import("firebase/firestore");
-          await fSetDoc(fDoc(sdb, "users", cleanUserId), {
-            uid: cleanUserId,
-            isEmailVerified: true,
-            updatedAt: fTimestamp()
-          }, { merge: true });
+          if (sdb) {
+            await setDoc(doc(sdb, "users", cleanUserId), {
+              uid: cleanUserId,
+              isEmailVerified: true,
+              updatedAt: FieldValue.serverTimestamp()
+            }, { merge: true });
+          }
         } catch (e) {}
       }
     }
@@ -3848,9 +3893,10 @@ app.post("/api/auth/forgot-password/send-code", rateLimiter(30, 60000), async (r
     // 1. Search in Firestore users collection via authenticated serverDb
     try {
       const sdb = await getServerDb();
-      const { collection: fCol, getDocs: fGetDocs, query: fQuery, where: fWhere } = await import("firebase/firestore");
-      
-      const usersSnap = await fGetDocs(fCol(sdb, "users"));
+      let usersSnap: any = { docs: [] };
+      if (sdb) {
+        usersSnap = await getDocs(collection(sdb, "users"));
+      }
       for (const d of usersSnap.docs) {
         const u = d.data();
         const uEmail = (u.email || "").toString().toLowerCase().trim();
@@ -3957,17 +4003,18 @@ app.post("/api/auth/forgot-password/send-code", rateLimiter(30, 60000), async (r
     // Send in-app notification asynchronously
     try {
       const sdb = await getServerDb();
-      const { collection: fCol, addDoc: fAddDoc } = await import("firebase/firestore");
-      await fAddDoc(fCol(sdb, "notifications"), {
-        userId: userId,
-        titleBn: "পাসওয়ার্ড রিসেট ভেরিফিকেশন কোড",
-        titleEn: "Password Reset Verification Code",
-        messageBn: `আপনার অ্যাকাউন্টের পাসওয়ার্ড রিসেটের ৬-সংখ্যার ভেরিফিকেশন কোড: ${code}। এটি ১৫ মিনিটের জন্য কার্যকর।`,
-        messageEn: `Your 6-digit password reset verification code is: ${code}. Valid for 15 minutes.`,
-        type: "security",
-        read: false,
-        createdAt: new Date().toISOString()
-      }).catch(() => {});
+      if (sdb) {
+        await addDoc(collection(sdb, "notifications"), {
+          userId: userId,
+          titleBn: "পাসওয়ার্ড রিসেট ভেরিফিকেশন কোড",
+          titleEn: "Password Reset Verification Code",
+          messageBn: `আপনার অ্যাকাউন্টের পাসওয়ার্ড রিসেটের ৬-সংখ্যার ভেরিফিকেশন কোড: ${code}। এটি ১৫ মিনিটের জন্য কার্যকর।`,
+          messageEn: `Your 6-digit password reset verification code is: ${code}. Valid for 15 minutes.`,
+          type: "security",
+          read: false,
+          createdAt: new Date().toISOString()
+        }).catch(() => {});
+      }
     } catch (nErr) {}
 
     return res.status(200).json({
@@ -4100,11 +4147,12 @@ app.post("/api/auth/forgot-password/reset", rateLimiter(20, 60000), async (req, 
     // 1. Update Firestore user document
     try {
       const sdb = await getServerDb();
-      const { doc: fDoc, setDoc: fSetDoc } = await import("firebase/firestore");
-      await fSetDoc(fDoc(sdb, "users", userId), {
-        passwordUpdatedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }, { merge: true }).catch(() => {});
+      if (sdb) {
+        await setDoc(doc(sdb, "users", userId), {
+          passwordUpdatedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }, { merge: true }).catch(() => {});
+      }
     } catch (uErr) {}
 
     // 2. Hash new password securely
@@ -4218,11 +4266,12 @@ app.post("/api/auth/profile/change-password", rateLimiter(25, 60000), async (req
     // 1. Update Firestore user document
     try {
       const sdb = await getServerDb();
-      const { doc: fDoc, setDoc: fSetDoc } = await import("firebase/firestore");
-      await fSetDoc(fDoc(sdb, "users", cleanUserId), {
-        passwordUpdatedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }, { merge: true }).catch(() => {});
+      if (sdb) {
+        await setDoc(doc(sdb, "users", cleanUserId), {
+          passwordUpdatedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }, { merge: true }).catch(() => {});
+      }
     } catch (uErr) {}
 
     // 2. If staff, update staff store
@@ -4322,26 +4371,13 @@ app.post("/api/staff/login", rateLimiter(15, 60000), async (req, res) => {
     }
 
     const cleanLowerIdent = cleanIdent.toLowerCase();
-    const isSuperAdminUser = 
-      cleanLowerIdent === "sarkarmdanik14@gmail.com" ||
-      cleanLowerIdent === "allahuakber094@gmail.com" ||
-      cleanLowerIdent === "grphics949@gmail.com" ||
-      cleanLowerIdent === "kachabazar369@gmail.com" ||
-      cleanLowerIdent === "cfikb001";
+    const isSuperAdminUser = cleanLowerIdent === "admin@megabajar.com";
 
     if (!staff && isSuperAdminUser) {
-      if (password === "Anik-42369" || password === "admin1234") {
-        staff = {
-          id: "staff-super-admin-01",
-          staffId: "CFI-KB-001",
-          username: "cfikb001",
-          fullName: "Sarkar Md Anik (Super Admin)",
-          email: "sarkarmdanik14@gmail.com",
-          role: "super_admin",
-          isSuperAdmin: true,
-          status: "active",
-          permissions: {}
-        };
+      if (password === "Anik-42369") {
+        staff = getRootSuperAdminProfile();
+        staffList.push(staff);
+        writeStaffDb(staffList);
       }
     }
 
@@ -4373,8 +4409,8 @@ app.post("/api/staff/login", rateLimiter(15, 60000), async (req, res) => {
       staff.passwordHash = hash;
       staff.passwordSalt = salt;
     }
-    if (!isMatch && (staff.role === "super_admin" || staff.isSuperAdmin || staff.email === "sarkarmdanik14@gmail.com")) {
-      if (password === "Anik-42369" || password === "admin1234") {
+    if (!isMatch && (staff.role === "super_admin" || staff.isSuperAdmin || staff.email === "admin@megabajar.com" || staff.username === "admin@megabajar.com")) {
+      if (password === "Anik-42369") {
         isMatch = true;
         const { hash, salt } = hashStaffPassword(password);
         staff.passwordHash = hash;
@@ -4442,7 +4478,7 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
 
     // 1. Check in staff store (covers super_admin like sarkarmdanik14@gmail.com and all staff)
     const staffList = readStaffDb();
-    const staff = staffList.find(s => {
+    let staff = staffList.find(s => {
       if (!s) return false;
       const sEmail = (s.email || "").toLowerCase().trim();
       const sPhone = (s.mobile || "").replace(/[^\d]/g, "");
@@ -4455,6 +4491,12 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
         sUser === cleanIdent
       );
     });
+
+    if (!staff && cleanIdent === "admin@megabajar.com" && password === "Anik-42369") {
+      staff = getRootSuperAdminProfile();
+      staffList.push(staff);
+      writeStaffDb(staffList);
+    }
 
     if (staff) {
       let isMatch = false;
@@ -4474,8 +4516,8 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
         }
       }
 
-      if (!isMatch && (staff.role === "super_admin" || staff.isSuperAdmin || staff.email === "sarkarmdanik14@gmail.com")) {
-        if (password === "Anik-42369" || password === "admin1234") {
+      if (!isMatch && (staff.role === "super_admin" || staff.isSuperAdmin || staff.email === "admin@megabajar.com" || staff.username === "admin@megabajar.com")) {
+        if (password === "Anik-42369") {
           isMatch = true;
           const newCreds = hashStaffPassword(password);
           staff.passwordHash = newCreds.hash;
@@ -4906,24 +4948,12 @@ app.post("/api/staff/firebase-session", rateLimiter(20, 60000), async (req, res)
     );
 
     // If verified email is the designated founder / super_admin or current project owner
-    if (!staff && (email === "allahuakber094@gmail.com" || email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com")) {
-      staff = staffList.find(s => s.role === "super_admin" || s.isSuperAdmin);
+    if (!staff && email === "admin@megabajar.com") {
+      staff = staffList.find(s => s.role === "super_admin" || s.isSuperAdmin || s.email === "admin@megabajar.com");
       if (!staff) {
-        staff = {
-          id: `staff-${Date.now()}`,
-          staffId: "CFI-KB-001",
-          username: "cfikb001",
-          fullName: "Md Anik Sarkar",
-          email: email,
-          role: "super_admin",
-          designation: "Chief Executive / Super Admin",
-          department: "Executive Administration",
-          status: "active",
-          isSuperAdmin: true,
-          monthlySalary: 50000,
-          salaryStatus: "paid"
-        };
+        staff = getRootSuperAdminProfile();
         staffList.push(staff);
+        writeStaffDb(staffList);
       } else {
         if (!staff.email) staff.email = email;
       }
@@ -5009,24 +5039,12 @@ app.post("/api/staff/supabase-session", rateLimiter(20, 60000), async (req, res)
     );
 
     // If designated founder / super_admin
-    if (!staff && (email === "allahuakber094@gmail.com" || email === "sarkarmdanik14@gmail.com" || email === "grphics949@gmail.com" || email === "kachabazar369@gmail.com")) {
-      staff = staffList.find(s => s.role === "super_admin" || s.isSuperAdmin);
+    if (!staff && email === "admin@megabajar.com") {
+      staff = staffList.find(s => s.role === "super_admin" || s.isSuperAdmin || s.email === "admin@megabajar.com");
       if (!staff) {
-        staff = {
-          id: `staff-${Date.now()}`,
-          staffId: "CFI-KB-001",
-          username: "cfikb001",
-          fullName: "Md Anik Sarkar",
-          email: email,
-          role: "super_admin",
-          designation: "Chief Executive / Super Admin",
-          department: "Executive Administration",
-          status: "active",
-          isSuperAdmin: true,
-          monthlySalary: 50000,
-          salaryStatus: "paid"
-        };
+        staff = getRootSuperAdminProfile();
         staffList.push(staff);
+        writeStaffDb(staffList);
       } else {
         if (!staff.email) staff.email = email;
       }

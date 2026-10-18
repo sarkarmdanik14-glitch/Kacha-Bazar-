@@ -38,8 +38,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import QRCode from "qrcode";
-import { db, doc, getDoc, setDoc, serverTimestamp, onSnapshot, auth, RecaptchaVerifier, signInWithPhoneNumber, updateProfile } from "../../lib/firebase";
-import type { ConfirmationResult } from "firebase/auth";
+import { db, doc, getDoc, setDoc, serverTimestamp, onSnapshot, auth, RecaptchaVerifier, signInWithPhoneNumber, updateProfile, type ConfirmationResult } from "../../lib/firebase";
 import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from "../../lib/memberIdUtils";
 import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
 import { apiClient } from "../../lib/apiClient";

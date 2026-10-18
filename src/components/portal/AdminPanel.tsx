@@ -96,8 +96,12 @@ export default function AdminPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isSidebarOpen]);
 
+  const cleanUserEmail = (user?.email || "").toLowerCase().trim();
+  const isSuperAdminEmail = cleanUserEmail === "admin@megabajar.com";
+
   // Check authorization for all staff roles
   const isAuthorized = 
+    isSuperAdminEmail ||
     user?.role === "admin" || 
     user?.role === "super_admin" || 
     user?.role === "founder" || 
@@ -1126,7 +1130,7 @@ export default function AdminPanel({
             {/* TAB: SETTINGS */}
             {activeTab === "settings" && (
               <div className="space-y-6 animate-fade-in">
-                <AdminSettingsTab settings={settings} banners={banners} lang={lang} triggerToast={triggerToast} />
+                <AdminSettingsTab settings={settings} lang={lang} triggerToast={triggerToast} />
               </div>
             )}
 

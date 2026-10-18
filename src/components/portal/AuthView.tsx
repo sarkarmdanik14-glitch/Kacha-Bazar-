@@ -312,13 +312,8 @@ export default function AuthView({
       if (!uid) return false;
       const cleanEmail = (email || auth.currentUser?.email || "").toLowerCase().trim();
       
-      // Designated founders and super admins
-      if (
-        cleanEmail === "allahuakber094@gmail.com" ||
-        cleanEmail === "sarkarmdanik14@gmail.com" ||
-        cleanEmail === "grphics949@gmail.com" ||
-        cleanEmail === "kachabazar369@gmail.com"
-      ) {
+      // Designated root super admin
+      if (cleanEmail === "admin@megabajar.com") {
         return true;
       }
 
@@ -837,11 +832,7 @@ export default function AuthView({
 
         // Designated Super Admin check
         const cleanUserEmail = (userEmail || email || "").toLowerCase().trim();
-        const isSuperAdminUser = 
-          cleanUserEmail === "sarkarmdanik14@gmail.com" ||
-          cleanUserEmail === "allahuakber094@gmail.com" ||
-          cleanUserEmail === "grphics949@gmail.com" ||
-          cleanUserEmail === "kachabazar369@gmail.com";
+        const isSuperAdminUser = cleanUserEmail === "admin@megabajar.com";
 
         if (isSuperAdminUser) {
           authenticatedRole = "admin";
@@ -1698,7 +1689,7 @@ export default function AuthView({
                   type={role === "admin" || role === "partner" ? "text" : "email"}
                   required
                   placeholder={role === "admin" 
-                    ? getTranslation("যেমন: cfikb001, CFI-KB-002 বা ইমেইল", "e.g. cfikb001, CFI-KB-002 or email")
+                    ? getTranslation("যেমন: admin@megabajar.com", "e.g. admin@megabajar.com")
                     : role === "partner"
                     ? getTranslation("যেমন: KB-SHOP-001 বা greenvalley@kachabazar.com", "e.g. KB-SHOP-001 or email")
                     : "name@example.com"}

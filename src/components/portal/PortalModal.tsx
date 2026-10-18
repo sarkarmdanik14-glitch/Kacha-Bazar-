@@ -177,10 +177,7 @@ export default function PortalModal({
         const email = (user.email || "").toLowerCase().trim();
 
         const isSuperAdminEmail = 
-          email === "allahuakber094@gmail.com" ||
-          email === "sarkarmdanik14@gmail.com" ||
-          email === "grphics949@gmail.com" ||
-          email === "kachabazar369@gmail.com" ||
+          email === "admin@megabajar.com" ||
           user.role === "admin" || user.role === "super_admin" || user.isSuperAdmin;
 
         if (forcedRole === "admin" || isSuperAdminEmail) {
@@ -398,12 +395,7 @@ export default function PortalModal({
           // Customer App default authentication handling
           // Check if admin
           let isAdminUser = false;
-          if (
-            email === "allahuakber094@gmail.com" ||
-            email === "sarkarmdanik14@gmail.com" ||
-            email === "grphics949@gmail.com" ||
-            email === "kachabazar369@gmail.com"
-          ) {
+          if (email === "admin@megabajar.com") {
             isAdminUser = true;
           } else {
             isAdminUser = await checkIsSupabaseAdmin(uid, email);
@@ -518,8 +510,7 @@ export default function PortalModal({
     const cleanEmail = (userData?.email || "").toLowerCase().trim();
     const isSuperOrAdmin = role === "admin" || role === "super_admin" || role === "founder" || 
       userData?.role === "admin" || userData?.role === "super_admin" || userData?.isSuperAdmin ||
-      cleanEmail === "sarkarmdanik14@gmail.com" || cleanEmail === "allahuakber094@gmail.com" ||
-      cleanEmail === "grphics949@gmail.com" || cleanEmail === "kachabazar369@gmail.com";
+      cleanEmail === "admin@megabajar.com";
 
     const effectiveRole = isSuperOrAdmin ? "admin" : role;
     const effectiveUser = isSuperOrAdmin ? { ...userData, role: "admin", isSuperAdmin: true } : userData;

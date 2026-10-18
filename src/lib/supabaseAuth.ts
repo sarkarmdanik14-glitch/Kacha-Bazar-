@@ -39,11 +39,7 @@ export async function supabaseSignInWithEmail(
 ): Promise<{ success: boolean; user?: SupabaseUserProfile; role?: string; error?: string }> {
   const cleanEmail = email.trim();
   const lowerEmail = cleanEmail.toLowerCase();
-  const isSuperAdminEmail = 
-    lowerEmail === "sarkarmdanik14@gmail.com" ||
-    lowerEmail === "allahuakber094@gmail.com" ||
-    lowerEmail === "grphics949@gmail.com" ||
-    lowerEmail === "kachabazar369@gmail.com";
+  const isSuperAdminEmail = lowerEmail === "admin@megabajar.com";
 
   const effectivePreferredRole = isSuperAdminEmail ? "admin" : preferredRole;
 
@@ -527,12 +523,7 @@ export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
  */
 export async function checkIsSupabaseAdmin(uid: string, email?: string): Promise<boolean> {
   const cleanEmail = (email || "").toLowerCase().trim();
-  if (
-    cleanEmail === "allahuakber094@gmail.com" ||
-    cleanEmail === "sarkarmdanik14@gmail.com" ||
-    cleanEmail === "grphics949@gmail.com" ||
-    cleanEmail === "kachabazar369@gmail.com"
-  ) {
+  if (cleanEmail === "admin@megabajar.com") {
     return true;
   }
   try {

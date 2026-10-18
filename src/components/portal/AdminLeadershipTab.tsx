@@ -512,7 +512,7 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {defaultKeys.map((key) => {
-            const profile = defaults[key];
+            const profile = defaults?.[key] || defaultProfiles[key];
             const isSaving = savingKey === key;
             const isUploading = uploadingImageId === key;
 
@@ -667,7 +667,7 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
           <div className="flex items-center gap-2">
             <User className="w-4 h-4 text-purple-600" />
             <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">
-              {getTranslation("অতিরিক্ত বোর্ড সদস্যবৃন্দ", "Additional Board Members")} ({additionalMembers.length})
+              {getTranslation("অতিরিক্ত বোর্ড সদস্যবৃন্দ", "Additional Board Members")} ({(additionalMembers || []).length})
             </h3>
           </div>
 
@@ -681,7 +681,7 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
           </button>
         </div>
 
-        {additionalMembers.length === 0 ? (
+        {(!additionalMembers || additionalMembers.length === 0) ? (
           <div className="bg-slate-50 border border-dashed border-slate-300 rounded-3xl p-8 text-center text-slate-500">
             <User className="w-10 h-10 mx-auto text-slate-300 mb-2" />
             <p className="text-xs font-bold">
@@ -693,7 +693,7 @@ export default function AdminLeadershipTab({ lang, triggerToast }: AdminLeadersh
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {additionalMembers.map((member) => {
+            {(additionalMembers || []).map((member) => {
               const isSaving = savingKey === member.id;
               const isUploading = uploadingImageId === member.id;
 
