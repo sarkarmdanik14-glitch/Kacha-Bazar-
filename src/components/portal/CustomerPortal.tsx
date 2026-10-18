@@ -47,6 +47,7 @@ import { checkAndUpgradePremiumMembership } from "../../lib/membership";
 import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
 import { apiClient } from "../../lib/apiClient";
 import { APP_LOGO_URL } from "../../constants/branding";
+import { checkAndRewardReferral } from "../../lib/referral";
 
 
 interface CustomerPortalProps {
@@ -1239,7 +1240,6 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       );
 
       if (willBeFullyVerified) {
-        const { checkAndRewardReferral } = await import("../../lib/referral");
         await checkAndRewardReferral(uId);
       }
     } catch (err: any) {
@@ -1368,7 +1368,6 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       );
 
       if (willBeFullyVerified && uId) {
-        const { checkAndRewardReferral } = await import("../../lib/referral");
         await checkAndRewardReferral(uId);
       }
     } catch (err: any) {

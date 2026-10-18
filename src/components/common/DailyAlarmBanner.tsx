@@ -4,7 +4,8 @@ import {
   subscribeToDailyAlarms, 
   AlarmPayload, 
   playNotificationChime, 
-  initDailyAlarmSystem 
+  initDailyAlarmSystem,
+  triggerDailyAlarm
 } from "../../lib/dailyAlarmSystem";
 
 interface DailyAlarmBannerProps {
@@ -24,9 +25,7 @@ export const DailyAlarmBanner: React.FC<DailyAlarmBannerProps> = ({ lang = "bn" 
 
     // Also expose to window for testing in console if needed
     (window as any).testKachaBazarAlarm = (type: "morning" | "night") => {
-      import("../../lib/dailyAlarmSystem").then(({ triggerDailyAlarm }) => {
-        triggerDailyAlarm(type, true);
-      });
+      triggerDailyAlarm(type, true);
     };
 
     return () => {
