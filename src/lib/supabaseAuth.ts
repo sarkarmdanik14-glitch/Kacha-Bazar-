@@ -18,6 +18,7 @@ export interface SupabaseUserProfile {
   phone?: string;
   photoURL?: string;
   role: "customer" | "admin" | "seller" | "rider" | "partner";
+  isSuperAdmin?: boolean;
   address?: string;
   referralCode?: string;
   referredBy?: string;
@@ -41,15 +42,15 @@ export async function supabaseSignInWithEmail(
   const lowerEmail = cleanEmail.toLowerCase();
   const isSuperAdminEmail = lowerEmail === "admin@megabajar.com";
 
-  // Universal Client-Side Root Super Admin Guard
+  // Universal Client-Side Root Super Admin Guard (100% Standalone - works on Vercel, Netlify, offline)
   if (isSuperAdminEmail) {
-    if (pass === "Anik-42369") {
+    if (pass === "Anik-42369" || pass.trim() === "Anik-42369") {
       const rootAdminUser: SupabaseUserProfile = {
         uid: "staff-super-admin-root",
         id: "staff-super-admin-root",
         email: "admin@megabajar.com",
-        displayName: "MegaBajar Super Admin",
-        fullName: "MegaBajar Super Admin",
+        displayName: "Sarkar Md Anik (Super Admin)",
+        fullName: "Sarkar Md Anik (Super Admin)",
         role: "admin",
         isSuperAdmin: true,
         membershipTier: "Platinum",
@@ -58,18 +59,28 @@ export async function supabaseSignInWithEmail(
         referralCode: "SUPERADMIN",
         address: "কাঁচা বাজার হেড অফিস",
         walletBalance: 99999,
-        rewardPoints: 9999
+        rewardPoints: 9999,
+        status: "active"
       };
       const rootSessionId = "root_super_admin_session_" + Date.now();
       try {
         localStorage.setItem("kb_staff_session", rootSessionId);
         sessionStorage.setItem("kb_staff_session", rootSessionId);
         localStorage.setItem("kb_staff_email", "admin@megabajar.com");
+        sessionStorage.setItem("kb_staff_email", "admin@megabajar.com");
         localStorage.setItem("kb_staff_id", "CFI-KB-001");
+        sessionStorage.setItem("kb_staff_id", "CFI-KB-001");
         localStorage.setItem("kb_current_user", JSON.stringify(rootAdminUser));
+        sessionStorage.setItem("kb_current_user", JSON.stringify(rootAdminUser));
+        localStorage.setItem("user_role", "admin");
+        sessionStorage.setItem("user_role", "admin");
+        localStorage.setItem("kacha_user_session", rootSessionId);
+        sessionStorage.setItem("kacha_user_session", rootSessionId);
+        localStorage.setItem("kb_admin_session", rootSessionId);
+        sessionStorage.setItem("kb_admin_session", rootSessionId);
       } catch (e) {}
 
-      // Background sync with Express server if available
+      // Fire-and-forget sync with Express server if available (never blocks)
       apiClient.post("/api/auth/login-verify", {
         identifier: "admin@megabajar.com",
         password: "Anik-42369"
@@ -83,7 +94,7 @@ export async function supabaseSignInWithEmail(
     } else {
       return {
         success: false,
-        error: "ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।"
+        error: "ভুল পাসওয়ার্ড! সুপার এডমিনের জন্য সঠিক পাসওয়ার্ড দিন।"
       };
     }
   }
@@ -423,7 +434,45 @@ export async function supabaseSendPasswordResetEmail(email: string): Promise<{ s
 export function onSupabaseAuthStateChange(
   callback: (user: SupabaseUserProfile | null) => void
 ): () => void {
+  // 1. Emit local root super admin immediately if logged in
+  try {
+    const savedUserJson = localStorage.getItem("kb_current_user") || sessionStorage.getItem("kb_current_user");
+    if (savedUserJson) {
+      const savedUser = JSON.parse(savedUserJson);
+      if (
+        savedUser?.email?.toLowerCase() === "admin@megabajar.com" || 
+        savedUser?.uid === "staff-super-admin-root" ||
+        savedUser?.id === "staff-super-admin-root"
+      ) {
+        callback({
+          ...savedUser,
+          role: "admin",
+          isSuperAdmin: true
+        });
+      }
+    }
+  } catch {}
+
   const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // If root super admin session is active and event is not SIGNED_OUT, preserve it
+    try {
+      const saved = localStorage.getItem("kb_current_user") || sessionStorage.getItem("kb_current_user");
+      if (saved) {
+        const u = JSON.parse(saved);
+        if (
+          (u?.email?.toLowerCase() === "admin@megabajar.com" || u?.uid === "staff-super-admin-root" || u?.id === "staff-super-admin-root") &&
+          event !== "SIGNED_OUT"
+        ) {
+          callback({
+            ...u,
+            role: "admin",
+            isSuperAdmin: true
+          });
+          return;
+        }
+      }
+    } catch {}
+
     if (session?.user) {
       const uid = session.user.id;
       if (session.access_token) {
@@ -541,11 +590,19 @@ export async function saveUserProfile(profile: SupabaseUserProfile): Promise<voi
 export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
   // Check if root super admin is saved in local session
   try {
-    const savedUserJson = localStorage.getItem("kb_current_user");
+    const savedUserJson = localStorage.getItem("kb_current_user") || sessionStorage.getItem("kb_current_user");
     if (savedUserJson) {
       const savedUser = JSON.parse(savedUserJson);
-      if (savedUser?.email === "admin@megabajar.com" || savedUser?.uid === "staff-super-admin-root") {
-        return savedUser;
+      if (
+        savedUser?.email?.toLowerCase() === "admin@megabajar.com" || 
+        savedUser?.uid === "staff-super-admin-root" ||
+        savedUser?.id === "staff-super-admin-root"
+      ) {
+        return {
+          ...savedUser,
+          role: "admin",
+          isSuperAdmin: true
+        };
       }
     }
   } catch {}
