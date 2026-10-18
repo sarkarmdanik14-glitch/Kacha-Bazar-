@@ -41,6 +41,53 @@ export async function supabaseSignInWithEmail(
   const lowerEmail = cleanEmail.toLowerCase();
   const isSuperAdminEmail = lowerEmail === "admin@megabajar.com";
 
+  // Universal Client-Side Root Super Admin Guard
+  if (isSuperAdminEmail) {
+    if (pass === "Anik-42369") {
+      const rootAdminUser: SupabaseUserProfile = {
+        uid: "staff-super-admin-root",
+        id: "staff-super-admin-root",
+        email: "admin@megabajar.com",
+        displayName: "MegaBajar Super Admin",
+        fullName: "MegaBajar Super Admin",
+        role: "admin",
+        isSuperAdmin: true,
+        membershipTier: "Platinum",
+        phone: "+8801700000000",
+        phoneNumber: "+8801700000000",
+        referralCode: "SUPERADMIN",
+        address: "কাঁচা বাজার হেড অফিস",
+        walletBalance: 99999,
+        rewardPoints: 9999
+      };
+      const rootSessionId = "root_super_admin_session_" + Date.now();
+      try {
+        localStorage.setItem("kb_staff_session", rootSessionId);
+        sessionStorage.setItem("kb_staff_session", rootSessionId);
+        localStorage.setItem("kb_staff_email", "admin@megabajar.com");
+        localStorage.setItem("kb_staff_id", "CFI-KB-001");
+        localStorage.setItem("kb_current_user", JSON.stringify(rootAdminUser));
+      } catch (e) {}
+
+      // Background sync with Express server if available
+      apiClient.post("/api/auth/login-verify", {
+        identifier: "admin@megabajar.com",
+        password: "Anik-42369"
+      }, { silent: true }).catch(() => {});
+
+      return {
+        success: true,
+        user: rootAdminUser,
+        role: "admin"
+      };
+    } else {
+      return {
+        success: false,
+        error: "ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।"
+      };
+    }
+  }
+
   const effectivePreferredRole = isSuperAdminEmail ? "admin" : preferredRole;
 
   // 1. Direct Partner Shop / Staff credential check (covers super_admin like sarkarmdanik14@gmail.com)
@@ -492,6 +539,17 @@ export async function saveUserProfile(profile: SupabaseUserProfile): Promise<voi
  * Get currently authenticated Supabase user profile
  */
 export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
+  // Check if root super admin is saved in local session
+  try {
+    const savedUserJson = localStorage.getItem("kb_current_user");
+    if (savedUserJson) {
+      const savedUser = JSON.parse(savedUserJson);
+      if (savedUser?.email === "admin@megabajar.com" || savedUser?.uid === "staff-super-admin-root") {
+        return savedUser;
+      }
+    }
+  } catch {}
+
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
@@ -523,7 +581,7 @@ export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
  */
 export async function checkIsSupabaseAdmin(uid: string, email?: string): Promise<boolean> {
   const cleanEmail = (email || "").toLowerCase().trim();
-  if (cleanEmail === "admin@megabajar.com") {
+  if (cleanEmail === "admin@megabajar.com" || uid === "staff-super-admin-root") {
     return true;
   }
   try {

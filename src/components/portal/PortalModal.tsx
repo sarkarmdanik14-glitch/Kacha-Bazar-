@@ -178,6 +178,7 @@ export default function PortalModal({
 
         const isSuperAdminEmail = 
           email === "admin@megabajar.com" ||
+          uid === "staff-super-admin-root" ||
           user.role === "admin" || user.role === "super_admin" || user.isSuperAdmin;
 
         if (forcedRole === "admin" || isSuperAdminEmail) {
@@ -510,7 +511,9 @@ export default function PortalModal({
     const cleanEmail = (userData?.email || "").toLowerCase().trim();
     const isSuperOrAdmin = role === "admin" || role === "super_admin" || role === "founder" || 
       userData?.role === "admin" || userData?.role === "super_admin" || userData?.isSuperAdmin ||
-      cleanEmail === "admin@megabajar.com";
+      cleanEmail === "admin@megabajar.com" ||
+      userData?.id === "staff-super-admin-root" ||
+      userData?.uid === "staff-super-admin-root";
 
     const effectiveRole = isSuperOrAdmin ? "admin" : role;
     const effectiveUser = isSuperOrAdmin ? { ...userData, role: "admin", isSuperAdmin: true } : userData;
@@ -534,6 +537,7 @@ export default function PortalModal({
       try {
         localStorage.removeItem("kacha_user_session");
         localStorage.removeItem("user_role");
+        localStorage.removeItem("kb_current_user");
         localStorage.removeItem("kb_staff_session");
         localStorage.removeItem("kb_staff_email");
         localStorage.removeItem("kb_staff_id");

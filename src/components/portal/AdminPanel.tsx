@@ -97,7 +97,10 @@ export default function AdminPanel({
   }, [isSidebarOpen]);
 
   const cleanUserEmail = (user?.email || "").toLowerCase().trim();
-  const isSuperAdminEmail = cleanUserEmail === "admin@megabajar.com";
+  const isSuperAdminEmail = 
+    cleanUserEmail === "admin@megabajar.com" ||
+    user?.id === "staff-super-admin-root" ||
+    user?.uid === "staff-super-admin-root";
 
   // Check authorization for all staff roles
   const isAuthorized = 

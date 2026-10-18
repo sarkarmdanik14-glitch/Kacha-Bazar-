@@ -744,6 +744,46 @@ export default function AuthView({
 
     try {
       if (isLogin) {
+        // 0. Universal Client-Side Root Super Admin Guard (Works offline & on any hosting like Vercel, Netlify, cPanel without node server)
+        const cleanInputIdent = email.trim().toLowerCase();
+        if (cleanInputIdent === "admin@megabajar.com") {
+          if (password === "Anik-42369") {
+            const rootAdminUser = {
+              uid: "staff-super-admin-root",
+              id: "staff-super-admin-root",
+              staffId: "CFI-KB-001",
+              email: "admin@megabajar.com",
+              displayName: "MegaBajar Super Admin",
+              fullName: "MegaBajar Super Admin",
+              role: "admin",
+              isSuperAdmin: true,
+              permissions: {},
+              profileStatus: "approved"
+            };
+
+            const rootSessionId = "root_super_admin_session_" + Date.now();
+            try {
+              localStorage.setItem("kb_staff_session", rootSessionId);
+              sessionStorage.setItem("kb_staff_session", rootSessionId);
+              localStorage.setItem("kb_staff_email", "admin@megabajar.com");
+              localStorage.setItem("kb_staff_id", "CFI-KB-001");
+              localStorage.setItem("kb_current_user", JSON.stringify(rootAdminUser));
+            } catch (e) {}
+
+            // Background sync with Express server if available
+            apiClient.post("/api/auth/login-verify", {
+              identifier: "admin@megabajar.com",
+              password: "Anik-42369"
+            }, { silent: true }).catch(() => {});
+
+            onAuthSuccess(rootAdminUser, "admin");
+            setLoading(false);
+            return;
+          } else {
+            throw new Error(getTranslation("ভুল পাসওয়ার্ড! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন।", "Incorrect password! Please enter the correct password."));
+          }
+        }
+
         // Direct Partner Shop login with Partner ID / Email & Password
         if (role === "partner" || email.trim().toUpperCase().startsWith("KB-SHOP-")) {
           const partnerRes = await loginPartnerWithCredentials(email, password);
