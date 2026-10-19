@@ -180,16 +180,25 @@ export default function PortalModal({
         const uid = user.uid || user.id;
         const email = (user.email || "").toLowerCase().trim();
 
-        const isSuperAdminEmail = 
-          user.role === "admin" || user.role === "super_admin" || user.isSuperAdmin;
-
-        if (forcedRole === "admin" || isSuperAdminEmail) {
-          let isAdminUser = isSuperAdminEmail;
+        if (forcedRole === "admin" || user.role === "admin" || user.role === "super_admin") {
+          let isAdminUser = false;
           let adminData: any = null;
 
-          // 2. Supabase admin check
+          // 1. Supabase admin check (strict database verification by uid)
+          isAdminUser = await checkIsSupabaseAdmin(uid, email);
+
+          // 2. Verified active staff session check
           if (!isAdminUser) {
-            isAdminUser = await checkIsSupabaseAdmin(uid, email);
+            const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
+            if (staffSessionId) {
+              try {
+                const sRes = await apiClient.get<any>("/api/staff/active-session", { silent: true });
+                if (sRes?.success && sRes?.staff && (sRes.staff.role === "admin" || sRes.staff.role === "super_admin")) {
+                  isAdminUser = true;
+                  adminData = sRes.staff;
+                }
+              } catch {}
+            }
           }
 
           // 3. Firestore fallback

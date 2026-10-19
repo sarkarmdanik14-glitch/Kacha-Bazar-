@@ -315,6 +315,17 @@ export default function AuthView({
       const isSbAdmin = await checkIsSupabaseAdmin(uid, cleanEmail);
       if (isSbAdmin) return true;
 
+      // Check server active staff session
+      const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
+      if (staffSessionId) {
+        try {
+          const sRes = await apiClient.get<any>("/api/staff/active-session", { silent: true });
+          if (sRes?.success && sRes?.staff && (sRes.staff.role === "admin" || sRes.staff.role === "super_admin")) {
+            return true;
+          }
+        } catch {}
+      }
+
       // Check Firestore as legacy fallback
       const adminDocRef = doc(db, "admins", uid);
       const adminDocSnap = await getDoc(adminDocRef);

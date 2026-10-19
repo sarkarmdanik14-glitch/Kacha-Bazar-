@@ -17,7 +17,7 @@ export interface SupabaseUserProfile {
   phoneNumber?: string;
   phone?: string;
   photoURL?: string;
-  role: "customer" | "admin" | "seller" | "rider" | "partner";
+  role: "customer" | "admin" | "super_admin" | "seller" | "rider" | "partner";
   isSuperAdmin?: boolean;
   address?: string;
   referralCode?: string;
@@ -42,7 +42,7 @@ export async function supabaseSignInWithEmail(
   const lowerEmail = cleanEmail.toLowerCase();
   const effectivePreferredRole = preferredRole;
 
-  // 1. Direct Partner Shop / Staff credential check (covers super_admin like sarkarmdanik14@gmail.com)
+  // 1. Direct Partner Shop / Staff credential check with secure server-side verification
   try {
     const verifyData = await apiClient.post<any>("/api/auth/login-verify", {
       identifier: cleanEmail,
@@ -85,50 +85,7 @@ export async function supabaseSignInWithEmail(
     });
 
     if (error) {
-      if (isSuperAdminEmail || error.message.toLowerCase().includes("invalid login credentials")) {
-        // Try server staff verification directly via Supabase backend
-        try {
-          const verifyRes = await apiClient.post<any>("/api/auth/staff-verify", {
-            email: cleanEmail,
-            password: pass,
-            preferredRole: effectivePreferredRole
-          }, { silent: true });
-
-          if (verifyRes?.success && verifyRes?.user) {
-            return {
-              success: true,
-              user: verifyRes.user,
-              role: verifyRes.user.role || effectivePreferredRole
-            };
-          }
-        } catch (serverErr) {
-          // Fall through to direct table check
-        }
-
-        // Check staff table in Supabase
-        const { data: staffData } = await supabase
-          .from("staff")
-          .select("*")
-          .or(`email.eq.${cleanEmail},username.eq.${cleanEmail},mobile.eq.${cleanEmail}`)
-          .single();
-
-        if (staffData && staffData.status === "active") {
-          return {
-            success: true,
-            user: {
-              uid: staffData.id || staffData.staff_id,
-              id: staffData.id || staffData.staff_id,
-              email: staffData.email,
-              displayName: staffData.full_name,
-              fullName: staffData.full_name,
-              role: (staffData.role || "admin") as any,
-              photoURL: staffData.photo_url || ""
-            },
-            role: staffData.role || "admin"
-          };
-        }
-      }
-      return { success: false, error: error.message };
+      return { success: false, error: error.message || "ভুল ইমেইল বা পাসওয়ার্ড!" };
     }
 
     if (!data.user) {
@@ -148,7 +105,7 @@ export async function supabaseSignInWithEmail(
     if (!profile) {
       // Auto-create user profile in public.users if not exists
       const meta = data.user.user_metadata || {};
-      const resolvedName = meta.full_name || meta.display_name || (isSuperAdminEmail ? "Sarkar Md Anik (Super Admin)" : cleanEmail.split("@")[0]) || "গ্রাহক";
+      const resolvedName = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || "গ্রাহক";
       profile = {
         uid,
         id: uid,
@@ -157,7 +114,7 @@ export async function supabaseSignInWithEmail(
         fullName: resolvedName,
         phone: meta.phone || data.user.phone || "",
         phoneNumber: meta.phone || data.user.phone || "",
-        role: (isSuperAdminEmail ? "admin" : (meta.role || effectivePreferredRole || "customer")) as any,
+        role: "customer",
         referralCode: "REF" + uid.substring(0, 5).toUpperCase(),
         address: "চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর",
         walletBalance: 0,
@@ -167,12 +124,8 @@ export async function supabaseSignInWithEmail(
       await saveUserProfile(profile);
     }
 
-    if (isSuperAdminEmail && profile) {
-      profile.role = "admin";
-    }
-
-    // Exchange staff session if admin or staff
-    if (profile.role === "admin" || effectivePreferredRole === "admin" || isSuperAdminEmail) {
+    // Exchange staff session ONLY if genuinely admin or staff in the database
+    if (profile.role === "admin" || profile.role === "super_admin") {
       try {
         const sessionRes = await apiClient.post<any>("/api/staff/supabase-session", {
           accessToken: data.session?.access_token,
@@ -192,7 +145,7 @@ export async function supabaseSignInWithEmail(
     return {
       success: true,
       user: profile,
-      role: isSuperAdminEmail ? "admin" : profile.role
+      role: profile.role
     };
   } catch (err: any) {
     console.error("[Supabase Auth] Login error:", err);
@@ -523,27 +476,33 @@ export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
  * Check if a user is an authorized admin in Supabase
  */
 export async function checkIsSupabaseAdmin(uid: string, email?: string): Promise<boolean> {
+  if (!uid) return false;
   const cleanEmail = (email || "").toLowerCase().trim();
-  if (!uid && !cleanEmail) return false;
   try {
-    // 1. Check staff table
+    // 1. Check staff table by authenticated UID
     const { data: staffData } = await supabase
       .from("staff")
-      .select("*")
-      .or(`id.eq.${uid},staff_id.eq.${uid}${cleanEmail ? `,email.eq.${cleanEmail}` : ""}`)
-      .single();
+      .select("id, staff_id, email, role, status")
+      .or(`id.eq.${uid},staff_id.eq.${uid}`)
+      .maybeSingle();
+
     if (staffData && staffData.status === "active" && (staffData.role === "admin" || staffData.role === "super_admin")) {
-      return true;
+      if (!cleanEmail || (staffData.email && staffData.email.toLowerCase() === cleanEmail)) {
+        return true;
+      }
     }
 
-    // 2. Check users table
+    // 2. Check users table by authenticated UID
     const { data: userData } = await supabase
       .from("users")
-      .select("role")
+      .select("role, email, id, uid")
       .or(`id.eq.${uid},uid.eq.${uid}`)
-      .single();
+      .maybeSingle();
+
     if (userData && (userData.role === "admin" || userData.role === "super_admin")) {
-      return true;
+      if (!cleanEmail || (userData.email && userData.email.toLowerCase() === cleanEmail)) {
+        return true;
+      }
     }
   } catch {}
   return false;

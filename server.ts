@@ -1889,15 +1889,6 @@ async function verifyFirebaseTokenAuth(req: express.Request): Promise<{ staffId:
         (uid && s.id === uid)
       );
 
-      if (!staff && email === "admin@megabajar.com") {
-        return {
-          staffId: "CFI-KB-001",
-          email: "admin@megabajar.com",
-          role: "super_admin",
-          isSuperAdmin: true
-        };
-      }
-
       if (staff && staff.status === "active") {
         return {
           staffId: staff.staffId,
@@ -2028,7 +2019,8 @@ function generateNextStaffId(staffList: any[]): string {
 }
 
 function getRootSuperAdminProfile() {
-  const { hash, salt } = hashStaffPassword("Anik-42369");
+  const rootPassword = process.env.INITIAL_SUPER_ADMIN_PASSWORD || process.env.SUPER_ADMIN_PASSWORD || "Admin#2026!";
+  const { hash, salt } = hashStaffPassword(rootPassword);
   return {
     id: "staff-super-admin-root",
     staffId: "CFI-KB-001",
@@ -2079,6 +2071,34 @@ function readStaffDb(): any[] {
       rootAdmin.isSuperAdmin = true;
       writeStaffDb(list);
     }
+  }
+
+  // Ensure owner super admin (kachabazar369@gmail.com) is present
+  const ownerEmail = (process.env.ADMIN_EMAIL || "kachabazar369@gmail.com").toLowerCase().trim();
+  const ownerIndex = list.findIndex(s => s && ((s.email && s.email.toLowerCase() === ownerEmail) || (s.username && s.username.toLowerCase() === ownerEmail)));
+  if (ownerIndex === -1) {
+    const rootPassword = process.env.INITIAL_SUPER_ADMIN_PASSWORD || process.env.SUPER_ADMIN_PASSWORD || "Admin#2026!";
+    const { hash, salt } = hashStaffPassword(rootPassword);
+    list.unshift({
+      id: "staff-super-admin-owner",
+      staffId: "CFI-KB-000",
+      username: ownerEmail,
+      fullName: "Kacha Bazar Super Admin",
+      email: ownerEmail,
+      role: "super_admin",
+      designation: "Store Owner / Super Admin",
+      department: "Executive Administration",
+      isSuperAdmin: true,
+      status: "active",
+      permissions: {},
+      passwordHash: hash,
+      passwordSalt: salt,
+      hash: hash,
+      salt: salt,
+      monthlySalary: 100000,
+      salaryStatus: "paid"
+    });
+    writeStaffDb(list);
   }
 
   return list;
@@ -2176,6 +2196,18 @@ app.get("/api/staff/public-officers", rateLimiter(60, 60000), (req, res) => {
   } catch (err: any) {
     return res.status(500).json({ success: false, error: "Failed to load officers" });
   }
+});
+
+// 0.9. GET /api/staff/active-session - Securely verify server-side authenticated staff session
+app.get("/api/staff/active-session", async (req, res) => {
+  let auth = getStaffFromSession(req);
+  if (!auth) {
+    auth = await verifyFirebaseTokenAuth(req);
+  }
+  if (!auth) {
+    return res.status(401).json({ success: false, authenticated: false });
+  }
+  return res.json({ success: true, authenticated: true, staff: auth });
 });
 
 // 1. GET /api/staff/list - List staff members (full sanitized list for authenticated staff; safe active public officers for unauthenticated callers)
@@ -2621,7 +2653,7 @@ app.post("/api/staff/delete", rateLimiter(15, 60000), requireSuperAdminAuth, asy
     }
 
     // SUPER ADMIN PROTECTION: Strictly prevent deleting Super Admin
-    if (target.isSuperAdmin || target.role === "super_admin" || target.email === "admin@megabajar.com" || target.username === "admin@megabajar.com") {
+    if (target.isSuperAdmin || target.role === "super_admin") {
       return res.status(403).json({ success: false, error: "নিরাপত্তা সতর্কতা: সুপার এডমিন অ্যাকাউন্ট ডিলিট করা সম্পূর্ণ নিষিদ্ধ!", message: "Super admin cannot be deleted." });
     }
 
@@ -3431,7 +3463,7 @@ app.post("/api/staff/reset-password", rateLimiter(15, 60000), requireAdminAuth, 
     }
 
     // PRIVILEGE ESCALATION CHECK (CWE-269):
-    const isTargetSuperAdmin = target.role === "super_admin" || target.isSuperAdmin === true || target.email === "admin@megabajar.com" || target.username === "admin@megabajar.com";
+    const isTargetSuperAdmin = target.role === "super_admin" || target.isSuperAdmin === true;
     const caller = (req as any).staffUser || (req as any).staff;
 
     if (isTargetSuperAdmin && (!caller || !caller.isSuperAdmin)) {
@@ -4427,17 +4459,6 @@ app.post("/api/staff/login", rateLimiter(15, 60000), async (req, res) => {
       }
     }
 
-    const cleanLowerIdent = cleanIdent.toLowerCase();
-    const isSuperAdminUser = cleanLowerIdent === "admin@megabajar.com";
-
-    if (!staff && isSuperAdminUser) {
-      if (password === "Anik-42369") {
-        staff = getRootSuperAdminProfile();
-        staffList.push(staff);
-        writeStaffDb(staffList);
-      }
-    }
-
     if (!staff) {
       return res.status(401).json({ 
         success: false,
@@ -4455,27 +4476,22 @@ app.post("/api/staff/login", rateLimiter(15, 60000), async (req, res) => {
       });
     }
 
-    // VERIFY HASHED PASSWORD OR PLAINTEXT SYNC
+    // VERIFY HASHED PASSWORD
     let isMatch = false;
-    if (staff.passwordHash && staff.passwordSalt) {
-      isMatch = verifyStaffPassword(password, staff.passwordHash, staff.passwordSalt);
-    }
-    if (!isMatch && staff.password && staff.password === password) {
+    const targetHash = staff.passwordHash || staff.hash;
+    const targetSalt = staff.passwordSalt || staff.salt;
+
+    if (targetHash && targetSalt) {
+      isMatch = verifyStaffPassword(password, targetHash, targetSalt);
+    } else if (staff.password && staff.password === password) {
       isMatch = true;
       const { hash, salt } = hashStaffPassword(password);
       staff.passwordHash = hash;
       staff.passwordSalt = salt;
-    }
-    if (!isMatch && (staff.role === "super_admin" || staff.isSuperAdmin || staff.email === "admin@megabajar.com" || staff.username === "admin@megabajar.com")) {
-      if (password === "Anik-42369") {
-        isMatch = true;
-        const { hash, salt } = hashStaffPassword(password);
-        staff.passwordHash = hash;
-        staff.passwordSalt = salt;
-        staff.hash = hash;
-        staff.salt = salt;
-        writeStaffDb(staffList);
-      }
+      staff.hash = hash;
+      staff.salt = salt;
+      delete staff.password;
+      writeStaffDb(staffList);
     }
 
     if (!isMatch) {
@@ -4549,12 +4565,6 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
       );
     });
 
-    if (!staff && cleanIdent === "admin@megabajar.com" && password === "Anik-42369") {
-      staff = getRootSuperAdminProfile();
-      staffList.push(staff);
-      writeStaffDb(staffList);
-    }
-
     if (staff) {
       let isMatch = false;
       const targetHash = staff.passwordHash || staff.hash;
@@ -4569,18 +4579,6 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
         if (isMatch) {
           staff.passwordHash = staff.hash;
           staff.passwordSalt = staff.salt;
-          writeStaffDb(staffList);
-        }
-      }
-
-      if (!isMatch && (staff.role === "super_admin" || staff.isSuperAdmin || staff.email === "admin@megabajar.com" || staff.username === "admin@megabajar.com")) {
-        if (password === "Anik-42369") {
-          isMatch = true;
-          const newCreds = hashStaffPassword(password);
-          staff.passwordHash = newCreds.hash;
-          staff.passwordSalt = newCreds.salt;
-          staff.hash = newCreds.hash;
-          staff.salt = newCreds.salt;
           writeStaffDb(staffList);
         }
       }
@@ -5035,18 +5033,6 @@ app.post("/api/staff/firebase-session", rateLimiter(20, 60000), async (req, res)
       (uid && s.id === uid)
     );
 
-    // If verified email is the designated founder / super_admin or current project owner
-    if (!staff && email === "admin@megabajar.com") {
-      staff = staffList.find(s => s.role === "super_admin" || s.isSuperAdmin || s.email === "admin@megabajar.com");
-      if (!staff) {
-        staff = getRootSuperAdminProfile();
-        staffList.push(staff);
-        writeStaffDb(staffList);
-      } else {
-        if (!staff.email) staff.email = email;
-      }
-    }
-
     // Check in Firestore admins/staff collections as well
     if (!staff) {
       try {
@@ -5125,18 +5111,6 @@ app.post("/api/staff/supabase-session", rateLimiter(20, 60000), async (req, res)
       (email && s.email && s.email.toLowerCase() === email) ||
       (uid && s.id === uid)
     );
-
-    // If designated founder / super_admin
-    if (!staff && email === "admin@megabajar.com") {
-      staff = staffList.find(s => s.role === "super_admin" || s.isSuperAdmin || s.email === "admin@megabajar.com");
-      if (!staff) {
-        staff = getRootSuperAdminProfile();
-        staffList.push(staff);
-        writeStaffDb(staffList);
-      } else {
-        if (!staff.email) staff.email = email;
-      }
-    }
 
     // Check in Supabase staff table as well
     if (!staff) {
