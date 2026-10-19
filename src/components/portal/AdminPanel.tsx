@@ -102,11 +102,10 @@ export default function AdminPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isSidebarOpen]);
 
-  // Check authorization for all staff roles
+  // Check authorization for all valid staff roles
   const isAuthorized = 
     user?.role === "admin" || 
     user?.role === "super_admin" || 
-    user?.role === "founder" || 
     user?.role === "order_manager" || 
     user?.role === "product_manager" || 
     user?.role === "call_center_agent" || 

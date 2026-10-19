@@ -134,7 +134,6 @@ CREATE TABLE IF NOT EXISTS public.partner_shops (
     joining_date TEXT,
     commission_rate NUMERIC(5, 2) DEFAULT 10.0,
     status TEXT DEFAULT 'active',
-    plain_password TEXT,
     password_hash TEXT,
     password_salt TEXT,
     balance NUMERIC(12, 2) DEFAULT 0,

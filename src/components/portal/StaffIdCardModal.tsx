@@ -346,19 +346,11 @@ export default function StaffIdCardModal({
     const cleanDesignation = String(activeStaff.designation || "").toLowerCase().trim();
 
     return (
-      cleanId === "staff-super-admin-01" ||
-      cleanId === "cfi-kb-001" ||
-      cleanStaffId === "cfi-kb-001" ||
-      cleanStaffId === "kb-dir-001" ||
-      cleanStaffId === "kb-001" ||
-      cleanName.includes("anik") ||
-      cleanEmail.includes("sarkarmdanik") ||
-      cleanEmail === "admin@kachabazar.com" ||
+      cleanRole === "super_admin" ||
       cleanRole === "founder" ||
       cleanDesignation.includes("founder") ||
       cleanDesignation.includes("managing director") ||
-      cleanDesignation.includes("প্রতিষ্ঠাতা") ||
-      Boolean(staffList && staffList.length > 0 && (staffList[0]?.id === activeStaff.id || staffList[0]?.staffId === activeStaff.staffId))
+      cleanDesignation.includes("প্রতিষ্ঠাতা")
     );
   })();
 

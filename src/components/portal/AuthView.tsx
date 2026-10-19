@@ -1688,7 +1688,7 @@ export default function AuthView({
                   type={role === "admin" || role === "partner" ? "text" : "email"}
                   required
                   placeholder={role === "admin" 
-                    ? getTranslation("যেমন: admin@megabajar.com", "e.g. admin@megabajar.com")
+                    ? getTranslation("যেমন: name@example.com", "e.g. name@example.com")
                     : role === "partner"
                     ? getTranslation("যেমন: KB-SHOP-001 বা greenvalley@kachabazar.com", "e.g. KB-SHOP-001 or email")
                     : "name@example.com"}

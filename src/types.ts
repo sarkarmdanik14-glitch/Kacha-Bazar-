@@ -217,7 +217,7 @@ export interface SalaryPaymentRecord {
 
 export interface StaffMember {
   id: string;
-  staffId: string; // e.g. "CFI-KB-001"
+  staffId: string; // e.g. "CFI-KB-XXX"
   username?: string; // e.g. "anik_admin", "rahim02"
   fullName: string;
   mobile: string;
@@ -289,7 +289,6 @@ export interface PartnerShop {
   joiningDate: string;
   commissionRate: number; // Configurable percentage, e.g. 10 for 10%
   status: PartnerShopStatus;
-  plainPassword?: string;
   passwordHash?: string;
   passwordSalt?: string;
   paymentMethod?: string;

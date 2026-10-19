@@ -89,7 +89,7 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
     setFormCategory("শাক-সবজি ও তাজা ফলমূল");
     setFormCommissionRate(10);
     setFormStatus("active");
-    setFormPassword("partner123");
+    setFormPassword("");
     setFormLogo("https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=300&q=80");
     setFormPaymentMethod("bKash");
     setFormAccountNumber("");
@@ -106,7 +106,7 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
     setFormCategory(shop.category);
     setFormCommissionRate(shop.commissionRate);
     setFormStatus(shop.status);
-    setFormPassword(shop.plainPassword || "partner123");
+    setFormPassword("");
     setFormLogo(shop.logo);
     setFormPaymentMethod(shop.paymentMethod || "bKash");
     setFormAccountNumber(shop.accountNumber || "");
@@ -120,11 +120,21 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
       return;
     }
 
+    if (!editingShop && (!formPassword.trim() || formPassword.trim().length < 8)) {
+      triggerToast("কমপক্ষে ৮ অক্ষরের শক্তিশালী পাসওয়ার্ড দিন।", "Please enter a strong password (minimum 8 characters).");
+      return;
+    }
+
+    if (editingShop && formPassword.trim() && formPassword.trim().length < 8) {
+      triggerToast("কমপক্ষে ৮ অক্ষরের শক্তিশালী পাসওয়ার্ড দিন।", "Please enter a strong password (minimum 8 characters).");
+      return;
+    }
+
     setSubmitting(true);
     try {
       if (editingShop) {
         // Update
-        await updatePartnerShop(editingShop.id, {
+        const updatePayload: any = {
           shopName: formShopName,
           ownerName: formOwnerName,
           mobile: formMobile,
@@ -133,11 +143,14 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
           category: formCategory,
           commissionRate: Number(formCommissionRate),
           status: formStatus,
-          plainPassword: formPassword,
           logo: formLogo,
           paymentMethod: formPaymentMethod,
           accountNumber: formAccountNumber
-        });
+        };
+        if (formPassword.trim()) {
+          updatePayload.password = formPassword.trim();
+        }
+        await updatePartnerShop(editingShop.id, updatePayload);
         triggerToast("পার্টনার শপ সফলভাবে আপডেট করা হয়েছে!", "Partner shop successfully updated!");
       } else {
         // Create new
@@ -152,12 +165,12 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
           category: formCategory,
           commissionRate: Number(formCommissionRate),
           status: formStatus,
-          plainPassword: formPassword,
+          password: formPassword.trim(),
           logo: formLogo,
           paymentMethod: formPaymentMethod,
           accountNumber: formAccountNumber,
           joiningDate: new Date().toLocaleDateString("bn-BD", { year: "numeric", month: "long", day: "numeric" })
-        });
+        } as any);
         triggerToast("নতুন পার্টনার শপ সফলভাবে যোগ করা হয়েছে!", "New partner shop successfully added!");
       }
       setShowModal(false);
@@ -725,13 +738,16 @@ export default function AdminPartnerShopsTab({ currentUser, lang, triggerToast }
                 {/* Secure Password */}
                 <div>
                   <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">
-                    {getTranslation("পার্টনার পাসওয়ার্ড (Password) *", "Partner Password *")}
+                    {getTranslation(
+                      editingShop ? "নতুন পাসওয়ার্ড (ঐচ্ছিক)" : "পার্টনার পাসওয়ার্ড *",
+                      editingShop ? "New Password (optional)" : "Partner Password *"
+                    )}
                   </label>
                   <div className="relative">
                     <input
                       type={showPassword ? "text" : "password"}
-                      required
-                      placeholder="Enter partner password"
+                      required={!editingShop}
+                      placeholder={editingShop ? "Leave blank to keep current password" : "Enter partner password (min 8 chars)"}
                       value={formPassword}
                       onChange={(e) => setFormPassword(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-3.5 pr-10 py-2.5 text-xs focus:bg-white focus:border-emerald-500 outline-none font-mono font-bold"

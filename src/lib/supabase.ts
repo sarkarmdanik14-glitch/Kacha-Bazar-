@@ -1,23 +1,40 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-// Default configuration provided for KachaBazar Supabase migration
-const DEFAULT_SUPABASE_URL = "https://syqiyurjeuibpprfrmwa.supabase.co";
-const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i";
+// Read exclusively from environment variables with NO hardcoded fallbacks
+export const SUPABASE_URL: string = ((import.meta as any).env?.VITE_SUPABASE_URL || "").trim();
+export const SUPABASE_ANON_KEY: string = ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY || "").trim();
 
-export const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-export const SUPABASE_ANON_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
+if (!SUPABASE_URL) {
+  console.error("[Configuration Error] Missing VITE_SUPABASE_URL in environment.");
+}
+if (!SUPABASE_ANON_KEY) {
+  console.error("[Configuration Error] Missing VITE_SUPABASE_ANON_KEY in environment.");
+}
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
+export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+// Client-side instance initialized strictly with provided env variables
+export const supabase: SupabaseClient = createClient(
+  SUPABASE_URL || "https://unconfigured.supabase.co",
+  SUPABASE_ANON_KEY || "unconfigured-key",
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  }
+);
 
 // Helper check to verify connection to Supabase
 export async function testSupabaseConnection(): Promise<{ success: boolean; message: string }> {
+  if (!isSupabaseConfigured) {
+    return { 
+      success: false, 
+      message: "Supabase is not configured. Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in environment variables." 
+    };
+  }
   try {
-    const { data, error } = await supabase.from("products").select("id").limit(1);
+    const { error } = await supabase.from("products").select("id").limit(1);
     if (error) {
       return { success: false, message: error.message };
     }

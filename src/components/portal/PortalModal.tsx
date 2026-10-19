@@ -510,24 +510,58 @@ export default function PortalModal({
     };
   }, [isOpen, forcedRole]);
 
-  const handleAuthSuccess = (userData: any, role: string) => {
+  const handleAuthSuccess = async (userData: any, role: string) => {
     if (role === "partner") {
       setCurrentPartner(userData);
+      setCurrentUser(userData);
+      setUserRole("partner");
+      setActivePortalTab("partner");
+      onUserChange?.(userData);
+      triggerToast(
+        "লগইন সফল হয়েছে! পার্টনার পোর্টালে স্বাগতম।",
+        "Login successful! Welcome to the Partner portal."
+      );
+      return;
     }
-    const cleanEmail = (userData?.email || "").toLowerCase().trim();
-    const isSuperOrAdmin = role === "admin" || role === "super_admin" || role === "founder" || 
-      userData?.role === "admin" || userData?.role === "super_admin" || userData?.isSuperAdmin;
 
-    const effectiveRole = isSuperOrAdmin ? "admin" : role;
-    const effectiveUser = isSuperOrAdmin ? { ...userData, role: "admin", isSuperAdmin: true } : userData;
+    // Call /api/staff/active-session to obtain authoritative server role & permissions
+    try {
+      const activeRes = await apiClient.get<any>("/api/staff/active-session", { silent: true });
+      if (activeRes?.success && activeRes?.staff) {
+        const serverStaff = activeRes.staff;
+        const verifiedRole = serverStaff.role || "admin";
+        const verifiedUser = {
+          ...userData,
+          ...serverStaff,
+          role: verifiedRole,
+          isSuperAdmin: Boolean(serverStaff.isSuperAdmin || verifiedRole === "super_admin"),
+          permissions: serverStaff.permissions || {}
+        };
+        setCurrentUser(verifiedUser);
+        setUserRole(verifiedRole);
+        setActivePortalTab(verifiedRole === "super_admin" || verifiedRole === "admin" ? "admin" : "staff");
+        onUserChange?.(verifiedUser);
+        triggerToast(
+          "লগইন সফল হয়েছে! কাচা বাজার পোর্টালে স্বাগতম।",
+          "Login successful! Welcome to the Kacha Bazar system portal."
+        );
+        return;
+      }
+    } catch (err) {}
 
-    setCurrentUser(effectiveUser);
-    setUserRole(effectiveRole);
-    setActivePortalTab(effectiveRole);
-    onUserChange?.(effectiveUser);
+    // Fallback: non-staff user is strictly customer
+    const customerUser = {
+      ...userData,
+      role: "customer",
+      isSuperAdmin: false
+    };
+    setCurrentUser(customerUser);
+    setUserRole("customer");
+    setActivePortalTab("customer");
+    onUserChange?.(customerUser);
     triggerToast(
-      "লগইন সফল হয়েছে! কাচা বাজার পোর্টালে স্বাগতম।",
-      "Login successful! Welcome to the Kacha Bazar system portal."
+      "লগইন সফল হয়েছে! কাচা বাজারে স্বাগতম।",
+      "Login successful! Welcome to Kacha Bazar."
     );
   };
 

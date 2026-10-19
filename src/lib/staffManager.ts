@@ -436,8 +436,7 @@ export function hasPermission(
   // 1. Super Admin has unrestricted universal permissions
   if (
     user.role === "super_admin" || 
-    user.isSuperAdmin === true || 
-    user.role === "founder"
+    user.isSuperAdmin === true
   ) {
     return true;
   }
@@ -469,7 +468,7 @@ export function hasPermission(
   return false;
 }
 
-// Helper to calculate sequential Staff ID (Format: CFI-KB-001, CFI-KB-002, etc.)
+// Helper to calculate sequential Staff ID (Format: CFI-KB-XXX, CFI-KB-YYY, etc.)
 export function generateNextStaffId(staffList: StaffMember[]): string {
   let maxNum = 0;
   if (Array.isArray(staffList)) {
@@ -491,8 +490,7 @@ export function generateNextStaffId(staffList: StaffMember[]): string {
 
 /**
  * Format staff username strictly according to rule:
- * CFI-KB-001 → cfikb001
- * CFI-KB-002 → cfikb002
+ * CFI-KB-XXX → cfikbxxx
  * Strips '@', removes all hyphens/spaces, strictly lowercase.
  */
 export function formatStaffUsername(input?: string): string {
@@ -624,7 +622,7 @@ export async function sendStaffHeartbeat(staffId: string, status: StaffOnlineSta
 
 /**
  * Universal canonical helper to find a staff member from a list by either internal record `id` or display `staffId`.
- * Supports case-insensitive and whitespace-trimmed matching so CFI-KB-001 or staff-super-admin-01 both work.
+ * Supports case-insensitive and whitespace-trimmed matching so CFI-KB-XXX or staff-super-admin-01 both work.
  */
 export function findStaffMember(
   staffList: StaffMember[] | null | undefined,
@@ -776,7 +774,7 @@ export async function fetchStaffFromFirestore(): Promise<StaffMember[]> {
           });
         });
 
-        // Sort staff members by staffId (e.g. CFI-KB-001, CFI-KB-002)
+        // Sort staff members by staffId (e.g. CFI-KB-XXX, CFI-KB-YYY)
         list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
         return list;
       }

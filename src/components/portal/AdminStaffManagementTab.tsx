@@ -1183,7 +1183,7 @@ export default function AdminStaffManagementTab({
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1">
-                  {getTranslation("ফাঁকা রাখলে পরবর্তী ক্রমানুযায়ী আইডি যেমন CFI-KB-001 স্বয়ংক্রিয়ভাবে তৈরি হবে।", "Leaves blank to auto-generate the next sequential ID (e.g. CFI-KB-001).")}
+                  {getTranslation("ফাঁকা রাখলে পরবর্তী ক্রমানুযায়ী আইডি যেমন CFI-KB-XXX স্বয়ংক্রিয়ভাবে তৈরি হবে।", "Leaves blank to auto-generate the next sequential ID (e.g. CFI-KB-XXX).")}
                 </p>
               </div>
 

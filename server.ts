@@ -27,77 +27,48 @@ const firebaseAppletConfig: any = {};
 
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 
-// Cloudflare R2 Object Storage Client Configuration (Securely loaded from .env)
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || "";
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "";
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "";
-const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "kachabazar-image";
-const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev").replace(/\/+$/, "");
-const R2_ENDPOINT = process.env.R2_ENDPOINT || (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : "");
+// Cloudflare R2 Object Storage Client Configuration (Securely loaded strictly from .env)
+const R2_ACCOUNT_ID = (process.env.R2_ACCOUNT_ID || "").trim();
+const R2_ACCESS_KEY_ID = (process.env.R2_ACCESS_KEY_ID || "").trim();
+const R2_SECRET_ACCESS_KEY = (process.env.R2_SECRET_ACCESS_KEY || "").trim();
+const R2_BUCKET_NAME = (process.env.R2_BUCKET_NAME || "").trim();
+const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || "").trim().replace(/\/+$/, "");
+const R2_ENDPOINT = (process.env.R2_ENDPOINT || (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : "")).trim();
 
-const r2Client = new S3Client({
+const isR2Configured = Boolean(R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_BUCKET_NAME && R2_ENDPOINT);
+
+const r2Client = isR2Configured ? new S3Client({
   region: "auto",
-  endpoint: R2_ENDPOINT || "https://f28557b34a31123a24324c3124b05180.r2.cloudflarestorage.com",
+  endpoint: R2_ENDPOINT,
   credentials: {
     accessKeyId: R2_ACCESS_KEY_ID,
     secretAccessKey: R2_SECRET_ACCESS_KEY,
   },
-});
+}) : null;
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // =====================================================================
 // Server-Authoritative Supabase Client
-// Supports SUPABASE_SERVICE_ROLE_KEY for full backend access,
-// with safe fallback to Anon key (compatible with Supabase open RLS schema).
-// Automatically persists and reloads custom keys from data/supabase_config.json.
+// Loaded strictly from environment variables without hardcoded secrets or fallbacks.
 // =====================================================================
-const SUPABASE_CONFIG_FILE = path.resolve(process.cwd(), "data", "supabase_config.json");
-
-interface SupabaseConfigData {
-  url?: string;
-  anonKey?: string;
-  serviceRoleKey?: string;
-  updatedAt?: string;
-}
-
-function loadSupabaseConfig(): SupabaseConfigData {
-  try {
-    if (fs.existsSync(SUPABASE_CONFIG_FILE)) {
-      return JSON.parse(fs.readFileSync(SUPABASE_CONFIG_FILE, "utf-8")) || {};
-    }
-  } catch (e) {
-    console.warn("[Server Supabase] Error reading supabase_config.json:", e);
-  }
-  return {};
-}
-
-function saveSupabaseConfig(config: SupabaseConfigData): boolean {
-  try {
-    const dir = path.dirname(SUPABASE_CONFIG_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(SUPABASE_CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
-    return true;
-  } catch (e) {
-    console.warn("[Server Supabase] Error writing supabase_config.json:", e);
-    return false;
-  }
-}
-
 let serverSupabaseClient: SupabaseClient | null = null;
 let currentSupabaseClientKey = "";
 
 function getServerSupabase(): SupabaseClient | null {
-  const fileConfig = loadSupabaseConfig();
-  const url = (fileConfig.url || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://syqiyurjeuibpprfrmwa.supabase.co").trim();
-  const serviceRoleKey = (fileConfig.serviceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
-  const anonKey = (fileConfig.anonKey || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i").trim();
+  const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").trim();
+  const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+  const anonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "").trim();
 
   // Prefer serviceRoleKey when configured; otherwise fall back to anonKey
   const activeKey = serviceRoleKey || anonKey;
 
-  if (!url || !activeKey) {
-    console.warn("[Server Supabase] Supabase URL or Key is missing. Cannot initialize client.");
+  if (!url) {
+    console.error("[503 Service Unavailable] SUPABASE_URL / VITE_SUPABASE_URL is missing in environment variables.");
+    return null;
+  }
+  if (!activeKey) {
+    console.error("[503 Service Unavailable] SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY is missing in environment variables.");
     return null;
   }
 
@@ -114,11 +85,11 @@ function getServerSupabase(): SupabaseClient | null {
       },
     });
     currentSupabaseClientKey = clientFingerprint;
-    const keyType = serviceRoleKey ? "Service Role Key (Full Bypass)" : "Publishable/Anon Key (RLS Compliant)";
-    console.log(`[Server Supabase] Client connected to ${url} using ${keyType}`);
+    const keyType = serviceRoleKey ? "Service Role Key (Full Access)" : "Publishable/Anon Key (RLS Compliant)";
+    console.log(`[Server Supabase] Connected to ${url} using ${keyType}`);
     return serverSupabaseClient;
   } catch (err: any) {
-    console.warn("[Server Supabase] Client initialization notice:", err?.message || err);
+    console.error("[Server Supabase] Client initialization notice:", err?.message || err);
     return null;
   }
 }
@@ -1719,19 +1690,14 @@ function verifyStaffPassword(password: string, hash: string, salt: string) {
 const SESSIONS_FILE = path.resolve(process.cwd(), "data", "staff_sessions.json");
 
 function loadStaffSessions(): Map<string, { staffId: string; email: string; role: string; expiresAt: number }> {
-  const map = new Map<string, { staffId: string; email: string; role: string; expiresAt: number }>();
+  // Invalidate ALL existing sessions on startup as required for security reset
   try {
     if (fs.existsSync(SESSIONS_FILE)) {
-      const data = JSON.parse(fs.readFileSync(SESSIONS_FILE, "utf-8"));
-      const now = Date.now();
-      for (const [k, v] of Object.entries(data)) {
-        if (v && typeof v === "object" && (v as any).expiresAt > now) {
-          map.set(k, v as any);
-        }
-      }
+      fs.unlinkSync(SESSIONS_FILE);
+      console.log("[Security] Deleted legacy staff_sessions.json and invalidated all prior sessions on startup.");
     }
   } catch (e) {}
-  return map;
+  return new Map<string, { staffId: string; email: string; role: string; expiresAt: number }>();
 }
 
 const activeStaffSessions = loadStaffSessions();
@@ -1789,26 +1755,6 @@ function getStaffFromSession(req: express.Request): { staffId: string; email: st
       };
     } else {
       activeStaffSessions.delete(sessionId);
-    }
-  }
-
-  // 2. Rehydrate valid session from persistent database if server restarted
-  const staffList = readStaffDb();
-  if (sessionId) {
-    const staff = staffList.find(s => s.sessionId && typeof s.sessionId === "string" && s.sessionId === sessionId);
-    if (staff && staff.status === "active") {
-      activeStaffSessions.set(sessionId, {
-        staffId: staff.staffId,
-        email: (staff.email || "").toLowerCase(),
-        role: staff.role || "order_manager",
-        expiresAt: Date.now() + 24 * 60 * 60 * 1000
-      });
-      return {
-        staffId: staff.staffId,
-        email: staff.email,
-        role: staff.role,
-        isSuperAdmin: staff.role === "super_admin" || !!staff.isSuperAdmin
-      };
     }
   }
 
@@ -1998,7 +1944,7 @@ function sanitizeStaff(staff: any) {
   return safe;
 }
 
-// Helper to calculate sequential Staff ID (Format: CFI-KB-001, CFI-KB-002, etc.)
+// Helper to calculate sequential Staff ID (Format: CFI-KB-XXX, CFI-KB-YYY, etc.)
 function generateNextStaffId(staffList: any[]): string {
   let maxNum = 0;
   if (Array.isArray(staffList)) {
@@ -2018,31 +1964,7 @@ function generateNextStaffId(staffList: any[]): string {
   return `CFI-KB-${String(nextNum).padStart(3, "0")}`;
 }
 
-function getRootSuperAdminProfile() {
-  const rootPassword = process.env.INITIAL_SUPER_ADMIN_PASSWORD || process.env.SUPER_ADMIN_PASSWORD || "Admin#2026!";
-  const { hash, salt } = hashStaffPassword(rootPassword);
-  return {
-    id: "staff-super-admin-root",
-    staffId: "CFI-KB-001",
-    username: "admin@megabajar.com",
-    fullName: "MegaBajar Super Admin",
-    email: "admin@megabajar.com",
-    role: "super_admin",
-    designation: "Chief Administrator / Super Admin",
-    department: "Executive Administration",
-    isSuperAdmin: true,
-    status: "active",
-    permissions: {},
-    passwordHash: hash,
-    passwordSalt: salt,
-    hash: hash,
-    salt: salt,
-    monthlySalary: 75000,
-    salaryStatus: "paid"
-  };
-}
-
-// Read staff database
+// Read staff database - NO AUTO-CREATION OR SEEDED ACCOUNTS
 function readStaffDb(): any[] {
   let list: any[] = [];
   try {
@@ -2056,49 +1978,46 @@ function readStaffDb(): any[] {
   } catch (e) {
     console.error("Error reading staff DB:", e);
   }
-  
-  // Ensure root super admin (admin@megabajar.com) is ALWAYS present
-  const rootIndex = list.findIndex(s => s && ((s.email && s.email.toLowerCase() === "admin@megabajar.com") || (s.username && s.username.toLowerCase() === "admin@megabajar.com")));
-  if (rootIndex === -1) {
-    const rootAdmin = getRootSuperAdminProfile();
-    list.unshift(rootAdmin);
-    writeStaffDb(list);
-  } else {
-    const rootAdmin = list[rootIndex];
-    if (rootAdmin.status !== "active" || rootAdmin.role !== "super_admin" || !rootAdmin.isSuperAdmin) {
-      rootAdmin.status = "active";
-      rootAdmin.role = "super_admin";
-      rootAdmin.isSuperAdmin = true;
-      writeStaffDb(list);
-    }
-  }
 
-  // Ensure owner super admin (kachabazar369@gmail.com) is present
-  const ownerEmail = (process.env.ADMIN_EMAIL || "kachabazar369@gmail.com").toLowerCase().trim();
-  const ownerIndex = list.findIndex(s => s && ((s.email && s.email.toLowerCase() === ownerEmail) || (s.username && s.username.toLowerCase() === ownerEmail)));
-  if (ownerIndex === -1) {
-    const rootPassword = process.env.INITIAL_SUPER_ADMIN_PASSWORD || process.env.SUPER_ADMIN_PASSWORD || "Admin#2026!";
-    const { hash, salt } = hashStaffPassword(rootPassword);
-    list.unshift({
-      id: "staff-super-admin-owner",
-      staffId: "CFI-KB-000",
-      username: ownerEmail,
-      fullName: "Kacha Bazar Super Admin",
-      email: ownerEmail,
-      role: "super_admin",
-      designation: "Store Owner / Super Admin",
-      department: "Executive Administration",
-      isSuperAdmin: true,
-      status: "active",
-      permissions: {},
-      passwordHash: hash,
-      passwordSalt: salt,
-      hash: hash,
-      salt: salt,
-      monthlySalary: 100000,
-      salaryStatus: "paid"
-    });
-    writeStaffDb(list);
+  // Check if any active super_admin exists
+  const hasSuperAdmin = list.some(s => s && (s.role === "super_admin" || s.isSuperAdmin) && s.status === "active");
+
+  const bootstrapEmail = (process.env.BOOTSTRAP_ADMIN_EMAIL || "").trim();
+  const bootstrapPassword = (process.env.BOOTSTRAP_ADMIN_PASSWORD || "").trim();
+
+  if (hasSuperAdmin) {
+    if (bootstrapEmail || bootstrapPassword) {
+      console.warn("[SECURITY WARNING] A super_admin already exists. BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD are now ignored. Please remove them from your environment immediately.");
+    }
+  } else {
+    // One-time ENV bootstrap: usable ONLY while NO super_admin exists
+    if (bootstrapEmail && bootstrapPassword) {
+      if (bootstrapPassword.length < 12) {
+        console.error("[BOOTSTRAP ERROR] BOOTSTRAP_ADMIN_PASSWORD must be at least 12 characters. Bootstrap rejected.");
+      } else {
+        const { hash, salt } = hashStaffPassword(bootstrapPassword);
+        const bootstrapAdmin = {
+          id: `staff_${Date.now()}_root`,
+          staffId: "CFI-KB-001",
+          username: bootstrapEmail.toLowerCase(),
+          fullName: "System Super Admin",
+          email: bootstrapEmail.toLowerCase(),
+          role: "super_admin",
+          designation: "Super Administrator",
+          department: "Executive Administration",
+          isSuperAdmin: true,
+          status: "active",
+          permissions: {},
+          passwordHash: hash,
+          passwordSalt: salt,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        list.unshift(bootstrapAdmin);
+        writeStaffDb(list);
+        console.log(`[BOOTSTRAP SUCCESS] Initial super_admin account created for ${bootstrapEmail}. Please delete BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD from your environment immediately.`);
+      }
+    }
   }
 
   return list;
@@ -2676,7 +2595,7 @@ app.post("/api/staff/delete", rateLimiter(15, 60000), requireSuperAdminAuth, asy
 
     // Audit Log
     appendActivityLog({
-      staffId: "CFI-KB-001",
+      staffId: "system",
       staffName: deleterName || "Super Admin",
       staffRole: "super_admin",
       action: "staff_deleted",
@@ -2916,6 +2835,19 @@ app.post("/api/staff/upload-photo", rateLimiter(120, 60000), requireStaffAuth, h
 
 // 4.7 GET /api/r2/status - Cloudflare R2 Health Check & Stats
 app.get("/api/r2/status", rateLimiter(30, 60000), async (_req, res) => {
+  if (!isR2Configured || !r2Client) {
+    const missing: string[] = [];
+    if (!R2_ACCESS_KEY_ID) missing.push("R2_ACCESS_KEY_ID");
+    if (!R2_SECRET_ACCESS_KEY) missing.push("R2_SECRET_ACCESS_KEY");
+    if (!R2_BUCKET_NAME) missing.push("R2_BUCKET_NAME");
+    if (!R2_ENDPOINT) missing.push("R2_ENDPOINT / R2_ACCOUNT_ID");
+    console.error(`[503 Service Unavailable] Cloudflare R2 is missing environment variables: ${missing.join(", ")}`);
+    return res.status(503).json({
+      success: false,
+      connected: false,
+      error: `Cloudflare R2 Object Storage is not configured. Missing variables: ${missing.join(", ")}`
+    });
+  }
   try {
     const listRes = await r2Client.send(new ListObjectsV2Command({
       Bucket: R2_BUCKET_NAME,
@@ -2943,6 +2875,10 @@ app.get("/api/r2/status", rateLimiter(30, 60000), async (_req, res) => {
 
 // 4.8 GET /api/media/* - Universal media streamer proxy from Cloudflare R2
 app.get("/api/media/*", async (req, res) => {
+  if (!isR2Configured || !r2Client) {
+    console.error("[503 Service Unavailable] Storage service unavailable: missing R2 credentials in environment (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME).");
+    return res.status(503).json({ error: "Storage service unavailable: missing R2 credentials in environment." });
+  }
   const rawKey = req.params[0] || "";
   const key = decodeURIComponent(rawKey).replace(/^\/+/, "").split("?")[0];
   if (!key) {
@@ -3001,6 +2937,11 @@ app.get("/api/r2/migrate-progress", (req, res) => {
 });
 
 app.post("/api/r2/migrate-from-cloudinary", rateLimiter(10, 60000), requireAdminAuth, async (req, res) => {
+  if (!isR2Configured || !r2Client) {
+    console.error("[503 Service Unavailable] Cannot migrate from Cloudinary because R2 is not configured.");
+    return res.status(503).json({ error: "Storage service unavailable: missing R2 credentials in environment." });
+  }
+
   if (activeMigrationState.running) {
     return res.json({
       success: true,
@@ -4460,6 +4401,45 @@ app.post("/api/staff/login", rateLimiter(15, 60000), async (req, res) => {
     }
 
     if (!staff) {
+      // Check if ANY super_admin exists in the system
+      const hasSuperAdmin = staffList.some(s => s && (s.role === "super_admin" || s.isSuperAdmin) && s.status === "active");
+      const bEmail = (process.env.BOOTSTRAP_ADMIN_EMAIL || "").trim();
+      const bPass = (process.env.BOOTSTRAP_ADMIN_PASSWORD || "").trim();
+
+      if (!hasSuperAdmin && bEmail && bPass && bPass.length >= 12) {
+        const emailMatch = cleanIdent === bEmail.toLowerCase();
+        const passBuf = Buffer.from(String(password));
+        const bPassBuf = Buffer.from(bPass);
+        const passMatch = passBuf.length === bPassBuf.length && crypto.timingSafeEqual(passBuf, bPassBuf);
+
+        if (emailMatch && passMatch) {
+          const { hash, salt } = hashStaffPassword(bPass);
+          const bootstrapStaff = {
+            id: `staff_${Date.now()}_root`,
+            staffId: "CFI-KB-001",
+            username: bEmail.toLowerCase(),
+            fullName: "System Super Admin",
+            email: bEmail.toLowerCase(),
+            role: "super_admin",
+            designation: "Super Administrator",
+            department: "Executive Administration",
+            isSuperAdmin: true,
+            status: "active",
+            permissions: {},
+            passwordHash: hash,
+            passwordSalt: salt,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          staffList.unshift(bootstrapStaff);
+          writeStaffDb(staffList);
+          console.log(`[BOOTSTRAP SUCCESS] Initial super_admin logged in and created for ${bEmail}. Please delete BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD from your environment immediately.`);
+          staff = bootstrapStaff;
+        }
+      }
+    }
+
+    if (!staff) {
       return res.status(401).json({ 
         success: false,
         error: "ভুল ইউজারনেম/স্টাফ আইডি বা পাসওয়ার্ড!",
@@ -5305,18 +5285,17 @@ app.post("/api/products/upsert", rateLimiter(60, 60000), requireStaffAuth, async
 
 app.get("/api/admin/supabase-config", requireAdminAuth, (req, res) => {
   try {
-    const fileConfig = loadSupabaseConfig();
-    const url = (fileConfig.url || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://syqiyurjeuibpprfrmwa.supabase.co").trim();
-    const anonKey = (fileConfig.anonKey || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i").trim();
-    const serviceRoleKey = (fileConfig.serviceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+    const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").trim();
+    const anonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "").trim();
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 
     return res.json({
       success: true,
-      url,
-      anonKey,
+      url: url || "",
+      anonKey: anonKey || "",
       hasServiceRoleKey: !!serviceRoleKey,
       serviceRoleKeyMasked: serviceRoleKey ? `${serviceRoleKey.slice(0, 10)}••••••••${serviceRoleKey.slice(-6)}` : "",
-      mode: serviceRoleKey ? "service_role" : "anon"
+      mode: serviceRoleKey ? "service_role" : (anonKey ? "anon" : "unconfigured")
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err?.message || "Failed to load config" });
@@ -5324,40 +5303,10 @@ app.get("/api/admin/supabase-config", requireAdminAuth, (req, res) => {
 });
 
 app.post("/api/admin/supabase-config", requireAdminAuth, (req, res) => {
-  try {
-    const { url, anonKey, serviceRoleKey } = req.body || {};
-    const existing = loadSupabaseConfig();
-    const updated: SupabaseConfigData = {
-      ...existing,
-      url: typeof url === "string" && url.trim() ? url.trim() : (existing.url || process.env.SUPABASE_URL || "https://syqiyurjeuibpprfrmwa.supabase.co"),
-      anonKey: typeof anonKey === "string" && anonKey.trim() ? anonKey.trim() : (existing.anonKey || process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i"),
-      updatedAt: new Date().toISOString()
-    };
-
-    if (serviceRoleKey !== undefined) {
-      const cleanKey = typeof serviceRoleKey === "string" ? serviceRoleKey.trim() : "";
-      updated.serviceRoleKey = cleanKey;
-      if (cleanKey) {
-        process.env.SUPABASE_SERVICE_ROLE_KEY = cleanKey;
-      } else {
-        delete process.env.SUPABASE_SERVICE_ROLE_KEY;
-      }
-    }
-
-    saveSupabaseConfig(updated);
-    // Invalidate cached client to force re-initialization
-    serverSupabaseClient = null;
-    currentSupabaseClientKey = "";
-    getServerSupabase();
-
-    return res.json({
-      success: true,
-      message: "Supabase কনফিগারেশন সফলভাবে সংরক্ষিত ও আপডেট হয়েছে।",
-      hasServiceRoleKey: !!(updated.serviceRoleKey)
-    });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err?.message || "Failed to save Supabase config" });
-  }
+  return res.status(403).json({
+    success: false,
+    error: "Security Policy: Supabase credentials must be configured strictly via server environment variables (.env). File-based credential mutation is disabled."
+  });
 });
 
 app.post("/api/sync/product", rateLimiter(120, 60000), requireStaffAuth, async (req, res) => {

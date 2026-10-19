@@ -70,8 +70,8 @@ export async function compressImage(file: File, maxDim = 1200, quality = 0.85): 
  */
 export async function uploadImageWithFallback(file: File, options: UploadImageOptions = {}): Promise<string> {
   const folder = options.folder || "products";
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "upvkzb3p";
-  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "k0x8mjmx";
+  const cloudName = (import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "").trim();
+  const uploadPreset = (import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "").trim();
 
   // Pre-compress image for fast upload and lower bandwidth
   let compressedDataUrl = "";
@@ -102,7 +102,8 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
   }
 
   // TIER 2: Cloudinary Fallback
-  try {
+  if (cloudName && uploadPreset) {
+    try {
     const formData = new FormData();
     if (compressedDataUrl) {
       formData.append("file", compressedDataUrl);
@@ -132,6 +133,7 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
     }
   } catch (cldErr) {
     // Graceful fallback to next tier
+  }
   }
 
   // TIER 3: High-efficiency Base64 Data URL Fallback

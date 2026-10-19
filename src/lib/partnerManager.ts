@@ -447,10 +447,11 @@ export async function createPartnerShop(shopData: Partial<PartnerShop>): Promise
     }));
 
     // If password provided, securely set it on the server (hashed via PBKDF2)
-    if (shopData.plainPassword) {
+    const passToSet = (shopData as any).password || (shopData as any).plainPassword;
+    if (passToSet) {
       await apiClient.post("/api/partner/set-password", {
         partnerId: newShop.id,
-        newPassword: shopData.plainPassword
+        newPassword: passToSet
       }).catch(console.warn);
     }
   } catch (err) {
