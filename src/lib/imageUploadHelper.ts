@@ -63,7 +63,7 @@ export async function compressImage(file: File, maxDim = 1200, quality = 0.85): 
 
 /**
  * Universal Image Uploader with 4-Tier Fallback:
- * 1. Cloudinary (using user's configured/active cloud 'upvkzb3p' and preset 'k0x8mjmx')
+ * 1. Cloudinary (configured via VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET)
  * 2. Firebase Storage (if available)
  * 3. Server Upload endpoint (/api/upload)
  * 4. High-efficiency Base64 Data URL

@@ -119,7 +119,7 @@ export interface PartnerFinancialMetrics {
  */
 export function sanitizePartnerFinancials(shop: PartnerShop): PartnerShop {
   if (!shop) return shop;
-  const { plainPassword, password, passwordHash, passwordSalt, ...cleanShop } = shop as any;
+  const { password, passwordHash, passwordSalt, ...cleanShop } = shop as any;
   const legacyDummySales = [84200, 125400, 168000, 62000];
   const legacyDummyBalances = [14500, 22800, 31200, 9500];
   const legacyDummyOrders = [68, 92, 85, 44];
@@ -439,7 +439,7 @@ export async function createPartnerShop(shopData: Partial<PartnerShop>): Promise
 
   // 2. Persist to Firestore without plaintext credentials
   try {
-    const { plainPassword, password, passwordHash, passwordSalt, ...safeFirestoreData } = newShop as any;
+    const { password, passwordHash, passwordSalt, ...safeFirestoreData } = newShop as any;
     await setDoc(doc(db, "partner_shops", newShop.id), sanitizeForFirestore({
       ...safeFirestoreData,
       createdAt: serverTimestamp(),
@@ -447,7 +447,7 @@ export async function createPartnerShop(shopData: Partial<PartnerShop>): Promise
     }));
 
     // If password provided, securely set it on the server (hashed via PBKDF2)
-    const passToSet = (shopData as any).password || (shopData as any).plainPassword;
+    const passToSet = (shopData as any).password;
     if (passToSet) {
       await apiClient.post("/api/partner/set-password", {
         partnerId: newShop.id,
@@ -475,8 +475,8 @@ export async function updatePartnerShop(id: string, updates: Partial<PartnerShop
   let updatedShopItem: any = null;
 
   // Separate password update from document updates to prevent plaintext leakage
-  const newPass = (updates as any).plainPassword || (updates as any).password;
-  const { plainPassword, password, passwordHash, passwordSalt, ...safeUpdates } = updates as any;
+  const newPass = (updates as any).password;
+  const { password, passwordHash, passwordSalt, ...safeUpdates } = updates as any;
 
   if (index !== -1) {
     currentList[index] = { ...currentList[index], ...safeUpdates };

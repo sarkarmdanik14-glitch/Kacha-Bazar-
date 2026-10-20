@@ -397,7 +397,7 @@ export default function AdminProductsTab({
     }
   }, [selectedCatId, categories]);
 
-  // Handle image upload for product via universal uploader (Cloudinary upvkzb3p + Storage + Server + Base64)
+  // Handle image upload for product via universal uploader (Storage + Server + CDN)
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;

@@ -126,7 +126,7 @@ CREATE POLICY "staff_sync_update" ON public.staff
     FOR UPDATE USING (true) WITH CHECK (true);
 -- No public SELECT allowed!
 
--- Partner Shops (Contains plain_password, phone, balance)
+-- Partner Shops (Contains phone, balance, password_hash)
 CREATE POLICY "partner_shops_public_read_active" ON public.partner_shops
     FOR SELECT USING (status = 'active');
 CREATE POLICY "partner_shops_sync_insert" ON public.partner_shops

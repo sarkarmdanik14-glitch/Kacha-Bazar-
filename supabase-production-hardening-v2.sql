@@ -107,7 +107,7 @@ END $$;
 CREATE POLICY "staff_service_role_all" ON public.staff
     FOR ALL TO service_role USING (true) WITH CHECK (true);
 
--- 4.2 PARTNER SHOPS (Contains plain_password, password_hash, balance, sales)
+-- 4.2 PARTNER SHOPS (Contains password_hash, balance, sales)
 -- ZERO direct public access. Only backend with service_role can access.
 CREATE POLICY "partner_shops_service_role_all" ON public.partner_shops
     FOR ALL TO service_role USING (true) WITH CHECK (true);

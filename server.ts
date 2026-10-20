@@ -63,12 +63,7 @@ function getServerSupabase(): SupabaseClient | null {
   // Prefer serviceRoleKey when configured; otherwise fall back to anonKey
   const activeKey = serviceRoleKey || anonKey;
 
-  if (!url) {
-    console.error("[503 Service Unavailable] SUPABASE_URL / VITE_SUPABASE_URL is missing in environment variables.");
-    return null;
-  }
-  if (!activeKey) {
-    console.error("[503 Service Unavailable] SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY is missing in environment variables.");
+  if (!url || !activeKey) {
     return null;
   }
 
@@ -1972,7 +1967,13 @@ function readStaffDb(): any[] {
       const data = fs.readFileSync(STAFF_FILE, "utf-8");
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed)) {
-        list = parsed;
+        list = parsed.map(s => (s && typeof s === "object" ? {
+          ...s,
+          mobile: s.mobile || "",
+          email: s.email || "",
+          staffId: s.staffId || "",
+          username: s.username || "",
+        } : s));
       }
     }
   } catch (e) {
@@ -2002,6 +2003,7 @@ function readStaffDb(): any[] {
           username: bootstrapEmail.toLowerCase(),
           fullName: "System Super Admin",
           email: bootstrapEmail.toLowerCase(),
+          mobile: "",
           role: "super_admin",
           designation: "Super Administrator",
           department: "Executive Administration",
@@ -2194,13 +2196,14 @@ app.post("/api/staff/create", rateLimiter(25, 60000), requireAdminAuth, (req, re
     const staffList = readStaffDb();
 
     // Check duplicate email
-    if (staffList.some(s => s.email.toLowerCase() === email.trim().toLowerCase())) {
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (staffList.some(s => s && s.email && String(s.email).trim().toLowerCase() === cleanEmail)) {
       return res.status(400).json({ error: "এই ইমেইল দিয়ে ইতোমধ্যে একজন স্টাফ নিবন্ধিত রয়েছে!" });
     }
 
     // Check duplicate mobile
-    const cleanPhone = mobile.replace(/\s+/g, "");
-    if (staffList.some(s => s.mobile.replace(/\s+/g, "") === cleanPhone)) {
+    const cleanPhone = String(mobile || "").replace(/\s+/g, "");
+    if (cleanPhone && staffList.some(s => s && s.mobile && String(s.mobile).replace(/\s+/g, "") === cleanPhone)) {
       return res.status(400).json({ error: "এই মোবাইল নম্বর দিয়ে ইতোমধ্যে একজন স্টাফ নিবন্ধিত রয়েছে!" });
     }
 
@@ -2208,14 +2211,14 @@ app.post("/api/staff/create", rateLimiter(25, 60000), requireAdminAuth, (req, re
     let cleanStaffId = "";
     if (staffId && typeof staffId === "string" && staffId.trim().length > 0) {
       cleanStaffId = staffId.trim().toUpperCase();
-      if (staffList.some(s => s.staffId.toUpperCase() === cleanStaffId)) {
+      if (staffList.some(s => s && s.staffId && String(s.staffId).trim().toUpperCase() === cleanStaffId)) {
         return res.status(400).json({ error: "এই স্টাফ আইডি ইতোমধ্যে ব্যবহার করা হয়েছে! ভিন্ন আইডি ব্যবহার করুন।" });
       }
     } else {
       cleanStaffId = generateNextStaffId(staffList);
     }
 
-    // Enforce Rule: CFI-KB-001 → cfikb001, no '@', no hyphens, all lowercase
+    // Enforce Rule: CFI-KB-XXX → cfikbxxx, no '@', no hyphens, all lowercase
     const cleanUsername = (username && typeof username === "string" && username.trim().length > 0)
       ? username.trim().replace(/^@+/, "").toLowerCase().replace(/[^a-z0-9]/g, "")
       : cleanStaffId.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -2288,7 +2291,7 @@ app.post("/api/staff/create", rateLimiter(25, 60000), requireAdminAuth, (req, re
 
     // Record Audit Log
     appendActivityLog({
-      staffId: "CFI-KB-001",
+      staffId: "system",
       staffName: creatorName || "Super Admin",
       staffRole: "super_admin",
       action: "staff_created",
@@ -2396,16 +2399,18 @@ app.post("/api/staff/update", rateLimiter(35, 60000), requireAdminAuth, (req, re
     }
 
     // Duplicate checks if email, mobile or username changed
-    if (email && email.toLowerCase() !== targetStaff.email.toLowerCase()) {
-      if (staffList.some(s => s.id !== targetStaff.id && s.email.toLowerCase() === email.trim().toLowerCase())) {
+    if (email && String(email).trim().toLowerCase() !== String(targetStaff.email || "").trim().toLowerCase()) {
+      const cleanEmail = String(email).trim().toLowerCase();
+      if (staffList.some(s => s && s.id !== targetStaff.id && s.email && String(s.email).trim().toLowerCase() === cleanEmail)) {
         return res.status(400).json({ error: "এই ইমেইল ইতোমধ্যে অন্য একজন স্টাফ ব্যবহার করছেন!" });
       }
     }
 
     if (mobile) {
-      const cleanPhone = mobile.replace(/\s+/g, "");
-      if (cleanPhone !== targetStaff.mobile.replace(/\s+/g, "")) {
-        if (staffList.some(s => s.id !== targetStaff.id && s.mobile.replace(/\s+/g, "") === cleanPhone)) {
+      const cleanPhone = String(mobile).replace(/\s+/g, "");
+      const targetPhone = String(targetStaff.mobile || "").replace(/\s+/g, "");
+      if (cleanPhone && cleanPhone !== targetPhone) {
+        if (staffList.some(s => s && s.id !== targetStaff.id && s.mobile && String(s.mobile).replace(/\s+/g, "") === cleanPhone)) {
           return res.status(400).json({ error: "এই মোবাইল নম্বর ইতোমধ্যে অন্য একজন স্টাফ ব্যবহার করছেন!" });
         }
       }
@@ -3645,7 +3650,10 @@ app.post("/api/auth/phone/verify-otp", rateLimiter(40, 60000), async (req, res) 
 // Helper for sending transactional email via custom mail handler (Resend, Brevo, or backend API)
 async function sendTransactionalOtpEmail(toEmail: string, code: string): Promise<boolean> {
   const senderName = "কাঁচা বাজার টিম";
-  const senderEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+  const senderEmail = (process.env.RESEND_FROM_EMAIL || "").trim();
+  if (!senderEmail && process.env.RESEND_API_KEY) {
+    console.warn("[Email Service] Missing RESEND_FROM_EMAIL in environment variables.");
+  }
   const subject = "কাঁচা বাজার - ইমেইল ভেরিফিকেশন কোড";
   const textContent = `${code}`;
   const htmlContent = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:440px;margin:20px auto;padding:32px 24px;background:#ffffff;border-radius:16px;border:1px solid #e2e8f0;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.05);"><div style="font-size:36px;font-weight:900;letter-spacing:10px;color:#065f46;background:#ecfdf5;padding:18px 24px;border-radius:12px;border:1px solid #a7f3d0;display:inline-block;margin:12px 0;">${code}</div></div>`;
@@ -4420,6 +4428,7 @@ app.post("/api/staff/login", rateLimiter(15, 60000), async (req, res) => {
             username: bEmail.toLowerCase(),
             fullName: "System Super Admin",
             email: bEmail.toLowerCase(),
+            mobile: "",
             role: "super_admin",
             designation: "Super Administrator",
             department: "Executive Administration",
@@ -5551,34 +5560,16 @@ app.post("/api/partner/login", rateLimiter(20, 60000), async (req, res) => {
       });
     }
 
-    // Verify password: check PBKDF2 hash or migrate legacy plain password
+    // Verify password: check PBKDF2 salted hash ONLY (zero plaintext password support)
     let passwordValid = false;
     if (matchedShop.passwordHash && matchedShop.passwordSalt) {
       passwordValid = verifyStaffPassword(cleanPass, matchedShop.passwordHash, matchedShop.passwordSalt);
-    } else if (matchedShop.plainPassword || matchedShop.password) {
-      const legacyPass = matchedShop.plainPassword || matchedShop.password;
-      if (cleanPass === legacyPass) {
-        passwordValid = true;
-        // Securely migrate: hash password with PBKDF2 and eliminate plaintext storage
-        try {
-          const { hash, salt } = hashStaffPassword(cleanPass);
-          if (updateRecordFn) {
-            await updateRecordFn({
-              passwordHash: hash,
-              passwordSalt: salt,
-              plainPassword: null,
-              password: null,
-              updatedAt: new Date().toISOString()
-            });
-          }
-          matchedShop.passwordHash = hash;
-          matchedShop.passwordSalt = salt;
-          delete matchedShop.plainPassword;
-          delete matchedShop.password;
-        } catch (migErr) {
-          console.warn("Notice updating partner password hash:", migErr);
-        }
-      }
+    } else {
+      return res.status(401).json({
+        success: false,
+        error: "এই পার্টনার অ্যাকাউন্টের জন্য সুরক্ষিত পাসওয়ার্ড হ্যাশ সেট করা নেই। অনুগ্রহ করে অ্যাডমিন প্যানেল থেকে পাসওয়ার্ড রিসেট করুন।",
+        message: "No password hash configured. Please request an administrator to set a new password."
+      });
     }
 
     if (!passwordValid) {
@@ -5589,7 +5580,9 @@ app.post("/api/partner/login", rateLimiter(20, 60000), async (req, res) => {
     }
 
     // Sanitize sensitive credentials from response
-    const { plainPassword, password: pRaw, passwordHash, passwordSalt, ...safePartner } = matchedShop;
+    const { passwordHash, passwordSalt, ...safePartner } = matchedShop;
+    delete (safePartner as any).plainPassword;
+    delete (safePartner as any).password;
 
     return res.json({
       success: true,
