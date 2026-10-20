@@ -81,6 +81,23 @@ import { fmtNum as formatNumber } from "./lib/formatUtils";
 import { isCategoryMatch, normalizeCategoryId, mergeCategoryCards, shouldKeepProductGroceryFiltered } from "./lib/categoryUtils";
 import { SAFE_PRODUCT_PLACEHOLDER, optimizeProductImageUrl } from "./lib/masterImageRegistry";
 
+function deduplicateSubcategories(subs: Subcategory[]): Subcategory[] {
+  if (!Array.isArray(subs)) return [];
+  const seen = new Set<string>();
+  const result: Subcategory[] = [];
+  for (const s of subs) {
+    if (!s) continue;
+    const cat = (s.categoryId || "").toLowerCase().trim();
+    const name = (s.nameBn || "").toLowerCase().trim();
+    const key = `${cat}::${name}`;
+    if (name && !seen.has(key)) {
+      seen.add(key);
+      result.push(s);
+    }
+  }
+  return result;
+}
+
 export default function App() {
   // Localization: 'bn' (Bangla) or 'en' (English)
   const [lang, setLang] = useState<"bn" | "en">("bn");
@@ -1009,7 +1026,7 @@ export default function App() {
 
     fetchAllSubcategoriesFromSupabase().then((spSubs) => {
       if (spSubs && spSubs.length > 0 && isMounted) {
-        setDbSubcategories(spSubs);
+        setDbSubcategories(deduplicateSubcategories(spSubs));
       }
     }).catch((err) => {
       console.warn("[Supabase] Subcategories fetch error:", err);
@@ -1170,7 +1187,7 @@ export default function App() {
     );
 
     const unsubSubcategories = subscribeToAllSubcategories((subs) => {
-      setDbSubcategories(subs);
+      setDbSubcategories(deduplicateSubcategories(subs));
     });
 
     return () => {
@@ -2634,9 +2651,20 @@ export default function App() {
             // Unique subcategories
             const allCatProducts = availableProducts.filter(p => isCategoryMatch(p.category || (p as any).categoryId, selectedCategory));
 
-            let subcategories: string[] = [];
+            // Deduplicate matchingDbSubs by nameBn (trimmed) to prevent duplicate subcategory pills and duplicate section headers
+            const uniqueMatchingDbSubs: Subcategory[] = [];
+            const seenDbSubNames = new Set<string>();
+            for (const s of matchingDbSubs) {
+              const clean = (s.nameBn || "").trim();
+              if (clean && !seenDbSubNames.has(clean.toLowerCase())) {
+                seenDbSubNames.add(clean.toLowerCase());
+                uniqueMatchingDbSubs.push(s);
+              }
+            }
+
+            let rawSubcategories: string[] = [];
             if (isRestaurantCat) {
-              subcategories = ["all", ...RESTAURANT_SUBCATEGORY_NAMES_BN];
+              rawSubcategories = ["all", ...RESTAURANT_SUBCATEGORY_NAMES_BN];
             } else if (isPharmacyCat) {
               const PHARMACY_ORDERED_SUBS = [
                 "জ্বর ও ব্যথানাশক",
@@ -2646,17 +2674,17 @@ export default function App() {
                 "ফার্স্ট এইড ও ব্যান্ডেজ",
                 "ঔষধ ও প্রেসক্রিপশন আইটেম"
               ];
-              subcategories = ["all", ...PHARMACY_ORDERED_SUBS];
-            } else if (matchingDbSubs.length > 0) {
-              const dynamicSubs = matchingDbSubs.map(s => s.nameBn);
-              subcategories = ["all", ...dynamicSubs];
+              rawSubcategories = ["all", ...PHARMACY_ORDERED_SUBS];
+            } else if (uniqueMatchingDbSubs.length > 0) {
+              const dynamicSubs = uniqueMatchingDbSubs.map(s => s.nameBn.trim());
+              rawSubcategories = ["all", ...dynamicSubs];
             } else if (isGroceryCat) {
               const existingSubs = Array.from(new Set(allCatProducts.map(p => getResolvedGrocerySubcategory(p.id, p.nameBn, p.nameEn, p.subcategory, p.category)).filter(Boolean))) as string[];
               const orderedSubs = [
                 ...GROCERY_SECTIONS.filter(s => existingSubs.includes(s)),
                 ...existingSubs.filter(s => !GROCERY_SECTIONS.includes(s as any))
               ];
-              subcategories = ["all", ...orderedSubs];
+              rawSubcategories = ["all", ...orderedSubs];
             } else if (isVehicleCat) {
               const VEHICLE_ORDERED_SUBS = ["ambulance", "microbus", "bus", "auto", "cng", "pickup", "van", "car"];
               const existingSubs = Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean))) as string[];
@@ -2664,7 +2692,7 @@ export default function App() {
                 ...VEHICLE_ORDERED_SUBS.filter(s => existingSubs.includes(s)),
                 ...existingSubs.filter(s => !VEHICLE_ORDERED_SUBS.includes(s))
               ];
-              subcategories = ["all", ...orderedSubs];
+              rawSubcategories = ["all", ...orderedSubs];
             } else if (isMobileZoneCat) {
               const MOBILE_ORDERED_SUBS = ["vivo", "redmi", "oppo", "tecno", "itel", "gdl", "infinix"];
               const existingSubs = Array.from(new Set(allCatProducts.map(p => (p.subcategory || "").toLowerCase()).filter(Boolean))) as string[];
@@ -2672,9 +2700,20 @@ export default function App() {
                 ...MOBILE_ORDERED_SUBS.filter(s => existingSubs.includes(s)),
                 ...existingSubs.filter(s => !MOBILE_ORDERED_SUBS.includes(s))
               ];
-              subcategories = ["all", ...orderedSubs];
+              rawSubcategories = ["all", ...orderedSubs];
             } else {
-              subcategories = ["all", ...(Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean))) as string[])];
+              rawSubcategories = ["all", ...(Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean))) as string[])];
+            }
+
+            // Strictly deduplicate subcategories array to guarantee zero duplicate keys
+            const seenSubs = new Set<string>();
+            const subcategories: string[] = [];
+            for (const s of rawSubcategories) {
+              const clean = (s || "").trim();
+              if (clean && !seenSubs.has(clean.toLowerCase())) {
+                seenSubs.add(clean.toLowerCase());
+                subcategories.push(clean);
+              }
             }
 
             // Sort products
@@ -2977,7 +3016,7 @@ export default function App() {
 
                     <div className="h-4 w-[1px] bg-slate-200 shrink-0 mx-0.5"></div>
 
-                    {subcategories.map((sub: string) => {
+                    {subcategories.map((sub: string, subIdx: number) => {
                       let label = sub === "all" 
                         ? (lang === "bn" 
                             ? (isVehicleCat ? "সব যানবাহন" : isMobileZoneCat ? "সব ব্র্যান্ড" : isRestaurantCat ? "সব মেনু" : isEventCat ? "সব ইভেন্ট সার্ভিস" : "সব পণ্য") 
@@ -3050,7 +3089,7 @@ export default function App() {
                       }
                       return (
                         <button
-                          key={sub}
+                          key={`subcat_btn_${sub}_${subIdx}`}
                           onClick={() => {
                             setSelectedSubcategory(sub);
                             triggerToast(
@@ -3189,8 +3228,8 @@ export default function App() {
                     {isSectionedCategory && sortBy === "default" && selectedSubcategory === "all" && sectionGroups.length > 0 ? (
                       // Section-wise separated view with all sections that have products, plus any remaining items
                       <div className="space-y-7 mt-3">
-                        {sectionGroups.map((section) => (
-                          <div key={section.name} className="bg-slate-50/40 rounded-2xl p-2.5 sm:p-3.5 border border-slate-100">
+                        {sectionGroups.map((section, secIdx) => (
+                          <div key={`section_${section.name}_${secIdx}`} className="bg-slate-50/40 rounded-2xl p-2.5 sm:p-3.5 border border-slate-100">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3 pb-2 border-b border-emerald-500/20 px-1">
                               <div className="flex items-center gap-2.5 flex-wrap">
                                 {section.brandInfo ? (

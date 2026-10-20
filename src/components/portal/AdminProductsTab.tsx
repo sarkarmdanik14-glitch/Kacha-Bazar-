@@ -2795,7 +2795,7 @@ export default function AdminProductsTab({
                         ).length;
 
                         return (
-                          <tr key={sub.id} className="hover:bg-slate-50/70 transition">
+                          <tr key={`sub_${sub.id || idx}_${idx}`} className="hover:bg-slate-50/70 transition">
                             {/* Order Number Input */}
                             <td className="p-3 text-center">
                               <div className="inline-flex items-center gap-1.5">
