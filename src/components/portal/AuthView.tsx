@@ -798,14 +798,18 @@ export default function AuthView({
         // 1. Primary: Authenticate using Supabase Auth (supabase.auth.signInWithPassword)
         let authenticatedUser: any = null;
         let authenticatedRole = role;
+        let lastAuthError = "";
 
         try {
           const sbRes = await supabaseSignInWithEmail(email, password, role);
           if (sbRes.success && sbRes.user) {
             authenticatedUser = sbRes.user;
             authenticatedRole = (sbRes.role || role) as any;
+          } else if (sbRes.error) {
+            lastAuthError = sbRes.error;
           }
-        } catch (sbErr) {
+        } catch (sbErr: any) {
+          lastAuthError = sbErr?.message || "";
           console.warn("[AuthView] Supabase Auth login note:", sbErr);
         }
 
@@ -834,7 +838,13 @@ export default function AuthView({
 
         // 3. If credentials could not be verified by Supabase Auth or Server Auth
         if (!authenticatedUser) {
-          throw new Error(getTranslation("ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।", "Incorrect email or password. Please check your credentials."));
+          if (lastAuthError && /email not confirmed/i.test(lastAuthError)) {
+            throw new Error(getTranslation(
+              "ইমেইল কনফার্মেশন সম্পন্ন হয়নি (Email not confirmed)! অনুগ্রহ করে Supabase Dashboard-এ Authentication > Users থেকে ইমেইল কনফার্ম করুন অথবা Providers > Email-এ 'Confirm email' অপশনটি বন্ধ করুন।",
+              "Email not confirmed! Please confirm your email in Supabase Dashboard (Authentication > Users) or disable 'Confirm email' in Providers > Email."
+            ));
+          }
+          throw new Error(lastAuthError || getTranslation("ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।", "Incorrect email or password. Please check your credentials."));
         }
 
         // Verify role authorization
