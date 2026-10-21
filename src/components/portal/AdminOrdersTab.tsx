@@ -189,7 +189,7 @@ export default function AdminOrdersTab({
         customerId: "manual_admin",
         customerName: manualCustomerName.trim() || (lang === "bn" ? "অফলাইন গ্রাহক" : "Walk-in Customer"),
         customerPhone: manualCustomerPhone.trim(),
-        customerAddress: manualCustomerAddress.trim() || (lang === "bn" ? "কাঁচা বাজার কাউন্টার" : "Kacha Bazar Counter"),
+        customerAddress: manualCustomerAddress.trim() || (lang === "bn" ? "মেগা বাজার কাউন্টার" : "Kacha Bazar Counter"),
         items: manualItemName.trim() ? [
           {
             product: {

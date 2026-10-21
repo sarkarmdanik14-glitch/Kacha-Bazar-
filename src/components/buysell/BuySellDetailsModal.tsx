@@ -66,8 +66,8 @@ export default function BuySellDetailsModal({
       const formatted = cleaned.startsWith("880") ? cleaned : (cleaned.startsWith("0") ? `88${cleaned}` : `880${cleaned}`);
       const text = encodeURIComponent(
         lang === "bn"
-          ? `আসসালামু আলাইকুম, আমি কাঁচা বাজার বাই-সেল জোনে আপনার "${listing.title}" বিজ্ঞাপনের ব্যাপারে কথা বলতে চাই।`
-          : `Hello, I am contacting you regarding your listing "${listing.title}" on Kacha Bazar Buy & Sell Zone.`
+          ? `আসসালামু আলাইকুম, আমি মেগা বাজার বাই-সেল জোনে আপনার "${listing.title}" বিজ্ঞাপনের ব্যাপারে কথা বলতে চাই।`
+          : `Hello, I am contacting you regarding your listing "${listing.title}" on Mega Bazar Buy & Sell Zone.`
       );
       window.open(`https://wa.me/${formatted}?text=${text}`, "_blank");
     }
@@ -77,7 +77,7 @@ export default function BuySellDetailsModal({
     if (navigator.share) {
       navigator.share({
         title: listing.title,
-        text: `${listing.title} - ৳${listing.price} | কাঁচা বাজার বাই-সেল জোন`,
+        text: `${listing.title} - ৳${listing.price} | মেগা বাজার বাই-সেল জোন`,
         url: window.location.href
       }).catch(() => {});
     } else {
@@ -275,7 +275,7 @@ export default function BuySellDetailsModal({
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 </div>
                 <p className="text-xs text-slate-500">
-                  {lang === "bn" ? "যাচাইকৃত সেলার • কাঁচা বাজার বাই-সেল" : "Verified Seller • Kacha Bazar Marketplace"}
+                  {lang === "bn" ? "যাচাইকৃত সেলার • মেগা বাজার বাই-সেল" : "Verified Seller • Mega Bazar Marketplace"}
                 </p>
               </div>
             </div>

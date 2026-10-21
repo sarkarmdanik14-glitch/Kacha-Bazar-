@@ -224,7 +224,7 @@ export async function supabaseSignUpWithEmail(params: {
         await supabase.from("sellers").insert({
           id: uid,
           user_id: uid,
-          shop_name: params.shopName || "আমার কাচা বাজার",
+          shop_name: params.shopName || "আমার মেগা বাজার",
           owner_name: cleanName,
           phone: params.phone || "",
           status: "pending"

@@ -24,7 +24,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 15,
     brand: "রূপচাঁদা",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রূপচাঁদা ফর্টিফাইড সয়াবিন তেল (১ লিটার বোতল)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রূপচাঁদা ফর্টিফাইড সয়াবিন তেল (১ লিটার বোতল)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Rupchanda Fortified Soybean Oil (1 Litre Bottle). Fast delivery guaranteed.",
     displayOrder: 52,
     order: 52
@@ -52,7 +52,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 22,
     brand: "রূপচাঁদা",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রূপচাঁদা ফর্টিফাইড সয়াবিন তেল (২ লিটার বোতল)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রূপচাঁদা ফর্টিফাইড সয়াবিন তেল (২ লিটার বোতল)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Rupchanda Fortified Soybean Oil (2 Litre Bottle). Fast delivery guaranteed.",
     displayOrder: 53,
     order: 53
@@ -80,7 +80,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 29,
     brand: "রূপচাঁদা",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রূপচাঁদা ফর্টিফাইড সয়াবিন তেল (৫ লিটার বোতল)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রূপচাঁদা ফর্টিফাইড সয়াবিন তেল (৫ লিটার বোতল)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Rupchanda Fortified Soybean Oil (5 Litre Bottle). Fast delivery guaranteed.",
     displayOrder: 54,
     order: 54
@@ -108,7 +108,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 36,
     brand: "তীর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর ফর্টিফাইড সয়াবিন তেল (১ লিটার বোতল)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর ফর্টিফাইড সয়াবিন তেল (১ লিটার বোতল)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Teer Fortified Soybean Oil (1 Litre Bottle). Fast delivery guaranteed.",
     displayOrder: 55,
     order: 55
@@ -136,7 +136,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 43,
     brand: "ফ্রেশ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ ফর্টিফাইড সয়াবিন তেল (৫ লিটার বোতল)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ ফর্টিফাইড সয়াবিন তেল (৫ লিটার বোতল)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Fresh Fortified Soybean Oil (5 Litre Bottle). Fast delivery guaranteed.",
     displayOrder: 56,
     order: 56
@@ -164,7 +164,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 20,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী খাঁটি সরিষার তেল (২৫০ মিলি বোতল)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী খাঁটি সরিষার তেল (২৫০ মিলি বোতল)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Pure Mustard Oil (250 ml Bottle). Fast delivery guaranteed.",
     displayOrder: 57,
     order: 57
@@ -192,7 +192,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 27,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী খাঁটি সরিষার তেল (৫০০ মিলি বোতল)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী খাঁটি সরিষার তেল (৫০০ মিলি বোতল)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Pure Mustard Oil (500 ml Bottle). Fast delivery guaranteed.",
     displayOrder: 58,
     order: 58
@@ -220,7 +220,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 34,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী খাঁটি সরিষার তেল (১ লিটার বোতল)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী খাঁটি সরিষার তেল (১ লিটার বোতল)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Pure Mustard Oil (1 Litre Bottle). Fast delivery guaranteed.",
     displayOrder: 59,
     order: 59
@@ -248,7 +248,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 41,
     brand: "প্রাণ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্রাণ খাঁটি সরিষার তেল (১ লিটার বোতল)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্রাণ খাঁটি সরিষার তেল (১ লিটার বোতল)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Pran Pure Mustard Oil (1 Litre Bottle). Fast delivery guaranteed.",
     displayOrder: 60,
     order: 60
@@ -276,7 +276,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 18,
     brand: "ফরচুন",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফরচুন রাইস ব্রান তেল (৫ লিটার বোতল)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফরচুন রাইস ব্রান তেল (৫ লিটার বোতল)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Fortune Rice Bran Oil (5 Litre Bottle). Fast delivery guaranteed.",
     displayOrder: 61,
     order: 61
@@ -304,7 +304,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 25,
     brand: "সানড্রপ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি সানড্রপ সানফ্লাওয়ার তেল (১ লিটার বোতল)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি সানড্রপ সানফ্লাওয়ার তেল (১ লিটার বোতল)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Sundrop Sunflower Oil (1 Litre Bottle). Fast delivery guaranteed.",
     displayOrder: 62,
     order: 62
@@ -332,7 +332,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 32,
     brand: "এসিআই পিওর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর আয়োডিনযুক্ত লবণ (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর আয়োডিনযুক্ত লবণ (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Pure Iodized Salt (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 63,
     order: 63
@@ -360,7 +360,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 39,
     brand: "ফ্রেশ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ সুপার প্রিমিয়াম লবণ (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ সুপার প্রিমিয়াম লবণ (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Fresh Super Premium Salt (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 64,
     order: 64
@@ -388,7 +388,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 16,
     brand: "মোল্লা",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি মোল্লা সুপার সল্ট (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি মোল্লা সুপার সল্ট (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Molla Super Salt (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 65,
     order: 65
@@ -416,7 +416,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 23,
     brand: "ফ্রেশ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ রিফাইন্ড সাদা চিনি (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ রিফাইন্ড সাদা চিনি (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Fresh Refined White Sugar (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 66,
     order: 66
@@ -444,7 +444,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 30,
     brand: "তীর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর রিফাইন্ড সাদা চিনি (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর রিফাইন্ড সাদা চিনি (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Teer Refined White Sugar (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 67,
     order: 67
@@ -471,8 +471,8 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     status: "active",
     rating: 4.8,
     reviewCount: 37,
-    brand: "কাচা বাজার",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি দেশি অর্গানিক লাল চিনি (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    brand: "মেগা বাজার",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি দেশি অর্গানিক লাল চিনি (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Deshi Organic Red Sugar (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 68,
     order: 68
@@ -500,7 +500,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 44,
     brand: "তীর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর মিনিকেট চাল (৫ কেজি ব্যাগ)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর মিনিকেট চাল (৫ কেজি ব্যাগ)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Teer Miniket Rice (5 kg Bag). Fast delivery guaranteed.",
     displayOrder: 69,
     order: 69
@@ -528,7 +528,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 21,
     brand: "এসিআই পিওর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর মিনিকেট চাল (৫ কেজি ব্যাগ)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর মিনিকেট চাল (৫ কেজি ব্যাগ)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Pure Miniket Rice (5 kg Bag). Fast delivery guaranteed.",
     displayOrder: 70,
     order: 70
@@ -556,7 +556,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 28,
     brand: "প্রাণ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্রাণ নাজিরশাইল চাল (৫ কেজি ব্যাগ)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্রাণ নাজিরশাইল চাল (৫ কেজি ব্যাগ)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Pran Nazirshail Rice (5 kg Bag). Fast delivery guaranteed.",
     displayOrder: 71,
     order: 71
@@ -584,7 +584,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 35,
     brand: "ফ্রেশ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ প্রিমিয়াম নাজিরশাইল চাল (৫ কেজি ব্যাগ)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ প্রিমিয়াম নাজিরশাইল চাল (৫ কেজি ব্যাগ)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Fresh Premium Nazirshail Rice (5 kg Bag). Fast delivery guaranteed.",
     displayOrder: 72,
     order: 72
@@ -612,7 +612,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 42,
     brand: "ফরচুন",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফরচুন বাসমতী চাল (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফরচুন বাসমতী চাল (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Fortune Basmati Rice (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 73,
     order: 73
@@ -640,7 +640,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 19,
     brand: "দাউয়াত",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি দাউয়াত বাসমতী চাল (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি দাউয়াত বাসমতী চাল (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Daawat Basmati Rice (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 74,
     order: 74
@@ -668,7 +668,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 26,
     brand: "প্রাণ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্রাণ চিনিগুঁড়া পোলাওয়ের চাল (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্রাণ চিনিগুঁড়া পোলাওয়ের চাল (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Pran Chinigura Aromatic Rice (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 75,
     order: 75
@@ -696,7 +696,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 33,
     brand: "এসিআই এরোমা",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই এরোমা চিনিগুঁড়া চাল (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই এরোমা চিনিগুঁড়া চাল (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Aroma Chinigura Rice (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 76,
     order: 76
@@ -724,7 +724,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 40,
     brand: "চাষী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি চাষী সুগন্ধি চিনিগুঁড়া চাল (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি চাষী সুগন্ধি চিনিগুঁড়া চাল (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Chashi Aromatic Chinigura Rice (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 77,
     order: 77
@@ -752,7 +752,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 17,
     brand: "তীর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর দেশি মসুর ডাল (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর দেশি মসুর ডাল (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Teer Deshi Red Lentil (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 78,
     order: 78
@@ -780,7 +780,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 24,
     brand: "ফ্রেশ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ মসুর ডাল (মোটা) (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ মসুর ডাল (মোটা) (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Fresh Red Lentil (Coarse) (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 79,
     order: 79
@@ -808,7 +808,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 31,
     brand: "এসিআই পিওর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর মুগ ডাল (ভাজা) (৫০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর মুগ ডাল (ভাজা) (৫০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Pure Roasted Moong Dal (500 gm Packet). Fast delivery guaranteed.",
     displayOrder: 80,
     order: 80
@@ -836,7 +836,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 38,
     brand: "এসিআই পিওর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর মুগ ডাল (ভাজা) (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর মুগ ডাল (ভাজা) (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Pure Roasted Moong Dal (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 81,
     order: 81
@@ -864,7 +864,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 15,
     brand: "প্রাণ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্রাণ খেসারি ডাল (৫০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্রাণ খেসারি ডাল (৫০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Pran Khesari Dal (500 gm Packet). Fast delivery guaranteed.",
     displayOrder: 82,
     order: 82
@@ -892,7 +892,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 22,
     brand: "এসিআই পিওর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর ছোলার ডাল (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর ছোলার ডাল (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Pure Chana Dal (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 83,
     order: 83
@@ -920,7 +920,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 29,
     brand: "ফ্রেশ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ কাবলি ছোলা (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ কাবলি ছোলা (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Fresh Kabuli Chickpeas (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 84,
     order: 84
@@ -948,7 +948,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 36,
     brand: "এসিআই পিওর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর দেশি ছোলা (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর দেশি ছোলা (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Pure Deshi Chickpeas (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 85,
     order: 85
@@ -975,8 +975,8 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     status: "active",
     rating: 4.8,
     reviewCount: 43,
-    brand: "কাচা বাজার",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্যাকেট মটর দানা (৫০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    brand: "মেগা বাজার",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্যাকেট মটর দানা (৫০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Green Peas Packet (500 gm Packet). Fast delivery guaranteed.",
     displayOrder: 86,
     order: 86
@@ -1004,7 +1004,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 20,
     brand: "তীর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর সাদা আটা (২ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর সাদা আটা (২ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Teer White Atta (Flour) (2 kg Packet). Fast delivery guaranteed.",
     displayOrder: 87,
     order: 87
@@ -1032,7 +1032,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 27,
     brand: "ফ্রেশ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ সাদা আটা (২ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ সাদা আটা (২ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Fresh White Atta (Flour) (2 kg Packet). Fast delivery guaranteed.",
     displayOrder: 88,
     order: 88
@@ -1060,7 +1060,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 34,
     brand: "এসিআই পিওর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর লাল আটা (১ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর লাল আটা (১ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Pure Whole Wheat Brown Atta (1 kg Packet). Fast delivery guaranteed.",
     displayOrder: 89,
     order: 89
@@ -1088,7 +1088,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 41,
     brand: "এসিআই পিওর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর লাল আটা (২ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর লাল আটা (২ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Pure Whole Wheat Brown Atta (2 kg Packet). Fast delivery guaranteed.",
     displayOrder: 90,
     order: 90
@@ -1116,7 +1116,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 18,
     brand: "তীর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর ময়দা (২ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর ময়দা (২ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Teer Maida (Refined Flour) (2 kg Packet). Fast delivery guaranteed.",
     displayOrder: 91,
     order: 91
@@ -1144,7 +1144,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 25,
     brand: "ফ্রেশ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ ময়দা (২ কেজি প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ ময়দা (২ কেজি প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Fresh Maida (Refined Flour) (2 kg Packet). Fast delivery guaranteed.",
     displayOrder: 92,
     order: 92
@@ -1172,7 +1172,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 32,
     brand: "তীর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর সুজি (৫০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর সুজি (৫০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Teer Semolina (Suji) (500 gm Packet). Fast delivery guaranteed.",
     displayOrder: 93,
     order: 93
@@ -1200,7 +1200,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 39,
     brand: "এসিআই পিওর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর সুজি (৫০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর সুজি (৫০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Pure Semolina (Suji) (500 gm Packet). Fast delivery guaranteed.",
     displayOrder: 94,
     order: 94
@@ -1228,7 +1228,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 16,
     brand: "এসিআই পিওর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর চালের গুঁড়া (৫০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর চালের গুঁড়া (৫০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Pure Rice Flour (500 gm Packet). Fast delivery guaranteed.",
     displayOrder: 95,
     order: 95
@@ -1256,7 +1256,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 23,
     brand: "প্রাণ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্রাণ বেসন (৫০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্রাণ বেসন (৫০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Pran Besan (Gram Flour) (500 gm Packet). Fast delivery guaranteed.",
     displayOrder: 96,
     order: 96
@@ -1284,7 +1284,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 30,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী হলুদ গুঁড়া (১০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী হলুদ গুঁড়া (১০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Turmeric Powder (100 gm Packet). Fast delivery guaranteed.",
     displayOrder: 97,
     order: 97
@@ -1312,7 +1312,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 37,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী হলুদ গুঁড়া (২০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী হলুদ গুঁড়া (২০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Turmeric Powder (200 gm Packet). Fast delivery guaranteed.",
     displayOrder: 98,
     order: 98
@@ -1340,7 +1340,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 44,
     brand: "ফ্রেশ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ প্রিমিয়াম হলুদ গুঁড়া (২০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফ্রেশ প্রিমিয়াম হলুদ গুঁড়া (২০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Fresh Premium Turmeric Powder (200 gm Packet). Fast delivery guaranteed.",
     displayOrder: 99,
     order: 99
@@ -1368,7 +1368,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 21,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী মরিচ গুঁড়া (১০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী মরিচ গুঁড়া (১০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Chili Powder (100 gm Packet). Fast delivery guaranteed.",
     displayOrder: 100,
     order: 100
@@ -1396,7 +1396,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 28,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী মরিচ গুঁড়া (২০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী মরিচ গুঁড়া (২০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Chili Powder (200 gm Packet). Fast delivery guaranteed.",
     displayOrder: 101,
     order: 101
@@ -1424,7 +1424,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 35,
     brand: "এসিআই পিওর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর মরিচ গুঁড়া (২০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর মরিচ গুঁড়া (২০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Pure Chili Powder (200 gm Packet). Fast delivery guaranteed.",
     displayOrder: 102,
     order: 102
@@ -1452,7 +1452,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 42,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী ধনিয়া গুঁড়া (১০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী ধনিয়া গুঁড়া (১০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Coriander Powder (100 gm Packet). Fast delivery guaranteed.",
     displayOrder: 103,
     order: 103
@@ -1480,7 +1480,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 19,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী ধনিয়া গুঁড়া (২০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী ধনিয়া গুঁড়া (২০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Coriander Powder (200 gm Packet). Fast delivery guaranteed.",
     displayOrder: 104,
     order: 104
@@ -1508,7 +1508,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 26,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী জিরা গুঁড়া (১০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী জিরা গুঁড়া (১০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Cumin Powder (100 gm Packet). Fast delivery guaranteed.",
     displayOrder: 105,
     order: 105
@@ -1536,7 +1536,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 33,
     brand: "এসিআই পিওর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর জিরা গুঁড়া (১০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি এসিআই পিওর জিরা গুঁড়া (১০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic ACI Pure Cumin Powder (100 gm Packet). Fast delivery guaranteed.",
     displayOrder: 106,
     order: 106
@@ -1564,7 +1564,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 40,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী গরম মসলা গুঁড়া (৫০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী গরম মসলা গুঁড়া (৫০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Garam Masala Powder (50 gm Packet). Fast delivery guaranteed.",
     displayOrder: 107,
     order: 107
@@ -1592,7 +1592,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 17,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী গোলমরিচ গুঁড়া (৫০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী গোলমরিচ গুঁড়া (৫০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Black Pepper Powder (50 gm Packet). Fast delivery guaranteed.",
     displayOrder: 108,
     order: 108
@@ -1620,7 +1620,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 24,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী বিরিয়ানি মসলা (৪০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী বিরিয়ানি মসলা (৪০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Biryani Masala (40 gm Packet). Fast delivery guaranteed.",
     displayOrder: 109,
     order: 109
@@ -1648,7 +1648,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 31,
     brand: "শান",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি শান বিরিয়ানি মসলা (৫০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি শান বিরিয়ানি মসলা (৫০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Shan Biryani Masala (50 gm Packet). Fast delivery guaranteed.",
     displayOrder: 110,
     order: 110
@@ -1676,7 +1676,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 38,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী চিকেন রোস্ট মসলা (৩৫ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী চিকেন রোস্ট মসলা (৩৫ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Chicken Roast Masala (35 gm Packet). Fast delivery guaranteed.",
     displayOrder: 111,
     order: 111
@@ -1704,7 +1704,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 15,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী চটপটি মসলা (৫০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী চটপটি মসলা (৫০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Chotpoti Masala (50 gm Packet). Fast delivery guaranteed.",
     displayOrder: 112,
     order: 112
@@ -1732,7 +1732,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 22,
     brand: "রাঁধুনী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী চাট মসলা (৫০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি রাঁধুনী চাট মসলা (৫০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Radhuni Chaat Masala (50 gm Packet). Fast delivery guaranteed.",
     displayOrder: 113,
     order: 113
@@ -1760,7 +1760,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 29,
     brand: "বাঘাবাড়ী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি বাঘাবাড়ী স্পেশাল গাওয়া ঘি (২০০ গ্রাম কাঁচের জার)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি বাঘাবাড়ী স্পেশাল গাওয়া ঘি (২০০ গ্রাম কাঁচের জার)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Baghabari Special Pure Ghee (200 gm Glass Jar). Fast delivery guaranteed.",
     displayOrder: 114,
     order: 114
@@ -1788,7 +1788,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 36,
     brand: "বাঘাবাড়ী",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি বাঘাবাড়ী স্পেশাল গাওয়া ঘি (৪০০ গ্রাম কাঁচের জার)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি বাঘাবাড়ী স্পেশাল গাওয়া ঘি (৪০০ গ্রাম কাঁচের জার)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Baghabari Special Pure Ghee (400 gm Glass Jar). Fast delivery guaranteed.",
     displayOrder: 115,
     order: 115
@@ -1816,7 +1816,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 43,
     brand: "প্রাণ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্রাণ প্রিমিয়াম গাওয়া ঘি (৪০০ গ্রাম জার)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি প্রাণ প্রিমিয়াম গাওয়া ঘি (৪০০ গ্রাম জার)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Pran Premium Pure Ghee (400 gm Jar). Fast delivery guaranteed.",
     displayOrder: 116,
     order: 116
@@ -1844,7 +1844,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 20,
     brand: "মিল্ক ভিটা",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি মিল্ক ভিটা গাওয়া ঘি (৪০০ গ্রাম জার)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি মিল্ক ভিটা গাওয়া ঘি (৪০০ গ্রাম জার)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Milkvita Pure Ghee (400 gm Jar). Fast delivery guaranteed.",
     displayOrder: 117,
     order: 117
@@ -1872,7 +1872,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 27,
     brand: "আড়ং ডেইরি",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি আড়ং ডেইরি বাটার (১০০ গ্রাম প্যাক)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি আড়ং ডেইরি বাটার (১০০ গ্রাম প্যাক)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Aarong Dairy Butter (100 gm Pack). Fast delivery guaranteed.",
     displayOrder: 118,
     order: 118
@@ -1900,7 +1900,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 34,
     brand: "আড়ং ডেইরি",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি আড়ং ডেইরি বাটার (২০০ গ্রাম প্যাক)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি আড়ং ডেইরি বাটার (২০০ গ্রাম প্যাক)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Aarong Dairy Butter (200 gm Pack). Fast delivery guaranteed.",
     displayOrder: 119,
     order: 119
@@ -1928,7 +1928,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 41,
     brand: "তীর",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর ভেজিটেবল ডালডা (৫০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি তীর ভেজিটেবল ডালডা (৫০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Teer Vegetable Dalda (500 gm Packet). Fast delivery guaranteed.",
     displayOrder: 120,
     order: 120
@@ -1956,7 +1956,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 18,
     brand: "ফস্টার ক্লার্কস",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফস্টার ক্লার্কস বেকিং পাউডার (১০০ গ্রাম কৌটো)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফস্টার ক্লার্কস বেকিং পাউডার (১০০ গ্রাম কৌটো)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Foster Clarks Baking Powder (100 gm Can). Fast delivery guaranteed.",
     displayOrder: 121,
     order: 121
@@ -1984,7 +1984,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 25,
     brand: "আহমেদ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি আহমেদ বেকিং সোডা (১০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি আহমেদ বেকিং সোডা (১০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Ahmed Baking Soda (100 gm Packet). Fast delivery guaranteed.",
     displayOrder: 122,
     order: 122
@@ -2012,7 +2012,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 32,
     brand: "আহমেদ",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি আহমেদ সাদা ভিনেগার (৬৫০ মিলি বোতল)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি আহমেদ সাদা ভিনেগার (৬৫০ মিলি বোতল)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Ahmed White Vinegar (650 ml Bottle). Fast delivery guaranteed.",
     displayOrder: 123,
     order: 123
@@ -2040,7 +2040,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 39,
     brand: "ডাঙ্গো",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ডাঙ্গো ইস্ট পাউডার (৫০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ডাঙ্গো ইস্ট পাউডার (৫০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Dango Yeast Powder (50 gm Packet). Fast delivery guaranteed.",
     displayOrder: 124,
     order: 124
@@ -2068,7 +2068,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 16,
     brand: "ব্লু বার্ড",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ব্লু বার্ড কর্নফ্লাওয়ার (১০০ গ্রাম প্যাকেট)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ব্লু বার্ড কর্নফ্লাওয়ার (১০০ গ্রাম প্যাকেট)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Blue Bird Corn Flour (100 gm Packet). Fast delivery guaranteed.",
     displayOrder: 125,
     order: 125
@@ -2096,7 +2096,7 @@ export const NEW_GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.8,
     reviewCount: 23,
     brand: "ফস্টার ক্লার্কস",
-    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফস্টার ক্লার্কস কাস্টার্ড পাউডার (৩০০ গ্রাম কৌটো)। কাঁচা বাজার থেকে দ্রুত ডেলিভারি।",
+    descriptionBn: "প্রিমিয়াম কোয়ালিটি ও ১০০% খাঁটি ফস্টার ক্লার্কস কাস্টার্ড পাউডার (৩০০ গ্রাম কৌটো)। মেগা বাজার থেকে দ্রুত ডেলিভারি।",
     descriptionEn: "Premium quality 100% authentic Foster Clarks Custard Powder (300 gm Can). Fast delivery guaranteed.",
     displayOrder: 126,
     order: 126

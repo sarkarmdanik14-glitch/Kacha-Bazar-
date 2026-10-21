@@ -17,7 +17,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "৭ অয়েল ৩০০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "7 oil 300ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 1
@@ -38,7 +38,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "৭ অয়েল ২০০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "7 oil 200ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 2
@@ -59,7 +59,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ক্লিন অ্যান্ড ক্লিয়ার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Clean& clear — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 3
@@ -80,7 +80,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "গোল্ড ব্লিস — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Gold bliss — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 4
@@ -101,7 +101,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ম্যাঙ্গো ব্লিস — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Mango bliss — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 5
@@ -122,7 +122,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডেনভার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Denver — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 6
@@ -143,7 +143,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ওয়াইল্ড স্টোন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "wild stone — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 7
@@ -164,7 +164,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মিনি অয়েল বডি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Mini oilbody — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 8
@@ -185,7 +185,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "নিভিয়া রোল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Neviya roll — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 9
@@ -206,7 +206,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "রেক্সোনা — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Rexsona — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 10
@@ -227,7 +227,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "নিম ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Neem Facefash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 11
@@ -248,7 +248,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কালোজিরা তেল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "kalozira oil — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 12
@@ -269,7 +269,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "হেন্না প্যাক — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "hena pack — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 13
@@ -290,7 +290,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "পন্ডস ক্রিম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Ponds cream — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 14
@@ -311,7 +311,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "পন্ডস ক্রিম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Ponds Cream — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 15
@@ -332,7 +332,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "লাক্স সাবান — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Lux soap — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 16
@@ -353,7 +353,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "লাইফবয় হ্যান্ড ওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "life boy hand wash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 17
@@ -374,7 +374,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "লাইফবয় সাবান — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "life boy soap — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 18
@@ -395,7 +395,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "লাইফবয় সাবান — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Life boy soap — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 19
@@ -416,7 +416,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফেয়ার অ্যান্ড লাভলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Fair & lovely — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 20
@@ -437,7 +437,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফেয়ার অ্যান্ড লাভলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Fair & lovely — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 21
@@ -458,7 +458,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ইনসিয়াই — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Innsaei — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 22
@@ -479,7 +479,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্কিনো শাওয়ার জেল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "skino shower gel — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 23
@@ -500,7 +500,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্কিনো ময়েশ্চার/সানস্ক্রিন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Skino mois/sunscreen — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 24
@@ -521,7 +521,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "নুও পারফিউম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Nwo ferfume — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 25
@@ -542,7 +542,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফেয়ারনেস ক্রিম মেন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Fairness cream men — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 26
@@ -563,7 +563,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফ্রেশ উডি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Fresh woody — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 27
@@ -584,7 +584,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফগ ফাইন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Fogg fine — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 28
@@ -605,7 +605,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফগ বডি স্প্রে — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Fogg body spray — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 29
@@ -626,7 +626,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "বেলাভিটা পারফিউম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Bellavita perfume — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 30
@@ -647,7 +647,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মামাআর্থ ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "mamaearth facewash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 31
@@ -668,7 +668,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ওয়াইসি মিল্ক ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "yc milk facewash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 32
@@ -689,7 +689,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মুলতানি মাটি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "multani mati — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 33
@@ -710,7 +710,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "গ্লো বুস্টার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "glow booster — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 34
@@ -731,7 +731,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "লিলি নিম এফ/ডব্লিউ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "LILY NEEM F/W — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 35
@@ -752,7 +752,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "লিলি গোটমিল্ক এফ/ডব্লিউ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "LILY GOATMILK F/W — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 36
@@ -773,7 +773,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "লিলি ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "LILY FACEWASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 37
@@ -794,7 +794,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্যান্ডিলিনা সাবান ১০০ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "sandilina saban 100 gm — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 38
@@ -815,7 +815,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্যান্ডিলিনা সাবান ৭৫ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "sandilina saban75 gm — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 39
@@ -836,7 +836,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "টোন আপ সানস্ক্রিন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "tone up sunscream — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 40
@@ -857,7 +857,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ভিট সি ময়েশ্চারাইজার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "vit c moisturizer — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 41
@@ -878,7 +878,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মাটাদোর কার্টিজ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "matador cartridge — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 42
@@ -899,7 +899,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্পোর্টস এফ/ডব্লিউ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "sports F/W — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 43
@@ -920,7 +920,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "জয় স্কিন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Joy skin — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 44
@@ -941,7 +941,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোদোমো ব্রাশ ও ইয়ার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "kadomo brash & ear — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 45
@@ -962,7 +962,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "নিভিয়া সফট ক্রিম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Niveya soft cream — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 46
@@ -983,7 +983,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "নিভিয়া রোল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Niveya roll — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 47
@@ -1004,7 +1004,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "নিভিয়া এক্সট্রা ব্রাইট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Niveya extra bright — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 48
@@ -1025,7 +1025,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "পাউডার ক্যাস — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "powder cas — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 49
@@ -1046,7 +1046,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোপ ক্যাস — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "soap cas — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 50
@@ -1067,7 +1067,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "অর্গানিক তেল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "organic oil — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 51
@@ -1088,7 +1088,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "বিউটি বুস্টার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Beauty booster — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 52
@@ -1109,7 +1109,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "লাক্স বডি ওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "LUX BODY WASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 53
@@ -1130,7 +1130,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডাভ ১৩৫ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "DOVE 135GM — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 54
@@ -1151,7 +1151,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডাভ ৯০ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "DOVE 90GM — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 55
@@ -1172,7 +1172,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সানসিল্ক শ্যাম্পু পাতা — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SUNSILK SHAMPO PATA — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 56
@@ -1193,7 +1193,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ভিম বার ৭৫ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "VIM BAR 75GM — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 57
@@ -1214,7 +1214,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সানসিল্ক পাতা — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SUNSILK PATA — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 58
@@ -1235,7 +1235,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ভিম ৫০০ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "VIM 500GM — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 59
@@ -1256,7 +1256,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফগ মার্কো — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Fogg marco — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 60
@@ -1277,7 +1277,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ওয়াইসি মিল্ক এফ/ডব্লিউ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "yc milk f/w — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 61
@@ -1298,7 +1298,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্কিনো ময়েশ্চারাইজার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "skino moisturizer — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 62
@@ -1319,7 +1319,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "প্যারাস্যুট বেলি ২৩০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "parasut belly 230ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 63
@@ -1340,7 +1340,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "প্যারাস্যুট বেলি ৩০০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "parasut belly 300ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 64
@@ -1361,7 +1361,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "গার্নিয়ার মেন ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "garnier men facewash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 65
@@ -1382,7 +1382,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডাভ সাবান — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "dove soap — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 66
@@ -1403,7 +1403,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডাভ শ্যাম্পু পাতা — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "dove shampo pata — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 67
@@ -1424,7 +1424,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডাভ কন্ডিশনার পাতা — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "dove conditioner pata — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 68
@@ -1445,7 +1445,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সানসিল্ক শ্যাম্পু ১৭০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "sunsilk shampo170ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 69
@@ -1466,7 +1466,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সানসিল্ক শ্যাম্পু ৩৪০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "sunsilk shampo340ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 70
@@ -1487,7 +1487,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ক্লোজআপ পেস্ট ১৪৫ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "closeup toothpest 145gm — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 71
@@ -1508,7 +1508,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ক্লোজআপ পেস্ট ৯০ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "closeup toothpest 90gm — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 72
@@ -1529,7 +1529,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "পেপসোডেন্ট পেস্ট ৮৫ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "pepsodent toothpest 85 gm — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 73
@@ -1550,7 +1550,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "পেপসোডেন্ট পেস্ট ১৯০ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "pepsodent toothpest 190gm — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 74
@@ -1571,7 +1571,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডাভ কন্ডিশনার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Dove codisoner — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 75
@@ -1592,7 +1592,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডাভ শ্যাম্পু ১৭০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Dove shampo170 ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 76
@@ -1613,7 +1613,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডাভ শ্যাম্পু ৩৫০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Dove shampo 350ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 77
@@ -1634,7 +1634,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মেরিল মিল্ক সোপ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "maril milk soap — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 78
@@ -1655,7 +1655,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মেরিল রিমুভার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "maril remover — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 79
@@ -1676,7 +1676,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "জুঁই তেল ৩৩৫ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Jui oil 335ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 80
@@ -1697,7 +1697,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "জুঁই তেল ১৯০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Jui oil 190ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 81
@@ -1718,7 +1718,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "পন্ডস ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "PONDS FACEWASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 82
@@ -1739,7 +1739,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডেনভার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "DENVER — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 83
@@ -1760,7 +1760,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ওয়াইল্ড স্টোন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "WILDSTONE — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 84
@@ -1781,7 +1781,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ওয়াইল্ড স্টোন কপার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "WILDSTONE COPPER — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 85
@@ -1802,7 +1802,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোদোমো বেবি বাথ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "KODOMO BABY BATH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 86
@@ -1823,7 +1823,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোদোমো পাউডার লোশন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "KODOMO POWDER LOTION — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 87
@@ -1844,7 +1844,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ময়েশ্চারাইজার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "MOISTURIZER — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 88
@@ -1865,7 +1865,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্যালিসিলিক অ্যাসিড — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SALICYLIC ACID — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 89
@@ -1886,7 +1886,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মিল্ক ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "MILK FACEWASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 90
@@ -1907,7 +1907,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "পকার স্প্রে — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "pocker spray — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 91
@@ -1928,7 +1928,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ইনসিয়াই ক্লিনজার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "innsai cleanser — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 92
@@ -1949,7 +1949,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্কিনো সানস/ময়স্ট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SKINO SUNS/MOIST — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 93
@@ -1970,7 +1970,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "হোয়াইট টোন ৫০ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "WHITE TONE 50GM — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 94
@@ -1991,7 +1991,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফগ রোল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "FOGG ROLL — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 95
@@ -2012,7 +2012,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফগ পকেট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "FOGG POCKET — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 96
@@ -2033,7 +2033,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "বেলাভিটা পারফিউম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "BELLAVITA PERFUME — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 97
@@ -2054,7 +2054,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "হারপুন ক্লিনার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "HARPOON CLEANER — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 98
@@ -2075,7 +2075,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "জয় পেপে ৬০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "JOY PAPEYA60ML — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 99
@@ -2096,7 +2096,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "জয় পেপে সান — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "JOY PAYPAY SUN — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 100
@@ -2117,7 +2117,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "হিমালয়া নিম এফ/ডব্লিউ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "HIMALOYA NEEM FW — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 101
@@ -2138,7 +2138,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোদোমো বাথ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "KODOMO BATH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 102
@@ -2159,7 +2159,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোদোমো হেড টু ওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "KODOMO HEAD TO WASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 103
@@ -2180,7 +2180,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ভিটা সি সিরাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "VTA C SERUM — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 104
@@ -2201,7 +2201,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফ্রুটি শাওয়ার জেল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "FRUTY SHOWER GEL — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 105
@@ -2222,7 +2222,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "হেয়ার অয়েল অ্যাপ্লিকেটর — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "HAIRE OIL APPLICATOR — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 106
@@ -2243,7 +2243,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "অ্যারোমেটিক ক্যামফোর বলস — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "AROMATIC CAMPHOR BALLS — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 107
@@ -2264,7 +2264,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কসমেটিক সাজানো বক্স — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "COSMETIC SAJANO BOX — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 108
@@ -2285,7 +2285,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "প্যারাস্যুট ২০৫ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "parasut 205ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 109
@@ -2306,7 +2306,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "প্যারাস্যুট অ্যালোভেরা তেল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "parasut alovora oil — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 110
@@ -2327,7 +2327,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "বেলাভিটা পারফিউম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Bellavita perfume — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 111
@@ -2348,7 +2348,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মামাআর্থ ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "mamaearth facewash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 112
@@ -2369,7 +2369,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "১ কালার বসরা হিজাব — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "1 calour Bosra Hijab — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 113
@@ -2390,7 +2390,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মেরিল ভিটামিন সি সোপ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "maril vitamin c shop — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 114
@@ -2411,7 +2411,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মেরিল বেবি পাউডার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "maril baby powder — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 115
@@ -2432,7 +2432,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সেসা — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SESA — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 116
@@ -2453,7 +2453,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "লুসি অলিভ তেল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "LUCY OLIVE OIL — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 117
@@ -2474,7 +2474,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "নাটুরা গ্রো — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "NATURA GROW — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 118
@@ -2495,7 +2495,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্ট্রিক ওয়ালনাট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "STRICK WALLNUT — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 119
@@ -2516,7 +2516,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোদোমো হেড টু ওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "KODOMO HEAD TO WASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 120
@@ -2537,7 +2537,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোদোমো বেবি বাথ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "KODOMO BABY BATH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 121
@@ -2558,7 +2558,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোদোমো শ্যাম্পু — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "KODOMO SHAMPOO — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 122
@@ -2579,7 +2579,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "নিভিয়া রোল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "NEVIYA ROLL — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 123
@@ -2600,7 +2600,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সুদিং জেল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOOTING GEL — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 124
@@ -2621,7 +2621,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "রিবুক — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "REBOOK — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 125
@@ -2642,7 +2642,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "বেবি ব্রাইট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "BABY BRIGHT — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 126
@@ -2663,7 +2663,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফগ ফাইন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "FOGG FINE — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 127
@@ -2684,7 +2684,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফগ বডি স্প্রে — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "FOGG BODY SPRAY — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 128
@@ -2705,7 +2705,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "লাভিনো ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Lavino Facewash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 129
@@ -2726,7 +2726,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোদোমো হেড টু ওয়াশ ২০০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "kodomo head to wash200ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 130
@@ -2747,7 +2747,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোদোমো হেড টু ওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "kodomo head to wash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 131
@@ -2768,7 +2768,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোদোমো বেবি অয়েল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "kodomo baby oil — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 132
@@ -2789,7 +2789,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "নিভিয়া রোল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Nivea Roll — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 133
@@ -2810,7 +2810,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "উইনার ভেস্ট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Winner vest — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 134
@@ -2831,7 +2831,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মেকআপ ব্রাশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "makeup brash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 135
@@ -2852,7 +2852,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মেকআপ ব্রাশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "makeup brash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 136
@@ -2873,7 +2873,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "পিওর ব্ল্যাক স্প্রে — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "pure black spray — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 137
@@ -2894,7 +2894,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডাবল ব্লু বডি স্প্রে — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Double blue body spray — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 138
@@ -2915,7 +2915,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "এনচ্যান্টার পাউডার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Enchanteur powder — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 139
@@ -2936,7 +2936,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "লিপ অয়েল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "lip oil — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 140
@@ -2957,7 +2957,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "বিউটি ব্লেন্ডার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "beauty blender — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 141
@@ -2978,7 +2978,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "লিপ বাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "lip bam — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 142
@@ -2999,7 +2999,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফেস পাউডার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Face powder — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 143
@@ -3020,7 +3020,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "আল্পিন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "alpin — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 144
@@ -3041,7 +3041,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "প্রাইমার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "primer — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 145
@@ -3062,7 +3062,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ওয়াইল্ড স্টোন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "wild stone — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 146
@@ -3083,7 +3083,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "হাইলাইটার ছোট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "highlighter small 2 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 147
@@ -3104,7 +3104,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "হাইলাইটার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "highlighter — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 148
@@ -3125,7 +3125,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "বডি মিস্ট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "body mist — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 149
@@ -3146,7 +3146,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ওসাম বডি স্প্রে — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "ossum body spray — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 150
@@ -3167,7 +3167,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "পার্ক এভিনিউ অ্যামাজন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "park avunue amazon — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 151
@@ -3188,7 +3188,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "পার্ক এভিনিউ ইগো — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "park avenue ego — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 152
@@ -3209,7 +3209,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ওয়াইসি হোয়াইটিং ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "yc whiting facewash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 153
@@ -3230,7 +3230,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কুমারিকা তেল ২০০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "kumarika oil 200ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 154
@@ -3251,7 +3251,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্কিনো ল্যাভেন্ডার অয়েল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SKINO LAVENDER OIL — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 155
@@ -3272,7 +3272,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্কিনো শাওয়ার জেল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SKINO SHOWER GEL — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 156
@@ -3293,7 +3293,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্কিনোস ময়েশ্চারাইজার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SKINOS MOISTURIZER — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 157
@@ -3314,7 +3314,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "টিস্যু — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "TISUEE — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 158
@@ -3335,7 +3335,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "রুম স্প্রে — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "ROOM SPRAY — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 159
@@ -3356,7 +3356,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে সিরাভে সান — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ CERAVE SUN — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 160
@@ -3377,7 +3377,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ইয়েসম্যান পারফিউম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ YESMAN PERFUME — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 161
@@ -3398,7 +3398,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে পারফিউম ডিসি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ PERFUME DC — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 162
@@ -3419,7 +3419,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে টি ট্রি নোস — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ TEA TRE NOSE — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 163
@@ -3440,7 +3440,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে সিরাভে ময়েশ্চার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ CERAVE MOISTURE — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 164
@@ -3461,7 +3461,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে বাটিকা তেল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ VATIKA OIL — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 165
@@ -3482,7 +3482,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে বাটিকা ক্রিম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ VATIKA CREAM — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 166
@@ -3503,7 +3503,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে সিউট১৯৮৮ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ SEOUT1988 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 167
@@ -3524,7 +3524,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে রেটিনল শিট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ RETINOL SHIT — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 168
@@ -3545,7 +3545,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ফেয়ার অ্যান্ড লাভলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ FAIR & LOVELY — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 169
@@ -3566,7 +3566,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ফেয়ার অ্যান্ড লাভলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ FAIR & LOVELY — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 170
@@ -3587,7 +3587,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে জাপান সাকুরা — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ JAPAN SAKURA — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 171
@@ -3608,7 +3608,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ডার্মা হাউজ বিস্ট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ DERMA HOUSE BEAST — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 172
@@ -3629,7 +3629,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে গ্রিন টাচ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ GREEN TOUTCH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 173
@@ -3650,7 +3650,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে সেরা ভে ময়েশ্চার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ CERA VE MOIS — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 174
@@ -3671,7 +3671,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে সিরাভি নাইট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ CERAVI NIGHT — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 175
@@ -3692,7 +3692,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে সিরাভে ময়েশ্চার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ CERAVE MOIS — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 176
@@ -3713,7 +3713,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে অর্ডিনারি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ ORDINARY — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 177
@@ -3734,7 +3734,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে অর্ডিনারি ১০ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ ORDINARY 10 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 178
@@ -3755,7 +3755,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে মাইল্ড মাইন্ড — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ MILD MIND — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 179
@@ -3776,7 +3776,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে অর্গানিক নাইট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ ORGANICK NIGHT — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 180
@@ -3797,7 +3797,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে পন্ডস নাইট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ PONDS NIGHT — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 181
@@ -3818,7 +3818,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ল্যাকমে নাইট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ LAKEME NAIGHT — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 182
@@ -3839,7 +3839,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ওলি নাইট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ OLY NIGHT — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 183
@@ -3860,7 +3860,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে পন্ডস হোয়াইট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ PONDS WHITE — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 184
@@ -3881,7 +3881,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে পন্ডস হোয়াইট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ PONDS WHITE — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 185
@@ -3902,7 +3902,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে পন্ডস হোয়াইট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ PONDS WHITE — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 186
@@ -3923,7 +3923,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে সাকুরা — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ SAKURA — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 187
@@ -3944,7 +3944,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে অ্যাক্সেসো — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ ACESO — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 188
@@ -3965,7 +3965,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে লাক্স বডিওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ LUX BODYWASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 189
@@ -3986,7 +3986,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ডাভ বডিওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ DOVEBODYWASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 190
@@ -4007,7 +4007,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে পামোলিভ বডিওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ PALMELIVE BODYWASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 191
@@ -4028,7 +4028,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ফিওমা বডিওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ FIOMA BODYWASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 192
@@ -4049,7 +4049,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে পিয়ার্স বডিওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ PEARS BODYWASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 193
@@ -4070,7 +4070,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে পিয়ার্স বডিওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ PEARS BODYWASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 194
@@ -4091,7 +4091,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ট্রেসেমে শ্যাম্পু — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ TRESSMEE SHAMPOO — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 195
@@ -4112,7 +4112,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে প্যান্টিন শ্যাম্পু — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ PANTENE SHAMPO — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 196
@@ -4133,7 +4133,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ডাভ শ্যাম্পু — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ DOVE SHAMPO — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 197
@@ -4154,7 +4154,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে লেন্স ২২ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ LENS 22 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 198
@@ -4175,7 +4175,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে লোফা ২১ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ LOFA 21 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 199
@@ -4196,7 +4196,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে লুজ ট্যাপ পাতা ২০ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ LOSE TAP PATA 20 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 200
@@ -4217,7 +4217,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে সিট মাস্ক ১৯ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ SIT MASK 19 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 201
@@ -4238,7 +4238,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে সাকুরা মাস্ক ১৮ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ SAKURA MASK 18 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 202
@@ -4259,7 +4259,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ইগোডিও ১৭ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ IGOODEO 17 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 203
@@ -4280,7 +4280,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ড্যাজল বক্স ১৬ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ DAZZLE BOX 16 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 204
@@ -4301,7 +4301,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে কিস টাচ ইউ ১৫ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ KISS TOUCH YOU 15 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 205
@@ -4322,7 +4322,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে বিবি লাভলী বক্স ১৪ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ BB LOVELY BOX 14 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 206
@@ -4343,7 +4343,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে কিস টাচ ১৩ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ KISS TOUCH 13 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 207
@@ -4364,7 +4364,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ওলি মেকআপ বক্স ১২ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ OLLY MAKEUP BOX 12 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 208
@@ -4385,7 +4385,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে মিসরোস মেকআপ বক্স ১১ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ MISSROSE MAKEUP BOX 11 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 209
@@ -4406,7 +4406,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে মিস রোজ বক্স ১০ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ MISS ROSE BOX 10 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 210
@@ -4427,7 +4427,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে বব কাজোল ৯ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ BOB KAJOL 9 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 211
@@ -4448,7 +4448,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে বব কাজোল ৮ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ BOB KAJOL 8 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 212
@@ -4469,7 +4469,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে বব মাসকারা ৭ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ BOB MASKARA 7 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 213
@@ -4490,7 +4490,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে বব মাসকারা ৬ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ BOB MASKARA 6 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 214
@@ -4511,7 +4511,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে বব মাসকারা ৫ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ BOB MASKARA 5 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 215
@@ -4532,7 +4532,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে বব মাসকারা ৪ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ BOB MASKARA 4 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 216
@@ -4553,7 +4553,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ফিটমি লিপস্টিক ৩ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ FITME LIPSTIC 3 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 217
@@ -4574,7 +4574,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে ফিটমি লিপস্টিক ২ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ FITME LIFSTIC 2 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 218
@@ -4595,7 +4595,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সোজে বিউটি লিপস্টিক ১ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SOJ BEAUTY LIPISTIC 1 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 219
@@ -4616,7 +4616,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "রাইস ওয়াটার ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "rice water facewash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 220
@@ -4637,7 +4637,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "তেব্বাত অয়েল ২০০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "tabbat oil 200ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 221
@@ -4658,7 +4658,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "তেব্বাত অয়েল ১০০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Tebbat oil 100ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 222
@@ -4679,7 +4679,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্যান্ডিলিনা সাবান ৭৫ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "sandilina saban75 gm — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 223
@@ -4700,7 +4700,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "আলামস আন্ডারওয়্যার ৪৯ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Alams under were 49 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 224
@@ -4721,7 +4721,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "পন্ডস ক্রিম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "ponds cream — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 225
@@ -4742,7 +4742,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডাবর আমলা ২০০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "dabor amla 200ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 226
@@ -4763,7 +4763,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "অর্গানিক তেল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "organic oil — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 227
@@ -4784,7 +4784,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মুম ২ লিটার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "mum 2 litter — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 228
@@ -4805,7 +4805,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "স্কিনো তেল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "skino oil — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 229
@@ -4826,7 +4826,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "এলিট ফুল শার্ট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Elite full Shirt — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 230
@@ -4847,7 +4847,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ওয়াইসি কস — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "YC cos — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 231
@@ -4868,7 +4868,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "বেলাভিটা — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "Bellavita — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 232
@@ -4889,7 +4889,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "রাইস ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "rice facewash — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 233
@@ -4910,7 +4910,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "অ্যান্টি মেলাস্মা ক্রিম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "ani melasma cream — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 234
@@ -4931,7 +4931,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "প্যারাস্যুট অনিয়ন ২০০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "parasut onion 200ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 235
@@ -4952,7 +4952,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "প্যারাস্যুট ৪৫০ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "parasut 450ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 236
@@ -4973,7 +4973,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "প্লাজো — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "plazo — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 237
@@ -4994,7 +4994,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোলগেট ম্যাক্স পেস্ট ১৫০ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "colget max toothpest150gm — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 238
@@ -5015,7 +5015,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোলগেট অ্যাক্টিভ পেস্ট ১০০ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "colget active toothpest100gm — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 239
@@ -5036,7 +5036,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোলগেট ডেন্টাল পেস্ট ১০০ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "colget dantal toothpest 100gm — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 240
@@ -5057,7 +5057,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোলগেট অ্যাক্টিভ পেস্ট ১৯০ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "colget active toothpest190gm — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 241
@@ -5078,7 +5078,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোলগেট ম্যাক্স পেস্ট ১৫০ গ্রাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "colget max toothpest150gm — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 242
@@ -5099,7 +5099,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "কোলগেট ডেন্টাল পেস্ট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "colget dantal toothpest — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 243
@@ -5120,7 +5120,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সাভলন সোপ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "savlon shop — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 244
@@ -5141,7 +5141,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "উইনার ভেস্ট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "winner vest — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 245
@@ -5162,7 +5162,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "বিউটি বুস্টার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "BEAUTY BOSTER — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 246
@@ -5183,7 +5183,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সেটিং স্প্রে — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "SETING SPRAY — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 247
@@ -5204,7 +5204,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "পন্ডস বিবি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "PONDS BB — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 248
@@ -5225,7 +5225,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "বেবি কটন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "BABY CATTON — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 249
@@ -5246,7 +5246,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মায়হাদি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "MAYHADI — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 250
@@ -5267,7 +5267,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ফেস পাউডার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "FACE POWDER — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 251
@@ -5288,7 +5288,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "আয়না ২ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "MIRROR 2 — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 252
@@ -5309,7 +5309,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "আয়না — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "MIRROR — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 253
@@ -5330,7 +5330,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "মেকআপ বক্স — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "MAKEUP BOX — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 254
@@ -5351,7 +5351,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "হাইলাইটার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "HAIGH LIGHTER — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 255
@@ -5372,7 +5372,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ভি ওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "V WASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 256
@@ -5393,7 +5393,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ট্রেসেমে কন্ডিশনার ছোট — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "TRESMEE CONDITIONER SMALL — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 257
@@ -5414,7 +5414,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ডাভ কন্ডিশনার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "DOVE CONDITIONAR — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 258
@@ -5435,7 +5435,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ট্রিসিমি কন্ডিশনার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "TREESME CONDITIONAR — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 259
@@ -5456,7 +5456,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ট্রিসেমে শ্যাম্পু পাঞ্চ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "TRESME SHAMPO PUNCH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 260
@@ -5477,7 +5477,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "আভনি লোশন — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "AVNEE LOTION — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 261
@@ -5498,7 +5498,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সিরাভে ক্লিনজার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "CERA VE CLEANSER — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 262
@@ -5519,7 +5519,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ক্লিয়ার মেন শ্যাম্পু — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "CLEAR MEN SHAMPOO — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 263
@@ -5540,7 +5540,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ওয়াইসি বাম্বু চারকোল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "YC BAMBO CHARCAL — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 264
@@ -5561,7 +5561,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ওয়াইসি মিল্ক — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "YC MILK — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 265
@@ -5582,7 +5582,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "অ্যাকনে ফেসওয়াশ — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "ACNE FACEWASH — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 266
@@ -5603,7 +5603,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "প্যারাস্যুট ৩২৫ মিলি — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "parasut 325ml — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 267
@@ -5624,7 +5624,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "সিরাম — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "serum — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 268
@@ -5645,7 +5645,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "ময়েশ্চারাইজার — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "moisturizer — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 269
@@ -5666,7 +5666,7 @@ export const COSMETICS_PRODUCTS_RAW: Product[] = [
     "isAvailable": true,
     "rating": 4.8,
     "reviewCount": 15,
-    "brand": "কাচা বাজার বিউটি",
+    "brand": "মেগা বাজার বিউটি",
     "descriptionBn": "শাওয়ার জেল — ১০০% অরিজিনাল ও প্রিমিয়াম কোয়ালিটি কসমেটিকস পণ্য।",
     "descriptionEn": "shower gel — 100% authentic premium cosmetics & personal care item.",
     "displayOrder": 270

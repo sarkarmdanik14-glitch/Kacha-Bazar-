@@ -162,7 +162,7 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
     },
     mobileAppConfig: {
       enabled: true,
-      titleBn: "অর্ডার করুন কাচা বাজার মোবাইল অ্যাপে!",
+      titleBn: "অর্ডার করুন মেগা বাজার মোবাইল অ্যাপে!",
       titleEn: "Order Smoother inside Mobile Application!",
       subtitleBn: "অ্যাপ ডাউনলোড করলেই প্রথম ৩টি অর্ডারে পাচ্ছেন ফ্রি হোম ডেলিভারি ও ২০০ টাকা ক্যাশব্যাক অফার!",
       subtitleEn: "Unlock exclusive deals, live delivery trackers, and instant cashbacks inside Kacha Bazar app.",
@@ -182,7 +182,7 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
       facebookUrl: "https://facebook.com",
       youtubeUrl: "https://youtube.com",
       instagramUrl: "https://instagram.com",
-      copyrightBn: "কাচা বাজার লিমিটেড। সর্বস্বত্ব সংরক্ষিত।",
+      copyrightBn: "মেগা বাজার লিমিটেড। সর্বস্বত্ব সংরক্ষিত।",
       copyrightEn: "Kacha Bazar Ltd. All rights reserved."
     }
   });

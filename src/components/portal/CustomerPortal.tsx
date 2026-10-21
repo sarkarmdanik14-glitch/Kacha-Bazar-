@@ -1020,9 +1020,9 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({
-          title: getTranslation("কাঁচা বাজার রেফারেল লিংক", "Kacha Bazar Referral Link"),
+          title: getTranslation("মেগা বাজার রেফারেল লিংক", "Kacha Bazar Referral Link"),
           text: getTranslation(
-            `কাঁচা বাজার-এ সাইন আপ করে রিওয়ার্ড জিতুন! রেফারেল কোড: ${code}`,
+            `মেগা বাজার-এ সাইন আপ করে রিওয়ার্ড জিতুন! রেফারেল কোড: ${code}`,
             `Join Kacha Bazar and earn rewards! Use my referral code: ${code}`
           ),
           url: link,
@@ -1089,8 +1089,8 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       }, { merge: true });
 
       // 3. Dispatch transactional email via custom mail handler on backend (Resend, Brevo, or backend API)
-      // Sender: "কাঁচা বাজার টিম" <no-reply@kachabazaronline.com>
-      // Subject: "কাঁচা বাজার - ইমেইল ভেরিফিকেশন কোড"
+      // Sender: "মেগা বাজার টিম" <no-reply@kachabazaronline.com>
+      // Subject: "মেগা বাজার - ইমেইল ভেরিফিকেশন কোড"
       try {
         await fetch("/api/auth/send-email-otp", {
           method: "POST",
@@ -1465,10 +1465,10 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                   <div className="flex items-center space-x-2">
                     <img 
                       src={APP_LOGO_URL} 
-                      alt="কাঁচা বাজার" 
+                      alt="মেগা বাজার" 
                       className="h-8 w-auto object-contain rounded-xl border border-emerald-100 bg-white p-0.5 shadow-2xs shrink-0" 
                     />
-                    <span className="text-sm font-black text-emerald-800">কাঁচা বাজার</span>
+                    <span className="text-sm font-black text-emerald-800">মেগা বাজার</span>
                   </div>
                   {/* Close Button (X) */}
                   <button
@@ -1555,11 +1555,11 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
           <div className="flex items-center space-x-2.5 pb-3 mb-3 border-b border-gray-100 shrink-0">
             <img 
               src={APP_LOGO_URL} 
-              alt="কাঁচা বাজার" 
+              alt="মেগা বাজার" 
               className="h-9 w-auto max-w-[42px] object-contain rounded-xl border border-emerald-100 bg-white p-0.5 shadow-2xs shrink-0" 
             />
             <div className="min-w-0">
-              <span className="text-sm font-black text-emerald-800 block truncate">কাঁচা বাজার</span>
+              <span className="text-sm font-black text-emerald-800 block truncate">মেগা বাজার</span>
               <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">কাস্টমার পোর্টাল</span>
             </div>
           </div>
@@ -1634,7 +1634,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             
             <img 
               src={APP_LOGO_URL} 
-              alt="কাঁচা বাজার" 
+              alt="মেগা বাজার" 
               className="h-8 sm:h-9 w-auto max-w-[40px] object-contain rounded-xl border border-emerald-100 bg-white p-0.5 shadow-2xs shrink-0" 
             />
             
@@ -1803,7 +1803,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                                 ? "bg-gradient-to-r from-amber-400/20 via-yellow-400/25 to-amber-500/20 hover:from-amber-400/35 hover:to-amber-500/35 text-amber-300 border border-amber-400/40 hover:border-amber-300/60"
                                 : "bg-slate-800/90 hover:bg-slate-800 text-slate-300 border border-slate-700/80 hover:border-amber-400/40"
                             }`}
-                            title={getTranslation("কাঁচা বাজার প্রিমিয়াম মেম্বারশিপ অফার ও শর্তাবলী দেখুন", "View Kacha Bazar Premium Membership Offer & Terms")}
+                            title={getTranslation("মেগা বাজার প্রিমিয়াম মেম্বারশিপ অফার ও শর্তাবলী দেখুন", "View Mega Bazar Premium Membership Offer & Terms")}
                           >
                             <Sparkles className="w-3 h-3 text-amber-300 animate-pulse group-hover:rotate-12 transition-transform" />
                             <span>{getTranslation("প্রিমিয়াম মেম্বার", "Premium Member")}</span>
@@ -2003,7 +2003,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                         {getTranslation("আপনার শপিং কার্ট খালি!", "Your shopping cart is empty!")}
                       </p>
                       <p className="text-[11px] text-slate-400 mt-0.5">
-                        {getTranslation("কাঁচা বাজার থেকে তাজা পণ্যগুলো কার্টে যুক্ত করুন", "Add fresh products from Kacha Bazar to your cart")}
+                        {getTranslation("মেগা বাজার থেকে তাজা পণ্যগুলো কার্টে যুক্ত করুন", "Add fresh products from Mega Bazar to your cart")}
                       </p>
                       <button
                         type="button"
@@ -2921,13 +2921,13 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
               <h3 className="text-lg sm:text-xl font-black text-white leading-snug tracking-tight">
                 {getTranslation(
-                  "🌟 কাঁচা বাজার প্রিমিয়াম মেম্বারশিপ অফার",
-                  "🌟 Kacha Bazar Premium Membership Offer"
+                  "🌟 মেগা বাজার প্রিমিয়াম মেম্বারশিপ অফার",
+                  "🌟 Mega Bazar Premium Membership Offer"
                 )}
               </h3>
               <p className="text-xs text-emerald-200/80 max-w-xs mx-auto">
                 {getTranslation(
-                  "কাঁচা বাজার পরিবারের এক্সক্লুসিভ ভিআইপি প্রিভিলেজ ও বিশেষ সুবিধাসমূহ",
+                  "মেগা বাজার পরিবারের এক্সক্লুসিভ ভিআইপি প্রিভিলেজ ও বিশেষ সুবিধাসমূহ",
                   "Exclusive VIP privileges and special shopping offers for valued members"
                 )}
               </p>
@@ -3023,7 +3023,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                   if (onClose) {
                     onClose();
                   } else {
-                    triggerToast("কাঁচা বাজার স্টোরফ্রন্টে আপনাকে স্বাগতম!", "Welcome to Kacha Bazar storefront!");
+                    triggerToast("মেগা বাজার স্টোরফ্রন্টে আপনাকে স্বাগতম!", "Welcome to Mega Bazar storefront!");
                   }
                 }}
                 className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-black shadow-lg shadow-emerald-500/20 flex items-center justify-center space-x-2 cursor-pointer transition active:scale-95"
@@ -3574,8 +3574,8 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                           </p>
                           <p className="text-[11px] text-slate-500">
                             {getTranslation(
-                              "আপনার ইমেইল ঠিকানায় কাঁচা বাজার টিম থেকে একটি ৬-সংখ্যার ওটিপি কোড পাঠানো হবে।",
-                              "A secure 6-digit verification code will be sent to your email from Kacha Bazar Team."
+                              "আপনার ইমেইল ঠিকানায় মেগা বাজার টিম থেকে একটি ৬-সংখ্যার ওটিপি কোড পাঠানো হবে।",
+                              "A secure 6-digit verification code will be sent to your email from Mega Bazar Team."
                             )}
                           </p>
                         </div>

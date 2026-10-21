@@ -970,7 +970,7 @@ export default function AdminPanel({
                   <h2 className="text-xl font-black">{getTranslation("সিস্টেম লাইভ মনিটরিং হাব", "Real-Time System Monitoring Control")}</h2>
                   <p className="text-xs text-emerald-200 mt-1">
                     {getTranslation(
-                      "কাচা বাজার গ্রোসারি অ্যাপ্লিকেশনের সব কার্যক্রম রিয়েল-টাইমে পর্যবেক্ষণ করুন।",
+                      "মেগা বাজার গ্রোসারি অ্যাপ্লিকেশনের সব কার্যক্রম রিয়েল-টাইমে পর্যবেক্ষণ করুন।",
                       "Monitor, approve, and track all store inventory, sales, users, and riders securely from a single pane of glass."
                     )}
                   </p>

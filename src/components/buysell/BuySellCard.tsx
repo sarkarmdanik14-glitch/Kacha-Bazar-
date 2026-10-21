@@ -70,8 +70,8 @@ export default function BuySellCard({
       const formatted = cleaned.startsWith("880") ? cleaned : (cleaned.startsWith("0") ? `88${cleaned}` : `880${cleaned}`);
       const text = encodeURIComponent(
         lang === "bn"
-          ? `আসসালামু আলাইকুম, আমি কাঁচা বাজার বাই-সেল জোনে আপনার "${listing.title}" বিজ্ঞাপনের ব্যাপারে কথা বলতে চাই।`
-          : `Hello, I am interested in your item "${listing.title}" on Kacha Bazar Buy & Sell Zone.`
+          ? `আসসালামু আলাইকুম, আমি মেগা বাজার বাই-সেল জোনে আপনার "${listing.title}" বিজ্ঞাপনের ব্যাপারে কথা বলতে চাই।`
+          : `Hello, I am interested in your item "${listing.title}" on Mega Bazar Buy & Sell Zone.`
       );
       window.open(`https://wa.me/${formatted}?text=${text}`, "_blank");
     }

@@ -229,7 +229,7 @@ export default function BuySellMarketplace({
         <div className="relative z-10 max-w-2xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs text-[11px] font-semibold mb-3 text-emerald-200">
             <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-spin" />
-            <span>{lang === "bn" ? "কাঁচা বাজার পাবলিক মার্কেটপ্লেস" : "Kacha Bazar Public Marketplace"}</span>
+            <span>{lang === "bn" ? "মেগা বাজার পাবলিক মার্কেটপ্লেস" : "Mega Bazar Public Marketplace"}</span>
           </div>
 
           <h1 className="text-xl sm:text-3xl font-black mb-2 tracking-tight">

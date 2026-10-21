@@ -279,7 +279,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1621447504864-d8686e12698c?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার"
+    brand: "মেগা বাজার"
   },
   {
     id: "conf_nuts_23",
@@ -291,7 +291,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার"
+    brand: "মেগা বাজার"
   },
   {
     id: "conf_nuts_24",
@@ -303,7 +303,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার"
+    brand: "মেগা বাজার"
   },
   {
     id: "conf_nuts_25",
@@ -315,7 +315,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার"
+    brand: "মেগা বাজার"
   },
   {
     id: "conf_nuts_26",
@@ -327,7 +327,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1621447504864-d8686e12698c?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার"
+    brand: "মেগা বাজার"
   },
   {
     id: "conf_nuts_27",
@@ -339,7 +339,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1621447504864-d8686e12698c?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার"
+    brand: "মেগা বাজার"
   },
   {
     id: "conf_nuts_28",
@@ -351,7 +351,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1536591375315-1b836814d600?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার"
+    brand: "মেগা বাজার"
   },
   {
     id: "conf_nuts_29",
@@ -363,7 +363,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1536591375315-1b836814d600?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার"
+    brand: "মেগা বাজার"
   },
   {
     id: "conf_nuts_30",
@@ -375,7 +375,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1536591375315-1b836814d600?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার"
+    brand: "মেগা বাজার"
   },
   {
     id: "conf_nuts_31",
@@ -387,7 +387,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1536591375315-1b836814d600?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার"
+    brand: "মেগা বাজার"
   },
   {
     id: "conf_nuts_32",
@@ -399,7 +399,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1536591375315-1b836814d600?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার প্রিমিয়াম"
+    brand: "মেগা বাজার প্রিমিয়াম"
   },
   {
     id: "conf_nuts_33",
@@ -411,7 +411,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1536591375315-1b836814d600?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার প্রিমিয়াম"
+    brand: "মেগা বাজার প্রিমিয়াম"
   },
   {
     id: "conf_nuts_34",
@@ -423,7 +423,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "বাদাম, ডাল ও চানাচুর",
     subCategoryId: "nuts-chanachur",
     image: "https://images.unsplash.com/photo-1536591375315-1b836814d600?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার প্রিমিয়াম"
+    brand: "মেগা বাজার প্রিমিয়াম"
   },
 
   // SUB-CATEGORY 3: "আইসক্রিম ও ডেইরি ডিলাইট" (icecream-dairy)
@@ -605,7 +605,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "আইসক্রিম ও ডেইরি ডিলাইট",
     subCategoryId: "icecream-dairy",
     image: "https://images.unsplash.com/photo-1501443762994-82bd5dace89a?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার স্পেশাল"
+    brand: "মেগা বাজার স্পেশাল"
   },
   {
     id: "conf_ice_50",
@@ -617,7 +617,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "আইসক্রিম ও ডেইরি ডিলাইট",
     subCategoryId: "icecream-dairy",
     image: "https://images.unsplash.com/photo-1505394033641-40c6ad1178d7?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার স্পেশাল"
+    brand: "মেগা বাজার স্পেশাল"
   },
   {
     id: "conf_ice_51",
@@ -629,7 +629,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "আইসক্রিম ও ডেইরি ডিলাইট",
     subCategoryId: "icecream-dairy",
     image: "https://images.unsplash.com/photo-1501443762994-82bd5dace89a?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার স্পেশাল"
+    brand: "মেগা বাজার স্পেশাল"
   },
   {
     id: "conf_ice_52",
@@ -641,7 +641,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "আইসক্রিম ও ডেইরি ডিলাইট",
     subCategoryId: "icecream-dairy",
     image: "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার স্পেশাল"
+    brand: "মেগা বাজার স্পেশাল"
   },
   {
     id: "conf_ice_53",
@@ -653,7 +653,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "আইসক্রিম ও ডেইরি ডিলাইট",
     subCategoryId: "icecream-dairy",
     image: "https://images.unsplash.com/photo-1570197788417-0e82375c9371?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার স্পেশাল"
+    brand: "মেগা বাজার স্পেশাল"
   },
   {
     id: "conf_ice_54",
@@ -665,7 +665,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "আইসক্রিম ও ডেইরি ডিলাইট",
     subCategoryId: "icecream-dairy",
     image: "https://images.unsplash.com/photo-1501443762994-82bd5dace89a?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার স্পেশাল"
+    brand: "মেগা বাজার স্পেশাল"
   },
   {
     id: "conf_ice_55",
@@ -677,7 +677,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "আইসক্রিম ও ডেইরি ডিলাইট",
     subCategoryId: "icecream-dairy",
     image: "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার"
+    brand: "মেগা বাজার"
   },
 
   // SUB-CATEGORY 4: "পানীয়, জুস ও বেভারেজ" (beverages-drinks)
@@ -1439,7 +1439,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "কেক, চকলেট ও মিষ্টি কনফেকশনারি",
     subCategoryId: "cakes-sweets",
     image: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার বেকারি"
+    brand: "মেগা বাজার বেকারি"
   },
   {
     id: "conf_cake_119",
@@ -1451,7 +1451,7 @@ export const CONFECTIONERY_SNACKS_ITEMS: ConfectionerySnackItem[] = [
     subCategory: "কেক, চকলেট ও মিষ্টি কনফেকশনারি",
     subCategoryId: "cakes-sweets",
     image: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop&q=80",
-    brand: "কাঁচা বাজার বেকারি"
+    brand: "মেগা বাজার বেকারি"
   },
   {
     id: "conf_cake_120",
@@ -1577,7 +1577,7 @@ export const CONFECTIONERY_SNACKS_RAW: Product[] = CONFECTIONERY_SNACKS_ITEMS.ma
   rating: 4.8,
   reviewCount: 18,
   brand: item.brand,
-  descriptionBn: `${item.name} - তাজা ও সুস্বাদু কোয়ালিটি পণ্য। ডেলিভারি কাঁচা বাজার থেকে। মূল্য: ৳${item.price} (${item.unit})।`,
+  descriptionBn: `${item.name} - তাজা ও সুস্বাদু কোয়ালিটি পণ্য। ডেলিভারি মেগা বাজার থেকে। মূল্য: ৳${item.price} (${item.unit})।`,
   descriptionEn: `${item.nameEn} - Fresh, premium quality snack. Price: BDT ${item.price} (${item.unitEn}).`,
   sku: `KB-SNK-${String(idx + 1).padStart(3, "0")}`,
   displayOrder: idx + 1,

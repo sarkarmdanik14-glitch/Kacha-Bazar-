@@ -524,7 +524,7 @@ export default function RiderPanel({ user, onLogout, lang, triggerToast }: Rider
                     <div className="grid grid-cols-2 gap-4">
                       <div className="bg-slate-50 border border-slate-150 rounded-2xl p-4 relative">
                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Pick up products from</span>
-                        <h4 className="font-bold text-slate-800 text-xs">কাচা বাজার সোর্সিং ডিপো</h4>
+                        <h4 className="font-bold text-slate-800 text-xs">মেগা বাজার সোর্সিং ডিপো</h4>
                         <p className="text-[10px] text-slate-500 mt-0.5">চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর</p>
                       </div>
 

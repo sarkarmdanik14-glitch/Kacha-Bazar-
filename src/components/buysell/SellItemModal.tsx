@@ -63,7 +63,7 @@ export default function SellItemModal({
           <p className="text-xs text-slate-500 mb-6 leading-relaxed">
             {lang === "bn"
               ? "বাই-সেল জোনে আপনার ব্যবহৃত বা নতুন যেকোনো পণ্য নিরাপদে বিক্রি করতে প্রথমে আপনার অ্যাকাউন্টে লগইন করুন।"
-              : "Please sign in to post and manage your items securely on Kacha Bazar Buy & Sell Marketplace."}
+              : "Please sign in to post and manage your items securely on Mega Bazar Buy & Sell Marketplace."}
           </p>
           <div className="flex gap-3">
             <button
@@ -207,7 +207,7 @@ export default function SellItemModal({
                   : (lang === "bn" ? "পণ্য বিক্রয়ের বিজ্ঞাপন দিন" : "Sell Your Item")}
               </h3>
               <p className="text-xs text-slate-500">
-                {lang === "bn" ? "বাই-সেল জোন • কাঁচা বাজার পাবলিক মার্কেট" : "Buy & Sell Zone • Kacha Bazar Marketplace"}
+                {lang === "bn" ? "বাই-সেল জোন • মেগা বাজার পাবলিক মার্কেট" : "Buy & Sell Zone • Mega Bazar Marketplace"}
               </p>
             </div>
           </div>

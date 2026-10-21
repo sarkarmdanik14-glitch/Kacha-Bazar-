@@ -536,7 +536,7 @@ export default function CustomerVoiceCallModal({
               ? (assignedAgentName ? `${assignedAgentName}` : getTranslation("প্রতিনিধি যুক্ত আছেন", "Representative Connected"))
               : callStatus === "ended"
               ? getTranslation(`মোট সময়: ${formatTime(callDuration)}`, `Duration: ${formatTime(callDuration)}`)
-              : getTranslation("কাঁচা বাজার কাস্টমার সাপোর্ট", "Kacha Bazar Customer Support")}
+              : getTranslation("মেগা বাজার কাস্টমার সাপোর্ট", "Mega Bazar Customer Support")}
           </p>
         </div>
 

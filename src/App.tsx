@@ -1216,9 +1216,9 @@ export default function App() {
 
   // Notifications State
   const [notificationList, setNotificationList] = useState([
-    { id: 1, textBn: "১০% ছাড়ের বিশেষ কুপন আনলক হয়েছে: KACHA10", textEn: "10% special discount coupon unlocked: KACHA10", read: false },
+    { id: 1, textBn: "১০% ছাড়ের বিশেষ কুপন আনলক হয়েছে: MEGA10", textEn: "10% special discount coupon unlocked: MEGA10", read: false },
     { id: 2, textBn: "ফ্রি ডেলিভারি কুপন ব্যবহার করুন: FREESHIP", textEn: "Apply free delivery coupon code: FREESHIP", read: false },
-    { id: 3, textBn: "পদ্মার তাজা ইলিশ আজই কাচা বাজারে এসেছে!", textEn: "Fresh Padma Hilsha arrived at Kacha Bazar today!", read: true }
+    { id: 3, textBn: "পদ্মার তাজা ইলিশ আজই মেগা বাজারে এসেছে!", textEn: "Fresh Padma Hilsha arrived at Mega Bazar today!", read: true }
   ]);
 
   // Toast Notifications
@@ -3452,8 +3452,8 @@ export default function App() {
 
             <h3 className="text-xs sm:text-sm font-black text-[#132a45] tracking-tight text-center leading-none">
               {lang === "bn" 
-                ? (homeConfig?.whyChooseUs?.titleBn || "কেন আমরাই সেরা অনলাইন কাচা বাজার?") 
-                : (homeConfig?.whyChooseUs?.titleEn || "Why Choose Kacha Bazar Grocery?")}
+                ? (homeConfig?.whyChooseUs?.titleBn || "কেন আমরাই সেরা অনলাইন মেগা বাজার?") 
+                : (homeConfig?.whyChooseUs?.titleEn || "Why Choose Mega Bazar Grocery?")}
             </h3>
 
             {/* Right Leaf Ornament */}
@@ -3537,11 +3537,11 @@ export default function App() {
             <div className="flex items-center space-x-1.5 text-white">
               <img 
                 src={APP_LOGO_URL} 
-                alt="কাঁচা বাজার" 
+                alt="মেগা বাজার" 
                 className="h-6 sm:h-7 w-auto object-contain rounded-lg border border-slate-700 bg-white p-0.5"
                 referrerPolicy="no-referrer"
               />
-              <span className="text-sm sm:text-base font-black tracking-tight">{lang === "bn" ? "কাচা বাজার" : "Kacha Bazar"}</span>
+              <span className="text-sm sm:text-base font-black tracking-tight">{lang === "bn" ? "মেগা বাজার" : "Mega Bazar"}</span>
             </div>
             <p className="leading-snug text-slate-400 text-[9.5px] sm:text-[10.5px] line-clamp-2">
               {lang === "bn" 
@@ -3602,8 +3602,8 @@ export default function App() {
                   nameEn: leadership?.chairman?.nameEn || "MST HOSNE ARA BEGUM",
                   nameBn: leadership?.chairman?.nameBn || "এমএসটি হোসনে আরা বেগম",
                   image: leadership?.chairman?.image || chairmanImg,
-                  titleEn: "Chairman, Kacha Bazar",
-                  titleBn: "চেয়ারম্যান, কাচা বাজার",
+                  titleEn: "Chairman, Mega Bazar",
+                  titleBn: "চেয়ারম্যান, মেগা বাজার",
                   badgeColor: "bg-amber-500/15 text-amber-300 border-amber-500/30",
                   borderColor: "border-amber-500/70",
                   iconBg: "bg-amber-600"
@@ -3615,8 +3615,8 @@ export default function App() {
                   nameEn: leadership?.viceChairman?.nameEn || "MD ABU HANIF SARKAR",
                   nameBn: leadership?.viceChairman?.nameBn || "মোঃ আবু হানিফ সরকার",
                   image: leadership?.viceChairman?.image || viceChairmanImg,
-                  titleEn: "Vice Chairman, Kacha Bazar",
-                  titleBn: "ভাইস চেয়ারম্যান, কাচা বাজার",
+                  titleEn: "Vice Chairman, Mega Bazar",
+                  titleBn: "ভাইস চেয়ারম্যান, মেগা বাজার",
                   badgeColor: "bg-sky-500/15 text-sky-300 border-sky-500/30",
                   borderColor: "border-sky-500/70",
                   iconBg: "bg-sky-600"
@@ -3641,8 +3641,8 @@ export default function App() {
                   nameEn: (m.nameEn || "").toUpperCase(),
                   nameBn: m.nameBn || "",
                   image: m.image || chairmanImg,
-                  titleEn: m.titleEn || `${m.roleEn || "Leadership"}, Kacha Bazar`,
-                  titleBn: m.titleBn || `${m.roleBn || "নেতৃত্ব"}, কাচা বাজার`,
+                  titleEn: m.titleEn || `${m.roleEn || "Leadership"}, Mega Bazar`,
+                  titleBn: m.titleBn || `${m.roleBn || "নেতৃত্ব"}, মেগা বাজার`,
                   badgeColor: m.badgeColor || "bg-purple-500/15 text-purple-300 border-purple-500/30",
                   borderColor: m.borderColor || "border-purple-500/70",
                   iconBg: m.iconBg || "bg-purple-600"
@@ -3684,7 +3684,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-3 sm:px-4 pt-2 sm:pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-center text-[10px] sm:text-[11px]">
           {/* Copyright */}
           <span className="text-slate-500 font-medium">
-            © {new Date().getFullYear()} {lang === "bn" ? "কাচা বাজার লিমিটেড।" : "Kacha Bazar Ltd."}
+            © {new Date().getFullYear()} {lang === "bn" ? "মেগা বাজার লিমিটেড।" : "Mega Bazar Ltd."}
           </span>
 
           {/* Smart Language Switcher Pill */}
@@ -4134,7 +4134,7 @@ export default function App() {
                               {lang === "bn" ? "সরবরাহকারী পার্টনার শপ" : "Partner Store Seller"}
                             </p>
                             <p className="text-xs font-black text-emerald-900 truncate mt-0.5">
-                              {selectedProduct.partnerShopName || (lang === "bn" ? "কাচা বাজার সেন্ট্রাল শপ" : "Kacha Bazar Central Shop")}
+                              {selectedProduct.partnerShopName || (lang === "bn" ? "মেগা বাজার সেন্ট্রাল শপ" : "Mega Bazar Central Shop")}
                             </p>
                           </div>
                         </div>
@@ -4248,7 +4248,7 @@ export default function App() {
                           <span>{lang === "bn" ? "সরাসরি কল করে বুকিং দিন" : "Call to Book Directly"}</span>
                         </a>
                         <a 
-                          href={`https://wa.me/8801615581975?text=${encodeURIComponent(`আসসালামু আলাইকুম, আমি কাঁচা বাজার থেকে ${selectedProduct.nameBn} ভাড়ায় বুকিং করতে আগ্রহী। বিস্তারিত ও ভাড়া জানাবেন দয়া করে।`)}`}
+                          href={`https://wa.me/8801615581975?text=${encodeURIComponent(`আসসালামু আলাইকুম, আমি মেগা বাজার থেকে ${selectedProduct.nameBn} ভাড়ায় বুকিং করতে আগ্রহী। বিস্তারিত ও ভাড়া জানাবেন দয়া করে।`)}`}
                           target="_blank"
                           rel="noreferrer"
                           className="flex-1 py-3 px-4 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs sm:text-sm rounded-xl transition shadow flex items-center justify-center space-x-2 cursor-pointer"
@@ -4612,7 +4612,7 @@ export default function App() {
               <div className="flex items-center space-x-3">
                 <img 
                   src={APP_LOGO_URL} 
-                  alt="কাঁচা বাজার" 
+                  alt="মেগা বাজার" 
                   className="h-10 sm:h-12 w-auto object-contain rounded-xl border border-emerald-100 bg-white p-0.5"
                   referrerPolicy="no-referrer"
                 />
@@ -4621,7 +4621,7 @@ export default function App() {
                     {lang === "bn" ? "আমাদের সম্পর্কে" : "About Us"}
                   </h3>
                   <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                    {lang === "bn" ? "কাচা বাজার — আপনার বিশ্বস্ত প্রতিষ্ঠান" : "Kacha Bazar — Your Trusted Brand"}
+                    {lang === "bn" ? "মেগা বাজার — আপনার বিশ্বস্ত প্রতিষ্ঠান" : "Mega Bazar — Your Trusted Brand"}
                   </p>
                 </div>
               </div>
@@ -4637,8 +4637,8 @@ export default function App() {
             <div className="overflow-y-auto flex-1 p-6 space-y-4 text-xs text-slate-600 leading-relaxed">
               <p>
                 {lang === "bn" 
-                  ? "কাচা বাজার একটি সম্পূর্ণ আধুনিক, পরিবেশ-বান্ধব ও শতভাগ নিরাপদ ই-কমার্স প্ল্যাটফর্ম। আমাদের মূল লক্ষ্য হলো গ্রামীণ অঞ্চলের কৃষকদের কঠোর পরিশ্রমের ফসল কোনো মধ্যস্বত্বভোগী ছাড়া সরাসরি শহরের ভোক্তাদের কাছে পৌঁছে দেওয়া। এর মাধ্যমে আমরা যেমন কৃষকদের তাদের উৎপাদিত ফসলের সঠিক মূল্য নিশ্চিত করছি, তেমনি গ্রাহকদের জন্য নিশ্চিত করছি সম্পূর্ণ তাজা ও বিষমুক্ত খাদ্যের সংস্থান।"
-                  : "Kacha Bazar is a fully modern, eco-friendly, and 100% safe e-commerce platform. Our primary goal is to deliver the hard-earned harvests of rural farmers directly to urban consumers without any intermediaries. Through this, we ensure fair prices for farmers while guaranteeing 100% fresh, organic, and toxin-free food for our valued customers."}
+                  ? "মেগা বাজার একটি সম্পূর্ণ আধুনিক, পরিবেশ-বান্ধব ও শতভাগ নিরাপদ ই-কমার্স প্ল্যাটফর্ম। আমাদের মূল লক্ষ্য হলো গ্রামীণ অঞ্চলের কৃষকদের কঠোর পরিশ্রমের ফসল কোনো মধ্যস্বত্বভোগী ছাড়া সরাসরি শহরের ভোক্তাদের কাছে পৌঁছে দেওয়া। এর মাধ্যমে আমরা যেমন কৃষকদের তাদের উৎপাদিত ফসলের সঠিক মূল্য নিশ্চিত করছি, তেমনি গ্রাহকদের জন্য নিশ্চিত করছি সম্পূর্ণ তাজা ও বিষমুক্ত খাদ্যের সংস্থান।"
+                  : "Mega Bazar is a fully modern, eco-friendly, and 100% safe e-commerce platform. Our primary goal is to deliver the hard-earned harvests of rural farmers directly to urban consumers without any intermediaries. Through this, we ensure fair prices for farmers while guaranteeing 100% fresh, organic, and toxin-free food for our valued customers."}
               </p>
               
               <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-3">
@@ -4712,7 +4712,7 @@ export default function App() {
                     {lang === "bn" ? "যোগাযোগ করুন" : "Contact Us"}
                   </h3>
                   <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                    {lang === "bn" ? "কাচা বাজার কাস্টমার রিলেশন" : "Kacha Bazar Customer Relations"}
+                    {lang === "bn" ? "মেগা বাজার কাস্টমার রিলেশন" : "Mega Bazar Customer Relations"}
                   </p>
                 </div>
               </div>
@@ -4755,7 +4755,7 @@ export default function App() {
                   <MapPin className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <p className="text-[9px] text-slate-400 font-bold uppercase">{lang === "bn" ? "অফিস ঠিকানা" : "Main Office Address"}</p>
-                    <p className="text-slate-800 font-bold text-xs mt-0.5 leading-snug">{lang === "bn" ? "কাচা বাজার" : "Kacha Bazar"}</p>
+                    <p className="text-slate-800 font-bold text-xs mt-0.5 leading-snug">{lang === "bn" ? "মেগা বাজার" : "Mega Bazar"}</p>
                     <p className="text-slate-650 text-[11px] mt-0.5 leading-snug">{lang === "bn" ? "চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর, বাংলাদেশ" : "Chanchkoir Bazar, Gurudaspur, Natore, Bangladesh"}</p>
                     
                     <div className="mt-2.5">
@@ -4802,7 +4802,7 @@ export default function App() {
                     {lang === "bn" ? "সাহায্য ও সহযোগিতা" : "Help & Support"}
                   </h3>
                   <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                    {lang === "bn" ? "কাচা বাজার কাস্টমার কেয়ার" : "Kacha Bazar Support Desk"}
+                    {lang === "bn" ? "মেগা বাজার কাস্টমার কেয়ার" : "Mega Bazar Support Desk"}
                   </p>
                 </div>
               </div>
@@ -4822,7 +4822,7 @@ export default function App() {
                 </h4>
                 <p>
                   {lang === "bn" 
-                    ? "কাচা বাজার-এর সম্মানিত গ্রাহকদের যেকোনো সেবা এবং অর্ডার ডেলিভারি সংক্রান্ত সমস্যায় আমরা সর্বদা পাশে আছি। আপনার সমস্যার দ্রুততম সমাধান পেতে সরাসরি হটলাইনে যোগাযোগ করুন।"
+                    ? "মেগা বাজার-এর সম্মানিত গ্রাহকদের যেকোনো সেবা এবং অর্ডার ডেলিভারি সংক্রান্ত সমস্যায় আমরা সর্বদা পাশে আছি। আপনার সমস্যার দ্রুততম সমাধান পেতে সরাসরি হটলাইনে যোগাযোগ করুন।"
                     : "We are always here to assist our valued customers with any service or order delivery concerns. Reach out to us via hotline for instant assistance."}
                 </p>
               </div>

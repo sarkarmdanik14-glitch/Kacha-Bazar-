@@ -1254,7 +1254,7 @@ export const MOBILE_ZONE_PRODUCTS_RAW: Product[] = NEW_MOBILE_ZONE_ITEMS.map((it
   rating: 4.9,
   reviewCount: 24,
   brand: item.brand,
-  descriptionBn: `${item.nameBn} - ১০০% অফিসিয়াল স্মার্টফোন / ফোন। ${item.specs}। ১ বছরের ব্র্যান্ড ওয়ারেন্টি ও অফিশিয়াল ইনভয়েস সহ কাঁচা বাজার মোবাইল জোন থেকে।`,
+  descriptionBn: `${item.nameBn} - ১০০% অফিসিয়াল স্মার্টফোন / ফোন। ${item.specs}। ১ বছরের ব্র্যান্ড ওয়ারেন্টি ও অফিশিয়াল ইনভয়েস সহ মেগা বাজার মোবাইল জোন থেকে।`,
   descriptionEn: `${item.nameEn} - 100% Official warranty product. ${item.specs}. 1-Year Official Warranty with invoice.`,
   sku: `KB-MOB-${String(idx + 1).padStart(3, "0")}`,
   displayOrder: idx + 1,

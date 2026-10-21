@@ -797,11 +797,11 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
                     required
                     value={noticeTitleBn}
                     onChange={(e) => setNoticeTitleBn(e.target.value)}
-                    placeholder="কাঁচা বাজার ওয়েবসাইটের কাজ এখনও চলমান।"
+                    placeholder="মেগা বাজার ওয়েবসাইটের কাজ এখনও চলমান।"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-black outline-none focus:border-rose-500 focus:bg-white transition text-slate-800"
                   />
                   <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                    {getTranslation("ডিফল্ট: কাঁচা বাজার ওয়েবসাইটের কাজ এখনও চলমান।", "Default: Kacha Bazar website is currently under development.")}
+                    {getTranslation("ডিফল্ট: মেগা বাজার ওয়েবসাইটের কাজ এখনও চলমান।", "Default: Kacha Bazar website is currently under development.")}
                   </p>
                 </div>
                 <div>
@@ -1439,7 +1439,7 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
               </div>
               <p className="text-xs text-emerald-100 font-medium max-w-xl">
                 {getTranslation(
-                  "ক্রেতারা যেকোনো মোবাইল ক্যামেরা দিয়ে এই QR কোড স্ক্যান করলেই স্বয়ংক্রিয়ভাবে ওয়েবসাইট ওপেন হবে এবং ‘কাচা বাজার অ্যাপ’ ইনস্টল করার প্রম্পট পাবেন।",
+                  "ক্রেতারা যেকোনো মোবাইল ক্যামেরা দিয়ে এই QR কোড স্ক্যান করলেই স্বয়ংক্রিয়ভাবে ওয়েবসাইট ওপেন হবে এবং ‘মেগা বাজার অ্যাপ’ ইনস্টল করার প্রম্পট পাবেন।",
                   "Customers can scan this QR code with any mobile camera to open the store and receive an instant 1-click app install prompt."
                 )}
               </p>
@@ -1562,7 +1562,7 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
                   <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
                     <span className="text-[10px] text-slate-400 font-bold block uppercase">App Name</span>
-                    <span className="font-bold text-slate-800 truncate block">কাচা বাজার</span>
+                    <span className="font-bold text-slate-800 truncate block">মেগা বাজার</span>
                   </div>
                   <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
                     <span className="text-[10px] text-slate-400 font-bold block uppercase">Theme Color</span>

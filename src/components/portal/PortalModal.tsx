@@ -542,7 +542,7 @@ export default function PortalModal({
         setActivePortalTab(verifiedRole === "super_admin" || verifiedRole === "admin" ? "admin" : "staff");
         onUserChange?.(verifiedUser);
         triggerToast(
-          "লগইন সফল হয়েছে! কাচা বাজার পোর্টালে স্বাগতম।",
+          "লগইন সফল হয়েছে! মেগা বাজার পোর্টালে স্বাগতম।",
           "Login successful! Welcome to the Kacha Bazar system portal."
         );
         return;
@@ -560,7 +560,7 @@ export default function PortalModal({
     setActivePortalTab("customer");
     onUserChange?.(customerUser);
     triggerToast(
-      "লগইন সফল হয়েছে! কাচা বাজারে স্বাগতম।",
+      "লগইন সফল হয়েছে! মেগা বাজারে স্বাগতম।",
       "Login successful! Welcome to Kacha Bazar."
     );
   };

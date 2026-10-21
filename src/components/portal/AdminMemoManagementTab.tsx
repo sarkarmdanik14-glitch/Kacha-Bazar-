@@ -609,7 +609,7 @@ export default function AdminMemoManagementTab({
         memoNumber: `MEMO-${Math.floor(100000 + Math.random() * 900000)}`,
         customerName: manualMemoCustomerName.trim() || (lang === "bn" ? "অফলাইন ক্রেতা" : "Walk-in Buyer"),
         customerPhone: manualMemoCustomerPhone.trim(),
-        customerAddress: manualMemoCustomerAddress.trim() || (lang === "bn" ? "কাঁচা বাজার আউটলেট" : "Kacha Bazar Outlet"),
+        customerAddress: manualMemoCustomerAddress.trim() || (lang === "bn" ? "মেগা বাজার আউটলেট" : "Kacha Bazar Outlet"),
         items: manualMemoItemName.trim() ? [
           {
             product: {

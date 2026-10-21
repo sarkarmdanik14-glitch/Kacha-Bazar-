@@ -444,8 +444,8 @@ export default function CustomerDashboardMobile({
       }, { merge: true });
 
       // 3. Dispatch transactional email via custom mail handler on backend (Resend, Brevo, or backend API)
-      // Sender: "কাঁচা বাজার টিম" <no-reply@kachabazaronline.com>
-      // Subject: "কাঁচা বাজার - ইমেইল ভেরিফিকেশন কোড"
+      // Sender: "মেগা বাজার টিম" <no-reply@kachabazaronline.com>
+      // Subject: "মেগা বাজার - ইমেইল ভেরিফিকেশন কোড"
       try {
         await fetch("/api/auth/send-email-otp", {
           method: "POST",
@@ -1040,10 +1040,10 @@ export default function CustomerDashboardMobile({
                   <div className="flex items-center space-x-2">
                     <img 
                       src={APP_LOGO_URL} 
-                      alt="কাঁচা বাজার" 
+                      alt="মেগা বাজার" 
                       className="h-8 w-auto object-contain rounded-xl border border-emerald-100 bg-white p-0.5 shadow-2xs shrink-0" 
                     />
-                    <span className="text-sm font-black text-emerald-800">কাঁচা বাজার</span>
+                    <span className="text-sm font-black text-emerald-800">মেগা বাজার</span>
                   </div>
                   {/* Close Button (X) */}
                   <button
@@ -1159,7 +1159,7 @@ export default function CustomerDashboardMobile({
 
           <img 
             src={APP_LOGO_URL} 
-            alt="কাঁচা বাজার" 
+            alt="মেগা বাজার" 
             className="h-8 w-auto max-w-[36px] object-contain rounded-xl border border-emerald-100 bg-white p-0.5 shadow-2xs shrink-0" 
           />
 
@@ -1331,7 +1331,7 @@ export default function CustomerDashboardMobile({
                       ? "bg-gradient-to-r from-amber-400/20 via-yellow-400/25 to-amber-500/20 hover:from-amber-400/35 hover:to-amber-500/35 text-amber-300 border border-amber-400/40 hover:border-amber-300/60"
                       : "bg-slate-800/90 hover:bg-slate-800 text-slate-300 border border-slate-700/80 hover:border-amber-400/40"
                   }`}
-                  title="কাঁচা বাজার প্রিমিয়াম মেম্বারশিপ অফার ও শর্তাবলী দেখুন"
+                  title="মেগা বাজার প্রিমিয়াম মেম্বারশিপ অফার ও শর্তাবলী দেখুন"
                 >
                   <Sparkles className="w-3 h-3 text-amber-300 animate-pulse group-hover:rotate-12 transition-transform" />
                   <span>প্রিমিয়াম মেম্বার</span>
@@ -1518,7 +1518,7 @@ export default function CustomerDashboardMobile({
                 আপনার শপিং কার্ট খালি!
               </p>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                কাঁচা বাজার থেকে তাজা পণ্যগুলো কার্টে যুক্ত করুন
+                মেগা বাজার থেকে তাজা পণ্যগুলো কার্টে যুক্ত করুন
               </p>
             </div>
           ) : (
@@ -1945,7 +1945,7 @@ export default function CustomerDashboardMobile({
                     {!verificationEmailSent ? (
                       <div className="space-y-2">
                         <p className="text-[10px] text-slate-500 leading-tight">
-                          আপনার ইমেইল ঠিকানায় কাঁচা বাজার টিম থেকে একটি ৬-সংখ্যার ওটিপি কোড পাঠানো হবে।
+                          আপনার ইমেইল ঠিকানায় মেগা বাজার টিম থেকে একটি ৬-সংখ্যার ওটিপি কোড পাঠানো হবে।
                         </p>
                         <button
                           type="button"
@@ -2388,10 +2388,10 @@ export default function CustomerDashboardMobile({
               </div>
 
               <h3 className="text-lg sm:text-xl font-black text-white leading-snug tracking-tight">
-                🌟 কাঁচা বাজার প্রিমিয়াম মেম্বারশিপ অফার
+                🌟 মেগা বাজার প্রিমিয়াম মেম্বারশিপ অফার
               </h3>
               <p className="text-xs text-emerald-200/80 max-w-xs mx-auto">
-                কাঁচা বাজার পরিবারের এক্সক্লুসিভ ভিআইপি প্রিভিলেজ ও বিশেষ সুবিধাসমূহ
+                মেগা বাজার পরিবারের এক্সক্লুসিভ ভিআইপি প্রিভিলেজ ও বিশেষ সুবিধাসমূহ
               </p>
             </div>
 
@@ -2470,7 +2470,7 @@ export default function CustomerDashboardMobile({
                 type="button"
                 onClick={() => {
                   setShowMembershipModal(false);
-                  triggerToast("কাঁচা বাজার স্টোরফ্রন্টে আপনাকে স্বাগতম!");
+                  triggerToast("মেগা বাজার স্টোরফ্রন্টে আপনাকে স্বাগতম!");
                 }}
                 className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-black shadow-lg shadow-emerald-500/20 flex items-center justify-center space-x-2 cursor-pointer transition active:scale-95"
               >

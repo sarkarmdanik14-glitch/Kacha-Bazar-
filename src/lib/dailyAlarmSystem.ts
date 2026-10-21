@@ -17,9 +17,9 @@ export const ALARM_CONFIG = {
     targetHour: 9, // 9:00 AM
     targetMinute: 0,
     timeLabel: "9:00 AM",
-    title: "কাঁচা বাজার • সকালের অ্যালার্ম (9:00 AM)",
-    message: "সুপ্রভাত। কাঁচা বাজারের আজকের কার্যক্রম শুরু করার সময় হয়েছে। অনুগ্রহ করে আপনার দায়িত্বগুলো যাচাই করুন।",
-    tag: "kacha-bazar-morning-alarm",
+    title: "মেগা বাজার • সকালের অ্যালার্ম (9:00 AM)",
+    message: "সুপ্রভাত। মেগা বাজারের আজকের কার্যক্রম শুরু করার সময় হয়েছে। অনুগ্রহ করে আপনার দায়িত্বগুলো যাচাই করুন।",
+    tag: "mega-bazar-morning-alarm",
     icon: "/icons/icon-192x192.png",
     badge: "/favicon-32x32.png"
   },
@@ -29,9 +29,9 @@ export const ALARM_CONFIG = {
     targetHour: 21, // 9:00 PM (21:00)
     targetMinute: 0,
     timeLabel: "9:00 PM",
-    title: "কাঁচা বাজার • রাতের অ্যালার্ম (9:00 PM)",
-    message: "কাঁচা বাজারের আজকের কার্যক্রম শেষ করার সময় হয়েছে। অনুগ্রহ করে দিনের কাজ ও রিপোর্টগুলো যাচাই করুন।",
-    tag: "kacha-bazar-night-alarm",
+    title: "মেগা বাজার • রাতের অ্যালার্ম (9:00 PM)",
+    message: "মেগা বাজারের আজকের কার্যক্রম শেষ করার সময় হয়েছে। অনুগ্রহ করে দিনের কাজ ও রিপোর্টগুলো যাচাই করুন।",
+    tag: "mega-bazar-night-alarm",
     icon: "/icons/icon-192x192.png",
     badge: "/favicon-32x32.png"
   }

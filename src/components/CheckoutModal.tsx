@@ -418,7 +418,7 @@ export default function CheckoutModal({
             
             <div className="flex items-center space-x-2 shrink-0">
               <span className="font-extrabold text-[10px] sm:text-xs text-emerald-600 tracking-wider uppercase bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
-                {getTranslation("কাচা বাজার", "Kacha Bazar")}
+                {getTranslation("মেগা বাজার", "Mega Bazar")}
               </span>
             </div>
           </div>

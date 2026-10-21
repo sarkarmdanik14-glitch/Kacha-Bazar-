@@ -168,7 +168,7 @@ export default function RewardRedemptionView({
 
         <div className="flex items-center space-x-1.5 text-purple-700 text-xs font-black uppercase tracking-wider bg-purple-50 px-3.5 py-1.5 rounded-full border border-purple-100 shadow-2xs">
           <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-          <span>কাচা বাজার এক্সক্লুসিভ রিওয়ার্ড ক্লাব</span>
+          <span>মেগা বাজার এক্সক্লুসিভ রিওয়ার্ড ক্লাব</span>
         </div>
       </div>
 
@@ -617,7 +617,7 @@ export default function RewardRedemptionView({
 
             <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-[11px] text-slate-500 leading-relaxed text-left space-y-1">
               <p>• আপনার অ্যাকাউন্ট থেকে <strong>{claimedSuccessGift.pointsRequired}</strong> পয়েন্ট কাটা হয়েছে।</p>
-              <p>• কাচা বাজার ডেলিভারি টিম দ্রুততম সময়ে উপহারটি আপনার ঠিকানায় পৌঁছে দেবে।</p>
+              <p>• মেগা বাজার ডেলিভারি টিম দ্রুততম সময়ে উপহারটি আপনার ঠিকানায় পৌঁছে দেবে।</p>
             </div>
 
             <button

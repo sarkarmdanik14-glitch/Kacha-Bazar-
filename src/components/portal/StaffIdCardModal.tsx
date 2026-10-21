@@ -375,7 +375,7 @@ export default function StaffIdCardModal({
       try {
         const payload = {
           org: "KACHA BAZAR",
-          company: "কাঁচা বাজার",
+          company: "মেগা বাজার",
           staffId: activeStaff.staffId,
           name: activeStaff.fullName,
           role: activeStaff.role,
@@ -804,7 +804,7 @@ export default function StaffIdCardModal({
           <body>
             <div class="no-print">
               <div>
-                <h2 style="font-size:14px;font-weight:800;color:#34d399;margin:0 0 2px 0;">কাঁচা বাজার অফিসিয়াল স্টাফ আইডি কার্ড (CR80 Portrait Print)</h2>
+                <h2 style="font-size:14px;font-weight:800;color:#34d399;margin:0 0 2px 0;">মেগা বাজার অফিসিয়াল স্টাফ আইডি কার্ড (CR80 Portrait Print)</h2>
                 <p style="font-size:11px;color:#94a3b8;margin:0;">Staff: ${activeStaff.fullName} | ID: ${activeStaff.staffId} | Physical Size: 53.98mm × 85.60mm</p>
               </div>
               <button onclick="window.print()" class="print-btn">
@@ -1532,7 +1532,7 @@ export default function StaffIdCardModal({
                       </div>
                       <div className="text-white text-left leading-tight">
                         <h4 className="font-extrabold text-[14px] tracking-wide drop-shadow-xs">
-                          {getTranslation("কাঁচা বাজার", "Kacha Bazar")}
+                          {getTranslation("মেগা বাজার", "Kacha Bazar")}
                         </h4>
                         <p className="text-[8.5px] font-semibold text-emerald-100 tracking-wider">
                           {getTranslation("অনলাইন গ্রোসারি ও পিওর ফুডস", "Online Grocery & Pure Foods")}
@@ -1712,7 +1712,7 @@ export default function StaffIdCardModal({
                         />
                       </div>
                       <h4 className="font-black text-[15px] text-[#056839] tracking-wide leading-tight">
-                        {getTranslation("কাঁচা বাজার", "Kacha Bazar")}
+                        {getTranslation("মেগা বাজার", "Kacha Bazar")}
                       </h4>
                       <p className="text-[9px] font-semibold text-slate-600 tracking-wider mt-0.5">
                         {getTranslation("অনলাইন গ্রোসারি ও পিওর ফুডস", "Online Grocery & Pure Foods")}

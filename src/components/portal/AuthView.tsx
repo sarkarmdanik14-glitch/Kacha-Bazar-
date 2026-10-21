@@ -903,7 +903,7 @@ export default function AuthView({
           fullName: trimmedFullName,
           phone: phone.trim(),
           role: role,
-          shopName: shopName || getTranslation("আমার কাচা বাজার", "My Kacha Bazar"),
+          shopName: shopName || getTranslation("আমার মেগা বাজার", "My Mega Bazar"),
           vehicleType: vehicleType,
           referralCode: referralInput
         });
@@ -955,7 +955,7 @@ export default function AuthView({
             await setDoc(doc(db, "sellers", newUser.uid), {
               uid: newUser.uid,
               email: email.trim(),
-              shopName: shopName || getTranslation("আমার কাচা বাজার", "My Kacha Bazar"),
+              shopName: shopName || getTranslation("আমার মেগা বাজার", "My Mega Bazar"),
               ownerName: trimmedFullName,
               phoneNumber: phone.trim(),
               status: "pending",
@@ -1170,7 +1170,7 @@ export default function AuthView({
         <div className="text-center mb-5">
           <img 
             src={APP_LOGO_URL} 
-            alt="কাঁচা বাজার" 
+            alt="মেগা বাজার" 
             className="h-12 w-auto max-w-[64px] object-contain rounded-2xl mx-auto mb-2.5 border border-emerald-100 bg-white p-1 shadow-xs" 
           />
           <h2 className="text-xl font-black text-slate-800 tracking-tight">
@@ -1459,7 +1459,7 @@ export default function AuthView({
       <div className="text-center mb-6">
         <img 
           src={APP_LOGO_URL} 
-          alt="কাঁচা বাজার" 
+          alt="মেগা বাজার" 
           className="h-12 w-auto max-w-[64px] object-contain rounded-2xl mx-auto mb-3 border border-emerald-100 bg-white p-1 shadow-xs" 
         />
         <h2 className="text-xl font-black text-slate-800 tracking-tight">
@@ -1477,12 +1477,12 @@ export default function AuthView({
           {role === "admin" 
             ? getTranslation("এডমিন সিস্টেমে নিরাপদ প্রবেশাধিকার", "Secure Admin System Access")
             : role === "partner"
-            ? getTranslation("কাচা বাজার পার্টনার শপ মার্চেন্ট ড্যাশবোর্ড", "Access Your Kacha Bazar Partner Store Hub")
+            ? getTranslation("মেগা বাজার পার্টনার শপ মার্চেন্ট ড্যাশবোর্ড", "Access Your Mega Bazar Partner Store Hub")
             : role === "seller" 
-            ? getTranslation("কাচা বাজার মার্চেন্ট প্যানেলে প্রবেশ করুন", "Access Kacha Bazar Seller Hub")
+            ? getTranslation("মেগা বাজার মার্চেন্ট প্যানেলে প্রবেশ করুন", "Access Mega Bazar Seller Hub")
             : role === "rider" 
-            ? getTranslation("কাচা বাজার ডেলিভারি নেটওয়ার্কে প্রবেশ করুন", "Access Kacha Bazar Rider Network")
-            : getTranslation("কাচা বাজার অনলাইন পোর্টালে প্রবেশ করুন", "Access Kacha Bazar Customer Portal")}
+            ? getTranslation("মেগা বাজার ডেলিভারি নেটওয়ার্কে প্রবেশ করুন", "Access Mega Bazar Rider Network")
+            : getTranslation("মেগা বাজার অনলাইন পোর্টালে প্রবেশ করুন", "Access Mega Bazar Customer Portal")}
         </p>
       </div>
 

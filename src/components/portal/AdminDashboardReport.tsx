@@ -341,7 +341,7 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
           </div>
           <div className="mt-4">
             <h3 className="text-lg sm:text-2xl font-black text-slate-800">৳{metrics.totalCommission.toLocaleString()}</h3>
-            <span className="text-[10px] text-slate-400 block mt-1">{getTranslation("কাচা বাজার নিট আয়", "Kacha Bazar net earnings")}</span>
+            <span className="text-[10px] text-slate-400 block mt-1">{getTranslation("মেগা বাজার নিট আয়", "Kacha Bazar net earnings")}</span>
           </div>
         </div>
 

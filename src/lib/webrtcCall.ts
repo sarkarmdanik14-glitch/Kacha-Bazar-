@@ -334,7 +334,7 @@ export const callBgMusic = new CallBackgroundMusicPlayer();
 /**
  * Automated Bangla Welcome Speech & Background Music Player
  * Plays real Bengali voice recording with crystal clear voice + soft ambient background music:
- * "আসসালামু আলাইকুম। কাঁচা বাজারে আপনাকে স্বাগতম। আমাদেরকে কল করার জন্য আপনাকে ধন্যবাদ। আমাদের প্রতিনিধি বর্তমানে একটু ব্যস্ত আছেন। অনুগ্রহ করে অপেক্ষা করুন। খুব শীঘ্রই একজন প্রতিনিধি আপনার কলটি গ্রহণ করবেন। ধন্যবাদ।"
+ * "আসসালামু আলাইকুম। মেগা বাজারে আপনাকে স্বাগতম। আমাদেরকে কল করার জন্য আপনাকে ধন্যবাদ। আমাদের প্রতিনিধি বর্তমানে একটু ব্যস্ত আছেন। অনুগ্রহ করে অপেক্ষা করুন। খুব শীঘ্রই একজন প্রতিনিধি আপনার কলটি গ্রহণ করবেন। ধন্যবাদ।"
  * - Background music plays automatically under the voice (15-20% volume)
  * - Transitions smoothly into soft queue waiting music loop if customer is waiting
  * - Immediately stops on call accept/connect/end
@@ -346,7 +346,7 @@ class BanglaCallWelcomePlayer {
   private isSpeaking: boolean = false;
   private onEndCallback: (() => void) | null = null;
 
-  private WELCOME_SPEECH = "আসসালামু আলাইকুম। কাঁচা বাজারে আপনাকে স্বাগতম। আমাদেরকে কল করার জন্য আপনাকে ধন্যবাদ। আমাদের প্রতিনিধি বর্তমানে একটু ব্যস্ত আছেন। অনুগ্রহ করে অপেক্ষা করুন। খুব শীঘ্রই একজন প্রতিনিধি আপনার কলটি গ্রহণ করবেন। ধন্যবাদ।";
+  private WELCOME_SPEECH = "আসসালামু আলাইকুম। মেগা বাজারে আপনাকে স্বাগতম। আমাদেরকে কল করার জন্য আপনাকে ধন্যবাদ। আমাদের প্রতিনিধি বর্তমানে একটু ব্যস্ত আছেন। অনুগ্রহ করে অপেক্ষা করুন। খুব শীঘ্রই একজন প্রতিনিধি আপনার কলটি গ্রহণ করবেন। ধন্যবাদ।";
 
   /**
    * Pre-warm and start audio immediately on direct user click to guarantee instant playback on all mobile/desktop browsers

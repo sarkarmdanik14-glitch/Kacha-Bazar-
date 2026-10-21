@@ -458,7 +458,7 @@ export default function CustomerLiveChat({
                 <MessageSquare className="w-6 h-6" />
               </div>
               <h5 className="font-black text-slate-800 text-xs sm:text-sm">
-                {getTranslation("কাচা বাজার লাইভ সাপোর্টে স্বাগতম!", "Welcome to Live Support!")}
+                {getTranslation("মেগা বাজার লাইভ সাপোর্টে স্বাগতম!", "Welcome to Mega Bazar Live Support!")}
               </h5>
               <p className="text-[11px] text-slate-500 max-w-[220px] leading-relaxed">
                 {getTranslation(
