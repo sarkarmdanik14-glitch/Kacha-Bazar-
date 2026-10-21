@@ -256,6 +256,10 @@ export default function App() {
   const [photoLoadError, setPhotoLoadError] = useState<boolean>(false);
 
   useEffect(() => {
+    document.title = "মেগা বাজার - Mega Bazar";
+  }, []);
+
+  useEffect(() => {
     setPhotoLoadError(false);
   }, [userProfilePhoto]);
 
