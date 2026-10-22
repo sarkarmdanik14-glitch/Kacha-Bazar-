@@ -793,7 +793,9 @@ export default function App() {
 
   const [products, setProducts] = useState<Product[]>(() => {
     const cached = getCachedProducts();
-    if (cached && cached.length > 0) return cached;
+    if (cached && cached.length > 0) {
+      return cached.filter(p => !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id));
+    }
     return ALL_PRODUCTS;
   });
   const [loadingProducts, setLoadingProducts] = useState<boolean>(() => {
@@ -841,7 +843,7 @@ export default function App() {
 
   const availableProducts = useMemo(() => {
     const filtered = products
-      .filter(p => p.isAvailable !== false && !p.isDeleted && p.status !== "deleted" && !p.deleted)
+      .filter(p => p.isAvailable !== false && !p.isDeleted && p.status !== "deleted" && !p.deleted && !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id))
       .filter(p => shouldKeepProductGroceryFiltered(p));
     return filtered.sort((a, b) => sortByDefaultOrder(a, b));
   }, [products]);
@@ -1001,12 +1003,12 @@ export default function App() {
     let isSupabaseLoaded = false;
 
     // 1. Direct Primary Load from Supabase PostgreSQL (1,641+ synced products & categories)
-    // 1. Direct Primary Load from Supabase PostgreSQL (1,641+ synced products & categories)
     fetchAllProductsFromSupabase().then((spProducts) => {
       if (spProducts && spProducts.length > 0 && isMounted) {
         isSupabaseLoaded = true;
-        console.log(`[Supabase Engine] Successfully loaded ${spProducts.length} live products directly from Supabase`);
-        setProducts(spProducts);
+        const cleanProds = spProducts.filter(p => !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id));
+        console.log(`[Supabase Engine] Successfully loaded ${cleanProds.length} live products directly from Supabase`);
+        setProducts(cleanProds);
         setLoadingProducts(false);
       } else if (isMounted) {
         setLoadingProducts(false);
@@ -1040,7 +1042,8 @@ export default function App() {
     const unsubSupabaseProds = subscribeToSupabaseProducts(() => {
       fetchAllProductsFromSupabase().then((spProducts) => {
         if (spProducts && spProducts.length > 0 && isMounted) {
-          setProducts(spProducts);
+          const cleanProds = spProducts.filter(p => !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id));
+          setProducts(cleanProds);
         }
       });
     });
@@ -2591,11 +2594,12 @@ export default function App() {
             const isMobileZoneCat = isCategoryMatch(selectedCategory, "mobile-zone");
             const isEventCat = isCategoryMatch(selectedCategory, "pet-food-care");
             const isPharmacyCat = isCategoryMatch(selectedCategory, "pharmacy");
+            const isVegetableCat = isCategoryMatch(selectedCategory, "vegetables") || selectedCategory === "vegetables";
             const isSectionedCategory = isRestaurantCat || isGroceryCat || isMobileZoneCat;
 
             // Filter subcategories for the selected category from Firestore (sorted by order asc)
-            const matchingDbSubs = dbSubcategories
-              .filter(s => (s.categoryId === selectedCategory || s.categoryId === resolvedCatId || isCategoryMatch(s.categoryId, selectedCategory) || (isEventCat && (s.categoryId === "pet-food-care" || s.categoryId === "event-management"))) && !s.isDeleted)
+            const matchingDbSubs = isVegetableCat ? [] : dbSubcategories
+              .filter(s => (s.categoryId === selectedCategory || s.categoryId === resolvedCatId || isCategoryMatch(s.categoryId, selectedCategory) || (isEventCat && (s.categoryId === "pet-food-care" || s.categoryId === "event-management"))) && !s.isDeleted && s.categoryId !== "vegetables")
               .sort((a, b) => (a.order || 0) - (b.order || 0));
 
             // Filter products
@@ -2660,14 +2664,22 @@ export default function App() {
             const seenDbSubNames = new Set<string>();
             for (const s of matchingDbSubs) {
               const clean = (s.nameBn || "").trim();
-              if (clean && !seenDbSubNames.has(clean.toLowerCase())) {
-                seenDbSubNames.add(clean.toLowerCase());
-                uniqueMatchingDbSubs.push(s);
+              if (isGroceryCat && (clean === "মসলা ও রান্নার তেল" || s.nameEn === "Spices & Cooking Oil")) {
+                continue;
+              }
+              const normalizedName = (isGroceryCat && (clean === "রেডি মসলা ও বেকিং আইটেম" || clean === "রেডি মসলা ও বেকিং উপাদান")) 
+                ? "রেডি মসলা ও বেকিং উপাদান" 
+                : clean;
+              if (normalizedName && !seenDbSubNames.has(normalizedName.toLowerCase())) {
+                seenDbSubNames.add(normalizedName.toLowerCase());
+                uniqueMatchingDbSubs.push({ ...s, nameBn: normalizedName });
               }
             }
 
             let rawSubcategories: string[] = [];
-            if (isRestaurantCat) {
+            if (isVegetableCat) {
+              rawSubcategories = ["all"];
+            } else if (isRestaurantCat) {
               rawSubcategories = ["all", ...RESTAURANT_SUBCATEGORY_NAMES_BN];
             } else if (isPharmacyCat) {
               const PHARMACY_ORDERED_SUBS = [
@@ -2679,9 +2691,6 @@ export default function App() {
                 "ঔষধ ও প্রেসক্রিপশন আইটেম"
               ];
               rawSubcategories = ["all", ...PHARMACY_ORDERED_SUBS];
-            } else if (uniqueMatchingDbSubs.length > 0) {
-              const dynamicSubs = uniqueMatchingDbSubs.map(s => s.nameBn.trim());
-              rawSubcategories = ["all", ...dynamicSubs];
             } else if (isGroceryCat) {
               const existingSubs = Array.from(new Set(allCatProducts.map(p => getResolvedGrocerySubcategory(p.id, p.nameBn, p.nameEn, p.subcategory, p.category)).filter(Boolean))) as string[];
               const orderedSubs = [
@@ -2689,6 +2698,9 @@ export default function App() {
                 ...existingSubs.filter(s => !GROCERY_SECTIONS.includes(s as any))
               ];
               rawSubcategories = ["all", ...orderedSubs];
+            } else if (uniqueMatchingDbSubs.length > 0) {
+              const dynamicSubs = uniqueMatchingDbSubs.map(s => s.nameBn.trim());
+              rawSubcategories = ["all", ...dynamicSubs];
             } else if (isVehicleCat) {
               const VEHICLE_ORDERED_SUBS = ["ambulance", "microbus", "bus", "auto", "cng", "pickup", "van", "car"];
               const existingSubs = Array.from(new Set(allCatProducts.map(p => p.subcategory).filter(Boolean))) as string[];
@@ -3018,9 +3030,11 @@ export default function App() {
                       <span>{lang === "bn" ? "সব ক্যাটাগরি" : "All Categories"}</span>
                     </button>
 
-                    <div className="h-4 w-[1px] bg-slate-200 shrink-0 mx-0.5"></div>
+                    {subcategories.length > 1 && (
+                      <div className="h-4 w-[1px] bg-slate-200 shrink-0 mx-0.5"></div>
+                    )}
 
-                    {subcategories.map((sub: string, subIdx: number) => {
+                    {subcategories.length > 1 && subcategories.map((sub: string, subIdx: number) => {
                       let label = sub === "all" 
                         ? (lang === "bn" 
                             ? (isVehicleCat ? "সব যানবাহন" : isMobileZoneCat ? "সব ব্র্যান্ড" : isRestaurantCat ? "সব মেনু" : isEventCat ? "সব ইভেন্ট সার্ভিস" : "সব পণ্য") 

@@ -246,6 +246,28 @@ export function isCategoryMatch(
   const pCat = productCategory.toLowerCase().trim();
   const sCat = selectedCategoryId.toLowerCase().trim();
 
+  // If filtering by vegetables (supports vegetables, vegetable, তাজা শাক-সবজি, তাজা শাকসবজি, শাকসবজি ও ফল, শাক-সবজি)
+  const isVegetablesFilter =
+    sCat === "vegetables" ||
+    sCat === "vegetable" ||
+    sCat === "তাজা শাক-সবজি" ||
+    sCat === "তাজা শাকসবজি" ||
+    sCat === "শাকসবজি ও ফল" ||
+    sCat === "শাক-সবজি" ||
+    sCat === "শাকসবজি";
+
+  if (isVegetablesFilter) {
+    return (
+      pCat === "vegetables" ||
+      pCat === "vegetable" ||
+      pCat === "তাজা শাক-সবজি" ||
+      pCat === "তাজা শাকসবজি" ||
+      pCat === "শাকসবজি ও ফল" ||
+      pCat === "শাক-সবজি" ||
+      pCat === "শাকসবজি"
+    );
+  }
+
   // If filtering by the merged groceries category (or legacy staples / spices-oils / spices / মুদি পণ্য)
   const isGroceryFilter = 
     sCat === "groceries" || 
@@ -949,16 +971,20 @@ export function isGroceryCategory(catOrProduct: any): boolean {
 export function shouldKeepProductGroceryFiltered(product: any): boolean {
   if (!product) return false;
 
+  const id = (product.id || "").toString().trim();
+  // Filter out any legacy duplicates: st1..st60, sp1..sp60, gro_01..gro_60, fr1..fr30
+  if (/^st\d+$/i.test(id) || /^sp\d+$/i.test(id) || /^gro_\d+$/i.test(id) || /^fr\d+$/i.test(id)) {
+    return false;
+  }
+
   const isGrocery = isGroceryCategory(product);
   // Keep all other categories completely untouched
   if (!isGrocery) {
     return true;
   }
 
-  const id = (product.id || "").toString().trim();
-
-  // If it's a newly created or updated product from Admin (prod_*, or has createdAt/updatedAt), ALWAYS keep it!
-  if (id.startsWith("prod_") || product.createdAt || product.updatedAt) {
+  // If it's a newly created product from Admin (prod_*, custom admin ID), ALWAYS keep it!
+  if (id.startsWith("prod_")) {
     return true;
   }
 
@@ -975,8 +1001,10 @@ export function shouldKeepProductGroceryFiltered(product: any): boolean {
 
   const combined = `${imgUrl} ${img} ${rawCandidate}`.toLowerCase();
 
-  // If it has any valid uploaded or CDN image (Cloudinary, Firebase Storage, Local /uploads/, Base64 Data URL, Blob), keep it!
+  // If it has any valid uploaded or CDN image (Cloudflare R2, Cloudinary, Firebase Storage, Local /uploads/, Base64 Data URL, Blob), keep it!
   const hasUploadedOrCdnImage = 
+    combined.includes("r2.dev") ||
+    combined.includes("pub-8c990c8869bf") ||
     combined.includes("cloudinary.com") ||
     combined.includes("data:image/") ||
     combined.includes("firebasestorage.googleapis.com") ||

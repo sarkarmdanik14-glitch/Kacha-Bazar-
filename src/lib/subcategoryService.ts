@@ -26,17 +26,9 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
   { categoryId: "groceries", nameBn: "তেল, চিনি, লবণ ও গুড়", nameEn: "Oil, Sugar, Salt & Jaggery", order: 3, isActive: true },
   { categoryId: "groceries", nameBn: "আটা, ময়দা ও সুজি", nameEn: "Flour, Maida & Suji", order: 4, isActive: true },
   { categoryId: "groceries", nameBn: "মসলাপাতি — আস্ত ও গুঁড়ো", nameEn: "Spices & Herbs", order: 5, isActive: true },
-  { categoryId: "groceries", nameBn: "রেডি মসলা ও বেকিং আইটেম", nameEn: "Ready Mix & Baking Items", order: 6, isActive: true },
-  { categoryId: "groceries", nameBn: "মসলা ও রান্নার তেল", nameEn: "Spices & Cooking Oil", order: 7, isActive: true },
+  { categoryId: "groceries", nameBn: "রেডি মসলা ও বেকিং উপাদান", nameEn: "Ready Mix & Baking Ingredients", order: 6, isActive: true },
 
-  // 2. Vegetables & Fruits (তাজা শাকসবজি ও ফল)
-  { categoryId: "vegetables", nameBn: "তাজা শাক ও পাতা", nameEn: "Leafy Greens", order: 1, isActive: true },
-  { categoryId: "vegetables", nameBn: "আলু, পেঁয়াজ ও রসুন", nameEn: "Potatoes, Onion & Garlic", order: 2, isActive: true },
-  { categoryId: "vegetables", nameBn: "টমেটো, বেগুন ও মরিচ", nameEn: "Tomatoes, Eggplant & Chili", order: 3, isActive: true },
-  { categoryId: "vegetables", nameBn: "লাউ, মিষ্টি কুমড়া ও চালকুমড়া", nameEn: "Gourds & Squash", order: 4, isActive: true },
-  { categoryId: "vegetables", nameBn: "অন্যান্য দেশি সবজি", nameEn: "Other Vegetables", order: 5, isActive: true },
-
-  // 3. Fruits (ফলমূল)
+  // 2. Fruits (ফলমূল) - (তাজা শাক-সবজি ক্যাটাগরিতে কোনো সাবক্যাটাগরি নেই, পণ্য সরাসরি ক্যাটাগরিতে থাকে)
   { categoryId: "fruits", nameBn: "মৌসুমি দেশি ফল", nameEn: "Seasonal Local Fruits", order: 1, isActive: true },
   { categoryId: "fruits", nameBn: "আম ও তরমুজ", nameEn: "Mangoes & Watermelon", order: 2, isActive: true },
   { categoryId: "fruits", nameBn: "কলা ও পেঁপে", nameEn: "Bananas & Papaya", order: 3, isActive: true },
@@ -231,7 +223,7 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
  * If firestore has no subcategories for this category, bootstraps defaults cleanly.
  */
 export async function getSubcategoriesForCategory(categoryId: string): Promise<Subcategory[]> {
-  if (!categoryId) return [];
+  if (!categoryId || categoryId === "vegetables" || categoryId === "তাজা শাক-সবজি") return [];
   const normalizedCatId = (
     categoryId === "dry-food" || 
     categoryId === "dryfood" || 
@@ -271,7 +263,16 @@ export async function getSubcategoriesForCategory(categoryId: string): Promise<S
     const snap = await getDocs(q);
     if (!snap.empty) {
       const list: Subcategory[] = [];
-      snap.forEach(d => list.push({ id: d.id, ...d.data() } as Subcategory));
+      snap.forEach(d => {
+        const item = { id: d.id, ...d.data() } as Subcategory;
+        if (item.categoryId === "groceries" && (item.nameBn === "মসলা ও রান্নার তেল" || item.nameEn === "Spices & Cooking Oil")) {
+          return;
+        }
+        if (item.categoryId === "groceries" && (item.nameBn === "রেডি মসলা ও বেকিং আইটেম" || item.nameBn === "রেডি মসলা ও বেকিং উপাদান")) {
+          item.nameBn = "রেডি মসলা ও বেকিং উপাদান";
+        }
+        list.push(item);
+      });
       return list;
     }
   } catch (err) {
@@ -287,7 +288,14 @@ export async function getSubcategoriesForCategory(categoryId: string): Promise<S
       snap.forEach(d => {
         const data = d.data() as any;
         if (!data.isDeleted) {
-          list.push({ id: d.id, ...data });
+          const item = { id: d.id, ...data } as Subcategory;
+          if (item.categoryId === "groceries" && (item.nameBn === "মসলা ও রান্নার তেল" || item.nameEn === "Spices & Cooking Oil")) {
+            return;
+          }
+          if (item.categoryId === "groceries" && (item.nameBn === "রেডি মসলা ও বেকিং আইটেম" || item.nameBn === "রেডি মসলা ও বেকিং উপাদান")) {
+            item.nameBn = "রেডি মসলা ও বেকিং উপাদান";
+          }
+          list.push(item);
         }
       });
       return list.sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -316,6 +324,17 @@ export function subscribeToAllSubcategories(
         const list: Subcategory[] = [];
         snap.forEach(d => {
           const item = { id: d.id, ...d.data() } as Subcategory;
+          // Zero subcategories for vegetables
+          if (item.categoryId === "vegetables" || item.categoryId === "তাজা শাক-সবজি") {
+            return;
+          }
+          // Filter out redundant "মসলা ও রান্নার তেল" subcategory
+          if (item.categoryId === "groceries" && (item.nameBn === "মসলা ও রান্নার তেল" || item.nameEn === "Spices & Cooking Oil")) {
+            return;
+          }
+          if (item.categoryId === "groceries" && (item.nameBn === "রেডি মসলা ও বেকিং আইটেম" || item.nameBn === "রেডি মসলা ও বেকিং উপাদান")) {
+            item.nameBn = "রেডি মসলা ও বেকিং উপাদান";
+          }
           if (item.categoryId === "spices-oils" || item.categoryId === "spices" || item.categoryId === "staples" || item.categoryId === "oil-spices") {
             item.categoryId = "groceries";
           }
@@ -333,6 +352,17 @@ export function subscribeToAllSubcategories(
             const data = d.data() as any;
             if (!data.isDeleted) {
               const item = { id: d.id, ...data } as Subcategory;
+              // Zero subcategories for vegetables
+              if (item.categoryId === "vegetables" || item.categoryId === "তাজা শাক-সবজি") {
+                return;
+              }
+              // Filter out redundant "মসলা ও রান্নার তেল" subcategory
+              if (item.categoryId === "groceries" && (item.nameBn === "মসলা ও রান্নার তেল" || item.nameEn === "Spices & Cooking Oil")) {
+                return;
+              }
+              if (item.categoryId === "groceries" && (item.nameBn === "রেডি মসলা ও বেকিং আইটেম" || item.nameBn === "রেডি মসলা ও বেকিং উপাদান")) {
+                item.nameBn = "রেডি মসলা ও বেকিং উপাদান";
+              }
               if (item.categoryId === "spices-oils" || item.categoryId === "spices" || item.categoryId === "staples" || item.categoryId === "oil-spices") {
                 item.categoryId = "groceries";
               }

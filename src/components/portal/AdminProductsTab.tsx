@@ -71,7 +71,7 @@ export default function AdminProductsTab({
   });
 
   const isProductDeleted = (p: any) => {
-    return deletedProductIds.has(p.id) || p.isDeleted === true || p.status === "deleted" || p.status === "inactive_deleted" || p.deleted === true || /^sn\d+$/i.test(p.id);
+    return deletedProductIds.has(p.id) || p.isDeleted === true || p.status === "deleted" || p.status === "inactive_deleted" || p.deleted === true || /^sn\d+$/i.test(p.id) || /^st\d+$/i.test(p.id) || /^sp\d+$/i.test(p.id) || /^fr\d+$/i.test(p.id);
   };
 
   const handleDeleteSuccess = (deletedId: string) => {
@@ -862,11 +862,12 @@ export default function AdminProductsTab({
       const isDryFoodItem = isCategoryMatch(prodCategory, "frozen") || prodCategory === "frozen" || prodCategory === "dry-food" || prodCategory === "dryfood" || prodCategory === "ড্রাই ফুড";
       const isConfectioneryItem = isCategoryMatch(prodCategory, "snacks-biscuits") || prodCategory === "snacks-biscuits" || prodCategory === "confectionery" || prodCategory === "কনফেকশনারি";
       const isPharmacyItem = isCategoryMatch(prodCategory, "pharmacy") || prodCategory === "pharmacy" || prodCategory === "ফার্মেসি";
+      const isVegetablesItem = isCategoryMatch(prodCategory, "vegetables") || prodCategory === "vegetables";
 
-      const selectedSub = subcategories.find(s => s.id === prodSubcategoryId) ||
-                          (isRestItem ? RESTAURANT_SUBCATEGORIES.find(s => s.id === prodSubcategoryId) : null);
-      const resolvedSubName = selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || (isRestItem ? "বিরিয়ানি, পোলাও ও রাইস" : (isDryFoodItem ? "ড্রাই ফুড" : (isConfectioneryItem ? "চকলেট ও ক্যান্ডি" : (isPharmacyItem ? "ঔষধ ও প্রেসক্রিপশন আইটেম" : "General")))));
-      const resolvedSubId = prodSubcategoryId || (selectedSub ? selectedSub.id : "");
+      const selectedSub = isVegetablesItem ? null : (subcategories.find(s => s.id === prodSubcategoryId) ||
+                          (isRestItem ? RESTAURANT_SUBCATEGORIES.find(s => s.id === prodSubcategoryId) : null));
+      const resolvedSubName = isVegetablesItem ? "" : (selectedSub ? selectedSub.nameBn : (prodSubcategory.trim() || (isRestItem ? "বিরিয়ানি, পোলাও ও রাইস" : (isDryFoodItem ? "ড্রাই ফুড" : (isConfectioneryItem ? "চকলেট ও ক্যান্ডি" : (isPharmacyItem ? "ঔষধ ও প্রেসক্রিপশন আইটেম" : "General"))))));
+      const resolvedSubId = isVegetablesItem ? "" : (prodSubcategoryId || (selectedSub ? selectedSub.id : ""));
 
       const idPrefix = isPharmacyItem ? "ph" : (isGroceryItem ? "gr" : "prod");
       const finalId = editingProduct ? (editingProduct.id || prodId) : (prodId || `${idPrefix}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`);
@@ -1078,7 +1079,11 @@ export default function AdminProductsTab({
 
   const handleOpenAddSubcategory = (defaultCat?: string) => {
     setEditingSubcategory(null);
-    const cat = defaultCat || (selectedSubcatCategoryFilter !== "all" ? selectedSubcatCategoryFilter : "groceries");
+    let cat = defaultCat || (selectedSubcatCategoryFilter !== "all" ? selectedSubcatCategoryFilter : "groceries");
+    if (cat === "vegetables") {
+      triggerToast("তাজা শাক-সবজি ক্যাটাগরিতে কোনো সাবক্যাটাগরি রাখা হবে না!", "No subcategories allowed for Fresh Vegetables!");
+      cat = "groceries";
+    }
     const existing = subcategories.filter(s => s.categoryId === cat);
     setSubModalCategoryId(cat);
     setSubModalNameBn("");
@@ -1100,6 +1105,10 @@ export default function AdminProductsTab({
     e.preventDefault();
     if (!subModalNameBn.trim() || !subModalCategoryId) {
       triggerToast("সাবক্যাটাগরির নাম ও ক্যাটাগরি আবশ্যক!", "Name and Category are required!");
+      return;
+    }
+    if (subModalCategoryId === "vegetables") {
+      triggerToast("তাজা শাক-সবজি ক্যাটাগরিতে কোনো সাবক্যাটাগরি রাখা যাবে না!", "Cannot add subcategory to Fresh Vegetables!");
       return;
     }
     setSavingSubModal(true);
@@ -2162,12 +2171,26 @@ export default function AdminProductsTab({
                   {getTranslation("সাবক্যাটাগরি (Subcategory)", "Subcategory")}
                 </label>
                 {(() => {
+                  const isCurrentVeg = isCategoryMatch(prodCategory, "vegetables") || prodCategory === "vegetables";
+                  if (isCurrentVeg) {
+                    return (
+                      <div className="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-3 py-2.5 text-xs font-bold flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>
+                          {getTranslation(
+                            "তাজা শাক-সবজি ক্যাটাগরিতে কোনো সাবক্যাটাগরি নেই (পণ্যটি সরাসরি প্রদর্শিত হবে)",
+                            "Fresh Vegetables category has no subcategories (Product will be listed directly)"
+                          )}
+                        </span>
+                      </div>
+                    );
+                  }
                   const isCurrentRest = isCategoryMatch(prodCategory, "restaurant") || prodCategory === "bakery-sweets" || prodCategory === "restaurant" || prodCategory === "রেস্টুরেন্ট";
                   const isCurrentDryFood = isCategoryMatch(prodCategory, "frozen") || prodCategory === "frozen" || prodCategory === "dry-food" || prodCategory === "ড্রাই ফুড";
                   const availableSubs = isCurrentRest
                     ? RESTAURANT_SUBCATEGORIES.map(s => ({ id: s.id, categoryId: "bakery-sweets", nameBn: s.nameBn, nameEn: s.nameEn, order: s.order }))
                     : subcategories
-                        .filter(s => (s.categoryId === prodCategory || (isCurrentDryFood && (s.categoryId === "frozen" || s.categoryId === "dry-food"))) && !s.isDeleted)
+                        .filter(s => (s.categoryId === prodCategory || (isCurrentDryFood && (s.categoryId === "frozen" || s.categoryId === "dry-food"))) && !s.isDeleted && s.categoryId !== "vegetables")
                         .sort((a, b) => (a.order || 0) - (b.order || 0));
 
                   return (
@@ -2686,7 +2709,7 @@ export default function AdminProductsTab({
       {/* ==================== SUBTAB 3: SUBCATEGORY ORDERING MANAGEMENT ==================== */}
       {activeCatalogSubTab === "subcategories" && (() => {
         const filteredSubs = subcategories
-          .filter(s => !s.isDeleted)
+          .filter(s => !s.isDeleted && s.categoryId !== "vegetables")
           .filter(s => selectedSubcatCategoryFilter === "all" || s.categoryId === selectedSubcatCategoryFilter)
           .sort((a, b) => (a.order || 0) - (b.order || 0));
 
@@ -2783,8 +2806,13 @@ export default function AdminProductsTab({
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {filteredSubs.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="p-8 text-center text-slate-400 font-bold">
-                          {getTranslation("এই ক্যাটাগরিতে কোনো সাবক্যাটাগরি পাওয়া যায়নি", "No subcategories found in this category")}
+                        <td colSpan={6} className="p-8 text-center text-slate-500 font-bold">
+                          {selectedSubcatCategoryFilter === "vegetables"
+                            ? getTranslation(
+                                "তাজা শাক-সবজি ক্যাটাগরিতে কোনো সাবক্যাটাগরি নেই — সব পণ্য সরাসরি প্রদর্শিত হয়।",
+                                "Fresh Vegetables category has no subcategories — all products are displayed directly."
+                              )
+                            : getTranslation("এই ক্যাটাগরিতে কোনো সাবক্যাটাগরি পাওয়া যায়নি", "No subcategories found in this category")}
                         </td>
                       </tr>
                     ) : (

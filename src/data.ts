@@ -4,7 +4,7 @@ import { NEW_GROCERY_PRODUCTS_RAW } from "./lib/newGroceryProducts";
 
 export const CATEGORIES: Category[] = [
   { id: "all", nameBn: "সকল পণ্য", nameEn: "All Products", iconName: "LayoutGrid", colorClass: "from-emerald-500 to-teal-600", borderColor: "border-emerald-200", displayOrder: 0 },
-  { id: "vegetables", nameBn: "শাকসবজি ও ফল", nameEn: "Vegetables & Fruits", iconName: "Salad", colorClass: "bg-emerald-50 text-emerald-800", borderColor: "border-emerald-100", displayOrder: 1 },
+  { id: "vegetables", nameBn: "তাজা শাক-সবজি", nameEn: "Fresh Vegetables", iconName: "Salad", colorClass: "bg-emerald-50 text-emerald-800", borderColor: "border-emerald-100", displayOrder: 1 },
   { id: "groceries", nameBn: "মুদি পণ্য", nameEn: "Groceries", iconName: "ShoppingBag", colorClass: "bg-amber-50 text-amber-800", borderColor: "border-amber-100", displayOrder: 2 },
   { id: "bakery-sweets", nameBn: "রেস্টুরেন্ট", nameEn: "Restaurant", iconName: "Utensils", colorClass: "bg-orange-50 text-orange-800", borderColor: "border-orange-100", displayOrder: 3 },
   { id: "fish", nameBn: "তাজা মাছ", nameEn: "Fresh Fish", iconName: "Fish", colorClass: "bg-cyan-50 text-cyan-800", borderColor: "border-cyan-100", displayOrder: 4 },
@@ -1009,11 +1009,11 @@ export const GROCERY_PRODUCTS_RAW: Product[] = [
   },
   {
     id: "gr48",
-    nameBn: "কাস্টার্ড পাউডার",
-    nameEn: "Custard Powder",
+    nameBn: "ভ্যানিলা কাস্টার্ড পাউডার (মিনি প্যাক)",
+    nameEn: "Vanilla Custard Powder (Mini Pack)",
     price: 40,
-    unitBn: "১ প্যাকেট",
-    unitEn: "1 packet",
+    unitBn: "৫০ গ্রাম প্যাক",
+    unitEn: "50 gm pack",
     category: "groceries",
     categoryId: "groceries",
     subcategory: "রেডি মসলা ও বেকিং উপাদান",
@@ -1024,8 +1024,8 @@ export const GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.7,
     reviewCount: 19,
     brand: "মেগা বাজার",
-    descriptionBn: "ভ্যানিলা ফ্লেভারের মসৃণ ডেজার্ট ও ফ্রুট সালাদের কাস্টার্ড পাউডার।",
-    descriptionEn: "Vanilla flavored smooth custard powder for puddings.",
+    descriptionBn: "ভ্যানিলা ফ্লেভারের মসৃণ ডেজার্ট ও ফ্রুট সালাদের কাস্টার্ড পাউডার (৫০ গ্রাম মিনি প্যাক)।",
+    descriptionEn: "Vanilla flavored smooth custard powder for puddings (50 gm mini pack).",
     displayOrder: 48
   },
   {
@@ -1072,11 +1072,11 @@ export const GROCERY_PRODUCTS_RAW: Product[] = [
   },
   {
     id: "gr51",
-    nameBn: "রাঁধুনী গরম মসলা",
-    nameEn: "Radhuni Garam Masala (Packet)",
+    nameBn: "রাঁধুনী গরম মসলা (মিনি প্যাক)",
+    nameEn: "Radhuni Garam Masala (Mini Pack)",
     price: 35,
-    unitBn: "১ প্যাকেট",
-    unitEn: "1 packet",
+    unitBn: "১৫ গ্রাম প্যাক",
+    unitEn: "15 gm pack",
     category: "groceries",
     categoryId: "groceries",
     subcategory: "মসলাপাতি — আস্ত ও গুঁড়ো",
@@ -1087,8 +1087,8 @@ export const GROCERY_PRODUCTS_RAW: Product[] = [
     rating: 4.9,
     reviewCount: 39,
     brand: "রাঁধুনী",
-    descriptionBn: "শাহী রান্নার স্বাদ বাড়াতে রাঁধুনী গরম মসলার স্পেশাল প্যাক।",
-    descriptionEn: "Radhuni garam masala aromatic ground spices packet.",
+    descriptionBn: "শাহী রান্নার স্বাদ বাড়াতে রাঁধুনী গরম মসলার ১৫ গ্রাম মিনি প্যাক।",
+    descriptionEn: "Radhuni garam masala aromatic ground spices (15 gm mini pack).",
     displayOrder: 51
   },
   ...NEW_GROCERY_PRODUCTS_RAW
@@ -1476,8 +1476,7 @@ export const GROCERY_SECTIONS: string[] = [
   "তেল, চিনি, লবণ ও গুড়",
   "আটা, ময়দা ও সুজি",
   "মসলাপাতি — আস্ত ও গুঁড়ো",
-  "রেডি মসলা ও বেকিং উপাদান",
-  "মসলা ও রান্নার তেল"
+  "রেডি মসলা ও বেকিং উপাদান"
 ];
 export const isRiceOrGrainProduct = (_prod?: any): boolean => false;
 export const isDalOrPulseProduct = (_prod?: any): boolean => false;
@@ -1492,6 +1491,13 @@ export const getResolvedGrocerySubcategory = (
     const s = subcategory.trim();
     if (s === "রেডি মসলা ও বেকিং আইটেম" || s === "রেডি মসলা ও বেকিং উপাদান") {
       return "রেডি মসলা ও বেকিং উপাদান";
+    }
+    if (s === "মসলা ও রান্নার তেল") {
+      const bn = (nameBn || "").toLowerCase();
+      if (bn.includes("তেল") || (nameEn || "").toLowerCase().includes("oil")) {
+        return "তেল, চিনি, লবণ ও গুড়";
+      }
+      return "মসলাপাতি — আস্ত ও গুঁড়ো";
     }
     return s;
   }

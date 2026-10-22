@@ -117,19 +117,29 @@ export function mapSupabaseSubcategoryRow(row: any): Subcategory {
   };
 }
 
-const PRODUCTS_CACHE_KEY = "kb_products_cache_v2";
-const CATEGORIES_CACHE_KEY = "kb_categories_cache_v2";
+const PRODUCTS_CACHE_KEY = "kb_products_cache_v5";
+const CATEGORIES_CACHE_KEY = "kb_categories_cache_v5";
 
 /**
  * Retrieves cached products from local storage for instant 0ms hydration.
  */
 export function getCachedProducts(): Product[] | null {
   try {
+    // Purge legacy caches containing duplicate st, sp, and gro_ items
+    try {
+      localStorage.removeItem("kb_products_cache_v4");
+      localStorage.removeItem("kb_products_cache_v3");
+      localStorage.removeItem("kb_products_cache_v2");
+      localStorage.removeItem("kb_products_cache");
+    } catch {}
+
     const raw = localStorage.getItem(PRODUCTS_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+      return parsed
+        .filter((p: any) => p && !p.isDeleted && p.status !== "deleted" && !p.deleted && !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id))
+        .filter(shouldKeepProductGroceryFiltered);
     }
     return null;
   } catch {
@@ -223,7 +233,7 @@ export async function fetchAllProductsFromSupabase(): Promise<Product[]> {
     }
 
     const products: Product[] = allRows
-      .filter((r) => !r.is_deleted && r.status !== "deleted")
+      .filter((r) => !r.is_deleted && r.status !== "deleted" && !/^st\d+$/i.test(r.id) && !/^sp\d+$/i.test(r.id) && !/^gro_\d+$/i.test(r.id) && !/^fr\d+$/i.test(r.id))
       .map(mapSupabaseProductRow)
       .filter(shouldKeepProductGroceryFiltered);
 

@@ -209,6 +209,28 @@ async function deleteProductFromSupabaseServer(productId: string): Promise<boole
   }
 }
 
+async function cleanupLegacySeedProductsInSupabase(): Promise<void> {
+  const sb = getServerSupabase();
+  if (!sb) return;
+  try {
+    const legacyIds: string[] = [];
+    for (let i = 1; i <= 60; i++) {
+      legacyIds.push(`st${i}`);
+      legacyIds.push(`sp${i}`);
+      if (i <= 30) legacyIds.push(`fr${i}`);
+    }
+    await sb.from("products").update({
+      is_deleted: true,
+      status: "deleted",
+      is_available: false,
+      updated_at: new Date().toISOString()
+    }).in("id", legacyIds);
+    console.log("[Server Supabase] Cleaned up legacy st/sp/fr products in Supabase");
+  } catch (err: any) {
+    console.warn("[Server Supabase] Cleanup notice:", err?.message || err);
+  }
+}
+
 async function deleteCategoryFromSupabaseServer(categoryId: string): Promise<boolean> {
   const sb = getServerSupabase();
   if (!sb || !categoryId) return false;
@@ -418,7 +440,18 @@ async function getSingleDoc(colName: string, docId: string): Promise<{ id: strin
 }
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+function getTargetPort(): number {
+  const portArgIndex = process.argv.indexOf("--port");
+  if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+    const parsed = parseInt(process.argv[portArgIndex + 1], 10);
+    if (!isNaN(parsed)) return parsed;
+  }
+  if (process.env.NODE_ENV !== "production" || process.env.npm_lifecycle_event === "dev") {
+    return 3000;
+  }
+  return process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+}
+const PORT = getTargetPort();
 
 app.use(express.json({ limit: "15mb" }));
 app.use("/uploads", express.static(path.resolve(process.cwd(), "public", "uploads")));
@@ -5707,7 +5740,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // Vite Middleware & Server Lifecycle
 async function startServer() {
   const distPath = path.join(process.cwd(), "dist");
-  const isDev = process.env.npm_lifecycle_event === "dev" || (process.env.NODE_ENV !== "production" && !fs.existsSync(path.join(distPath, "index.html")));
+  const isDev = process.env.NODE_ENV !== "production" || process.env.npm_lifecycle_event === "dev" || !fs.existsSync(path.join(distPath, "index.html"));
 
   // Serve static assets from public directory
   app.use(express.static(path.join(process.cwd(), "public")));
@@ -5758,6 +5791,10 @@ async function startServer() {
   });
   primaryServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server successfully listening on http://0.0.0.0:${PORT}`);
+    // Run automated cleanup for any legacy seed products in Supabase
+    setTimeout(() => {
+      cleanupLegacySeedProductsInSupabase().catch(() => {});
+    }, 1500);
   });
 
   // If Cloud Run or custom env provided a port other than 3000,
