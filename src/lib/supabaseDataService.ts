@@ -74,6 +74,22 @@ export function mapSupabaseProductRow(row: any): Product {
     }
   }
 
+  // Guarantee valid restaurant pricing for rest5 (তেহেরী) & rest30 (স্পেশাল দই বড় সাইজ)
+  if (row.id === "rest5" && (!mapped.price || mapped.price <= 0)) {
+    mapped.price = 160;
+    mapped.originalPrice = 180;
+  }
+  if (row.id === "rest30" && (!mapped.price || mapped.price <= 0)) {
+    mapped.price = 450;
+    mapped.originalPrice = 500;
+  }
+
+  // Normalize duplicate restaurant subcategory name to canonical "পানীয়, জুস ও মিষ্টি"
+  if (mapped.subcategory === "পানীয়, জুস ও কফি") {
+    mapped.subcategory = "পানীয়, জুস ও মিষ্টি";
+    mapped.subCategory = "পানীয়, জুস ও মিষ্টি";
+  }
+
   return mapped;
 }
 
@@ -117,16 +133,33 @@ export function mapSupabaseSubcategoryRow(row: any): Subcategory {
   };
 }
 
-const PRODUCTS_CACHE_KEY = "kb_products_cache_v5";
-const CATEGORIES_CACHE_KEY = "kb_categories_cache_v5";
+export const RESTAURANT_UNSPLASH_DUPLICATE_IDS = new Set([
+  "rest_item_basmati_mutton_kacchi_egg",
+  "rest_item_shahi_morog_polao_egg",
+  "rest_item_chicken_biryani_half",
+  "rest_item_chicken_biryani_full",
+  "rest_item_basmati_chicken_dum_biryani",
+  "rest_item_mutton_tehari_full",
+  "rest_item_mutton_tehari_half",
+  "rest_item_egg_polao_half",
+  "rest_item_egg_polao_full",
+  "rest_item_bhuna_khichuri_half_egg",
+  "rest_item_borhani_1_liter",
+  "rest_item_borhani_500ml",
+  "rest_item_borhani_glass"
+]);
+
+const PRODUCTS_CACHE_KEY = "kb_products_cache_v6";
+const CATEGORIES_CACHE_KEY = "kb_categories_cache_v6";
 
 /**
  * Retrieves cached products from local storage for instant 0ms hydration.
  */
 export function getCachedProducts(): Product[] | null {
   try {
-    // Purge legacy caches containing duplicate st, sp, and gro_ items
+    // Purge legacy caches containing duplicate st, sp, gro_, and rest items
     try {
+      localStorage.removeItem("kb_products_cache_v5");
       localStorage.removeItem("kb_products_cache_v4");
       localStorage.removeItem("kb_products_cache_v3");
       localStorage.removeItem("kb_products_cache_v2");
@@ -138,7 +171,7 @@ export function getCachedProducts(): Product[] | null {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
       return parsed
-        .filter((p: any) => p && !p.isDeleted && p.status !== "deleted" && !p.deleted && !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id))
+        .filter((p: any) => p && !p.isDeleted && p.status !== "deleted" && !p.deleted && !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id) && !RESTAURANT_UNSPLASH_DUPLICATE_IDS.has(p.id))
         .filter(shouldKeepProductGroceryFiltered);
     }
     return null;
@@ -233,7 +266,7 @@ export async function fetchAllProductsFromSupabase(): Promise<Product[]> {
     }
 
     const products: Product[] = allRows
-      .filter((r) => !r.is_deleted && r.status !== "deleted" && !/^st\d+$/i.test(r.id) && !/^sp\d+$/i.test(r.id) && !/^gro_\d+$/i.test(r.id) && !/^fr\d+$/i.test(r.id))
+      .filter((r) => !r.is_deleted && r.status !== "deleted" && !/^st\d+$/i.test(r.id) && !/^sp\d+$/i.test(r.id) && !/^gro_\d+$/i.test(r.id) && !/^fr\d+$/i.test(r.id) && !RESTAURANT_UNSPLASH_DUPLICATE_IDS.has(r.id))
       .map(mapSupabaseProductRow)
       .filter(shouldKeepProductGroceryFiltered);
 

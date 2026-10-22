@@ -28,17 +28,11 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
   { categoryId: "groceries", nameBn: "মসলাপাতি — আস্ত ও গুঁড়ো", nameEn: "Spices & Herbs", order: 5, isActive: true },
   { categoryId: "groceries", nameBn: "রেডি মসলা ও বেকিং উপাদান", nameEn: "Ready Mix & Baking Ingredients", order: 6, isActive: true },
 
-  // 2. Fruits (ফলমূল) - (তাজা শাক-সবজি ক্যাটাগরিতে কোনো সাবক্যাটাগরি নেই, পণ্য সরাসরি ক্যাটাগরিতে থাকে)
+  // 2. Fruits (ফলমূল) - (তাজা শাক-সবজি ও তাজা মাছ ক্যাটাগরিতে কোনো সাবক্যাটাগরি নেই, পণ্য সরাসরি ক্যাটাগরিতে থাকে)
   { categoryId: "fruits", nameBn: "মৌসুমি দেশি ফল", nameEn: "Seasonal Local Fruits", order: 1, isActive: true },
   { categoryId: "fruits", nameBn: "আম ও তরমুজ", nameEn: "Mangoes & Watermelon", order: 2, isActive: true },
   { categoryId: "fruits", nameBn: "কলা ও পেঁপে", nameEn: "Bananas & Papaya", order: 3, isActive: true },
   { categoryId: "fruits", nameBn: "আমদানিকৃত আপেল, মাল্টা ও বেদানা", nameEn: "Imported Fruits", order: 4, isActive: true },
-
-  // 4. Fish (তাজা মাছ)
-  { categoryId: "fish", nameBn: "নদী ও দেশি মিষ্টি পানির মাছ", nameEn: "Freshwater River Fish", order: 1, isActive: true },
-  { categoryId: "fish", nameBn: "ইলিশ ও রূপচাঁদা", nameEn: "Hilsha & Pomfret", order: 2, isActive: true },
-  { categoryId: "fish", nameBn: "চিংড়ি ও গলদা চিংড়ি", nameEn: "Prawns & Shrimps", order: 3, isActive: true },
-  { categoryId: "fish", nameBn: "সামুদ্রিক মাছ", nameEn: "Marine Sea Fish", order: 4, isActive: true },
 
   // 5. Meat (মাংস ও ডিম)
   { categoryId: "meat", nameBn: "দেশি মুরগি ও ব্রয়লার", nameEn: "Chicken & Poultry", order: 1, isActive: true },
@@ -223,7 +217,15 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
  * If firestore has no subcategories for this category, bootstraps defaults cleanly.
  */
 export async function getSubcategoriesForCategory(categoryId: string): Promise<Subcategory[]> {
-  if (!categoryId || categoryId === "vegetables" || categoryId === "তাজা শাক-সবজি") return [];
+  if (
+    !categoryId || 
+    categoryId === "vegetables" || 
+    categoryId === "তাজা শাক-সবজি" || 
+    categoryId === "fish" || 
+    categoryId === "fresh-fish" || 
+    categoryId === "তাজা মাছ" || 
+    categoryId === "মাছ"
+  ) return [];
   const normalizedCatId = (
     categoryId === "dry-food" || 
     categoryId === "dryfood" || 
@@ -324,8 +326,15 @@ export function subscribeToAllSubcategories(
         const list: Subcategory[] = [];
         snap.forEach(d => {
           const item = { id: d.id, ...d.data() } as Subcategory;
-          // Zero subcategories for vegetables
-          if (item.categoryId === "vegetables" || item.categoryId === "তাজা শাক-সবজি") {
+          // Zero subcategories for vegetables and fresh fish
+          if (
+            item.categoryId === "vegetables" || 
+            item.categoryId === "তাজা শাক-সবজি" || 
+            item.categoryId === "fish" || 
+            item.categoryId === "fresh-fish" || 
+            item.categoryId === "তাজা মাছ" || 
+            item.categoryId === "মাছ"
+          ) {
             return;
           }
           // Filter out redundant "মসলা ও রান্নার তেল" subcategory
@@ -352,8 +361,15 @@ export function subscribeToAllSubcategories(
             const data = d.data() as any;
             if (!data.isDeleted) {
               const item = { id: d.id, ...data } as Subcategory;
-              // Zero subcategories for vegetables
-              if (item.categoryId === "vegetables" || item.categoryId === "তাজা শাক-সবজি") {
+              // Zero subcategories for vegetables and fresh fish
+              if (
+                item.categoryId === "vegetables" || 
+                item.categoryId === "তাজা শাক-সবজি" || 
+                item.categoryId === "fish" || 
+                item.categoryId === "fresh-fish" || 
+                item.categoryId === "তাজা মাছ" || 
+                item.categoryId === "মাছ"
+              ) {
                 return;
               }
               // Filter out redundant "মসলা ও রান্নার তেল" subcategory

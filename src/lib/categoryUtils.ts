@@ -268,6 +268,24 @@ export function isCategoryMatch(
     );
   }
 
+  // If filtering by fresh fish (supports fish, fresh-fish, তাজা মাছ, মাছ)
+  const isFishFilter =
+    sCat === "fish" ||
+    sCat === "fresh-fish" ||
+    sCat === "তাজা মাছ" ||
+    sCat === "মাছ" ||
+    sCat.includes("মাছ");
+
+  if (isFishFilter) {
+    return (
+      pCat === "fish" ||
+      pCat === "fresh-fish" ||
+      pCat === "তাজা মাছ" ||
+      pCat === "মাছ" ||
+      pCat.includes("মাছ")
+    );
+  }
+
   // If filtering by the merged groceries category (or legacy staples / spices-oils / spices / মুদি পণ্য)
   const isGroceryFilter = 
     sCat === "groceries" || 

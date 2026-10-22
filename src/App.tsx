@@ -29,7 +29,8 @@ import {
   subscribeToSupabaseProducts, 
   subscribeToSupabaseCategories,
   getCachedProducts,
-  getCachedCategories
+  getCachedCategories,
+  RESTAURANT_UNSPLASH_DUPLICATE_IDS
 } from "./lib/supabaseDataService";
 import { subscribeToSupabaseBanners } from "./lib/supabaseLiveService";
 
@@ -794,7 +795,7 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>(() => {
     const cached = getCachedProducts();
     if (cached && cached.length > 0) {
-      return cached.filter(p => !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id));
+      return cached.filter(p => !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id) && !RESTAURANT_UNSPLASH_DUPLICATE_IDS.has(p.id));
     }
     return ALL_PRODUCTS;
   });
@@ -843,7 +844,7 @@ export default function App() {
 
   const availableProducts = useMemo(() => {
     const filtered = products
-      .filter(p => p.isAvailable !== false && !p.isDeleted && p.status !== "deleted" && !p.deleted && !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id))
+      .filter(p => p.isAvailable !== false && !p.isDeleted && p.status !== "deleted" && !p.deleted && !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id) && !RESTAURANT_UNSPLASH_DUPLICATE_IDS.has(p.id))
       .filter(p => shouldKeepProductGroceryFiltered(p));
     return filtered.sort((a, b) => sortByDefaultOrder(a, b));
   }, [products]);
@@ -1006,7 +1007,7 @@ export default function App() {
     fetchAllProductsFromSupabase().then((spProducts) => {
       if (spProducts && spProducts.length > 0 && isMounted) {
         isSupabaseLoaded = true;
-        const cleanProds = spProducts.filter(p => !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id));
+        const cleanProds = spProducts.filter(p => !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id) && !RESTAURANT_UNSPLASH_DUPLICATE_IDS.has(p.id));
         console.log(`[Supabase Engine] Successfully loaded ${cleanProds.length} live products directly from Supabase`);
         setProducts(cleanProds);
         setLoadingProducts(false);
@@ -1042,7 +1043,7 @@ export default function App() {
     const unsubSupabaseProds = subscribeToSupabaseProducts(() => {
       fetchAllProductsFromSupabase().then((spProducts) => {
         if (spProducts && spProducts.length > 0 && isMounted) {
-          const cleanProds = spProducts.filter(p => !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id));
+          const cleanProds = spProducts.filter(p => !/^st\d+$/i.test(p.id) && !/^sp\d+$/i.test(p.id) && !/^gro_\d+$/i.test(p.id) && !/^fr\d+$/i.test(p.id) && !RESTAURANT_UNSPLASH_DUPLICATE_IDS.has(p.id));
           setProducts(cleanProds);
         }
       });
@@ -2595,11 +2596,12 @@ export default function App() {
             const isEventCat = isCategoryMatch(selectedCategory, "pet-food-care");
             const isPharmacyCat = isCategoryMatch(selectedCategory, "pharmacy");
             const isVegetableCat = isCategoryMatch(selectedCategory, "vegetables") || selectedCategory === "vegetables";
+            const isFishCat = isCategoryMatch(selectedCategory, "fish") || selectedCategory === "fish" || selectedCategory === "fresh-fish" || selectedCategory === "তাজা মাছ";
             const isSectionedCategory = isRestaurantCat || isGroceryCat || isMobileZoneCat;
 
             // Filter subcategories for the selected category from Firestore (sorted by order asc)
-            const matchingDbSubs = isVegetableCat ? [] : dbSubcategories
-              .filter(s => (s.categoryId === selectedCategory || s.categoryId === resolvedCatId || isCategoryMatch(s.categoryId, selectedCategory) || (isEventCat && (s.categoryId === "pet-food-care" || s.categoryId === "event-management"))) && !s.isDeleted && s.categoryId !== "vegetables")
+            const matchingDbSubs = (isVegetableCat || isFishCat) ? [] : dbSubcategories
+              .filter(s => (s.categoryId === selectedCategory || s.categoryId === resolvedCatId || isCategoryMatch(s.categoryId, selectedCategory) || (isEventCat && (s.categoryId === "pet-food-care" || s.categoryId === "event-management"))) && !s.isDeleted && s.categoryId !== "vegetables" && s.categoryId !== "fish")
               .sort((a, b) => (a.order || 0) - (b.order || 0));
 
             // Filter products
@@ -2677,7 +2679,7 @@ export default function App() {
             }
 
             let rawSubcategories: string[] = [];
-            if (isVegetableCat) {
+            if (isVegetableCat || isFishCat) {
               rawSubcategories = ["all"];
             } else if (isRestaurantCat) {
               rawSubcategories = ["all", ...RESTAURANT_SUBCATEGORY_NAMES_BN];
