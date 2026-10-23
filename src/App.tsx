@@ -407,6 +407,47 @@ export default function App() {
   const [globalSettings, setGlobalSettings] = useState<any | null>(null);
 
   useEffect(() => {
+    // 1. Fetch persistent server settings from /api/settings/global
+    const fetchGlobalSettings = async () => {
+      try {
+        const res = await fetch("/api/settings/global");
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.settings) {
+            setGlobalSettings(json.settings);
+            if (json.settings.welcomeAudioUrl !== undefined) {
+              setWelcomeAudioUrl(json.settings.welcomeAudioUrl);
+            }
+            if (json.settings.enableWelcomeVoice !== undefined) {
+              setWelcomeVoiceEnabled(json.settings.enableWelcomeVoice);
+            }
+            if (json.settings.welcomeAudioUrl && json.settings.enableWelcomeVoice !== false) {
+              initVoiceWelcome(json.settings.welcomeAudioUrl, true);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Global settings fetch notice:", err);
+      }
+    };
+    fetchGlobalSettings();
+
+    // 2. Listen for real-time live setting updates dispatched from admin panel
+    const handleSettingsUpdated = (e: any) => {
+      const updated = e.detail;
+      if (updated) {
+        setGlobalSettings((prev: any) => ({ ...prev, ...updated }));
+        if (updated.welcomeAudioUrl !== undefined) {
+          setWelcomeAudioUrl(updated.welcomeAudioUrl);
+        }
+        if (updated.enableWelcomeVoice !== undefined) {
+          setWelcomeVoiceEnabled(updated.enableWelcomeVoice);
+        }
+      }
+    };
+    window.addEventListener("megabazar_settings_updated", handleSettingsUpdated);
+
+    // 3. Fallback Firestore snapshot if enabled
     const unsub = onSnapshot(
       doc(db, "settings", "global"),
       (snap) => {
@@ -419,11 +460,17 @@ export default function App() {
           if (data.enableWelcomeVoice !== undefined) {
             setWelcomeVoiceEnabled(data.enableWelcomeVoice);
           }
+          if (data.welcomeAudioUrl && data.enableWelcomeVoice !== false) {
+            initVoiceWelcome(data.welcomeAudioUrl, true);
+          }
         }
       },
-      (err) => console.warn("Firestore global settings sync notice:", err.message)
+      () => {}
     );
-    return () => unsub();
+    return () => {
+      window.removeEventListener("megabazar_settings_updated", handleSettingsUpdated);
+      unsub();
+    };
   }, []);
 
   // Pricing math (Memoized to prevent redundant array traversals and calculations on re-render)

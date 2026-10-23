@@ -56,7 +56,11 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
 
   // Welcome Voice Greeting States
   const [welcomeAudioUrl, setWelcomeAudioUrl] = useState<string>(settings?.welcomeAudioUrl || "");
-  const [enableWelcomeVoice, setEnableWelcomeVoice] = useState<boolean>(settings?.enableWelcomeVoice !== false);
+  const [enableWelcomeVoice, setEnableWelcomeVoice] = useState<boolean>(
+    typeof settings?.enableWelcomeVoice === "boolean"
+      ? settings.enableWelcomeVoice
+      : Boolean(settings?.welcomeAudioUrl)
+  );
   const [uploadingAudio, setUploadingAudio] = useState<boolean>(false);
   const [isPlayingPreview, setIsPlayingPreview] = useState<boolean>(false);
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -278,13 +282,17 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
       }
       setIsPlayingPreview(false);
     } else {
-      const src = welcomeAudioUrl.trim() || "/audio/kachabazar-welcome.mp3";
+      const src = welcomeAudioUrl.trim();
+      if (!src) {
+        triggerToast("কোনো অডিও ইউআরএল দেওয়া নেই। প্রথমে একটি অডিও লিঙ্ক দিন বা ফাইল আপলোড করুন।", "No audio URL. Please enter an audio URL or upload an audio file first.");
+        return;
+      }
       if (!audioPreviewRef.current) {
         audioPreviewRef.current = new Audio(src);
         audioPreviewRef.current.onended = () => setIsPlayingPreview(false);
         audioPreviewRef.current.onerror = () => {
           setIsPlayingPreview(false);
-          triggerToast("অডিও প্লে করতে সমস্যা হয়েছে।", "Could not play audio.");
+          triggerToast("অডিও প্লে করতে সমস্যা হয়েছে। লিঙ্কটি সঠিক কি না পরীক্ষা করুন।", "Could not play audio. Please verify URL.");
         };
       } else {
         audioPreviewRef.current.src = src;
@@ -325,6 +333,13 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
       };
 
       await apiClient.post("/api/settings/global", { settings: payload });
+      try {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("megabazar_welcome_audio_url", welcomeAudioUrl.trim());
+          window.localStorage.setItem("megabazar_welcome_audio_enabled", enableWelcomeVoice ? "true" : "false");
+          window.dispatchEvent(new CustomEvent("megabazar_settings_updated", { detail: payload }));
+        }
+      } catch {}
       triggerToast("সেটিংস সফলভাবে সংরক্ষিত!", "Global settings successfully updated!");
     } catch (err) {
       console.error(err);
@@ -904,7 +919,7 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
                     </span>
                   </h4>
                   <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                    {getTranslation("অ্যাপ বা ওয়েবসাইট ওপেন করার সাথে সাথে গ্রাহককে স্বাগতম জানিয়ে এই অডিওটি বাজবে।", "Plays when visitors open the store homepage or app.")}
+                    {getTranslation("ডিফল্ট ভয়েস বন্ধ রাখা হয়েছে। এখানে যে অডিও ইউআরএল (MP3/WAV) দেবেন, ওয়েবসাইট ওপেন করার পর শুধুমাত্র সেটাই বাজবে।", "Default voice is OFF. Only the audio URL configured here will play when visitors open the site.")}
                   </p>
                 </div>
               </div>
@@ -954,7 +969,7 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
                       type="button"
                       onClick={() => setWelcomeAudioUrl("")}
                       className="text-slate-400 hover:text-rose-500 text-xs px-1.5 font-bold cursor-pointer"
-                      title="Clear / Reset to Default"
+                      title="Clear audio URL"
                     >
                       ✕
                     </button>
@@ -962,13 +977,13 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
                 </div>
                 <div className="text-[11px] text-slate-600 flex items-center gap-1.5 flex-wrap">
                   <span className="font-bold text-slate-500">বর্তমান স্ট্যাটাস:</span>
-                  {welcomeAudioUrl ? (
+                  {welcomeAudioUrl.trim() ? (
                     <span className="text-emerald-700 font-bold bg-emerald-100/70 px-2 py-0.5 rounded-md border border-emerald-200">
-                      ✨ নিজস্ব কাস্টম ভয়েস রেকর্ড সেট করা আছে
+                      ✨ কাস্টম অডিও ইউআরএল সক্রিয়
                     </span>
                   ) : (
-                    <span className="text-slate-600 font-medium bg-slate-100 px-2 py-0.5 rounded-md">
-                      ডিফল্ট ওয়েলকাম অডিও সক্রিয়
+                    <span className="text-rose-700 font-semibold bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                      🔕 ডিফল্ট ভয়েস বন্ধ রয়েছে (কোনো অডিও ইউআরএল দেওয়া নেই)
                     </span>
                   )}
                 </div>
