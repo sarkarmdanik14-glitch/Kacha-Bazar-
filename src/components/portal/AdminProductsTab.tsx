@@ -1246,7 +1246,7 @@ export default function AdminProductsTab({
   const handleAddOption = () => {
     if (!newOptValue || !newOptPrice) return;
     const option: ProductOption = {
-      id: "opt_" + Date.now(),
+      id: "opt_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
       value: Number(newOptValue),
       unit: newOptUnit,
       price: Number(newOptPrice),
@@ -2342,8 +2342,8 @@ export default function AdminProductsTab({
 
                 {prodOptions.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2">
-                    {prodOptions.map((opt) => (
-                      <div key={opt.id} className="bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-2">
+                    {prodOptions.map((opt, oIdx) => (
+                      <div key={`${opt.id}_${oIdx}`} className="bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-2">
                         <span>{opt.value} {opt.unit} - ৳{opt.price}</span>
                         <button type="button" onClick={() => handleRemoveOption(opt.id)} className="text-red-500 hover:text-red-700 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                       </div>

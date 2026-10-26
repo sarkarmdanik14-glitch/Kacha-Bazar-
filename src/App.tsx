@@ -2636,7 +2636,7 @@ export default function App() {
                     <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
                       {displayItems.map((product, idx) => (
                         <ProductCard
-                          key={product.id}
+                          key={`${product.id}_${idx}`}
                           product={product}
                           lang={lang}
                           fmtNum={fmtNum}
@@ -3419,9 +3419,9 @@ export default function App() {
                               </div>
                             </div>
                             <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                              {section.products.map((product) => (
+                              {section.products.map((product, pIdx) => (
                                 <ProductCard
-                                  key={product.id}
+                                  key={`${product.id}_${pIdx}`}
                                   product={product}
                                   lang={lang}
                                   fmtNum={fmtNum}
@@ -3455,9 +3455,9 @@ export default function App() {
                               </span>
                             </div>
                             <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                              {unsectionedProducts.map((product) => (
+                              {unsectionedProducts.map((product, uIdx) => (
                                 <ProductCard
-                                  key={product.id}
+                                  key={`${product.id}_${uIdx}`}
                                   product={product}
                                   lang={lang}
                                   fmtNum={fmtNum}
@@ -3514,9 +3514,9 @@ export default function App() {
                               </div>
                             </div>
                             <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-                              {sortedProducts.map((product) => (
+                              {sortedProducts.map((product, sIdx) => (
                                 <ProductCard
-                                  key={product.id}
+                                  key={`${product.id}_${sIdx}`}
                                   product={product}
                                   lang={lang}
                                   fmtNum={fmtNum}
@@ -3538,9 +3538,9 @@ export default function App() {
                     ) : (
                       // Standard clean responsive grid view for all categories, sorts, and layouts
                       <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mt-5">
-                        {sortedProducts.map((product) => (
+                        {sortedProducts.map((product, sIdx) => (
                           <ProductCard
-                            key={product.id}
+                            key={`${product.id}_${sIdx}`}
                             product={product}
                             lang={lang}
                             fmtNum={fmtNum}
@@ -3573,9 +3573,9 @@ export default function App() {
             {lang === "bn" ? "আপনার সমসাময়িক দেখা পণ্য" : "Recently Viewed Products"}
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {recentlyViewed.map((product) => (
+            {recentlyViewed.map((product, rIdx) => (
               <div 
-                key={product.id}
+                key={`${product.id}_${rIdx}`}
                 onClick={() => openQuickView(product)}
                 className="bg-white p-2.5 rounded-xl border border-slate-100 flex items-center gap-3 hover:shadow-md cursor-pointer transition"
               >
@@ -4160,11 +4160,11 @@ export default function App() {
                   <p className="text-[10px] text-slate-400 mt-1">{lang === "bn" ? "পণ্য দেখার সময় হার্ট আইকনে ট্যাপ করুন" : "Tap the heart on any product"}</p>
                 </div>
               ) : (
-                wishlist.map((id) => {
+                wishlist.map((id, wIdx) => {
                   const product = products.find(p => p.id === id);
                   if (!product) return null;
                   return (
-                    <div key={product.id} className="flex gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100 relative">
+                    <div key={`${product.id}_${wIdx}`} className="flex gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100 relative">
                       <img 
                         src={optimizeProductImageUrl(product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER, 100)} 
                         alt={lang === "bn" ? product.nameBn : product.nameEn}

@@ -73,7 +73,7 @@ export default function PortalModal({
     return "customer";
   });
   const [loading, setLoading] = useState<boolean>(() => !initialUser && forcedRole !== "partner");
-  const [toasts, setToasts] = useState<{ id: number; bn: string; en: string }[]>([]);
+  const [toasts, setToasts] = useState<{ id: string; bn: string; en: string }[]>([]);
 
   const getTranslation = createTranslator(lang);
 
@@ -96,9 +96,9 @@ export default function PortalModal({
     { id: "admin", bn: "এডমিন প্যানেল", en: "Admin Panel" }
   ];
 
-  // Toast notifier helper
+  // Toast notifier helper with globally unique collision-proof keys
   const triggerToast = (bn: string, en: string) => {
-    const id = Date.now();
+    const id = `toast_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     setToasts(prev => [...prev, { id, bn, en }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
@@ -602,8 +602,8 @@ export default function PortalModal({
       
       {/* Floating toasts */}
       <div className="fixed top-5 right-5 space-y-2 z-[2000] max-w-sm">
-        {toasts.map((t) => (
-          <div key={t.id} className="bg-slate-900 border border-slate-800 text-white rounded-2xl px-4 py-3 shadow-2xl flex items-center justify-between text-xs space-x-3 animate-slide-in">
+        {toasts.map((t, idx) => (
+          <div key={`${t.id || "toast"}_${idx}`} className="bg-slate-900 border border-slate-800 text-white rounded-2xl px-4 py-3 shadow-2xl flex items-center justify-between text-xs space-x-3 animate-slide-in">
             <span>{getTranslation(t.bn, t.en)}</span>
             <button onClick={() => setToasts(prev => prev.filter(item => item.id !== t.id))} className="text-slate-400 hover:text-white font-bold">✕</button>
           </div>
