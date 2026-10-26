@@ -33,6 +33,8 @@ import { syncSingleOrderToSupabase, deleteOrderFromSupabase, deleteCategoryFromS
 import { 
   subscribeToSupabaseOrders, 
   subscribeToSupabaseCoupons, 
+  saveCouponToSupabase,
+  deleteCouponFromSupabase,
   subscribeToSupabaseBanners, 
   updateOrderStatusInSupabase 
 } from "../../lib/supabaseLiveService";
@@ -390,18 +392,10 @@ export default function AdminPanel({
       unsubStaff();
     };
 
-    // Listen to coupons
-    const unsubCoupons = onSnapshot(
-      collection(db, "coupons"), 
-      (snapshot) => {
-        const cops: any[] = [];
-        snapshot.forEach((doc) => {
-          cops.push({ id: doc.id, ...doc.data() });
-        });
-        setCoupons(cops);
-      },
-      (err) => console.warn("Admin coupons sync notice:", err.message)
-    );
+    // Listen to coupons via Supabase Realtime
+    const unsubCoupons = subscribeToSupabaseCoupons((loadedCoupons) => {
+      setCoupons(loadedCoupons);
+    });
 
     // Listen to categories - skip if provided via props
     let unsubCats = () => {};
@@ -714,19 +708,27 @@ export default function AdminPanel({
     }
   };
 
-  // Create Coupon
+  // Create Coupon (Direct Supabase sync)
   const handleCreateCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!copCode || copDiscount <= 0) return;
     try {
       const codeUpper = copCode.toUpperCase().trim();
-      await setDoc(doc(db, "coupons", codeUpper), {
+      await saveCouponToSupabase({
+        code: codeUpper,
+        discountAmount: Number(copDiscount),
+        minOrderAmount: Number(copMin),
+        isActive: true
+      });
+      // Fallback dual-write
+      setDoc(doc(db, "coupons", codeUpper), {
         code: codeUpper,
         discountAmount: Number(copDiscount),
         minOrderAmount: Number(copMin),
         isActive: true,
         expiryDate: serverTimestamp()
-      });
+      }).catch(() => {});
+
       triggerToast(`কুপন "${codeUpper}" তৈরি করা হয়েছে!`, `Coupon "${codeUpper}" successfully created!`);
       setCopCode("");
       setCopDiscount(0);
@@ -734,17 +736,20 @@ export default function AdminPanel({
       setShowCouponForm(false);
     } catch (err) {
       console.error("Error creating coupon:", err);
+      triggerToast("কুপন তৈরি করতে সমস্যা হয়েছে", "Failed to create coupon");
     }
   };
 
-  // Delete Coupon
+  // Delete Coupon (Direct Supabase sync)
   const handleDeleteCoupon = async (code: string) => {
     if (!confirm(getTranslation("কুপন ডিলিট করতে চান?", "Are you sure you want to delete this coupon?"))) return;
     try {
-      await deleteDoc(doc(db, "coupons", code));
+      await deleteCouponFromSupabase(code);
+      deleteDoc(doc(db, "coupons", code)).catch(() => {});
       triggerToast("কুপন ডিলিট করা হয়েছে!", "Coupon deleted successfully!");
     } catch (err) {
       console.error("Error deleting coupon:", err);
+      triggerToast("কুপন ডিলিট করতে সমস্যা হয়েছে", "Failed to delete coupon");
     }
   };
 

@@ -840,8 +840,8 @@ export default function AuthView({
         if (!authenticatedUser) {
           if (lastAuthError && /email not confirmed/i.test(lastAuthError)) {
             throw new Error(getTranslation(
-              "ইমেইল কনফার্মেশন সম্পন্ন হয়নি (Email not confirmed)! অনুগ্রহ করে Supabase Dashboard-এ Authentication > Users থেকে ইমেইল কনফার্ম করুন অথবা Providers > Email-এ 'Confirm email' অপশনটি বন্ধ করুন।",
-              "Email not confirmed! Please confirm your email in Supabase Dashboard (Authentication > Users) or disable 'Confirm email' in Providers > Email."
+              "ইমেইল কনফার্মেশন সম্পন্ন হয়নি (Email not confirmed)! যেহেতু অ্যাকাউন্টটি পূর্বে তৈরি হয়েছিল, তাই Supabase Dashboard > Authentication > Users-এ গিয়ে 'megabajar@admin.com'-এর ডানপাশের তিনটি ডট (...) ক্লিক করে 'Confirm email' অপশনে চাপ দিন অথবা নিচের বাটনে চাপ দিয়ে ইনবক্সে লিঙ্ক নিন।",
+              "Email not confirmed! Since this account was created previously, please go to Supabase Dashboard > Authentication > Users, click the three dots (...) next to this user, and click 'Confirm email'."
             ));
           }
           throw new Error(lastAuthError || getTranslation("ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।", "Incorrect email or password. Please check your credentials."));
@@ -1497,9 +1497,34 @@ export default function AuthView({
       </div>
 
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-100 text-red-700 text-xs rounded-xl p-3 flex items-start space-x-2">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{error}</span>
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl p-3.5 space-y-2.5">
+          <div className="flex items-start space-x-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+            <span className="leading-relaxed font-medium">{error}</span>
+          </div>
+          {error.includes("Email not confirmed") && email && (
+            <div className="pt-2 border-t border-red-200/60 flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-[11px] text-red-600 font-medium">ইনবক্সে কনফার্মেশন লিঙ্ক চান?</span>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const { error: resendErr } = await supabase.auth.resend({ type: "signup", email: email.trim() });
+                    if (resendErr) throw resendErr;
+                    setError(getTranslation(
+                      `'${email.trim()}' ঠিকানায় কনফার্মেশন লিঙ্ক পাঠানো হয়েছে! ইনবক্স অথবা স্প্যাম ফোল্ডার চেক করুন।`,
+                      `Confirmation link sent to '${email.trim()}'! Please check your inbox or spam folder.`
+                    ));
+                  } catch (e: any) {
+                    setError(e.message || "কনফার্মেশন লিঙ্ক পাঠানো সম্ভব হয়নি।");
+                  }
+                }}
+                className="text-[11px] bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold px-2.5 py-1 rounded-lg transition cursor-pointer"
+              >
+                {getTranslation("কনফার্মেশন ইমেইল পাঠান", "Resend Confirmation")}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

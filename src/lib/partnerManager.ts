@@ -18,6 +18,7 @@ import {
 import { sanitizeForFirestore } from "./staffManager";
 import { syncSinglePartnerShopToSupabase } from "./supabaseSync";
 import { apiClient } from "./apiClient";
+import { supabase } from "./supabase";
 
 export const INITIAL_PARTNER_SHOPS: PartnerShop[] = [
   {
@@ -331,40 +332,88 @@ export async function cleanLegacyPartnerDataInFirestore(): Promise<void> {
  * Real-time subscription to Partner Shops collection in Firestore, falling back to local
  */
 export function subscribeToPartnerShops(onUpdate: (shops: PartnerShop[]) => void): () => void {
-  // Emit initial cached data right away
+  let isMounted = true;
+
+  // 1. Emit cached local data immediately
   const cached = getLocalPartnerShops();
   onUpdate(cached);
 
-  // Trigger one-time async cleanup of legacy dummy numbers
-  cleanLegacyPartnerDataInFirestore().catch(console.warn);
+  // 2. Fetch directly from Supabase (primary cloud database)
+  const fetchFromSupabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("partner_shops")
+        .select("*")
+        .order("partner_id", { ascending: true });
 
+      if (!error && data && data.length > 0 && isMounted) {
+        const list: PartnerShop[] = data.map((ps: any) => ({
+          id: ps.id,
+          partnerId: ps.partner_id || ps.id,
+          shopName: ps.shop_name,
+          logo: ps.logo || "",
+          ownerName: ps.owner_name || "",
+          mobile: ps.mobile || "",
+          email: ps.email || "",
+          address: ps.address || "",
+          category: ps.category || "",
+          joiningDate: ps.joining_date || "",
+          commissionRate: Number(ps.commission_rate || 10),
+          status: ps.status || "active",
+          balance: Number(ps.balance || 0),
+          totalSales: Number(ps.total_sales || 0),
+          totalOrders: Number(ps.total_orders || 0),
+          totalCommission: Number(ps.total_commission || 0),
+          netEarnings: Number(ps.net_earnings || 0),
+          createdAt: ps.created_at
+        }));
+        saveLocalPartnerShops(list);
+        onUpdate(list);
+      }
+    } catch (err) {
+      console.warn("Supabase partner shops query notice:", err);
+    }
+  };
+
+  fetchFromSupabase();
+
+  // 3. Supabase Realtime channel listener
+  let supaChannel: any = null;
+  try {
+    const channelId = `partner_shops_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    supaChannel = supabase
+      .channel(channelId)
+      .on("postgres_changes", { event: "*", schema: "public", table: "partner_shops" }, () => {
+        if (isMounted) fetchFromSupabase();
+      })
+      .subscribe();
+  } catch {}
+
+  // 4. Firestore listener fallback
+  let unsubFirestore = () => {};
   try {
     const q = query(collection(db, "partner_shops"), orderBy("partnerId", "asc"));
-    const unsubscribe = onSnapshot(
+    unsubFirestore = onSnapshot(
       q,
       (snapshot) => {
-        if (!snapshot.empty) {
+        if (!snapshot.empty && isMounted) {
           const list: PartnerShop[] = [];
           snapshot.forEach((docSnap) => {
             list.push(sanitizePartnerFinancials({ id: docSnap.id, ...(docSnap.data() as any) }));
           });
           saveLocalPartnerShops(list);
           onUpdate(list);
-        } else {
-          // If Firestore is empty, seed with initial partner shops
-          seedInitialPartnerShops().catch(console.warn);
         }
       },
-      (err) => {
-        console.warn("Firestore partner_shops snapshot fallback to local:", err.message);
-        onUpdate(getLocalPartnerShops());
-      }
+      () => {}
     );
-    return unsubscribe;
-  } catch (err) {
-    console.warn("Error subscribing to partner_shops:", err);
-    return () => {};
-  }
+  } catch {}
+
+  return () => {
+    isMounted = false;
+    if (supaChannel) supabase.removeChannel(supaChannel).catch(() => {});
+    unsubFirestore();
+  };
 }
 
 /**
@@ -522,7 +571,12 @@ export async function deletePartnerShop(id: string): Promise<void> {
     console.warn("Notice deleting partner shop from Firestore:", err);
   }
 
-  // Secure server-authoritative delete from Supabase
+  // Direct Supabase delete
+  try {
+    await supabase.from("partner_shops").delete().or(`id.eq.${id},partner_id.eq.${id}`);
+  } catch {}
+
+  // Server sync fallback
   apiClient.post("/api/sync/partner-shop-delete", { id }).catch(() => {});
 }
 

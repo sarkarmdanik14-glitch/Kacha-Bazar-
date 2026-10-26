@@ -208,6 +208,58 @@ export function subscribeToSupabaseCoupons(onUpdate: (coupons: any[]) => void): 
   }
 }
 
+export async function saveCouponToSupabase(coupon: {
+  id?: string;
+  code: string;
+  discountAmount?: number;
+  discountPercent?: number;
+  minOrderAmount?: number;
+  isActive?: boolean;
+  expiryDate?: string | null;
+}): Promise<boolean> {
+  try {
+    const codeUpper = coupon.code.trim().toUpperCase();
+    const id = coupon.id || `coupon-${codeUpper.toLowerCase()}`;
+    const payload = {
+      id,
+      code: codeUpper,
+      discount_amount: coupon.discountAmount !== undefined ? Number(coupon.discountAmount) : 0,
+      discount_percent: coupon.discountPercent !== undefined ? Number(coupon.discountPercent) : 0,
+      min_order_amount: coupon.minOrderAmount !== undefined ? Number(coupon.minOrderAmount) : 0,
+      is_active: coupon.isActive !== false,
+      expiry_date: coupon.expiryDate || null
+    };
+    const { error } = await supabase.from("coupons").upsert(payload, { onConflict: "code" });
+    if (error) {
+      console.warn("[Supabase] Coupon save error:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("[Supabase] Coupon save exception:", err);
+    return false;
+  }
+}
+
+export async function deleteCouponFromSupabase(couponIdOrCode: string): Promise<boolean> {
+  try {
+    const clean = couponIdOrCode.trim();
+    const codeUpper = clean.toUpperCase();
+    const { error } = await supabase
+      .from("coupons")
+      .delete()
+      .or(`id.eq.${clean},code.eq.${codeUpper}`);
+    if (error) {
+      console.warn("[Supabase] Coupon delete error:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("[Supabase] Coupon delete exception:", err);
+    return false;
+  }
+}
+
 // =====================================================================
 // 3. BANNERS & ANNOUNCEMENTS REAL-TIME LISTENER
 // =====================================================================
@@ -370,40 +422,178 @@ export async function saveBannerToSupabase(banner: {
   id: string;
   titleBn?: string;
   titleEn?: string;
+  subtitleBn?: string;
+  subtitleEn?: string;
   tagBn?: string;
   tagEn?: string;
   bgGradient?: string;
   image?: string;
   targetUrl?: string;
+  linkUrl?: string;
   isActive?: boolean;
   displayOrder?: number;
 }): Promise<boolean> {
+  let ok = false;
   try {
     const payload = {
       id: banner.id,
       title_bn: banner.titleBn || "",
       title_en: banner.titleEn || "",
+      subtitle_bn: banner.subtitleBn || "",
+      subtitle_en: banner.subtitleEn || "",
       tag_bn: banner.tagBn || "",
       tag_en: banner.tagEn || "",
       bg_gradient: banner.bgGradient || "from-emerald-800 via-teal-900 to-slate-900",
       image: banner.image || "",
-      target_url: banner.targetUrl || "",
+      target_url: banner.targetUrl || banner.linkUrl || "",
       is_active: banner.isActive !== false,
       display_order: Number(banner.displayOrder || 0),
       updated_at: new Date().toISOString()
     };
     const { error } = await supabase.from("banners").upsert(payload, { onConflict: "id" });
-    return !error;
+    if (!error) ok = true;
+    else console.warn("[Supabase] Direct banner save notice:", error.message);
+  } catch {}
+
+  // Server endpoint fallback (runs with service_role if on dev/server)
+  try {
+    const res = await fetch("/api/banners", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(banner)
+    });
+    if (res.ok) ok = true;
+  } catch {}
+
+  return ok;
+}
+
+export const upsertBannerToSupabase = saveBannerToSupabase;
+
+export async function deleteBannerFromSupabase(bannerId: string): Promise<boolean> {
+  let ok = false;
+  try {
+    const { error } = await supabase.from("banners").delete().eq("id", bannerId);
+    if (!error) ok = true;
+    else console.warn("[Supabase] Direct banner delete notice:", error.message);
+  } catch (err) {
+    console.warn("[Supabase] Banner delete exception:", err);
+  }
+
+  // Server endpoint fallback (runs with service_role if on dev/server)
+  try {
+    const res = await fetch(`/api/banners/${encodeURIComponent(bannerId)}`, { method: "DELETE" });
+    if (res.ok) ok = true;
+  } catch {}
+
+  return ok;
+}
+
+// =====================================================================
+// 5. HOMEPAGE CONFIGURATION & SETTINGS
+// =====================================================================
+
+export async function fetchHomeConfigFromSupabase(): Promise<any | null> {
+  try {
+    const { data, error } = await supabase
+      .from("site_settings")
+      .select("settings")
+      .or("key.eq.home,key.eq.home_config")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data?.settings) {
+      try {
+        const cached = localStorage.getItem("kachabazar_home_config");
+        if (cached) return JSON.parse(cached);
+      } catch {}
+      return null;
+    }
+
+    try {
+      localStorage.setItem("kachabazar_home_config", JSON.stringify(data.settings));
+    } catch {}
+
+    return data.settings;
   } catch {
-    return false;
+    return null;
   }
 }
 
-export async function deleteBannerFromSupabase(bannerId: string): Promise<boolean> {
+export function subscribeToSupabaseHomeConfig(onUpdate: (config: any) => void): () => void {
+  let isMounted = true;
+
   try {
-    const { error } = await supabase.from("banners").delete().eq("id", bannerId);
-    return !error;
-  } catch {
+    const cached = localStorage.getItem("kachabazar_home_config");
+    if (cached) {
+      onUpdate(JSON.parse(cached));
+    }
+  } catch {}
+
+  fetchHomeConfigFromSupabase().then((cfg) => {
+    if (isMounted && cfg) onUpdate(cfg);
+  });
+
+  try {
+    const channelId = `home_config_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "site_settings" },
+        (payload: any) => {
+          const rowKey = payload?.new?.key || payload?.old?.key;
+          if (rowKey === "home" || rowKey === "home_config") {
+            if (payload?.new?.settings && isMounted) {
+              onUpdate(payload.new.settings);
+              try {
+                localStorage.setItem("kachabazar_home_config", JSON.stringify(payload.new.settings));
+              } catch {}
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel).catch(() => {});
+    };
+  } catch (err) {
+    console.warn("Home config realtime subscription notice:", err);
+    return () => { isMounted = false; };
+  }
+}
+
+export async function saveHomeConfigToSupabase(config: any): Promise<boolean> {
+  try {
+    try {
+      localStorage.setItem("kachabazar_home_config", JSON.stringify(config));
+    } catch {}
+
+    const now = new Date().toISOString();
+    const { error: err1 } = await supabase.from("site_settings").upsert({
+      key: "home",
+      settings: config,
+      updated_at: now
+    }, { onConflict: "key" });
+
+    supabase.from("site_settings").upsert({
+      key: "home_config",
+      settings: config,
+      updated_at: now
+    }, { onConflict: "key" }).then(null, () => {});
+
+    fetch("/api/settings/home_config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settings: config })
+    }).catch(() => {});
+
+    return !err1;
+  } catch (err) {
+    console.warn("Error saving home config to Supabase:", err);
     return false;
   }
 }

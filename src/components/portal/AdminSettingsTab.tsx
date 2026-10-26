@@ -9,6 +9,7 @@ import {
 import QRCode from "qrcode";
 import { APP_LOGO_URL } from "../../constants/branding";
 import { saveLiveNoticeToSupabase, subscribeToSupabaseLiveNotice } from "../../lib/supabaseLiveService";
+import { supabase } from "../../lib/supabase";
 import { DeliveryZone, DEFAULT_DELIVERY_ZONES, DEFAULT_STORE_LOCATION } from "../../lib/delivery";
 import { LiveNoticeConfig, DEFAULT_LIVE_NOTICE } from "../../types";
 import { createTranslator } from "../../lib/formatUtils";
@@ -307,6 +308,50 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
     }
   };
 
+  // Resilient multi-tier persistence for static hosting & Supabase
+  const persistGlobalSettingsPartial = async (partialSettings: Record<string, any>) => {
+    // 1. LocalStorage instant cache & live event dispatch
+    try {
+      if (typeof window !== "undefined") {
+        const existing = JSON.parse(window.localStorage.getItem("kachabazar_global_settings") || "{}");
+        const merged = { ...existing, ...settings, ...partialSettings, updatedAt: new Date().toISOString() };
+        window.localStorage.setItem("kachabazar_global_settings", JSON.stringify(merged));
+        window.dispatchEvent(new CustomEvent("megabazar_settings_updated", { detail: merged }));
+      }
+    } catch {}
+
+    // 2. Direct Supabase site_settings upsert (primary cloud database)
+    try {
+      const { data: currentData } = await supabase
+        .from("site_settings")
+        .select("settings")
+        .eq("key", "global_settings")
+        .maybeSingle();
+
+      const mergedSettings = {
+        ...(currentData?.settings || {}),
+        ...settings,
+        ...partialSettings,
+        updatedAt: new Date().toISOString()
+      };
+
+      await supabase.from("site_settings").upsert({
+        key: "global_settings",
+        settings: mergedSettings,
+        updated_at: new Date().toISOString()
+      });
+    } catch {
+      // site_settings table may be created via SQL migration
+    }
+
+    // 3. Server API fallback for dev/fullstack environments
+    try {
+      await apiClient.post("/api/settings/global", { settings: partialSettings }, { silent: true });
+    } catch {
+      // Silent on static hosting
+    }
+  };
+
   // Save global configurations
   const handleSaveGlobalConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -332,14 +377,13 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
         updatedAt: new Date().toISOString()
       };
 
-      await apiClient.post("/api/settings/global", { settings: payload });
-      try {
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem("megabazar_welcome_audio_url", welcomeAudioUrl.trim());
-          window.localStorage.setItem("megabazar_welcome_audio_enabled", enableWelcomeVoice ? "true" : "false");
-          window.dispatchEvent(new CustomEvent("megabazar_settings_updated", { detail: payload }));
-        }
-      } catch {}
+      await persistGlobalSettingsPartial(payload);
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("megabazar_welcome_audio_url", welcomeAudioUrl.trim());
+        window.localStorage.setItem("megabazar_welcome_audio_enabled", enableWelcomeVoice ? "true" : "false");
+      }
+
       triggerToast("সেটিংস সফলভাবে সংরক্ষিত!", "Global settings successfully updated!");
     } catch (err) {
       console.error(err);
@@ -359,9 +403,7 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
         lat: Number(storeLat),
         lng: Number(storeLng)
       };
-      await apiClient.post("/api/settings/global", {
-        settings: { storeLocation, updatedAt: new Date().toISOString() }
-      });
+      await persistGlobalSettingsPartial({ storeLocation });
       triggerToast("স্টোর লোকেশন সফলভাবে আপডেট করা হয়েছে!", "Store location successfully updated!");
     } catch (err) {
       console.error(err);
@@ -421,9 +463,7 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
         updatedZones.push(zonePayload);
       }
 
-      await apiClient.post("/api/settings/global", {
-        settings: { deliveryZones: updatedZones, updatedAt: new Date().toISOString() }
-      });
+      await persistGlobalSettingsPartial({ deliveryZones: updatedZones });
 
       setDeliveryZones(updatedZones);
       setShowZoneForm(false);
@@ -442,9 +482,7 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
       const updatedZones = deliveryZones.map((z) =>
         z.id === zoneId ? { ...z, isActive: !z.isActive } : z
       );
-      await apiClient.post("/api/settings/global", {
-        settings: { deliveryZones: updatedZones, updatedAt: new Date().toISOString() }
-      });
+      await persistGlobalSettingsPartial({ deliveryZones: updatedZones });
       setDeliveryZones(updatedZones);
       triggerToast("জোনের স্ট্যাটাস পরিবর্তিত হয়েছে!", "Zone status updated!");
     } catch (err) {
@@ -457,9 +495,7 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
     if (!confirm(getTranslation("আপনি কি এই ডেলিভারি জোনটি ডিলিট করতে চান?", "Delete this delivery zone?"))) return;
     try {
       const updatedZones = deliveryZones.filter((z) => z.id !== zoneId);
-      await apiClient.post("/api/settings/global", {
-        settings: { deliveryZones: updatedZones, updatedAt: new Date().toISOString() }
-      });
+      await persistGlobalSettingsPartial({ deliveryZones: updatedZones });
       setDeliveryZones(updatedZones);
       triggerToast("ডেলিভারি জোন ডিলিট করা হয়েছে!", "Delivery zone deleted!");
     } catch (err) {
@@ -470,12 +506,9 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
   // Save Above Max Distance Policy
   const handleSaveAboveMaxPolicy = async () => {
     try {
-      await apiClient.post("/api/settings/global", {
-        settings: {
-          aboveMaxDistanceFee: Number(aboveMaxDistanceFee),
-          deliveryUnavailableAboveMax: deliveryUnavailableAboveMax,
-          updatedAt: new Date().toISOString()
-        }
+      await persistGlobalSettingsPartial({
+        aboveMaxDistanceFee: Number(aboveMaxDistanceFee),
+        deliveryUnavailableAboveMax: deliveryUnavailableAboveMax
       });
       triggerToast("সর্বোচ্চ দূরত্বের পলিসি সংরক্ষিত!", "Above max distance delivery policy saved!");
     } catch (err) {
@@ -488,9 +521,7 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
     if (!locationName.trim()) return;
     try {
       const nextMap = { ...deliveryChargesMap, [locationName.trim()]: Number(locationCharge) };
-      await apiClient.post("/api/settings/global", {
-        settings: { deliveryChargesByLocation: nextMap, updatedAt: new Date().toISOString() }
-      });
+      await persistGlobalSettingsPartial({ deliveryChargesByLocation: nextMap });
       setLocationName("");
       setLocationCharge(0);
       triggerToast("ডেলিভারি ট্যারিফ আপডেট করা হয়েছে!", "Location delivery tariff successfully saved!");
@@ -504,9 +535,7 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
     try {
       const nextMap = { ...deliveryChargesMap };
       delete nextMap[locName];
-      await apiClient.post("/api/settings/global", {
-        settings: { deliveryChargesByLocation: nextMap, updatedAt: new Date().toISOString() }
-      });
+      await persistGlobalSettingsPartial({ deliveryChargesByLocation: nextMap });
       triggerToast("ট্যারিফ ডিলিট করা হয়েছে!", "Location delivery tariff deleted!");
     } catch (err) {
       console.error(err);

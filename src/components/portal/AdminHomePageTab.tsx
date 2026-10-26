@@ -6,6 +6,13 @@ import {
   Truck, Droplet, User, ExternalLink, Sliders, LayoutTemplate, Info, Save
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { 
+  fetchBannersFromSupabase, 
+  upsertBannerToSupabase, 
+  deleteBannerFromSupabase,
+  fetchHomeConfigFromSupabase,
+  saveHomeConfigToSupabase
+} from "../../lib/supabaseLiveService";
 import { createTranslator } from "../../lib/formatUtils";
 import { uploadImageWithFallback } from "../../lib/imageUploadHelper";
 
@@ -237,33 +244,49 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
   const [uploadTarget, setUploadTarget] = useState<string>(""); // 'hero' | 'promo' | 'qr'
   const [uploadingImage, setUploadingImage] = useState<boolean>(false);
 
+  // Non-blocking in-app delete confirmation states (replaces window.confirm which fails in iframes)
+  const [confirmDeleteHeroId, setConfirmDeleteHeroId] = useState<string | null>(null);
+  const [confirmDeletePromoId, setConfirmDeletePromoId] = useState<string | null>(null);
+  const [isDeletingHero, setIsDeletingHero] = useState<string | null>(null);
+
   // Load Home Settings on mount
   useEffect(() => {
     async function loadData() {
       setLoading(true);
       try {
-        const { data: row } = await supabase
-          .from("site_settings")
-          .select("settings")
-          .eq("key", "home")
-          .maybeSingle();
+        // 1. Fetch supplementary homepage settings directly from Supabase site_settings / cache
+        const homeData = await fetchHomeConfigFromSupabase();
 
-        const data = row?.settings;
-        if (data) {
-          setHomeConfig((prev: any) => ({
-            ...prev,
-            ...data,
-            heroBanners: (data.heroBanners && data.heroBanners.length > 0) ? data.heroBanners : DEFAULT_HERO_BANNERS,
-            promoBanners: (data.promoBanners && data.promoBanners.length > 0) ? data.promoBanners : DEFAULT_PROMO_BANNERS,
-            referralBanner: { ...prev.referralBanner, ...(data.referralBanner || {}) },
-            callToOrder: { ...prev.callToOrder, ...(data.callToOrder || {}) },
-            categoryConfig: { ...prev.categoryConfig, ...(data.categoryConfig || {}) },
-            featuredProducts: { ...prev.featuredProducts, ...(data.featuredProducts || {}) },
-            sectionVisibility: { ...prev.sectionVisibility, ...(data.sectionVisibility || {}) },
-            mobileAppConfig: { ...prev.mobileAppConfig, ...(data.mobileAppConfig || {}) },
-            footerConfig: { ...prev.footerConfig, ...(data.footerConfig || {}) }
-          }));
+        // 2. Fetch live hero banners directly from Supabase banners table
+        let liveBanners: any[] = [];
+        try {
+          liveBanners = await fetchBannersFromSupabase();
+        } catch (bErr) {
+          console.warn("Supabase banners load notice:", bErr);
         }
+
+        // Priority Rule: If admin has an explicit heroBanners array saved in site_settings (even if empty or edited),
+        // respect it as the definitive admin configuration so deleted banners do not resurrect!
+        let resolvedHeroBanners: any[] = DEFAULT_HERO_BANNERS;
+        if (homeData && Array.isArray(homeData.heroBanners)) {
+          resolvedHeroBanners = homeData.heroBanners;
+        } else if (liveBanners && liveBanners.length > 0) {
+          resolvedHeroBanners = liveBanners;
+        }
+
+        setHomeConfig((prev: any) => ({
+          ...prev,
+          ...(homeData || {}),
+          heroBanners: resolvedHeroBanners,
+          promoBanners: (homeData?.promoBanners && homeData.promoBanners.length > 0) ? homeData.promoBanners : DEFAULT_PROMO_BANNERS,
+          referralBanner: { ...prev.referralBanner, ...(homeData?.referralBanner || {}) },
+          callToOrder: { ...prev.callToOrder, ...(homeData?.callToOrder || {}) },
+          categoryConfig: { ...prev.categoryConfig, ...(homeData?.categoryConfig || {}) },
+          featuredProducts: { ...prev.featuredProducts, ...(homeData?.featuredProducts || {}) },
+          sectionVisibility: { ...prev.sectionVisibility, ...(homeData?.sectionVisibility || {}) },
+          mobileAppConfig: { ...prev.mobileAppConfig, ...(homeData?.mobileAppConfig || {}) },
+          footerConfig: { ...prev.footerConfig, ...(homeData?.footerConfig || {}) }
+        }));
       } catch (err) {
         console.error("Error loading home settings:", err);
       } finally {
@@ -273,16 +296,13 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
     loadData();
   }, []);
 
-  // Save Home Settings to Supabase
+  // Save Home Settings
   const handleSaveHomeConfig = async (updatedConfig?: any) => {
     setSaving(true);
     try {
       const configToSave = updatedConfig || homeConfig;
-      await supabase.from("site_settings").upsert({
-        key: "home",
-        settings: configToSave,
-        updated_at: new Date().toISOString()
-      });
+      await saveHomeConfigToSupabase(configToSave);
+
       triggerToast(
         "হোম পেজ সেটিংস সফলভাবে সেভ করা হয়েছে!",
         "Home Page settings saved successfully!"
@@ -366,31 +386,75 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
 
   const handleSaveHeroBanner = async (e: React.FormEvent) => {
     e.preventDefault();
+    const bannerPayload = { ...heroForm };
+    
+    // 1. Direct persistence to Supabase banners table
+    try {
+      await upsertBannerToSupabase(bannerPayload);
+    } catch (sbErr) {
+      console.warn("Supabase banner save notice:", sbErr);
+    }
+
     const updatedHeroBanners = [...(homeConfig.heroBanners || [])];
     if (editingHero) {
       const index = updatedHeroBanners.findIndex((h: any) => h.id === editingHero.id);
       if (index !== -1) {
-        updatedHeroBanners[index] = { ...heroForm };
+        updatedHeroBanners[index] = bannerPayload;
       }
     } else {
-      updatedHeroBanners.push({ ...heroForm });
+      updatedHeroBanners.push(bannerPayload);
     }
 
     const nextConfig = { ...homeConfig, heroBanners: updatedHeroBanners };
     setHomeConfig(nextConfig);
     setShowHeroModal(false);
     await handleSaveHomeConfig(nextConfig);
+    triggerToast("হিরো ব্যানার সফলভাবে সংরক্ষণ করা হয়েছে!", "Hero banner saved successfully!");
   };
 
-  const handleDeleteHeroBanner = async (id: string) => {
-    if (!confirm(getTranslation("হিরো ব্যানার মুছে ফেলতে চান?", "Are you sure you want to delete this hero banner?"))) return;
-    const updated = homeConfig.heroBanners.filter((h: any) => h.id !== id);
+  const handleDeleteHeroBanner = (id: string) => {
+    // Open non-blocking in-app confirmation
+    setConfirmDeleteHeroId(id);
+  };
+
+  const executeDeleteHeroBanner = async (id: string) => {
+    setIsDeletingHero(id);
+    setConfirmDeleteHeroId(null);
+
+    // 1. Instantly remove from local state so the banner vanishes immediately
+    const updated = (homeConfig.heroBanners || []).filter((h: any) => h.id !== id);
     const nextConfig = { ...homeConfig, heroBanners: updated };
     setHomeConfig(nextConfig);
-    await handleSaveHomeConfig(nextConfig);
+
+    // 2. Delete directly from Supabase banners table and fallback server API
+    try {
+      await deleteBannerFromSupabase(id);
+    } catch (sbErr) {
+      console.warn("Supabase banner delete notice:", sbErr);
+    }
+
+    // 3. Persist authoritative updated config to Supabase site_settings
+    try {
+      await handleSaveHomeConfig(nextConfig);
+      triggerToast(
+        "হিরো ব্যানার সফলভাবে মুছে ফেলা হয়েছে!",
+        "Hero banner deleted successfully!"
+      );
+    } catch (err) {
+      console.error("Error saving after banner delete:", err);
+      triggerToast("ব্যানার মুছতে সমস্যা হয়েছে!", "Failed to delete banner!");
+    } finally {
+      setIsDeletingHero(null);
+    }
   };
 
   const handleToggleHeroActive = async (id: string) => {
+    const hero = homeConfig.heroBanners?.find((h: any) => h.id === id);
+    if (hero) {
+      try {
+        await upsertBannerToSupabase({ ...hero, isActive: !hero.isActive });
+      } catch {}
+    }
     const updated = homeConfig.heroBanners.map((h: any) => 
       h.id === id ? { ...h, isActive: !h.isActive } : h
     );
@@ -406,6 +470,12 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
     const temp = list[index];
     list[index] = list[targetIdx];
     list[targetIdx] = temp;
+
+    // Sync new display orders to Supabase banners table
+    list.forEach((b: any, idx: number) => {
+      upsertBannerToSupabase({ ...b, displayOrder: idx + 1 }).catch(() => {});
+    });
+
     const nextConfig = { ...homeConfig, heroBanners: list };
     setHomeConfig(nextConfig);
     await handleSaveHomeConfig(nextConfig);
@@ -451,12 +521,17 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
     await handleSaveHomeConfig(nextConfig);
   };
 
-  const handleDeletePromoBanner = async (id: string) => {
-    if (!confirm(getTranslation("প্রোমো ব্যানার মুছে ফেলতে চান?", "Delete this promotional banner?"))) return;
+  const handleDeletePromoBanner = (id: string) => {
+    setConfirmDeletePromoId(id);
+  };
+
+  const executeDeletePromoBanner = async (id: string) => {
+    setConfirmDeletePromoId(null);
     const updated = (homeConfig.promoBanners || []).filter((p: any) => p.id !== id);
     const nextConfig = { ...homeConfig, promoBanners: updated };
     setHomeConfig(nextConfig);
     await handleSaveHomeConfig(nextConfig);
+    triggerToast("প্রোমো ব্যানার সফলভাবে মুছে ফেলা হয়েছে!", "Promo banner deleted successfully!");
   };
 
   const handleMovePromoOrder = async (index: number, direction: "up" | "down") => {
@@ -471,8 +546,17 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
     await handleSaveHomeConfig(nextConfig);
   };
 
+  const handleTogglePromoActive = async (id: string) => {
+    const updated = (homeConfig.promoBanners || []).map((p: any) =>
+      p.id === id ? { ...p, isActive: p.isActive === false ? true : false } : p
+    );
+    const nextConfig = { ...homeConfig, promoBanners: updated };
+    setHomeConfig(nextConfig);
+    await handleSaveHomeConfig(nextConfig);
+  };
+
   /* ================= FEATURED PRODUCTS HANDLERS ================= */
-  const toggleFeaturedProduct = (productId: string, sectionKey: "popularProductIds" | "newArrivalProductIds" | "seasonalProductIds") => {
+  const toggleFeaturedProduct = async (productId: string, sectionKey: "popularProductIds" | "newArrivalProductIds" | "seasonalProductIds") => {
     const currentList: string[] = homeConfig.featuredProducts?.[sectionKey] || [];
     const exists = currentList.includes(productId);
     const nextList = exists ? currentList.filter(id => id !== productId) : [...currentList, productId];
@@ -485,10 +569,11 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
       }
     };
     setHomeConfig(nextConfig);
+    await handleSaveHomeConfig(nextConfig);
   };
 
   /* ================= CATEGORY VISIBILITY HANDLERS ================= */
-  const toggleCategoryVisibility = (catId: string) => {
+  const toggleCategoryVisibility = async (catId: string) => {
     const hidden: string[] = homeConfig.categoryConfig?.hiddenCategoryIds || [];
     const isHidden = hidden.includes(catId);
     const nextHidden = isHidden ? hidden.filter(id => id !== catId) : [...hidden, catId];
@@ -501,6 +586,7 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
       }
     };
     setHomeConfig(nextConfig);
+    await handleSaveHomeConfig(nextConfig);
   };
 
   if (loading) {
@@ -676,12 +762,40 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
                       >
                         <Edit className="w-3.5 h-3.5" />
                       </button>
-                      <button
-                        onClick={() => handleDeleteHeroBanner(hero.id)}
-                        className="p-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {confirmDeleteHeroId === hero.id ? (
+                        <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-300 p-1 rounded-xl animate-fade-in shadow-xs">
+                          <span className="text-[10px] font-bold text-rose-800 px-1 whitespace-nowrap">
+                            {lang === "bn" ? "মুছবেন?" : "Delete?"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => executeDeleteHeroBanner(hero.id)}
+                            disabled={isDeletingHero === hero.id}
+                            className="px-2 py-1 rounded bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-[10px] font-black cursor-pointer shadow-xs transition"
+                          >
+                            {isDeletingHero === hero.id 
+                              ? (lang === "bn" ? "মুছছে..." : "...") 
+                              : (lang === "bn" ? "হ্যাঁ, মুছুন" : "Yes, Delete")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteHeroId(null)}
+                            disabled={isDeletingHero === hero.id}
+                            className="px-2 py-1 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-[10px] font-bold cursor-pointer transition"
+                          >
+                            {lang === "bn" ? "বাতিল" : "Cancel"}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteHeroId(hero.id)}
+                          className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 cursor-pointer transition"
+                          title={lang === "bn" ? "হিরো ব্যানার মুছে ফেলুন" : "Delete Hero Banner"}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -781,9 +895,25 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
               </div>
               </div>
 
-              <div className="flex-shrink-0 p-4 border-t flex flex-wrap gap-2 justify-end bg-gray-50/50">
-                <button type="button" onClick={() => setShowHeroModal(false)} className="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-200 cursor-pointer">Cancel</button>
-                <button type="submit" className="px-5 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 cursor-pointer shadow">Save Banner</button>
+              <div className="flex-shrink-0 p-4 border-t flex flex-wrap gap-2 items-center justify-between bg-gray-50/50">
+                {editingHero ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const idToDelete = editingHero.id;
+                      setShowHeroModal(false);
+                      executeDeleteHeroBanner(idToDelete);
+                    }}
+                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 cursor-pointer flex items-center gap-1.5 transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{lang === "bn" ? "ব্যানার মুছে ফেলুন" : "Delete Banner"}</span>
+                  </button>
+                ) : <div />}
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setShowHeroModal(false)} className="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-200 cursor-pointer">Cancel</button>
+                  <button type="submit" className="px-5 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 cursor-pointer shadow">Save Banner</button>
+                </div>
               </div>
             </form>
           </div>
@@ -874,21 +1004,66 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
               <div className="space-y-3">
                 {homeConfig.promoBanners.map((promo: any, index: number) => (
                   <div key={promo.id || index} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded uppercase">
-                          {lang === "bn" ? promo.tagBn : promo.tagEn}
-                        </span>
+                    <div className="flex items-center space-x-3 min-w-0">
+                      {promo.image && (
+                        <img src={promo.image} alt={promo.titleEn} className="w-14 h-10 object-cover rounded-xl border border-slate-200 shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${promo.isActive !== false ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                            {promo.isActive !== false ? (lang === "bn" ? "সক্রিয়" : "Active") : (lang === "bn" ? "নিষ্ক্রিয়" : "Disabled")}
+                          </span>
+                          {promo.tagBn && (
+                            <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded uppercase">
+                              {lang === "bn" ? promo.tagBn : promo.tagEn}
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-800 mt-1">{lang === "bn" ? promo.titleBn : promo.titleEn}</h4>
+                        <p className="text-[10px] text-slate-500 truncate">{lang === "bn" ? promo.subtitleBn : promo.subtitleEn}</p>
                       </div>
-                      <h4 className="text-xs font-bold text-slate-800 mt-1">{lang === "bn" ? promo.titleBn : promo.titleEn}</h4>
-                      <p className="text-[10px] text-slate-500">{lang === "bn" ? promo.subtitleBn : promo.subtitleEn}</p>
                     </div>
 
                     <div className="flex items-center space-x-2 shrink-0">
                       <button onClick={() => handleMovePromoOrder(index, "up")} disabled={index === 0} className="p-1.5 rounded-lg bg-white border text-slate-600 disabled:opacity-30 cursor-pointer"><ArrowUp className="w-3.5 h-3.5" /></button>
                       <button onClick={() => handleMovePromoOrder(index, "down")} disabled={index === homeConfig.promoBanners.length - 1} className="p-1.5 rounded-lg bg-white border text-slate-600 disabled:opacity-30 cursor-pointer"><ArrowDown className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => handleOpenPromoModal(promo)} className="p-1.5 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 cursor-pointer"><Edit className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => handleDeletePromoBanner(promo.id)} className="p-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button 
+                        onClick={() => handleTogglePromoActive(promo.id)}
+                        className={`p-1.5 rounded-lg border text-xs font-bold cursor-pointer ${promo.isActive !== false ? "bg-emerald-50 text-emerald-700 border-emerald-300" : "bg-slate-100 text-slate-500 border-slate-300"}`}
+                        title={promo.isActive !== false ? "Active" : "Disabled"}
+                      >
+                        {promo.isActive !== false ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                      </button>
+                      {confirmDeletePromoId === promo.id ? (
+                        <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-300 p-1 rounded-xl animate-fade-in shadow-xs">
+                          <span className="text-[10px] font-bold text-rose-800 px-1 whitespace-nowrap">
+                            {lang === "bn" ? "মুছবেন?" : "Delete?"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => executeDeletePromoBanner(promo.id)}
+                            className="px-2 py-1 rounded bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-[10px] font-black cursor-pointer shadow-xs transition"
+                          >
+                            {lang === "bn" ? "হ্যাঁ, মুছুন" : "Yes, Delete"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeletePromoId(null)}
+                            className="px-2 py-1 rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-[10px] font-bold cursor-pointer transition"
+                          >
+                            {lang === "bn" ? "বাতিল" : "Cancel"}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeletePromoId(promo.id)}
+                          className="p-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 cursor-pointer transition"
+                          title={lang === "bn" ? "প্রোমো ব্যানার মুছে ফেলুন" : "Delete Promo Banner"}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -935,18 +1110,57 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Badge / Tag (Bengali)</label>
+                  <input type="text" placeholder="যেমন: বিশেষ অফার 🔥" value={promoForm.tagBn} onChange={(e) => setPromoForm({ ...promoForm, tagBn: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Button Text (Bengali)</label>
+                  <input type="text" placeholder="যেমন: অর্ডার করুন" value={promoForm.buttonTextBn} onChange={(e) => setPromoForm({ ...promoForm, buttonTextBn: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none" />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Banner Graphic Image URL</label>
                 <div className="flex gap-2">
                   <input type="text" value={promoForm.image} onChange={(e) => setPromoForm({ ...promoForm, image: e.target.value })} className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono outline-none" />
-                  <button type="button" onClick={() => triggerUploadClick("promo")} className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs font-bold cursor-pointer">Upload</button>
+                  <button type="button" onClick={() => triggerUploadClick("promo")} className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs font-bold cursor-pointer hover:bg-black">Upload</button>
                 </div>
+                {promoForm.image && (
+                  <div className="mt-2 w-32 h-20 rounded-xl overflow-hidden border border-slate-200">
+                    <img src={promoForm.image} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2 pt-1">
+                <input type="checkbox" id="promoActive" checked={promoForm.isActive !== false} onChange={(e) => setPromoForm({ ...promoForm, isActive: e.target.checked })} className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                <label htmlFor="promoActive" className="text-xs font-bold text-slate-700 cursor-pointer">
+                  {getTranslation("প্রোমো ব্যানার সক্রিয় রাখুন", "Enable / Activate Promo Banner")}
+                </label>
               </div>
               </div>
 
-              <div className="flex-shrink-0 p-4 border-t flex flex-wrap gap-2 justify-end bg-gray-50/50">
-                <button type="button" onClick={() => setShowPromoModal(false)} className="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
-                <button type="submit" className="px-5 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl cursor-pointer shadow">Save Promo</button>
+              <div className="flex-shrink-0 p-4 border-t flex flex-wrap gap-2 items-center justify-between bg-gray-50/50">
+                {editingPromo ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const idToDelete = editingPromo.id;
+                      setShowPromoModal(false);
+                      executeDeletePromoBanner(idToDelete);
+                    }}
+                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 cursor-pointer flex items-center gap-1.5 transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{lang === "bn" ? "ব্যানার মুছে ফেলুন" : "Delete Banner"}</span>
+                  </button>
+                ) : <div />}
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setShowPromoModal(false)} className="px-4 py-2 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+                  <button type="submit" className="px-5 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl cursor-pointer shadow">Save Promo</button>
+                </div>
               </div>
             </form>
           </div>

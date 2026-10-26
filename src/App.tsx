@@ -32,7 +32,7 @@ import {
   getCachedCategories,
   RESTAURANT_UNSPLASH_DUPLICATE_IDS
 } from "./lib/supabaseDataService";
-import { subscribeToSupabaseBanners } from "./lib/supabaseLiveService";
+import { subscribeToSupabaseBanners, subscribeToSupabaseHomeConfig } from "./lib/supabaseLiveService";
 
 import PortalModal from "./components/portal/PortalModal";
 import CheckoutModal from "./components/CheckoutModal";
@@ -46,6 +46,7 @@ import { visitorTracker } from "./lib/visitorTracker";
 import { initVoiceWelcome, setWelcomeAudioUrl, setWelcomeVoiceEnabled } from "./lib/voiceWelcome";
 import { matchesProductSearch } from "./lib/banglishSearch";
 import { isUserPremiumMember, calculatePremiumDiscount } from "./lib/membership";
+import { fetchCouponsFromSupabase } from "./lib/supabaseLiveService";
 
 import { BannerSlider } from "./components/BannerSlider";
 import { CartItemRow } from "./components/CartItemRow";
@@ -407,28 +408,53 @@ export default function App() {
   const [globalSettings, setGlobalSettings] = useState<any | null>(null);
 
   useEffect(() => {
-    // 1. Fetch persistent server settings from /api/settings/global
+    // 1. Fetch persistent settings from Supabase site_settings, localStorage, or server API
     const fetchGlobalSettings = async () => {
+      const applySettings = (data: any) => {
+        if (!data) return;
+        setGlobalSettings((prev: any) => ({ ...prev, ...data }));
+        if (data.welcomeAudioUrl !== undefined) {
+          setWelcomeAudioUrl(data.welcomeAudioUrl);
+        }
+        if (data.enableWelcomeVoice !== undefined) {
+          setWelcomeVoiceEnabled(data.enableWelcomeVoice);
+        }
+        if (data.welcomeAudioUrl && data.enableWelcomeVoice !== false) {
+          initVoiceWelcome(data.welcomeAudioUrl, true);
+        }
+      };
+
+      // A. Try LocalStorage for instant render without network lag
+      try {
+        if (typeof window !== "undefined") {
+          const cached = JSON.parse(window.localStorage.getItem("kachabazar_global_settings") || "null");
+          if (cached) applySettings(cached);
+        }
+      } catch {}
+
+      // B. Try Supabase site_settings table (primary cloud database)
+      try {
+        const { data: supaData } = await supabase
+          .from("site_settings")
+          .select("settings")
+          .eq("key", "global_settings")
+          .maybeSingle();
+
+        if (supaData?.settings) {
+          applySettings(supaData.settings);
+        }
+      } catch {}
+
+      // C. Server route for local dev
       try {
         const res = await fetch("/api/settings/global");
         if (res.ok) {
           const json = await res.json();
           if (json?.settings) {
-            setGlobalSettings(json.settings);
-            if (json.settings.welcomeAudioUrl !== undefined) {
-              setWelcomeAudioUrl(json.settings.welcomeAudioUrl);
-            }
-            if (json.settings.enableWelcomeVoice !== undefined) {
-              setWelcomeVoiceEnabled(json.settings.enableWelcomeVoice);
-            }
-            if (json.settings.welcomeAudioUrl && json.settings.enableWelcomeVoice !== false) {
-              initVoiceWelcome(json.settings.welcomeAudioUrl, true);
-            }
+            applySettings(json.settings);
           }
         }
-      } catch (err) {
-        console.warn("Global settings fetch notice:", err);
-      }
+      } catch {}
     };
     fetchGlobalSettings();
 
@@ -886,7 +912,14 @@ export default function App() {
     },
     additionalMembers: []
   });
-  const [homeConfig, setHomeConfig] = useState<any>(null);
+  const [homeConfig, setHomeConfig] = useState<any>(() => {
+    try {
+      const cached = localStorage.getItem("kachabazar_home_config");
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<Record<string, boolean>>({});
 
   const availableProducts = useMemo(() => {
@@ -1007,6 +1040,7 @@ export default function App() {
     const candidates = raw.length >= 8 ? raw : availableProducts.filter(p => !popularIds.has(p.id) && !p.isCombo);
     return getBalancedShowcaseProducts(candidates, popularIds, 2);
   }, [availableProducts, popularShowcaseProducts]);
+
 
   // Synchronous callback for immediate optimistic product creation & update across admin & customer views
   const handleProductSavedInApp = (savedProduct: any) => {
@@ -1194,52 +1228,73 @@ export default function App() {
       })
       .catch(() => {});
 
-    fetch("/api/settings/home_config")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.settings && isMounted) {
-          setHomeConfig(data.settings);
-        }
-      })
-      .catch(() => {});
+    // Real-time Supabase home config subscription
+    const unsubHome = subscribeToSupabaseHomeConfig((cfg) => {
+      if (cfg && isMounted) {
+        setHomeConfig(cfg);
+      }
+    });
 
-    const unsubLeadership = onSnapshot(
-      doc(db, "settings", "leadership"), 
-      (docSnap) => {
-        if (docSnap.exists() && isMounted) {
-          const data = docSnap.data();
+    // Also fetch leadership from Supabase site_settings
+    supabase
+      .from("site_settings")
+      .select("settings")
+      .eq("key", "leadership")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.settings && isMounted) {
+          const lData = data.settings;
           setLeadership({
             chairman: {
-              nameEn: data.chairman?.nameEn || "MST HOSNE ARA BEGUM",
-              nameBn: data.chairman?.nameBn || "এমএসটি হোসনে আরা বেগম",
-              image: data.chairman?.image || chairmanImg
+              nameEn: lData.chairman?.nameEn || "MST HOSNE ARA BEGUM",
+              nameBn: lData.chairman?.nameBn || "এমএসটি হোসনে আরা বেগম",
+              image: lData.chairman?.image || chairmanImg
             },
             viceChairman: {
-              nameEn: data.viceChairman?.nameEn || "MD ABU HANIF SARKAR",
-              nameBn: data.viceChairman?.nameBn || "মোঃ আবু হানিফ সরকার",
-              image: data.viceChairman?.image || viceChairmanImg
+              nameEn: lData.viceChairman?.nameEn || "MD ABU HANIF SARKAR",
+              nameBn: lData.viceChairman?.nameBn || "মোঃ আবু হানিফ সরকার",
+              image: lData.viceChairman?.image || viceChairmanImg
             },
             founder: {
-              nameEn: data.founder?.nameEn || "MD ANIK SARKAR",
-              nameBn: data.founder?.nameBn || "মোঃ অনিক সরকার",
-              image: data.founder?.image || founderImg
+              nameEn: lData.founder?.nameEn || "MD ANIK SARKAR",
+              nameBn: lData.founder?.nameBn || "মোঃ অনিক সরকার",
+              image: lData.founder?.image || founderImg
             },
-            additionalMembers: Array.isArray(data.additionalMembers) ? data.additionalMembers : []
+            additionalMembers: Array.isArray(lData.additionalMembers) ? lData.additionalMembers : []
           });
         }
-      },
-      (err) => console.warn("Firestore leadership sync notice:", err.message)
-    );
+      }, () => {});
 
-    const unsubHome = onSnapshot(
-      doc(db, "settings", "home"), 
-      (docSnap) => {
-        if (docSnap.exists() && isMounted) {
-          setHomeConfig(docSnap.data());
-        }
-      },
-      (err) => console.warn("Firestore home config sync notice:", err.message)
-    );
+    let unsubLeadership = () => {};
+    try {
+      unsubLeadership = onSnapshot(
+        doc(db, "settings", "leadership"), 
+        (docSnap) => {
+          if (docSnap.exists() && isMounted) {
+            const data = docSnap.data();
+            setLeadership({
+              chairman: {
+                nameEn: data.chairman?.nameEn || "MST HOSNE ARA BEGUM",
+                nameBn: data.chairman?.nameBn || "এমএসটি হোসনে আরা বেগম",
+                image: data.chairman?.image || chairmanImg
+              },
+              viceChairman: {
+                nameEn: data.viceChairman?.nameEn || "MD ABU HANIF SARKAR",
+                nameBn: data.viceChairman?.nameBn || "মোঃ আবু হানিফ সরকার",
+                image: data.viceChairman?.image || viceChairmanImg
+              },
+              founder: {
+                nameEn: data.founder?.nameEn || "MD ANIK SARKAR",
+                nameBn: data.founder?.nameBn || "মোঃ অনিক সরকার",
+                image: data.founder?.image || founderImg
+              },
+              additionalMembers: Array.isArray(data.additionalMembers) ? data.additionalMembers : []
+            });
+          }
+        },
+        (err) => console.warn("Firestore leadership sync notice:", err.message)
+      );
+    } catch {}
 
     const unsubSubcategories = subscribeToAllSubcategories((subs) => {
       setDbSubcategories(deduplicateSubcategories(subs));
@@ -1708,17 +1763,45 @@ export default function App() {
       </div>
     );
   };
-  const handleApplyCoupon = () => {
+  const handleApplyCoupon = async () => {
     const code = couponCode.trim().toUpperCase();
+    if (!code) return;
+
+    try {
+      const supaCoupons = await fetchCouponsFromSupabase();
+      const matched = supaCoupons.find((c: any) => c.code?.toUpperCase() === code && c.isActive);
+      if (matched) {
+        if (matched.minOrderAmount && subtotal < matched.minOrderAmount) {
+          triggerToast(
+            `এই কুপনের জন্য সর্বনিম্ন ৳${matched.minOrderAmount} টাকার অর্ডার প্রয়োজন!`,
+            `Minimum order of ৳${matched.minOrderAmount} required for this coupon!`
+          );
+          return;
+        }
+        if (code === "FREESHIP") {
+          setAppliedCoupon({ code, discount: 40 });
+          triggerToast("ফ্রি ডেলিভারি কুপন প্রয়োগ করা হয়েছে!", "Free Delivery coupon successfully applied!");
+        } else {
+          const discountVal = matched.discountPercent || matched.discountAmount || matched.discount || 10;
+          setAppliedCoupon({ code, discount: discountVal });
+          triggerToast(`কুপন "${code}" সফলভাবে প্রয়োগ করা হয়েছে! (${discountVal}% ছাড়)`, `Coupon "${code}" successfully applied! (${discountVal}% off)`);
+        }
+        setCouponCode("");
+        return;
+      }
+    } catch (err) {
+      console.warn("Coupon lookup note:", err);
+    }
+
     if (code === "KACHA10") {
       setAppliedCoupon({ code, discount: 10 });
       triggerToast("১০% ছাড় কুপন সফলভাবে প্রয়োগ করা হয়েছে!", "10% off coupon successfully applied!");
     } else if (code === "FREESHIP") {
       setAppliedCoupon({ code, discount: 40 }); // 40 BDT delivery fee covered
       triggerToast("ফ্রি ডেলিভারি কুপন প্রয়োগ করা হয়েছে!", "Free Delivery coupon successfully applied!");
-    } else if (code === "BORSHE15") {
+    } else if (code === "BORSHE15" || code === "EID50") {
       setAppliedCoupon({ code, discount: 15 });
-      triggerToast("১৫% বিশেষ রেসিপি ডিসকাউন্ট সফল!", "15% recipe bundle discount applied!");
+      triggerToast("১৫% বিশেষ ডিসকাউন্ট সফল!", "15% discount applied!");
     } else {
       triggerToast("দুঃখিত, কুপনটি সঠিক নয়!", "Invalid coupon code entered!");
     }
@@ -2328,7 +2411,11 @@ export default function App() {
             }
           }}
           onCategoryClick={navigateToCategory}
-          customBanners={homeConfig?.heroBanners || banners}
+          customBanners={
+            (homeConfig && Array.isArray(homeConfig.heroBanners))
+              ? homeConfig.heroBanners
+              : ((banners && banners.length > 0) ? banners : undefined)
+          }
           referralBanner={homeConfig?.referralBanner}
           loading={loadingBanners}
         />
@@ -2572,29 +2659,31 @@ export default function App() {
             )}
           </section>
 
-          {/* ================= 2. POPULAR & ATTRACTIVE PRODUCTS (জনপ্রিয় ও আকর্ষণীয় পণ্য সমূহ - একদম শেষে) ================= */}
-          <ProductSection
-            title={lang === "bn" ? "জনপ্রিয় ও আকর্ষণীয় পণ্য সমূহ" : "Popular & Attractive Products"}
-            subtitle={lang === "bn" ? "গ্রাহকদের সবচেয়ে পছন্দের ও আকর্ষনীয় সেরা পণ্যসমূহ" : "Customer favorite and most attractive products"}
-            accentColorClass="bg-emerald-600"
-            products={popularShowcaseProducts}
-            loading={loadingProducts}
-            limit={popularLimit}
-            onToggleLimit={() => setPopularLimit(prev => prev === 8 ? 50 : 8)}
-            lang={lang}
-            fmtNum={fmtNum}
-            wishlist={wishlist}
-            toggleWishlist={toggleWishlist}
-            cart={cart}
-            addToCart={addToCart}
-            updateCartQuantity={updateCartQuantity}
-            removeFromCart={removeFromCart}
-            handleBuyNow={handleBuyNow}
-            openQuickView={openQuickView}
-            handleProductImgError={handleProductImgError}
-          />
+          {/* ================= 2. POPULAR & ATTRACTIVE PRODUCTS (জনপ্রিয় ও আকর্ষণীয় পণ্য সমূহ) ================= */}
+          {homeConfig?.featuredProducts?.popularSectionVisible !== false && (
+            <ProductSection
+              title={lang === "bn" ? "জনপ্রিয় ও আকর্ষণীয় পণ্য সমূহ" : "Popular & Attractive Products"}
+              subtitle={lang === "bn" ? "গ্রাহকদের সবচেয়ে পছন্দের ও আকর্ষনীয় সেরা পণ্যসমূহ" : "Customer favorite and most attractive products"}
+              accentColorClass="bg-emerald-600"
+              products={popularShowcaseProducts}
+              loading={loadingProducts}
+              limit={popularLimit}
+              onToggleLimit={() => setPopularLimit(prev => prev === 8 ? 50 : 8)}
+              lang={lang}
+              fmtNum={fmtNum}
+              wishlist={wishlist}
+              toggleWishlist={toggleWishlist}
+              cart={cart}
+              addToCart={addToCart}
+              updateCartQuantity={updateCartQuantity}
+              removeFromCart={removeFromCart}
+              handleBuyNow={handleBuyNow}
+              openQuickView={openQuickView}
+              handleProductImgError={handleProductImgError}
+            />
+          )}
 
-          {/* ================= 3. SPECIAL FOR YOU (আপনার জন্য স্পেশাল - একদম শেষে) ================= */}
+          {/* ================= 3. SPECIAL FOR YOU (আপনার জন্য স্পেশাল) ================= */}
           <ProductSection
             title={lang === "bn" ? "আপনার জন্য স্পেশাল" : "Special For You"}
             subtitle={lang === "bn" ? "সর্বোচ্চ রেটিং ও বিশেষ পছন্দের সেরা পণ্য সম্ভার" : "Specially handpicked top-rated products for you"}
@@ -3503,6 +3592,8 @@ export default function App() {
           </div>
         </section>
       )}
+
+
 
       {/* ================= WHY CHOOSE US (EXACT MATCH TO REFERENCE DESIGN - COMPACT 50% HEIGHT) ================= */}
       {homeConfig?.sectionVisibility?.showWhyChooseUs !== false && (

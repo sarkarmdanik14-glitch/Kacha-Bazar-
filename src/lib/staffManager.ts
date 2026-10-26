@@ -29,6 +29,7 @@ import {
 } from "./firebase";
 import { apiClient, getApiAuthHeaders } from "./apiClient";
 import { syncSingleStaffToSupabase } from "./supabaseSync";
+import { supabase } from "./supabase";
 
 // Module registry with descriptions
 export interface ModuleInfo {
@@ -734,7 +735,50 @@ export async function fetchSingleStaffById(lookupId: string): Promise<StaffMembe
  * it bootstraps the default staff records from the server store into Firestore.
  */
 export async function fetchStaffFromFirestore(): Promise<StaffMember[]> {
-  // If user is authenticated in Firebase Auth, attempt direct Firestore read:
+  // 1. Direct Supabase read (primary cloud database)
+  try {
+    const { data: supaStaff, error } = await supabase
+      .from("staff")
+      .select("*")
+      .order("staff_id", { ascending: true });
+
+    if (!error && supaStaff && supaStaff.length > 0) {
+      const list: StaffMember[] = supaStaff.map((s: any) => ({
+        id: s.id,
+        staffId: s.staff_id || s.id,
+        username: s.username || "",
+        fullName: s.full_name || "Staff Member",
+        mobile: s.mobile || "",
+        email: s.email || "",
+        photoURL: s.photo_url || "",
+        digitalSignature: s.digital_signature || "",
+        role: (s.role as StaffRole) || "order_manager",
+        designation: s.designation || "Staff Executive",
+        department: s.department || "General Operations",
+        joiningDate: s.joining_date || new Date().toISOString().split("T")[0],
+        bloodGroup: s.blood_group || "N/A",
+        emergencyContact: s.emergency_contact || s.mobile || "",
+        monthlySalary: s.monthly_salary !== undefined && s.monthly_salary !== null ? Number(s.monthly_salary) : undefined,
+        salaryStatus: s.salary_status || "due",
+        lastPaymentDate: s.last_payment_date || "",
+        salaryHistory: Array.isArray(s.salary_history) ? s.salary_history : [],
+        status: (s.status as StaffStatus) || "active",
+        onlineStatus: (s.online_status as StaffOnlineStatus) || "offline",
+        lastActiveAt: s.last_active_at || new Date().toISOString(),
+        isSuperAdmin: !!s.is_super_admin || s.role === "super_admin",
+        permissions: s.permissions || {},
+        assignedAgentDesk: (s.role === "call_center_agent" && s.assigned_agent_desk) ? Number(s.assigned_agent_desk) : null,
+        createdAt: s.created_at || new Date().toISOString(),
+        updatedAt: s.updated_at || new Date().toISOString()
+      }));
+      list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
+      return list;
+    }
+  } catch (err) {
+    console.warn("Notice reading staff from Supabase:", err);
+  }
+
+  // 2. Fallback to Firebase Firestore if authenticated
   if (auth.currentUser) {
     try {
       const staffColRef = collection(db, "staff");
@@ -774,18 +818,13 @@ export async function fetchStaffFromFirestore(): Promise<StaffMember[]> {
           });
         });
 
-        // Sort staff members by staffId (e.g. CFI-KB-XXX, CFI-KB-YYY)
         list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
         return list;
       }
-    } catch (err: any) {
-      if (!err?.message?.includes("offline") && !err?.message?.includes("permissions")) {
-        console.warn("Notice reading staff from Firestore:", err?.message || err);
-      }
-    }
+    } catch {}
   }
 
-  // Primary path for Session/Supabase staff or public fallback
+  // 3. Server API fallback for session users
   try {
     const authHeaders = getStaffAuthHeaders();
     const hasAuth = !!(authHeaders["Authorization"] || authHeaders["x-session-id"] || authHeaders["x-supabase-token"] || authHeaders["x-firebase-id-token"]);
@@ -799,9 +838,7 @@ export async function fetchStaffFromFirestore(): Promise<StaffMember[]> {
         return data.staff;
       }
     }
-  } catch (e) {
-    // If unauthorized for full staff details (e.g. guest or memo view), load public active officers
-  }
+  } catch {}
 
   try {
     const pubData = await apiClient.get<any>("/api/staff/public-officers", { silent: true });
@@ -819,63 +856,83 @@ export async function fetchStaffFromFirestore(): Promise<StaffMember[]> {
 export const fetchStaffMembers = fetchStaffFromFirestore;
 
 /**
- * Real-time listener for the Firestore staff collection.
- * Triggers callback immediately on changes across all sessions and devices.
+ * Real-time listener for staff collection across Supabase and Firestore.
  */
 export function subscribeToStaffCollection(callback: (staff: StaffMember[]) => void): () => void {
-  // If not authenticated in Firebase Auth, fetch initial staff data via server API
-  if (!auth.currentUser) {
-    fetchStaffFromFirestore().then(callback).catch(() => {});
-    return () => {};
-  }
+  let isMounted = true;
 
+  // 1. Initial fetch from Supabase
+  fetchStaffFromFirestore().then((staffList) => {
+    if (isMounted && staffList && staffList.length > 0) {
+      callback(staffList);
+    }
+  }).catch(() => {});
+
+  // 2. Real-time Supabase listener
+  let supaChannel: any = null;
   try {
-    const staffColRef = collection(db, "staff");
-    const unsubscribe = onSnapshot(staffColRef, (snapshot) => {
-      const list: StaffMember[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        list.push({
-          id: docSnap.id,
-          staffId: data.staffId || docSnap.id,
-          username: data.username || "",
-          fullName: data.fullName || "Staff Member",
-          mobile: data.mobile || "",
-          email: data.email || "",
-          photoURL: data.photoURL || "",
-          digitalSignature: data.digitalSignature || data.signature || data.signatureURL || data.signatureUrl || "",
-          role: (data.role as StaffRole) || "order_manager",
-          designation: data.designation || "Staff Executive",
-          department: data.department || "General Operations",
-          joiningDate: data.joiningDate || new Date().toISOString().split("T")[0],
-          bloodGroup: data.bloodGroup || "N/A",
-          emergencyContact: data.emergencyContact || data.mobile || "",
-          monthlySalary: data.monthlySalary !== undefined && data.monthlySalary !== null ? Number(data.monthlySalary) : undefined,
-          salaryStatus: data.salaryStatus || "due",
-          lastPaymentDate: data.lastPaymentDate || "",
-          salaryHistory: Array.isArray(data.salaryHistory) ? data.salaryHistory : [],
-          status: (data.status as StaffStatus) || "active",
-          onlineStatus: (data.onlineStatus as StaffOnlineStatus) || "offline",
-          lastActiveAt: data.lastActiveAt || new Date().toISOString(),
-          isSuperAdmin: !!data.isSuperAdmin || data.role === "super_admin",
-          permissions: data.permissions || {},
-          assignedAgentDesk: (data.role === "call_center_agent" && data.assignedAgentDesk) ? Number(data.assignedAgentDesk) : null,
-          createdAt: data.createdAt || new Date().toISOString(),
-          updatedAt: data.updatedAt || new Date().toISOString()
+    const channelId = `staff_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    supaChannel = supabase
+      .channel(channelId)
+      .on("postgres_changes", { event: "*", schema: "public", table: "staff" }, () => {
+        fetchStaffFromFirestore().then((staffList) => {
+          if (isMounted && staffList) callback(staffList);
         });
-      });
-      list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
-      callback(list);
-    }, (error) => {
-      // Benign notice
-      console.warn("Staff real-time listener notice:", error.message);
-    });
+      })
+      .subscribe();
+  } catch {}
 
-    return unsubscribe;
-  } catch (err) {
-    console.warn("Notice subscribing to Firestore staff collection:", err);
-    return () => {};
+  // 3. Fallback Firestore listener
+  let unsubFirestore = () => {};
+  if (auth.currentUser) {
+    try {
+      const staffColRef = collection(db, "staff");
+      unsubFirestore = onSnapshot(staffColRef, (snapshot) => {
+        if (!snapshot.empty && isMounted) {
+          const list: StaffMember[] = [];
+          snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            list.push({
+              id: docSnap.id,
+              staffId: data.staffId || docSnap.id,
+              username: data.username || "",
+              fullName: data.fullName || "Staff Member",
+              mobile: data.mobile || "",
+              email: data.email || "",
+              photoURL: data.photoURL || "",
+              digitalSignature: data.digitalSignature || data.signature || data.signatureURL || data.signatureUrl || "",
+              role: (data.role as StaffRole) || "order_manager",
+              designation: data.designation || "Staff Executive",
+              department: data.department || "General Operations",
+              joiningDate: data.joiningDate || new Date().toISOString().split("T")[0],
+              bloodGroup: data.bloodGroup || "N/A",
+              emergencyContact: data.emergencyContact || data.mobile || "",
+              monthlySalary: data.monthlySalary !== undefined && data.monthlySalary !== null ? Number(data.monthlySalary) : undefined,
+              salaryStatus: data.salaryStatus || "due",
+              lastPaymentDate: data.lastPaymentDate || "",
+              salaryHistory: Array.isArray(data.salaryHistory) ? data.salaryHistory : [],
+              status: (data.status as StaffStatus) || "active",
+              onlineStatus: (data.onlineStatus as StaffOnlineStatus) || "offline",
+              lastActiveAt: data.lastActiveAt || new Date().toISOString(),
+              isSuperAdmin: !!data.isSuperAdmin || data.role === "super_admin",
+              permissions: data.permissions || {},
+              assignedAgentDesk: (data.role === "call_center_agent" && data.assignedAgentDesk) ? Number(data.assignedAgentDesk) : null,
+              createdAt: data.createdAt || new Date().toISOString(),
+              updatedAt: data.updatedAt || new Date().toISOString()
+            });
+          });
+          list.sort((a, b) => (a.staffId || "").localeCompare(b.staffId || ""));
+          callback(list);
+        }
+      }, () => {});
+    } catch {}
   }
+
+  return () => {
+    isMounted = false;
+    if (supaChannel) supabase.removeChannel(supaChannel).catch(() => {});
+    unsubFirestore();
+  };
 }
 
 /**
@@ -1311,7 +1368,10 @@ export async function deleteStaffFromFirestore(
     }
   });
 
-  // Supabase removal is now handled securely on the server via /api/staff/delete
+  // Direct Supabase delete (powers static hosting)
+  try {
+    await supabase.from("staff").delete().or(`id.eq.${staffIdOrDocId},staff_id.eq.${staffIdOrDocId}`);
+  } catch {}
 
   // 3. Log activity in Firestore
   await logStaffActivity({

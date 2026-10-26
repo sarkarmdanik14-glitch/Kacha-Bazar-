@@ -635,6 +635,51 @@ app.post("/api/settings/:key", rateLimiter(60, 60000), requireAdminAuth, async (
 });
 
 // ==========================================
+// BANNER MANAGEMENT API ROUTES
+// ==========================================
+app.delete("/api/banners/:id", async (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+  try {
+    const sb = getServerSupabase();
+    if (sb) {
+      const { error } = await sb.from("banners").delete().eq("id", id);
+      if (error) console.warn("[API] Banner delete error:", error.message);
+    }
+    return res.json({ success: true, id });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || err });
+  }
+});
+
+app.post("/api/banners", async (req: express.Request, res: express.Response) => {
+  const banner = req.body;
+  try {
+    const sb = getServerSupabase();
+    if (sb && banner?.id) {
+      const payload = {
+        id: banner.id,
+        title_bn: banner.titleBn || "",
+        title_en: banner.titleEn || "",
+        subtitle_bn: banner.subtitleBn || "",
+        subtitle_en: banner.subtitleEn || "",
+        tag_bn: banner.tagBn || "",
+        tag_en: banner.tagEn || "",
+        bg_gradient: banner.bgGradient || "from-emerald-800 via-teal-900 to-slate-900",
+        image: banner.image || "",
+        target_url: banner.targetUrl || banner.linkUrl || "",
+        is_active: banner.isActive !== false,
+        display_order: Number(banner.displayOrder || 0),
+        updated_at: new Date().toISOString()
+      };
+      await sb.from("banners").upsert(payload, { onConflict: "id" });
+    }
+    return res.json({ success: true, banner });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || err });
+  }
+});
+
+// ==========================================
 // REAL-TIME APP VISITOR ANALYTICS SYSTEM
 // ==========================================
 /**

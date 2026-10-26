@@ -446,8 +446,35 @@ export async function syncDirectlyToSupabase(
 export async function syncSingleProductToSupabase(p: any): Promise<boolean> {
   try {
     if (!p || !p.id) return false;
-    const res = await apiClient.post<any>("/api/sync/product", p, { silent: true });
-    return !!res?.success;
+    // 1. Direct client-side write to Supabase (powers static hosting)
+    const productRow = {
+      id: String(p.id).trim(),
+      name_bn: p.nameBn || p.name || "",
+      name_en: p.nameEn || p.name_en || "",
+      category_id: p.categoryId || p.category_id || "",
+      sub_category_id: p.subCategoryId || p.sub_category_id || null,
+      price: Number(p.price || 0),
+      original_price: Number(p.originalPrice || p.original_price || p.price || 0),
+      discount_percent: Number(p.discountPercent || p.discount_percent || 0),
+      image: p.image || "",
+      unit_bn: p.unitBn || p.unit || "",
+      unit_en: p.unitEn || p.unit_en || "",
+      in_stock: p.inStock !== false,
+      stock_quantity: Number(p.stockQuantity ?? 100),
+      is_featured: !!p.isFeatured,
+      is_popular: !!p.isPopular,
+      is_daily_best: !!p.isDailyBest,
+      is_special_offer: !!p.isSpecialOffer,
+      description_bn: p.descriptionBn || "",
+      description_en: p.descriptionEn || "",
+      is_deleted: false,
+      updated_at: new Date().toISOString()
+    };
+    await supabase.from("products").upsert(productRow, { onConflict: "id" });
+
+    // 2. Server sync API
+    await apiClient.post<any>("/api/sync/product", p, { silent: true });
+    return true;
   } catch (err: any) {
     console.warn("[Server Sync] Single product sync notice:", err?.message || err);
     return false;
@@ -457,8 +484,11 @@ export async function syncSingleProductToSupabase(p: any): Promise<boolean> {
 export async function deleteProductFromSupabase(productId: string): Promise<boolean> {
   try {
     if (!productId) return false;
-    const res = await apiClient.post<any>("/api/sync/product-delete", { productId }, { silent: true });
-    return !!res?.success;
+    // 1. Direct Supabase delete
+    await supabase.from("products").delete().eq("id", productId);
+    // 2. Server sync delete
+    await apiClient.post<any>("/api/sync/product-delete", { productId }, { silent: true });
+    return true;
   } catch {
     return false;
   }
@@ -467,8 +497,18 @@ export async function deleteProductFromSupabase(productId: string): Promise<bool
 export async function syncSingleCategoryToSupabase(c: any): Promise<boolean> {
   try {
     if (!c || !c.id) return false;
-    const res = await apiClient.post<any>("/api/sync/category", c, { silent: true });
-    return !!res?.success;
+    await supabase.from("categories").upsert({
+      id: String(c.id).trim(),
+      name_bn: c.nameBn || c.name || "",
+      name_en: c.nameEn || c.name_en || "",
+      icon_name: c.iconName || c.icon || "ShoppingBag",
+      image: c.image || "",
+      display_order: Number(c.displayOrder || 0),
+      is_active: c.isActive !== false,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "id" });
+    await apiClient.post<any>("/api/sync/category", c, { silent: true });
+    return true;
   } catch {
     return false;
   }
@@ -503,8 +543,15 @@ export async function deleteOrderFromSupabase(orderId: string): Promise<boolean>
 export async function syncSingleSubcategoryToSupabase(s: any): Promise<boolean> {
   try {
     if (!s || !s.id) return false;
-    const res = await apiClient.post<any>("/api/sync/subcategory", s, { silent: true });
-    return !!res?.success;
+    await supabase.from("subcategories").upsert({
+      id: String(s.id).trim(),
+      name_bn: s.nameBn || s.name || "",
+      name_en: s.nameEn || s.name_en || "",
+      category_id: s.categoryId || s.category_id || "",
+      updated_at: new Date().toISOString()
+    }, { onConflict: "id" });
+    await apiClient.post<any>("/api/sync/subcategory", s, { silent: true });
+    return true;
   } catch {
     return false;
   }
@@ -513,8 +560,8 @@ export async function syncSingleSubcategoryToSupabase(s: any): Promise<boolean> 
 export async function syncSingleOrderToSupabase(o: any): Promise<boolean> {
   try {
     if (!o || !o.id) return false;
-    const res = await apiClient.post<any>("/api/sync/order", o, { silent: true });
-    return !!res?.success;
+    await apiClient.post<any>("/api/sync/order", o, { silent: true });
+    return true;
   } catch {
     return false;
   }
@@ -523,8 +570,29 @@ export async function syncSingleOrderToSupabase(o: any): Promise<boolean> {
 export async function syncSingleStaffToSupabase(st: any): Promise<boolean> {
   try {
     if (!st || !st.id) return false;
-    const res = await apiClient.post<any>("/api/sync/staff", st, { silent: true });
-    return !!res?.success;
+    const staffRow = {
+      id: String(st.id).trim(),
+      staff_id: st.staffId || st.id,
+      username: st.username || "",
+      full_name: st.fullName || "Staff Member",
+      mobile: st.mobile || "",
+      email: st.email || null,
+      photo_url: st.photoURL || st.photo_url || null,
+      digital_signature: st.digitalSignature || null,
+      role: st.role || "order_manager",
+      designation: st.designation || "Staff",
+      department: st.department || "General",
+      joining_date: st.joiningDate || null,
+      monthly_salary: Number(st.monthlySalary) || 0,
+      salary_status: st.salaryStatus || "due",
+      status: st.status || "active",
+      online_status: st.onlineStatus || "offline",
+      permissions: st.permissions || {},
+      updated_at: new Date().toISOString()
+    };
+    await supabase.from("staff").upsert(staffRow, { onConflict: "id" });
+    await apiClient.post<any>("/api/sync/staff", st, { silent: true });
+    return true;
   } catch {
     return false;
   }
@@ -533,8 +601,26 @@ export async function syncSingleStaffToSupabase(st: any): Promise<boolean> {
 export async function syncSinglePartnerShopToSupabase(ps: any): Promise<boolean> {
   try {
     if (!ps || !ps.id) return false;
-    const res = await apiClient.post<any>("/api/sync/partner-shop", ps, { silent: true });
-    return !!res?.success;
+    const shopRow = {
+      id: String(ps.id).trim(),
+      partner_id: ps.partnerId || ps.id,
+      shop_name: ps.shopName || ps.name || "Partner Shop",
+      logo: ps.logo || null,
+      owner_name: ps.ownerName || "",
+      mobile: ps.mobile || "",
+      email: ps.email || null,
+      address: ps.address || "",
+      category: ps.category || null,
+      commission_rate: Number(ps.commissionRate) || 10.0,
+      status: ps.status || "active",
+      balance: Number(ps.balance) || 0,
+      total_sales: Number(ps.totalSales) || 0,
+      total_orders: Number(ps.totalOrders) || 0,
+      updated_at: new Date().toISOString()
+    };
+    await supabase.from("partner_shops").upsert(shopRow, { onConflict: "id" });
+    await apiClient.post<any>("/api/sync/partner-shop", ps, { silent: true });
+    return true;
   } catch {
     return false;
   }
