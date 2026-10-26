@@ -21,6 +21,7 @@ interface BannerSliderProps {
   onFlashSaleClick: () => void;
   onCategoryClick?: (categoryId: string) => void;
   customBanners?: any[];
+  promoBanners?: any[];
   referralBanner?: any;
   loading?: boolean;
 }
@@ -170,6 +171,7 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
   onFlashSaleClick,
   onCategoryClick,
   customBanners = [],
+  promoBanners = [],
   referralBanner,
   loading = false
 }) => {
@@ -206,21 +208,27 @@ export const BannerSlider: React.FC<BannerSliderProps> = ({
     isActive: referralBanner?.enabled !== false
   };
 
-  // Determine active slides list:
-  // If admin configured custom banners exist, use them.
-  // Otherwise, use DEFAULT_HERO_IMAGE_SLIDES with crystal-clear photography.
+  // 1. Filter active custom hero banners
   const activeCustomBanners = (customBanners || []).filter(b => b && b.isActive !== false);
 
-  const baseSlides = activeCustomBanners.length > 0 
-    ? activeCustomBanners 
-    : DEFAULT_HERO_IMAGE_SLIDES;
+  // 2. Filter active custom promo / offer banners
+  const activePromoBanners = (promoBanners || []).filter(b => b && b.isActive !== false);
 
-  const hasReferral = baseSlides.some(b => b.type === "referral" || b.id === "app-referral-banner");
+  // 3. Referral slide active check
+  const referralSlideActive = referralBanner?.enabled !== false;
 
-  const slides = [
-    ...baseSlides,
-    ...(!hasReferral && dynamicReferralSlide.isActive ? [dynamicReferralSlide] : [])
+  // Combine all admin-managed slides (Hero banners, Offer/Promo banners, and Referral banner)
+  const userConfiguredSlides = [
+    ...activeCustomBanners,
+    ...activePromoBanners,
+    ...(referralSlideActive ? [dynamicReferralSlide] : [])
   ];
+
+  // If admin has any custom banners or active referral, use ONLY those!
+  // Fallback to default template slides only when there is truly no banner data configured at all.
+  const slides = userConfiguredSlides.length > 0 
+    ? userConfiguredSlides 
+    : DEFAULT_HERO_IMAGE_SLIDES;
 
   const totalSlides = slides.length;
 

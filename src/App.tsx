@@ -1169,13 +1169,14 @@ export default function App() {
     let unsubSupabaseBanners = () => {};
     try {
       unsubSupabaseBanners = subscribeToSupabaseBanners((bList) => {
-        if (bList && bList.length > 0 && isMounted) {
-          setBanners(bList);
+        if (isMounted) {
+          setBanners(bList || []);
           setLoadingBanners(false);
         }
       });
     } catch (sbBanErr) {
       console.warn("Supabase banners listener notice:", sbBanErr);
+      setLoadingBanners(false);
     }
 
     let unsubBanners = () => {};
@@ -1230,10 +1231,15 @@ export default function App() {
 
     // Real-time Supabase home config subscription
     const unsubHome = subscribeToSupabaseHomeConfig((cfg) => {
-      if (cfg && isMounted) {
-        setHomeConfig(cfg);
+      if (isMounted) {
+        if (cfg) setHomeConfig(cfg);
+        setLoadingBanners(false);
       }
     });
+
+    const bannerSafetyTimer = setTimeout(() => {
+      if (isMounted) setLoadingBanners(false);
+    }, 600);
 
     // Also fetch leadership from Supabase site_settings
     supabase
@@ -1311,6 +1317,7 @@ export default function App() {
       unsubBanners();
       unsubLeadership();
       unsubHome();
+      clearTimeout(bannerSafetyTimer);
     };
   }, []);
 
@@ -2416,6 +2423,7 @@ export default function App() {
               ? homeConfig.heroBanners
               : ((banners && banners.length > 0) ? banners : undefined)
           }
+          promoBanners={homeConfig?.promoBanners}
           referralBanner={homeConfig?.referralBanner}
           loading={loadingBanners}
         />

@@ -278,7 +278,7 @@ export default function AdminHomePageTab({ products, categories, lang, triggerTo
           ...prev,
           ...(homeData || {}),
           heroBanners: resolvedHeroBanners,
-          promoBanners: (homeData?.promoBanners && homeData.promoBanners.length > 0) ? homeData.promoBanners : DEFAULT_PROMO_BANNERS,
+          promoBanners: (homeData && Array.isArray(homeData.promoBanners)) ? homeData.promoBanners : DEFAULT_PROMO_BANNERS,
           referralBanner: { ...prev.referralBanner, ...(homeData?.referralBanner || {}) },
           callToOrder: { ...prev.callToOrder, ...(homeData?.callToOrder || {}) },
           categoryConfig: { ...prev.categoryConfig, ...(homeData?.categoryConfig || {}) },
