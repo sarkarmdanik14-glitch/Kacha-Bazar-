@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { auth, db, doc, getDoc, setDoc, serverTimestamp, signOut, onAuthStateChanged, collection, query, where, getDocs } from "../../lib/firebase";
 import { supabase } from "../../lib/supabase";
-import { supabaseSignOut, onSupabaseAuthStateChange, getSupabaseUser, checkIsSupabaseAdmin } from "../../lib/supabaseAuth";
-import { X, RefreshCw, Key, Shield, LogOut } from "lucide-react";
+import { supabaseSignOut, onSupabaseAuthStateChange, getSupabaseUser, checkIsSupabaseAdmin, SUPER_ADMIN_EMAILS } from "../../lib/supabaseAuth";
+import { X, RefreshCw, Key, Shield, LogOut, Lock } from "lucide-react";
 
 import AuthView from "./AuthView";
 import CustomerPortal from "./CustomerPortal";
@@ -56,6 +56,8 @@ export default function PortalModal({
 }: PortalModalProps) {
   const resolveInitialRole = () => {
     if (forcedRole && forcedRole !== "customer") return forcedRole;
+    const cleanEmail = (initialUser?.email || "").toLowerCase().trim();
+    if (cleanEmail && SUPER_ADMIN_EMAILS.has(cleanEmail)) return "super_admin";
     if (initialUser?.role) return initialUser.role;
     return "customer";
   };
@@ -66,6 +68,8 @@ export default function PortalModal({
   const [userRole, setUserRole] = useState<string>(initialRole);
   const [activePortalTab, setActivePortalTab] = useState<string>(() => {
     if (forcedRole && forcedRole !== "customer") return forcedRole;
+    const cleanEmail = (initialUser?.email || "").toLowerCase().trim();
+    if (cleanEmail && SUPER_ADMIN_EMAILS.has(cleanEmail)) return "admin";
     if (initialRole === "admin" || initialRole === "super_admin") return "admin";
     if (initialRole === "seller") return "seller";
     if (initialRole === "rider") return "rider";
@@ -108,12 +112,15 @@ export default function PortalModal({
   // Keep in sync if initialUser updates from parent
   useEffect(() => {
     if (initialUser && (!currentUser || currentUser.uid !== initialUser.uid || currentUser.id !== initialUser.id)) {
-      setCurrentUser(initialUser);
-      const role = (forcedRole && forcedRole !== "customer") ? forcedRole : (initialUser.role || "customer");
+      const cleanEmail = (initialUser.email || "").toLowerCase().trim();
+      const isSuper = cleanEmail && SUPER_ADMIN_EMAILS.has(cleanEmail);
+      const role = isSuper ? "super_admin" : ((forcedRole && forcedRole !== "customer") ? forcedRole : (initialUser.role || "customer"));
+      
+      setCurrentUser({ ...initialUser, role, isSuperAdmin: isSuper || initialUser.isSuperAdmin });
       setUserRole(role);
       if (forcedRole && forcedRole !== "customer") {
         setActivePortalTab(forcedRole);
-      } else if (role === "admin" || role === "super_admin") {
+      } else if (role === "admin" || role === "super_admin" || isSuper) {
         setActivePortalTab("admin");
       } else if (role === "seller") {
         setActivePortalTab("seller");
@@ -167,8 +174,9 @@ export default function PortalModal({
           return;
         }
         setCurrentUser(null);
-        setUserRole("customer");
-        setActivePortalTab("customer");
+        const resolvedRole = (forcedRole && forcedRole !== "customer") ? forcedRole : "customer";
+        setUserRole(resolvedRole);
+        setActivePortalTab(resolvedRole);
         setLoading(false);
         return;
       }
@@ -184,7 +192,7 @@ export default function PortalModal({
           let isAdminUser = false;
           let adminData: any = null;
 
-          // 1. Supabase admin check (strict database verification by uid)
+          // 1. Supabase admin check (strict database verification by uid & email)
           isAdminUser = await checkIsSupabaseAdmin(uid, email);
 
           // 2. Verified active staff session check
@@ -193,7 +201,7 @@ export default function PortalModal({
             if (staffSessionId) {
               try {
                 const sRes = await apiClient.get<any>("/api/staff/active-session", { silent: true });
-                if (sRes?.success && sRes?.staff && (sRes.staff.role === "admin" || sRes.staff.role === "super_admin")) {
+                if (sRes?.success && sRes?.staff && (sRes.staff.role === "admin" || sRes.staff.role === "super_admin" || sRes.staff.role === "founder")) {
                   isAdminUser = true;
                   adminData = sRes.staff;
                 }
@@ -247,15 +255,24 @@ export default function PortalModal({
             setLoading(false);
             return;
           } else {
+            // User is currently authenticated as customer, but opened admin panel:
+            // Allow them to see the admin login interface without throwing an error or signing out
+            if (user && (user.role === "customer" || !user.role)) {
+              setCurrentUser(user);
+              setUserRole("customer");
+              if (forcedRole === "admin") {
+                setActivePortalTab("admin");
+              } else {
+                setActivePortalTab("customer");
+              }
+              setLoading(false);
+              return;
+            }
             await supabaseSignOut().catch(() => {});
             await signOut(auth).catch(() => {});
             setCurrentUser(null);
-            setUserRole("customer");
-            setActivePortalTab("customer");
-            triggerToast(
-              "প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।",
-              "Access denied. You are not authorized as an admin."
-            );
+            setUserRole(forcedRole === "admin" ? "admin" : "customer");
+            setActivePortalTab(forcedRole === "admin" ? "admin" : "customer");
             setLoading(false);
             return;
           }
@@ -510,8 +527,18 @@ export default function PortalModal({
     };
   }, [isOpen, forcedRole]);
 
-  const handleAuthSuccess = async (userData: any, role: string) => {
-    if (role === "partner") {
+  const handleAuthSuccess = async (userData: any, authRole: string) => {
+    const cleanEmail = (userData?.email || "").toLowerCase().trim();
+    const uid = userData?.uid || userData?.id || "";
+    const isSuperAdminEmail = SUPER_ADMIN_EMAILS.has(cleanEmail);
+    const isAdmin = isSuperAdminEmail || (await checkIsSupabaseAdmin(uid, cleanEmail));
+
+    let targetRole = (userData?.role || authRole || "customer").toLowerCase();
+    if (isAdmin || targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder") {
+      targetRole = isSuperAdminEmail ? "super_admin" : (targetRole === "super_admin" ? "super_admin" : "admin");
+    }
+
+    if (targetRole === "partner") {
       setCurrentPartner(userData);
       setCurrentUser(userData);
       setUserRole("partner");
@@ -524,32 +551,74 @@ export default function PortalModal({
       return;
     }
 
-    // Call /api/staff/active-session to obtain authoritative server role & permissions
-    try {
-      const activeRes = await apiClient.get<any>("/api/staff/active-session", { silent: true });
-      if (activeRes?.success && activeRes?.staff) {
-        const serverStaff = activeRes.staff;
-        const verifiedRole = serverStaff.role || "admin";
-        const verifiedUser = {
-          ...userData,
-          ...serverStaff,
-          role: verifiedRole,
-          isSuperAdmin: Boolean(serverStaff.isSuperAdmin || verifiedRole === "super_admin"),
-          permissions: serverStaff.permissions || {}
-        };
-        setCurrentUser(verifiedUser);
-        setUserRole(verifiedRole);
-        setActivePortalTab(verifiedRole === "super_admin" || verifiedRole === "admin" ? "admin" : "staff");
-        onUserChange?.(verifiedUser);
-        triggerToast(
-          "লগইন সফল হয়েছে! মেগা বাজার পোর্টালে স্বাগতম।",
-          "Login successful! Welcome to the Kacha Bazar system portal."
-        );
-        return;
-      }
-    } catch (err) {}
+    if (targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder" || isAdmin) {
+      const finalRole: string = isSuperAdminEmail ? "super_admin" : (targetRole === "super_admin" ? "super_admin" : (targetRole === "founder" ? "founder" : "admin"));
+      let adminObj = {
+        ...userData,
+        role: finalRole,
+        isSuperAdmin: Boolean(userData.isSuperAdmin || isSuperAdminEmail || finalRole === "super_admin" || finalRole === "founder")
+      };
 
-    // Fallback: non-staff user is strictly customer
+      // Try to enrich with server session if available
+      try {
+        const activeRes = await apiClient.get<any>("/api/staff/active-session", { silent: true });
+        if (activeRes?.success && activeRes?.staff) {
+          adminObj = {
+            ...adminObj,
+            ...activeRes.staff,
+            role: activeRes.staff.role || finalRole,
+            isSuperAdmin: Boolean(activeRes.staff.isSuperAdmin || activeRes.staff.role === "super_admin" || finalRole === "super_admin"),
+            permissions: activeRes.staff.permissions || {}
+          };
+        }
+      } catch {}
+
+      setCurrentUser(adminObj);
+      setUserRole(adminObj.role);
+      setActivePortalTab("admin");
+      onUserChange?.(adminObj);
+      triggerToast(
+        "এডমিন প্যানেলে সফলভাবে লগইন হয়েছে!",
+        "Successfully logged into Admin Panel!"
+      );
+      return;
+    }
+
+    if (targetRole === "seller") {
+      const sellerUser = {
+        ...userData,
+        role: "seller",
+        profileStatus: userData.profileStatus || userData.status || "approved"
+      };
+      setCurrentUser(sellerUser);
+      setUserRole("seller");
+      setActivePortalTab("seller");
+      onUserChange?.(sellerUser);
+      triggerToast(
+        "বিক্রেতা প্যানেলে সফলভাবে লগইন হয়েছে!",
+        "Successfully logged into Seller Panel!"
+      );
+      return;
+    }
+
+    if (targetRole === "rider") {
+      const riderUser = {
+        ...userData,
+        role: "rider",
+        profileStatus: userData.profileStatus || userData.status || "approved"
+      };
+      setCurrentUser(riderUser);
+      setUserRole("rider");
+      setActivePortalTab("rider");
+      onUserChange?.(riderUser);
+      triggerToast(
+        "রাইডার প্যানেলে সফলভাবে লগইন হয়েছে!",
+        "Successfully logged into Rider Panel!"
+      );
+      return;
+    }
+
+    // Default: Customer login
     const customerUser = {
       ...userData,
       role: "customer",
@@ -670,12 +739,38 @@ export default function PortalModal({
 
               <div className="flex-1 min-h-0 overflow-hidden">
                 {!isTabAllowed(activePortalTab, userRole) ? (
-                  <div className="p-8 text-center bg-red-50 border border-red-200 rounded-2xl m-4 flex flex-col items-center justify-center space-y-3">
-                    <Shield className="w-12 h-12 text-red-600 animate-bounce" />
-                    <p className="text-red-750 font-black text-sm">
-                      Access Denied. You do not have permission to access this page.
-                    </p>
-                  </div>
+                  activePortalTab === "admin" ? (
+                    <div className="h-full flex items-center justify-center p-4 py-8 overflow-y-auto">
+                      <div className="w-full max-w-md mx-auto space-y-4">
+                        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-xs text-amber-800">
+                          <Lock className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />
+                          <div>
+                            <p className="font-bold">{lang === "bn" ? "এডমিন অ্যাকাউন্টে লগইন করুন" : "Sign In to Admin Panel"}</p>
+                            <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                              {lang === "bn"
+                                ? `আপনি বর্তমানে সাধারণ গ্রাহক হিসেবে সাইন-ইন আছেন। এডমিন প্যানেলে প্রবেশ করতে আপনার এডমিন আইডি বা ইমেইল এবং পাসওয়ার্ড দিয়ে লগইন করুন।`
+                                : `You are currently in customer mode. Please sign in with your admin credentials to enter the admin panel.`}
+                            </p>
+                          </div>
+                        </div>
+                        <React.Suspense fallback={<div className="flex flex-col items-center justify-center h-48 space-y-2"><RefreshCw className="w-6 h-6 text-emerald-600 animate-spin" /><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Loading...</p></div>}>
+                          <AuthView 
+                            onAuthSuccess={handleAuthSuccess} 
+                            lang={lang} 
+                            forcedRole="admin"
+                            initialAuthMode="login"
+                          />
+                        </React.Suspense>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-red-50 border border-red-200 rounded-2xl m-4 flex flex-col items-center justify-center space-y-3">
+                      <Shield className="w-12 h-12 text-red-600 animate-bounce" />
+                      <p className="text-red-750 font-black text-sm">
+                        Access Denied. You do not have permission to access this page.
+                      </p>
+                    </div>
+                  )
                 ) : (
                   <div className="h-full w-full min-h-0">
                     {(activePortalTab === "admin" || activePortalTab === "super_admin") && (

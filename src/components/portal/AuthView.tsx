@@ -309,8 +309,14 @@ export default function AuthView({
   // Helper to verify if user is a real admin in Supabase / Firestore
   const checkIsAdmin = async (uid: string, email?: string): Promise<boolean> => {
     try {
-      if (!uid) return false;
       const cleanEmail = (email || auth.currentUser?.email || "").toLowerCase().trim();
+      if (!uid && !cleanEmail) return false;
+
+      // 0. Super Admin / Founder emails
+      if (cleanEmail === "sarkarmdanik14@gmail.com" || cleanEmail === "megabajar@admin.com") {
+        return true;
+      }
+
       // Check Supabase staff and users tables
       const isSbAdmin = await checkIsSupabaseAdmin(uid, cleanEmail);
       if (isSbAdmin) return true;
@@ -320,19 +326,21 @@ export default function AuthView({
       if (staffSessionId) {
         try {
           const sRes = await apiClient.get<any>("/api/staff/active-session", { silent: true });
-          if (sRes?.success && sRes?.staff && (sRes.staff.role === "admin" || sRes.staff.role === "super_admin")) {
+          if (sRes?.success && sRes?.staff && (sRes.staff.role === "admin" || sRes.staff.role === "super_admin" || sRes.staff.role === "founder")) {
             return true;
           }
         } catch {}
       }
 
       // Check Firestore as legacy fallback
-      const adminDocRef = doc(db, "admins", uid);
-      const adminDocSnap = await getDoc(adminDocRef);
-      if (adminDocSnap.exists()) {
-        const adminData = adminDocSnap.data();
-        if (adminData && (adminData.isActive === undefined || adminData.isActive === true)) {
-          return true;
+      if (uid) {
+        const adminDocRef = doc(db, "admins", uid);
+        const adminDocSnap = await getDoc(adminDocRef);
+        if (adminDocSnap.exists()) {
+          const adminData = adminDocSnap.data();
+          if (adminData && (adminData.isActive === undefined || adminData.isActive === true)) {
+            return true;
+          }
         }
       }
     } catch (err: any) {
@@ -797,7 +805,7 @@ export default function AuthView({
 
         // 1. Primary: Authenticate using Supabase Auth (supabase.auth.signInWithPassword)
         let authenticatedUser: any = null;
-        let authenticatedRole = role;
+        let authenticatedRole: string = role;
         let lastAuthError = "";
 
         try {
@@ -847,17 +855,23 @@ export default function AuthView({
           throw new Error(lastAuthError || getTranslation("ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।", "Incorrect email or password. Please check your credentials."));
         }
 
-        // Verify role authorization
+        // Authoritative role check: Detect admin / super_admin credentials immediately
         const userUid = authenticatedUser?.uid || authenticatedUser?.id || "";
-        const userEmail = authenticatedUser?.email || email || "";
+        const userEmail = (authenticatedUser?.email || email || "").toLowerCase().trim();
+        const cleanEmail = userEmail;
+        const isSuperAdminEmail = cleanEmail === "sarkarmdanik14@gmail.com" || cleanEmail === "megabajar@admin.com";
+        const isAdmin = isSuperAdminEmail || (await checkIsAdmin(userUid, cleanEmail));
 
-        if (role === "admin") {
-          const isAdminUser = await checkIsAdmin(userUid, userEmail);
-          if (!isAdminUser) {
+        if (isAdmin || role === "admin") {
+          if (!isAdmin) {
             await supabaseSignOut();
             await signOut(auth).catch(() => {});
             throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।", "Access denied. You are not authorized as an admin."));
           }
+          const finalAdminRole: "admin" | "super_admin" = (isSuperAdminEmail || authenticatedUser?.role === "super_admin") ? "super_admin" : "admin";
+          authenticatedRole = finalAdminRole;
+          authenticatedUser.role = finalAdminRole;
+          authenticatedUser.isSuperAdmin = isSuperAdminEmail || finalAdminRole === "super_admin";
         } else if (role === "seller") {
           const sRes = await checkSellerStatus(userUid);
           if (!sRes.isSeller) {
@@ -1723,7 +1737,7 @@ export default function AuthView({
                   type={role === "admin" || role === "partner" ? "text" : "email"}
                   required
                   placeholder={role === "admin" 
-                    ? getTranslation("যেমন: name@example.com", "e.g. name@example.com")
+                    ? getTranslation("যেমন: CFI-KB-001 বা name@example.com", "e.g. CFI-KB-001 or name@example.com")
                     : role === "partner"
                     ? getTranslation("যেমন: KB-SHOP-001 বা greenvalley@kachabazar.com", "e.g. KB-SHOP-001 or email")
                     : "name@example.com"}

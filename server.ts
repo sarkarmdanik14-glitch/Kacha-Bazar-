@@ -4632,6 +4632,39 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
       );
     });
 
+    // Fallback: If not found in local staff DB, query Supabase staff table
+    if (!staff) {
+      try {
+        const sb = getServerSupabase();
+        if (sb) {
+          const { data: sbStaff } = await sb
+            .from("staff")
+            .select("*")
+            .or(`email.eq.${cleanIdent},staff_id.eq.${cleanIdent.toUpperCase()},id.eq.${cleanIdent}`)
+            .maybeSingle();
+
+          if (sbStaff && sbStaff.status === "active") {
+            staff = {
+              id: sbStaff.id,
+              staffId: sbStaff.staff_id || sbStaff.id,
+              username: sbStaff.username || sbStaff.staff_id,
+              fullName: sbStaff.full_name || sbStaff.name || "Staff Member",
+              mobile: sbStaff.mobile || sbStaff.phone || "",
+              email: sbStaff.email,
+              role: sbStaff.role || "admin",
+              status: sbStaff.status || "active",
+              passwordHash: sbStaff.password_hash || sbStaff.passwordHash,
+              passwordSalt: sbStaff.password_salt || sbStaff.passwordSalt,
+              permissions: sbStaff.permissions || {},
+              isSuperAdmin: sbStaff.role === "super_admin"
+            };
+          }
+        }
+      } catch (sbLookErr) {
+        console.warn("Supabase staff lookup notice:", sbLookErr);
+      }
+    }
+
     if (staff) {
       let isMatch = false;
       const targetHash = staff.passwordHash || staff.hash;
@@ -4648,6 +4681,22 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
           staff.passwordSalt = staff.salt;
           writeStaffDb(staffList);
         }
+      }
+
+      // Also verify via Supabase Auth if hash verification did not match
+      if (!isMatch && staff.email) {
+        try {
+          const sb = getServerSupabase();
+          if (sb) {
+            const { data: authData, error: authErr } = await sb.auth.signInWithPassword({
+              email: staff.email,
+              password: password
+            });
+            if (!authErr && authData?.user) {
+              isMatch = true;
+            }
+          }
+        } catch {}
       }
 
 

@@ -47,6 +47,7 @@ import { initVoiceWelcome, setWelcomeAudioUrl, setWelcomeVoiceEnabled } from "./
 import { matchesProductSearch } from "./lib/banglishSearch";
 import { isUserPremiumMember, calculatePremiumDiscount } from "./lib/membership";
 import { fetchCouponsFromSupabase } from "./lib/supabaseLiveService";
+import { apiClient } from "./lib/apiClient";
 
 import { BannerSlider } from "./components/BannerSlider";
 import { CartItemRow } from "./components/CartItemRow";
@@ -569,8 +570,8 @@ export default function App() {
   useEffect(() => {
     let unsubUserDoc: (() => void) | null = null;
 
-    // 1. Initial check with Supabase user
-    getSupabaseUser().then((sbU) => {
+    // 1. Initial check with Supabase user & Staff session
+    getSupabaseUser().then(async (sbU) => {
       if (sbU) {
         setLoggedInUser(sbU as any);
         if (sbU.photoURL) {
@@ -582,6 +583,33 @@ export default function App() {
         }
         if (sbU.role) setUserRole(sbU.role);
         if (sbU.referralCode) setUserReferralCode(sbU.referralCode);
+      } else {
+        // Fallback: Check if an active staff / admin session exists
+        const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
+        if (staffSessionId) {
+          try {
+            const sRes = await apiClient.get<any>("/api/staff/active-session", { silent: true });
+            if (sRes?.success && sRes?.staff) {
+              const st = sRes.staff;
+              const adminUser = {
+                uid: st.id || st.staffId,
+                id: st.id || st.staffId,
+                staffId: st.staffId,
+                email: st.email,
+                displayName: st.fullName || st.displayName || "System Admin",
+                fullName: st.fullName || st.displayName || "System Admin",
+                role: st.role || "admin",
+                photoURL: st.photoURL || ""
+              };
+              setLoggedInUser(adminUser as any);
+              setUserRole(st.role || "admin");
+              if (st.photoURL) {
+                setUserProfilePhoto(st.photoURL);
+                setPhotoLoadError(false);
+              }
+            }
+          } catch {}
+        }
       }
     });
 
@@ -603,14 +631,17 @@ export default function App() {
           setUserReferralCode(sbUser.referralCode);
         }
       } else if (!auth.currentUser) {
-        setLoggedInUser(null);
-        setUserRole("customer");
-        setUserReferralCode("");
-        setUserProfilePhoto("");
-        setPhotoLoadError(false);
-        try {
-          localStorage.removeItem("kb_user_photo");
-        } catch {}
+        const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
+        if (!staffSessionId) {
+          setLoggedInUser(null);
+          setUserRole("customer");
+          setUserReferralCode("");
+          setUserProfilePhoto("");
+          setPhotoLoadError(false);
+          try {
+            localStorage.removeItem("kb_user_photo");
+          } catch {}
+        }
       }
     });
 
@@ -2262,10 +2293,29 @@ export default function App() {
               </span>
             </button>
 
+            {/* Dedicated Admin Dashboard Button for authenticated admins */}
+            {(userRole === "admin" || userRole === "super_admin" || userRole === "founder" || loggedInUser?.role === "admin" || loggedInUser?.role === "super_admin") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setForcedPortalRole("admin");
+                  setShowPortalModal(true);
+                }}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-[11px] px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full shadow-xs transition cursor-pointer border border-amber-400 shrink-0"
+                title={lang === "bn" ? "এডমিন প্যানেল" : "Admin Panel"}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="hidden xs:inline">{lang === "bn" ? "এডমিন প্যানেল" : "Admin Panel"}</span>
+              </button>
+            )}
+
             {/* User Profile Info */}
             <button 
               onClick={() => {
-                setForcedPortalRole("customer");
+                const targetRole = (userRole === "admin" || userRole === "super_admin" || userRole === "founder" || loggedInUser?.role === "admin" || loggedInUser?.role === "super_admin") 
+                  ? "admin" 
+                  : "customer";
+                setForcedPortalRole(targetRole);
                 setShowPortalModal(true);
               }}
               className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 transition shrink-0 overflow-hidden relative shadow-2xs group"

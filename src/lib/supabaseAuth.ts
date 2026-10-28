@@ -30,6 +30,11 @@ export interface SupabaseUserProfile {
   createdAt?: string;
 }
 
+export const SUPER_ADMIN_EMAILS = new Set([
+  "sarkarmdanik14@gmail.com",
+  "megabajar@admin.com"
+]);
+
 /**
  * Sign In with Email & Password via Supabase Auth
  */
@@ -102,10 +107,13 @@ export async function supabaseSignInWithEmail(
     // 3. Fetch user profile from public.users table
     let profile = await fetchUserProfile(uid);
 
+    const isSuperAdminEmail = SUPER_ADMIN_EMAILS.has(cleanEmail.toLowerCase());
+    const isDbAdmin = isSuperAdminEmail || (await checkIsSupabaseAdmin(uid, cleanEmail));
+
     if (!profile) {
       // Auto-create user profile in public.users if not exists
       const meta = data.user.user_metadata || {};
-      const resolvedName = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || "গ্রাহক";
+      const resolvedName = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (isDbAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
       profile = {
         uid,
         id: uid,
@@ -114,18 +122,22 @@ export async function supabaseSignInWithEmail(
         fullName: resolvedName,
         phone: meta.phone || data.user.phone || "",
         phoneNumber: meta.phone || data.user.phone || "",
-        role: "customer",
+        role: isSuperAdminEmail ? "super_admin" : (isDbAdmin ? "admin" : "customer"),
+        isSuperAdmin: isSuperAdminEmail,
         referralCode: "REF" + uid.substring(0, 5).toUpperCase(),
         address: "চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর",
         walletBalance: 0,
         rewardPoints: 0,
-        membershipTier: "Silver"
+        membershipTier: isDbAdmin ? "Platinum" : "Silver"
       };
       await saveUserProfile(profile);
+    } else if (isDbAdmin) {
+      profile.role = isSuperAdminEmail ? "super_admin" : (profile.role === "super_admin" ? "super_admin" : "admin");
+      profile.isSuperAdmin = isSuperAdminEmail || profile.role === "super_admin";
     }
 
     // Exchange staff session ONLY if genuinely admin or staff in the database
-    if (profile.role === "admin" || profile.role === "super_admin") {
+    if (profile.role === "admin" || profile.role === "super_admin" || isDbAdmin) {
       try {
         const sessionRes = await apiClient.post<any>("/api/staff/supabase-session", {
           accessToken: data.session?.access_token,
@@ -339,8 +351,12 @@ export function onSupabaseAuthStateChange(
 
       let profile = await fetchUserProfile(uid);
       if (!profile) {
+        const cleanEmail = (session.user.email || "").toLowerCase().trim();
+        const isSuper = cleanEmail ? SUPER_ADMIN_EMAILS.has(cleanEmail) : false;
+        const isSbAdmin = isSuper || (await checkIsSupabaseAdmin(uid, cleanEmail));
         const meta = session.user.user_metadata || {};
-        const name = meta.full_name || meta.display_name || session.user.email?.split("@")[0] || "গ্রাহক";
+        const resolvedRole = isSuper ? "super_admin" : (isSbAdmin ? "admin" : (meta.role || "customer"));
+        const name = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (isSbAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
         profile = {
           uid,
           id: uid,
@@ -349,7 +365,8 @@ export function onSupabaseAuthStateChange(
           fullName: name,
           phone: meta.phone || session.user.phone || "",
           phoneNumber: meta.phone || session.user.phone || "",
-          role: meta.role || "customer",
+          role: resolvedRole,
+          isSuperAdmin: isSuper,
           photoURL: meta.avatar_url || meta.picture || ""
         };
       }
@@ -379,34 +396,89 @@ export function onSupabaseAuthStateChange(
 }
 
 /**
- * Helper to fetch user profile from public.users
+ * Helper to fetch user profile from public.users with authoritative staff/admin resolution
  */
 export async function fetchUserProfile(uid: string): Promise<SupabaseUserProfile | null> {
   try {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("users")
       .select("*")
       .or(`uid.eq.${uid},id.eq.${uid}`)
-      .single();
+      .maybeSingle();
 
-    if (!error && data) {
+    let staffData: any = null;
+    const userEmail = (data?.email || "").toLowerCase().trim();
+
+    try {
+      let staffQuery = supabase.from("staff").select("*");
+      if (uid && userEmail) {
+        staffQuery = staffQuery.or(`id.eq.${uid},staff_id.eq.${uid},email.ilike.${userEmail}`);
+      } else if (uid) {
+        staffQuery = staffQuery.or(`id.eq.${uid},staff_id.eq.${uid}`);
+      } else if (userEmail) {
+        staffQuery = staffQuery.eq("email", userEmail);
+      }
+      const { data: sRow } = await staffQuery.maybeSingle();
+      if (sRow && (sRow.status === "active" || sRow.status === undefined)) {
+        staffData = sRow;
+      }
+    } catch {}
+
+    const resolvedEmail = (data?.email || staffData?.email || "").toLowerCase().trim();
+    const isSuperAdminEmail = resolvedEmail ? SUPER_ADMIN_EMAILS.has(resolvedEmail) : false;
+    const isStaffAdmin = staffData && (staffData.role === "admin" || staffData.role === "super_admin" || staffData.role === "founder");
+    const isSuper = isSuperAdminEmail || staffData?.role === "super_admin" || staffData?.role === "founder";
+
+    let role = "customer";
+    if (isSuper) {
+      role = "super_admin";
+    } else if (isStaffAdmin || data?.role === "admin" || data?.role === "super_admin") {
+      role = (data?.role === "super_admin" || staffData?.role === "super_admin") ? "super_admin" : "admin";
+    } else if (data?.role) {
+      role = data.role;
+    } else if (staffData?.role) {
+      role = staffData.role;
+    }
+
+    const defaultTitle = role === "super_admin" ? "সুপার এডমিন" : (role === "admin" ? "এডমিনিস্ট্রেটর" : "সম্মানিত গ্রাহক");
+
+    if (data) {
       return {
-        uid: data.uid || data.id,
-        id: data.id || data.uid,
-        email: data.email,
-        displayName: data.display_name || data.full_name || "সম্মানিত গ্রাহক",
-        fullName: data.full_name || data.display_name || "সম্মানিত গ্রাহক",
-        phone: data.phone || data.mobile || "",
-        phoneNumber: data.phone || data.mobile || "",
-        photoURL: data.photo_url || "",
-        role: data.role || "customer",
-        address: data.address,
+        uid: data.uid || data.id || uid,
+        id: data.id || data.uid || uid,
+        email: data.email || resolvedEmail,
+        displayName: data.display_name || data.full_name || staffData?.name || staffData?.fullName || defaultTitle,
+        fullName: data.full_name || data.display_name || staffData?.fullName || staffData?.name || defaultTitle,
+        phone: data.phone || data.mobile || staffData?.phone || "",
+        phoneNumber: data.phone || data.mobile || staffData?.phone || "",
+        photoURL: data.photo_url || staffData?.photoURL || staffData?.photo_url || "",
+        role: role as any,
+        isSuperAdmin: isSuper,
+        address: data.address || staffData?.address,
         referralCode: data.referral_code,
         referredBy: data.referred_by,
         walletBalance: Number(data.wallet_balance || 0),
         rewardPoints: Number(data.reward_points || 0),
-        membershipTier: data.membership_tier || "Silver",
-        isVerified: Boolean(data.is_verified)
+        membershipTier: (role === "admin" || role === "super_admin") ? "Platinum" : (data.membership_tier || "Silver"),
+        isVerified: Boolean(data.is_verified || staffData)
+      };
+    }
+
+    if (staffData) {
+      return {
+        uid: staffData.id || staffData.staff_id || uid,
+        id: staffData.id || staffData.staff_id || uid,
+        email: staffData.email || resolvedEmail,
+        displayName: staffData.name || staffData.fullName || staffData.displayName || defaultTitle,
+        fullName: staffData.fullName || staffData.name || staffData.displayName || defaultTitle,
+        phone: staffData.phone || staffData.mobile || "",
+        phoneNumber: staffData.phone || staffData.mobile || "",
+        photoURL: staffData.photo_url || staffData.photoURL || "",
+        role: role as any,
+        isSuperAdmin: isSuper,
+        address: staffData.address,
+        membershipTier: "Platinum",
+        isVerified: true
       };
     }
   } catch {}
@@ -445,15 +517,18 @@ export async function saveUserProfile(profile: SupabaseUserProfile): Promise<voi
  * Get currently authenticated Supabase user profile
  */
 export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
-
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
       const uid = session.user.id;
+      const cleanEmail = (session.user.email || "").toLowerCase().trim();
       let profile = await fetchUserProfile(uid);
       if (!profile) {
         const meta = session.user.user_metadata || {};
-        const name = meta.full_name || meta.display_name || session.user.email?.split("@")[0] || "গ্রাহক";
+        const isSuper = SUPER_ADMIN_EMAILS.has(cleanEmail);
+        const isSbAdmin = isSuper || (await checkIsSupabaseAdmin(uid, cleanEmail));
+        const resolvedRole = isSuper ? "super_admin" : (isSbAdmin ? "admin" : (meta.role || "customer"));
+        const name = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (isSbAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
         profile = {
           uid,
           id: uid,
@@ -462,9 +537,13 @@ export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
           fullName: name,
           phone: meta.phone || session.user.phone || "",
           phoneNumber: meta.phone || session.user.phone || "",
-          role: meta.role || "customer",
+          role: resolvedRole,
+          isSuperAdmin: isSuper,
           photoURL: meta.avatar_url || meta.picture || ""
         };
+      } else if (cleanEmail && SUPER_ADMIN_EMAILS.has(cleanEmail)) {
+        profile.role = "super_admin";
+        profile.isSuperAdmin = true;
       }
       return profile;
     }
@@ -476,34 +555,52 @@ export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
  * Check if a user is an authorized admin in Supabase
  */
 export async function checkIsSupabaseAdmin(uid: string, email?: string): Promise<boolean> {
-  if (!uid) return false;
   const cleanEmail = (email || "").toLowerCase().trim();
+  if (!uid && !cleanEmail) return false;
+
+  // 0. Super Admin / Founder emails
+  const SUPER_ADMIN_EMAILS = new Set([
+    "sarkarmdanik14@gmail.com",
+    "megabajar@admin.com"
+  ]);
+  if (cleanEmail && SUPER_ADMIN_EMAILS.has(cleanEmail)) {
+    return true;
+  }
+
   try {
-    // 1. Check staff table by authenticated UID
-    const { data: staffData } = await supabase
-      .from("staff")
-      .select("id, staff_id, email, role, status")
-      .or(`id.eq.${uid},staff_id.eq.${uid}`)
-      .maybeSingle();
-
-    if (staffData && staffData.status === "active" && (staffData.role === "admin" || staffData.role === "super_admin")) {
-      if (!cleanEmail || (staffData.email && staffData.email.toLowerCase() === cleanEmail)) {
-        return true;
-      }
+    // 1. Check staff table by authenticated UID, staff_id, or email
+    let staffQuery = supabase.from("staff").select("id, staff_id, email, role, status");
+    if (uid && cleanEmail) {
+      staffQuery = staffQuery.or(`id.eq.${uid},staff_id.eq.${uid},email.ilike.${cleanEmail}`);
+    } else if (uid) {
+      staffQuery = staffQuery.or(`id.eq.${uid},staff_id.eq.${uid}`);
+    } else {
+      staffQuery = staffQuery.eq("email", cleanEmail);
     }
 
-    // 2. Check users table by authenticated UID
-    const { data: userData } = await supabase
-      .from("users")
-      .select("role, email, id, uid")
-      .or(`id.eq.${uid},uid.eq.${uid}`)
-      .maybeSingle();
+    const { data: staffData } = await staffQuery.maybeSingle();
 
-    if (userData && (userData.role === "admin" || userData.role === "super_admin")) {
-      if (!cleanEmail || (userData.email && userData.email.toLowerCase() === cleanEmail)) {
-        return true;
-      }
+    if (staffData && staffData.status === "active" && (staffData.role === "admin" || staffData.role === "super_admin" || staffData.role === "founder")) {
+      return true;
     }
-  } catch {}
+
+    // 2. Check users table by authenticated UID or email
+    let userQuery = supabase.from("users").select("role, email, id, uid");
+    if (uid && cleanEmail) {
+      userQuery = userQuery.or(`id.eq.${uid},uid.eq.${uid},email.ilike.${cleanEmail}`);
+    } else if (uid) {
+      userQuery = userQuery.or(`id.eq.${uid},uid.eq.${uid}`);
+    } else {
+      userQuery = userQuery.eq("email", cleanEmail);
+    }
+
+    const { data: userData } = await userQuery.maybeSingle();
+
+    if (userData && (userData.role === "admin" || userData.role === "super_admin" || userData.role === "founder")) {
+      return true;
+    }
+  } catch (err) {
+    console.warn("[Supabase Auth] Notice checking admin status:", err);
+  }
   return false;
 }
