@@ -52,7 +52,9 @@ export default function AuthView({
   initialAuthMode = "login",
   initialReferralCode 
 }: AuthViewProps) {
-  const [isLogin, setIsLogin] = useState<boolean>(initialAuthMode !== "register");
+  const [role, setRole] = useState<"customer" | "admin" | "seller" | "rider" | "partner">(forcedRole || "customer");
+  const isStrictLoginOnly = forcedRole === "admin" || forcedRole === "partner" || role === "admin" || role === "partner";
+  const [isLogin, setIsLogin] = useState<boolean>(isStrictLoginOnly ? true : initialAuthMode !== "register");
   const [authMethod, setAuthMethod] = useState<"email" | "phone">("email");
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
@@ -61,10 +63,10 @@ export default function AuthView({
   const [phone, setPhone] = useState<string>("");
   const [shopName, setShopName] = useState<string>(""); // for seller
   const [vehicleType, setVehicleType] = useState<string>("Bicycle"); // for rider
-  const [role, setRole] = useState<"customer" | "admin" | "seller" | "rider" | "partner">(forcedRole || "customer");
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [referralInput, setReferralInput] = useState<string>(() => {
+    if (forcedRole === "admin" || forcedRole === "partner") return "";
     return (initialReferralCode || localStorage.getItem("referredBy") || sessionStorage.getItem("referredBy") || "").trim().toUpperCase();
   });
 
@@ -84,18 +86,26 @@ export default function AuthView({
   const [successMsg, setSuccessMsg] = useState<string>("");
 
   React.useEffect(() => {
+    if (isStrictLoginOnly) {
+      setIsLogin(true);
+      return;
+    }
     if (initialAuthMode === "register") {
       setIsLogin(false);
     } else if (initialAuthMode === "login") {
       setIsLogin(true);
     }
-  }, [initialAuthMode]);
+  }, [initialAuthMode, isStrictLoginOnly]);
 
   React.useEffect(() => {
+    if (isStrictLoginOnly) {
+      setReferralInput("");
+      return;
+    }
     if (initialReferralCode) {
       setReferralInput(initialReferralCode.trim().toUpperCase());
     }
-  }, [initialReferralCode]);
+  }, [initialReferralCode, isStrictLoginOnly]);
 
   // Phone auth states
   const [otpCode, setOtpCode] = useState<string>("");
@@ -1475,7 +1485,7 @@ export default function AuthView({
   }
 
   return (
-    <div className="w-full max-w-md mx-auto bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-100 relative overflow-hidden animate-fade-in">
+    <div className="w-full max-w-md mx-auto bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 pt-8 sm:pt-9 shadow-xl shadow-slate-100 relative overflow-hidden animate-fade-in my-auto">
       
       {/* Decorative gradient headers */}
       <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600"></div>
@@ -1797,7 +1807,7 @@ export default function AuthView({
               )}
             </div>
 
-            {!isLogin && (
+            {!isLogin && !isStrictLoginOnly && (
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                   {getTranslation("রেফারেল কোড (ঐচ্ছিক)", "Referral Code (Optional)")}
@@ -1890,29 +1900,31 @@ export default function AuthView({
       )}
 
       {/* Switch auth mode */}
-      <div className="mt-5 text-center text-xs text-slate-500">
-        {isLogin ? (
-          <>
-            <span>{getTranslation("পোর্টাল অ্যাকাউন্ট নেই?", "Don't have a portal account?")} </span>
-            <button
-              onClick={() => setIsLogin(false)}
-              className="text-emerald-600 font-bold hover:underline cursor-pointer"
-            >
-              {getTranslation("নিবন্ধন করুন", "Sign Up Now")}
-            </button>
-          </>
-        ) : (
-          <>
-            <span>{getTranslation("ইতিমধ্যে অ্যাকাউন্ট আছে?", "Already have an account?")} </span>
-            <button
-              onClick={() => setIsLogin(true)}
-              className="text-emerald-600 font-bold hover:underline cursor-pointer"
-            >
-              {getTranslation("লগইন করুন", "Sign In Instead")}
-            </button>
-          </>
-        )}
-      </div>
+      {!isStrictLoginOnly && (
+        <div className="mt-5 text-center text-xs text-slate-500">
+          {isLogin ? (
+            <>
+              <span>{getTranslation("পোর্টাল অ্যাকাউন্ট নেই?", "Don't have a portal account?")} </span>
+              <button
+                onClick={() => setIsLogin(false)}
+                className="text-emerald-600 font-bold hover:underline cursor-pointer"
+              >
+                {getTranslation("নিবন্ধন করুন", "Sign Up Now")}
+              </button>
+            </>
+          ) : (
+            <>
+              <span>{getTranslation("ইতিমধ্যে অ্যাকাউন্ট আছে?", "Already have an account?")} </span>
+              <button
+                onClick={() => setIsLogin(true)}
+                className="text-emerald-600 font-bold hover:underline cursor-pointer"
+              >
+                {getTranslation("লগইন করুন", "Sign In Instead")}
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
     </div>
   );

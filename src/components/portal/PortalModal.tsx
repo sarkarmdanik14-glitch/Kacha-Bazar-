@@ -706,8 +706,8 @@ export default function PortalModal({
                   onAuthSuccess={handleAuthSuccess} 
                   lang={lang} 
                   forcedRole={forcedRole}
-                  initialAuthMode={initialAuthMode}
-                  initialReferralCode={referralCode}
+                  initialAuthMode={forcedRole === "admin" || forcedRole === "partner" ? "login" : initialAuthMode}
+                  initialReferralCode={forcedRole === "admin" || forcedRole === "partner" ? "" : referralCode}
                 />
               </React.Suspense>
             </div>

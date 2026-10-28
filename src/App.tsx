@@ -324,6 +324,9 @@ export default function App() {
 
       if (matchedRole) {
         setForcedPortalRole(matchedRole);
+        if (matchedRole === "admin" || matchedRole === "partner") {
+          setPortalInitialAuthMode("login");
+        }
         setShowPortalModal(true);
       }
     };
@@ -2299,6 +2302,7 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   setForcedPortalRole("admin");
+                  setPortalInitialAuthMode("login");
                   setShowPortalModal(true);
                 }}
                 className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-[11px] px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full shadow-xs transition cursor-pointer border border-amber-400 shrink-0"
@@ -3977,6 +3981,7 @@ export default function App() {
               onClick={(e) => {
                 e.preventDefault();
                 setForcedPortalRole("admin");
+                setPortalInitialAuthMode("login");
                 setShowPortalModal(true);
                 window.history.pushState({}, "", "?panel=admin");
               }}
