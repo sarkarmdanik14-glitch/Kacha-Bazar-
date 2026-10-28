@@ -735,6 +735,8 @@ interface ServerAnalyticsStore {
       startedAt: number;
       lastActive: number;
       isOnline: boolean;
+      page?: string;
+      device?: string;
     };
   };
 }
@@ -805,7 +807,7 @@ function saveAnalyticsStoreDebounced() {
 // 1. Heartbeat & Visit Event (Protected with rateLimiter and session deduplication)
 app.post("/api/analytics/heartbeat", rateLimiter(300, 60000), (req, res) => {
   try {
-    const { visitorId, sessionId, isNewView, isNewUnique, dhakaDate } = req.body || {};
+    const { visitorId, sessionId, isNewView, isNewUnique, dhakaDate, page, device } = req.body || {};
     if (!visitorId || typeof visitorId !== "string" || visitorId.length > 80) {
       return res.status(400).json({ error: "Valid visitorId is required" });
     }
@@ -828,6 +830,8 @@ app.post("/api/analytics/heartbeat", rateLimiter(300, 60000), (req, res) => {
       startedAt: existing?.startedAt || now,
       lastActive: now,
       isOnline: true,
+      page: (typeof page === "string" ? page.slice(0, 100) : existing?.page) || "/",
+      device: (typeof device === "string" ? device.slice(0, 20) : existing?.device) || "desktop",
     };
 
     // Increment today's views with session deduplication
@@ -866,9 +870,20 @@ app.post("/api/analytics/heartbeat", rateLimiter(300, 60000), (req, res) => {
     saveAnalyticsStoreDebounced();
 
     // Active within 3 minutes (180,000 ms)
-    const activeLive = Object.values(store.sessions).filter(
+    const activeSessions = Object.values(store.sessions).filter(
       (s) => s.isOnline !== false && now - s.lastActive <= 180000
-    ).length;
+    );
+    const activeLive = activeSessions.length;
+
+    let mobileCount = 0;
+    let desktopCount = 0;
+    const pageCounts: Record<string, number> = {};
+    for (const s of activeSessions) {
+      if (s.device === "mobile") mobileCount++;
+      else desktopCount++;
+      const p = s.page || "/";
+      pageCounts[p] = (pageCounts[p] || 0) + 1;
+    }
 
     res.json({
       success: true,
@@ -876,6 +891,11 @@ app.post("/api/analytics/heartbeat", rateLimiter(300, 60000), (req, res) => {
       todayViews: store.daily[dateKey].views || 0,
       todayUniqueVisitors: store.daily[dateKey].uniqueVisitors || 0,
       date: dateKey,
+      devices: {
+        mobile: mobileCount,
+        desktop: desktopCount,
+      },
+      activePages: pageCounts,
     });
   } catch (err: any) {
     console.error("Analytics heartbeat error:", err);
@@ -915,9 +935,20 @@ app.get("/api/analytics/stats", (req, res) => {
     const store = loadAnalyticsStore();
     const daily = store.daily[dateKey] || { views: 0, uniqueVisitors: 0, visitorIds: [] };
 
-    const activeLive = Object.values(store.sessions || {}).filter(
+    const activeSessions = Object.values(store.sessions || {}).filter(
       (s) => s.isOnline !== false && now - s.lastActive <= 180000
-    ).length;
+    );
+    const activeLive = activeSessions.length;
+
+    let mobileCount = 0;
+    let desktopCount = 0;
+    const pageCounts: Record<string, number> = {};
+    for (const s of activeSessions) {
+      if (s.device === "mobile") mobileCount++;
+      else desktopCount++;
+      const p = s.page || "/";
+      pageCounts[p] = (pageCounts[p] || 0) + 1;
+    }
 
     res.json({
       todayViews: daily.views || 0,
@@ -925,6 +956,11 @@ app.get("/api/analytics/stats", (req, res) => {
       todayUniqueVisitors: daily.uniqueVisitors || (Array.isArray(daily.visitorIds) ? daily.visitorIds.length : 0),
       date: dateKey,
       serverTimeDhaka: new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" }),
+      devices: {
+        mobile: mobileCount,
+        desktop: desktopCount,
+      },
+      activePages: pageCounts,
     });
   } catch (err: any) {
     console.error("Analytics stats error:", err);

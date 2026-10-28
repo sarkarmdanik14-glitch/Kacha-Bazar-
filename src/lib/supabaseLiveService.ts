@@ -19,6 +19,19 @@ import {
 // 1. ORDERS REAL-TIME SUBSCRIPTION & OPERATIONS
 // =====================================================================
 
+const safeParseItems = (items: any): any[] => {
+  if (Array.isArray(items)) return items;
+  if (typeof items === "string") {
+    try {
+      const parsed = JSON.parse(items);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
 export async function fetchAllOrdersFromSupabase(): Promise<any[]> {
   try {
     const { data, error } = await supabase
@@ -45,7 +58,9 @@ export async function fetchAllOrdersFromSupabase(): Promise<any[]> {
       deliveryCharge: Number(o.delivery_charge || 0),
       total: Number(o.total || 0),
       subtotal: Number(o.subtotal || 0),
-      items: Array.isArray(o.items) ? o.items : [],
+      totalAmount: Number(o.total_amount || o.grand_total || o.total || 0),
+      grandTotal: Number(o.grand_total || o.total_amount || o.total || 0),
+      items: safeParseItems(o.items),
       partnerAssignments: Array.isArray(o.partner_assignments) ? o.partner_assignments : [],
       createdAt: o.created_at || new Date().toISOString()
     }));
@@ -96,7 +111,9 @@ export function subscribeToSupabaseOrders(
               orderStatus: rawNew.order_status || "Pending",
               paymentStatus: rawNew.payment_status || "Pending",
               total: Number(rawNew.total || 0),
-              items: Array.isArray(rawNew.items) ? rawNew.items : [],
+              totalAmount: Number(rawNew.total_amount || rawNew.grand_total || rawNew.total || 0),
+              grandTotal: Number(rawNew.grand_total || rawNew.total_amount || rawNew.total || 0),
+              items: safeParseItems(rawNew.items),
               createdAt: rawNew.created_at || new Date().toISOString()
             };
             currentOrders = [newOrder, ...currentOrders.filter(o => o.id !== newOrder.id)];

@@ -18,6 +18,11 @@ export interface VisitorAnalyticsData {
   date: string;
   loading: boolean;
   error: string | null;
+  devices?: {
+    mobile: number;
+    desktop: number;
+  };
+  activePages?: Record<string, number>;
 }
 
 // Bangladesh Timezone: Asia/Dhaka (UTC+6)
@@ -249,12 +254,19 @@ class VisitorTracker {
 
     // 2. Synchronize to Backend Server API for persistence & redundancy (Primary authoritative)
     try {
+      const page = typeof window !== "undefined" ? (window.location.pathname || "/") : "/";
+      const device = typeof navigator !== "undefined" && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
+        ? "mobile"
+        : "desktop";
+
       apiClient.post("/api/analytics/heartbeat", {
         visitorId: this.visitorId,
         sessionId: this.sessionId,
         isNewView,
         isNewUnique,
         dhakaDate: today,
+        page,
+        device,
       }, { skipAuth: true }).catch(() => {
         // Silently tolerate if offline
       });
@@ -291,12 +303,19 @@ class VisitorTracker {
 
     // Update Backend Server API
     try {
+      const page = typeof window !== "undefined" ? (window.location.pathname || "/") : "/";
+      const device = typeof navigator !== "undefined" && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
+        ? "mobile"
+        : "desktop";
+
       apiClient.post("/api/analytics/heartbeat", {
         visitorId: this.visitorId,
         sessionId: this.sessionId,
         isNewView: false,
         isNewUnique: false,
         dhakaDate: today,
+        page,
+        device,
       }, { skipAuth: true }).catch(() => {
         // ignore
       });
@@ -349,6 +368,9 @@ export function subscribeToVisitorAnalytics(
   let todayDate = getDhakaDateString();
   let latestViews = 0;
   let latestUnique = 0;
+  let latestLive = 0;
+  let latestDevices = { mobile: 0, desktop: 0 };
+  let latestActivePages: Record<string, number> = {};
   let currentSessions: Record<string, { lastActive: number; isOnline: boolean }> = {};
   let unsubscribeDaily: (() => void) | null = null;
   let unsubscribeSessions: (() => void) | null = null;
@@ -367,11 +389,16 @@ export function subscribeToVisitorAnalytics(
   const emit = () => {
     if (!isMounted) return;
     const now = Date.now();
-    let liveCount = 0;
-    for (const [_, s] of Object.entries(currentSessions)) {
-      if (s.isOnline !== false && now - s.lastActive <= LIVE_ACTIVITY_THRESHOLD_MS) {
-        liveCount++;
+    let liveCount = latestLive;
+    const sessionKeys = Object.keys(currentSessions);
+    if (sessionKeys.length > 0) {
+      let fsLiveCount = 0;
+      for (const [_, s] of Object.entries(currentSessions)) {
+        if (s.isOnline !== false && now - s.lastActive <= LIVE_ACTIVITY_THRESHOLD_MS) {
+          fsLiveCount++;
+        }
       }
+      liveCount = Math.max(latestLive, fsLiveCount);
     }
 
     if (
@@ -399,6 +426,8 @@ export function subscribeToVisitorAnalytics(
       date: todayDate,
       loading: false,
       error: null,
+      devices: latestDevices,
+      activePages: latestActivePages,
     });
   };
 
@@ -478,6 +507,14 @@ export function subscribeToVisitorAnalytics(
         latestViews = Math.max(latestViews, Number(json.todayViews) || 0);
         latestUnique = Math.max(latestUnique, Number(json.todayUniqueVisitors) || 0);
         const live = Math.max(0, Number(json.liveNow) || 0);
+        latestLive = live;
+
+        if (json.devices && typeof json.devices === "object") {
+          latestDevices = json.devices;
+        }
+        if (json.activePages && typeof json.activePages === "object") {
+          latestActivePages = json.activePages;
+        }
 
         if (
           lastEmitted.todayViews === latestViews &&
@@ -504,6 +541,8 @@ export function subscribeToVisitorAnalytics(
           date: todayDate,
           loading: false,
           error: null,
+          devices: latestDevices,
+          activePages: latestActivePages,
         });
         return;
       }
@@ -532,8 +571,8 @@ export function subscribeToVisitorAnalytics(
     emit();
   }, 5000);
 
-  // Background server sync every 8 seconds for responsive real-time accuracy
-  serverPollingTimer = setInterval(fetchServerStats, 8000);
+  // Background server sync every 6 seconds for responsive real-time accuracy
+  serverPollingTimer = setInterval(fetchServerStats, 6000);
 
   return () => {
     isMounted = false;
@@ -556,6 +595,8 @@ export async function forceRefreshVisitorStats(): Promise<VisitorAnalyticsData |
         date: json.date || getDhakaDateString(),
         loading: false,
         error: null,
+        devices: json.devices || { mobile: 0, desktop: 0 },
+        activePages: json.activePages || {},
       };
     }
   } catch (e) {
