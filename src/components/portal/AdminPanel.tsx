@@ -75,6 +75,7 @@ interface AdminPanelProps {
   onProductSaved?: (product: any) => void;
   onProductDeleted?: (productId: string) => void;
   onCategoryDeleted?: (categoryId: string) => void;
+  onCategorySaved?: (category: any) => void;
 }
 
 export default function AdminPanel({ 
@@ -88,7 +89,8 @@ export default function AdminPanel({
   initialSettings,
   onProductSaved,
   onProductDeleted,
-  onCategoryDeleted
+  onCategoryDeleted,
+  onCategorySaved
 }: AdminPanelProps) {
   // Collapsible sidebar navigation drawer toggle (hidden by default across all viewports)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
@@ -556,6 +558,18 @@ export default function AdminPanel({
   const handleCategoryDeleted = (categoryId: string) => {
     setCategories((prev: any[]) => prev.filter((c: any) => c.id !== categoryId));
     onCategoryDeleted?.(categoryId);
+  };
+
+  const handleCategorySaved = (savedCategory: any) => {
+    if (!savedCategory || !savedCategory.id) return;
+    setCategories((prev: any[]) => {
+      const exists = prev.some((c: any) => c.id === savedCategory.id);
+      if (exists) {
+        return prev.map((c: any) => c.id === savedCategory.id ? { ...c, ...savedCategory } : c);
+      }
+      return [...prev, savedCategory];
+    });
+    onCategorySaved?.(savedCategory);
   };
 
   useEffect(() => {
@@ -1030,6 +1044,7 @@ export default function AdminPanel({
                   onProductSaved={handleProductSaved}
                   onProductDeleted={handleProductDeleted}
                   onCategoryDeleted={handleCategoryDeleted}
+                  onCategorySaved={handleCategorySaved}
                 />
               </div>
             )}

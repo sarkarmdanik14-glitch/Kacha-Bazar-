@@ -194,16 +194,70 @@ export function saveCachedProducts(products: Product[]): void {
 }
 
 /**
+ * Helper to apply resilient local category overrides to preserve user uploads/edits.
+ */
+export function applyCategoryOverrides(cats: Category[]): Category[] {
+  try {
+    if (typeof window === "undefined" || typeof localStorage === "undefined") return cats;
+    const raw = localStorage.getItem("kb_categories_override");
+    if (!raw) return cats;
+    const overrides = JSON.parse(raw);
+    if (!overrides || typeof overrides !== "object") return cats;
+
+    const existingIds = new Set<string>();
+    const mapped = cats.map((cat) => {
+      existingIds.add(cat.id);
+      const ov = overrides[cat.id];
+      if (ov) {
+        const cleanImg = (ov.image || ov.imageUrl || ov.banner || ov.bannerUrl || "").trim();
+        return {
+          ...cat,
+          nameBn: ov.nameBn || cat.nameBn,
+          nameEn: ov.nameEn || cat.nameEn,
+          iconName: ov.iconName || cat.iconName,
+          colorClass: ov.colorClass || cat.colorClass,
+          borderColor: ov.borderColor || cat.borderColor,
+          image: cleanImg || cat.image,
+          imageUrl: cleanImg || cat.imageUrl,
+          isAvailable: ov.isAvailable !== undefined ? ov.isAvailable : cat.isAvailable,
+          displayOrder: typeof ov.displayOrder === "number" ? ov.displayOrder : cat.displayOrder,
+          order: typeof ov.displayOrder === "number" ? ov.displayOrder : cat.order,
+        };
+      }
+      return cat;
+    });
+
+    // Also include any standalone override categories not present in the base list
+    for (const id of Object.keys(overrides)) {
+      if (!existingIds.has(id)) {
+        mapped.push(overrides[id]);
+      }
+    }
+
+    return mapped;
+  } catch {
+    return cats;
+  }
+}
+
+/**
  * Retrieves cached categories from local storage.
  */
 export function getCachedCategories(): Category[] | null {
   try {
     if (typeof window === "undefined" || typeof localStorage === "undefined") return null;
     const raw = localStorage.getItem(CATEGORIES_CACHE_KEY);
-    if (!raw) return null;
+    if (!raw) {
+      // Check if overrides exist even without full cache
+      const ovRaw = localStorage.getItem("kb_categories_override");
+      if (ovRaw) {
+        return applyCategoryOverrides([]);
+      }
+      return null;
+    }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return mergeCategoryCards(parsed);
+      return applyCategoryOverrides(mergeCategoryCards(parsed));
     }
     return null;
   } catch {
@@ -317,7 +371,7 @@ export async function fetchAllCategoriesFromSupabase(): Promise<Category[]> {
       displayOrder: 0
     };
 
-    const categories = mergeCategoryCards([allCat, ...rawCategories]);
+    const categories = applyCategoryOverrides(mergeCategoryCards([allCat, ...rawCategories]));
 
     if (categories.length > 0) {
       saveCachedCategories(categories);

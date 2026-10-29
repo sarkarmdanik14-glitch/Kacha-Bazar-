@@ -44,6 +44,7 @@ interface AdminProductsTabProps {
   onProductSaved?: (product: any) => void;
   onProductDeleted?: (productId: string) => void;
   onCategoryDeleted?: (categoryId: string) => void;
+  onCategorySaved?: (category: any) => void;
 }
 
 export default function AdminProductsTab({ 
@@ -55,7 +56,8 @@ export default function AdminProductsTab({
   triggerToast, 
   onProductSaved,
   onProductDeleted,
-  onCategoryDeleted
+  onCategoryDeleted,
+  onCategorySaved
 }: AdminProductsTabProps) {
   const getTranslation = createTranslator(lang);
 
@@ -464,8 +466,50 @@ export default function AdminProductsTab({
         setCatImage(url);
         if (selectedCatId) {
           lastSavedCategoryImages.current[selectedCatId] = url;
+
+          // Auto-commit image directly to Supabase & persistent storage so it is NEVER lost on reload
+          const matchedCat = categories.find(c => c.id === selectedCatId);
+          const autoPayload: any = {
+            id: selectedCatId,
+            nameBn: catNameBn.trim() || matchedCat?.nameBn || selectedCatId,
+            nameEn: catNameEn.trim() || matchedCat?.nameEn || selectedCatId,
+            iconName: catIcon.trim() || matchedCat?.iconName || "Salad",
+            colorClass: catColor.trim() || matchedCat?.colorClass || "bg-emerald-50 text-emerald-700",
+            borderColor: catBorder.trim() || matchedCat?.borderColor || "border-emerald-100",
+            image: url,
+            imageUrl: url,
+            banner: url,
+            bannerUrl: url,
+            isAvailable: matchedCat?.isAvailable !== false && matchedCat?.disabled !== true,
+            displayOrder: typeof matchedCat?.displayOrder === "number" ? matchedCat.displayOrder : (typeof matchedCat?.order === "number" ? matchedCat.order : 0),
+            updatedAt: new Date().toISOString()
+          };
+
+          // 1. Sync to Supabase PostgreSQL immediately
+          syncSingleCategoryToSupabase(autoPayload).catch((err) => {
+            console.warn("[Supabase] Auto-commit category image notice:", err);
+          });
+
+          // 2. Persist to local storage override cache
+          try {
+            const raw = localStorage.getItem("kb_categories_override");
+            const ov = raw ? JSON.parse(raw) : {};
+            ov[selectedCatId] = autoPayload;
+            localStorage.setItem("kb_categories_override", JSON.stringify(ov));
+          } catch {}
+
+          // 3. Update in-memory category object
+          if (matchedCat) {
+            matchedCat.image = url;
+            matchedCat.imageUrl = url;
+            matchedCat.banner = url;
+            matchedCat.bannerUrl = url;
+          }
+
+          // 4. Propagate up to App.tsx
+          onCategorySaved?.(autoPayload);
         }
-        triggerToast("ক্যাটাগরি ছবি সফলভাবে আপলোড হয়েছে!", "Category image uploaded successfully!");
+        triggerToast("ক্যাটাগরি ছবি সফলভাবে আপলোড ও সেভ হয়েছে!", "Category image uploaded and saved successfully!");
       } else {
         throw new Error("Could not process image");
       }
@@ -490,6 +534,7 @@ export default function AdminProductsTab({
     try {
       const cleanImg = catImage.trim();
       const catId = selectedCatId.trim().toLowerCase();
+      const matchedCat = categories.find(c => c.id === catId);
       const payload: any = {
         id: catId,
         nameBn: catNameBn.trim(),
@@ -501,26 +546,47 @@ export default function AdminProductsTab({
         imageUrl: cleanImg,
         banner: cleanImg,
         bannerUrl: cleanImg,
+        isAvailable: matchedCat?.isAvailable !== false && matchedCat?.disabled !== true,
+        displayOrder: typeof matchedCat?.displayOrder === "number" ? matchedCat.displayOrder : (typeof matchedCat?.order === "number" ? matchedCat.order : 0),
         updatedAt: serverTimestamp()
       };
 
+      // Dual-write: Firestore & Supabase PostgreSQL
       await setDoc(doc(db, "categories", payload.id), payload, { merge: true });
+      await syncSingleCategoryToSupabase(payload).catch((err) => {
+        console.warn("[Supabase] Notice syncing category details:", err);
+      });
 
-      // Save into cache ref & ensure local input state retains the Cloudinary image URL
+      // Save into cache ref & ensure local input state retains the image URL
       lastSavedCategoryImages.current[catId] = cleanImg;
       setCatImage(cleanImg);
 
+      // Persist to local storage override
+      try {
+        const raw = localStorage.getItem("kb_categories_override");
+        const ov = raw ? JSON.parse(raw) : {};
+        ov[catId] = {
+          ...payload,
+          updatedAt: new Date().toISOString()
+        };
+        localStorage.setItem("kb_categories_override", JSON.stringify(ov));
+      } catch {}
+
       // Optimistically update categories array item so immediate re-render displays new image
-      const matchedCat = categories.find(c => c.id === catId);
       if (matchedCat) {
         matchedCat.nameBn = payload.nameBn;
         matchedCat.nameEn = payload.nameEn;
         matchedCat.iconName = payload.iconName;
+        matchedCat.colorClass = payload.colorClass;
+        matchedCat.borderColor = payload.borderColor;
         matchedCat.image = cleanImg;
         matchedCat.imageUrl = cleanImg;
         matchedCat.banner = cleanImg;
         matchedCat.bannerUrl = cleanImg;
       }
+
+      // Propagate to parent state in App.tsx
+      onCategorySaved?.(payload);
 
       triggerToast(
         `"${catNameBn}" ক্যাটাগরি তথ্য সফলভাবে সেভ হয়েছে!`,
@@ -664,17 +730,35 @@ export default function AdminProductsTab({
       }
       setSelectedCatId(finalId);
 
+      // Persist to local storage override cache
+      try {
+        const raw = localStorage.getItem("kb_categories_override");
+        const ov = raw ? JSON.parse(raw) : {};
+        ov[finalId] = {
+          ...payload,
+          updatedAt: new Date().toISOString()
+        };
+        localStorage.setItem("kb_categories_override", JSON.stringify(ov));
+      } catch {}
+
       // Optimistically update in-memory category item
       const matchedCat = categories.find(c => c.id === finalId);
       if (matchedCat) {
         matchedCat.nameBn = payload.nameBn;
         matchedCat.nameEn = payload.nameEn;
         matchedCat.iconName = payload.iconName;
+        matchedCat.colorClass = payload.colorClass;
+        matchedCat.borderColor = payload.borderColor;
         matchedCat.image = cleanImg;
         matchedCat.imageUrl = cleanImg;
         matchedCat.banner = cleanImg;
         matchedCat.bannerUrl = cleanImg;
+        matchedCat.isAvailable = payload.isAvailable;
+        matchedCat.displayOrder = payload.displayOrder;
       }
+
+      // Propagate to App.tsx
+      onCategorySaved?.(payload);
 
       triggerToast(
         `"${modalCatNameBn}" ক্যাটাগরি সফলভাবে সেভ করা হয়েছে!`,
@@ -693,16 +777,35 @@ export default function AdminProductsTab({
   const handleToggleCategoryAvailability = async (catId: string, currentStatus: boolean) => {
     try {
       const newStatus = !currentStatus;
-      await setDoc(doc(db, "categories", catId), {
+      const statusPayload = {
+        id: catId,
         isAvailable: newStatus,
         disabled: !newStatus,
         updatedAt: serverTimestamp()
-      }, { merge: true });
+      };
+      await setDoc(doc(db, "categories", catId), statusPayload, { merge: true });
 
       // Automatic Real-Time Sync to Supabase
       syncSingleCategoryToSupabase({ id: catId, isAvailable: newStatus, disabled: !newStatus }).catch((err) => {
         console.warn("[Supabase] Notice syncing category status:", err);
       });
+
+      // Update override cache
+      try {
+        const raw = localStorage.getItem("kb_categories_override");
+        const ov = raw ? JSON.parse(raw) : {};
+        if (ov[catId]) {
+          ov[catId].isAvailable = newStatus;
+          ov[catId].disabled = !newStatus;
+          localStorage.setItem("kb_categories_override", JSON.stringify(ov));
+        }
+      } catch {}
+
+      const matched = categories.find(c => c.id === catId);
+      if (matched) {
+        matched.isAvailable = newStatus;
+        onCategorySaved?.({ ...matched, isAvailable: newStatus });
+      }
 
       triggerToast(
         newStatus ? "ক্যাটাগরি সক্রিয় করা হয়েছে" : "ক্যাটাগরি নিষ্ক্রিয় করা হয়েছে",
@@ -1295,6 +1398,17 @@ export default function AdminProductsTab({
       await deleteDoc(doc(db, "categories", id));
       // Delete from Supabase PostgreSQL in real-time
       await deleteCategoryFromSupabase(id).catch(e => console.warn("Notice deleting category in Supabase:", e));
+
+      // Remove from localStorage override cache
+      try {
+        const raw = localStorage.getItem("kb_categories_override");
+        if (raw) {
+          const ov = JSON.parse(raw);
+          delete ov[id];
+          localStorage.setItem("kb_categories_override", JSON.stringify(ov));
+        }
+      } catch {}
+
       onCategoryDeleted?.(id);
 
       triggerToast(

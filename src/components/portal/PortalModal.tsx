@@ -30,6 +30,7 @@ interface PortalModalProps {
   onProductSaved?: (product: any) => void;
   onProductDeleted?: (productId: string) => void;
   onCategoryDeleted?: (categoryId: string) => void;
+  onCategorySaved?: (category: any) => void;
   onOpenCart?: () => void;
   initialUser?: any | null;
   onUserChange?: (user: any | null) => void;
@@ -50,6 +51,7 @@ export default function PortalModal({
   onProductSaved,
   onProductDeleted,
   onCategoryDeleted,
+  onCategorySaved,
   onOpenCart,
   initialUser,
   onUserChange
@@ -786,6 +788,7 @@ export default function PortalModal({
                         onProductSaved={onProductSaved}
                         onProductDeleted={onProductDeleted}
                         onCategoryDeleted={onCategoryDeleted}
+                        onCategorySaved={onCategorySaved}
                       />
                     )}
                     {activePortalTab === "partner" && (

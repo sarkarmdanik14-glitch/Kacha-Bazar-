@@ -497,19 +497,31 @@ export async function deleteProductFromSupabase(productId: string): Promise<bool
 export async function syncSingleCategoryToSupabase(c: any): Promise<boolean> {
   try {
     if (!c || !c.id) return false;
-    await supabase.from("categories").upsert({
-      id: String(c.id).trim(),
+    const catId = String(c.id).trim().toLowerCase();
+    const cleanImg = (c.image || c.imageUrl || c.banner || c.bannerUrl || "").trim();
+    const payload = {
+      id: catId,
       name_bn: c.nameBn || c.name || "",
       name_en: c.nameEn || c.name_en || "",
       icon_name: c.iconName || c.icon || "ShoppingBag",
-      image: c.image || "",
-      display_order: Number(c.displayOrder || 0),
-      is_active: c.isActive !== false,
+      color_class: c.colorClass || "bg-emerald-50 text-emerald-700",
+      border_color: c.borderColor || "border-emerald-100",
+      image: cleanImg || null,
+      image_url: cleanImg || null,
+      display_order: Number(c.displayOrder ?? c.order ?? 0),
+      is_available: c.isAvailable !== false && c.disabled !== true,
       updated_at: new Date().toISOString()
-    }, { onConflict: "id" });
-    await apiClient.post<any>("/api/sync/category", c, { silent: true });
+    };
+
+    const { error } = await supabase.from("categories").upsert(payload, { onConflict: "id" });
+    if (error) {
+      console.error("[Supabase Category Upsert Error]", error);
+      return false;
+    }
+    apiClient.post<any>("/api/sync/category", c, { silent: true }).catch(() => {});
     return true;
-  } catch {
+  } catch (err) {
+    console.error("[Supabase Category Sync Exception]", err);
     return false;
   }
 }
@@ -517,12 +529,16 @@ export async function syncSingleCategoryToSupabase(c: any): Promise<boolean> {
 export async function deleteCategoryFromSupabase(categoryId: string): Promise<boolean> {
   try {
     if (!categoryId) return false;
-    // 1. Direct Supabase delete
-    await supabase.from("categories").delete().eq("id", categoryId);
-    // 2. Server sync delete
-    const res = await apiClient.post<any>("/api/sync/category-delete", { categoryId }, { silent: true });
-    return !!res?.success;
-  } catch {
+    const cleanId = String(categoryId).trim().toLowerCase();
+    const { error } = await supabase.from("categories").delete().eq("id", cleanId);
+    if (error) {
+      console.error("[Supabase Category Delete Error]", error);
+      return false;
+    }
+    apiClient.post<any>("/api/sync/category-delete", { categoryId: cleanId }, { silent: true }).catch(() => {});
+    return true;
+  } catch (err) {
+    console.error("[Supabase Category Delete Exception]", err);
     return false;
   }
 }
@@ -543,16 +559,33 @@ export async function deleteOrderFromSupabase(orderId: string): Promise<boolean>
 export async function syncSingleSubcategoryToSupabase(s: any): Promise<boolean> {
   try {
     if (!s || !s.id) return false;
-    await supabase.from("subcategories").upsert({
-      id: String(s.id).trim(),
+    const subId = String(s.id).trim();
+    const cleanImg = (s.image || s.imageUrl || "").trim();
+    const payload: any = {
+      id: subId,
       name_bn: s.nameBn || s.name || "",
       name_en: s.nameEn || s.name_en || "",
       category_id: s.categoryId || s.category_id || "",
+      category_slug: s.categorySlug || s.category_slug || s.categoryId || "",
+      description_bn: s.descriptionBn || s.description || null,
+      description_en: s.descriptionEn || null,
+      icon_name: s.iconName || null,
+      image: cleanImg || null,
+      image_url: cleanImg || null,
+      display_order: Number(s.order ?? s.displayOrder ?? 0),
+      is_active: s.isActive !== false,
+      is_deleted: !!(s.isDeleted || s.is_deleted),
       updated_at: new Date().toISOString()
-    }, { onConflict: "id" });
-    await apiClient.post<any>("/api/sync/subcategory", s, { silent: true });
+    };
+    const { error } = await supabase.from("subcategories").upsert(payload, { onConflict: "id" });
+    if (error) {
+      console.error("[Supabase Subcategory Upsert Error]", error);
+      return false;
+    }
+    apiClient.post<any>("/api/sync/subcategory", s, { silent: true }).catch(() => {});
     return true;
-  } catch {
+  } catch (err) {
+    console.error("[Supabase Subcategory Sync Exception]", err);
     return false;
   }
 }

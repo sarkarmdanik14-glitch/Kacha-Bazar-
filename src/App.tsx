@@ -30,6 +30,7 @@ import {
   subscribeToSupabaseCategories,
   getCachedProducts,
   getCachedCategories,
+  saveCachedCategories,
   RESTAURANT_UNSPLASH_DUPLICATE_IDS
 } from "./lib/supabaseDataService";
 import { subscribeToSupabaseBanners, subscribeToSupabaseHomeConfig } from "./lib/supabaseLiveService";
@@ -1101,6 +1102,56 @@ export default function App() {
 
   const handleCategoryDeletedInApp = (categoryId: string) => {
     setCategories((prev) => prev.filter((c) => c.id !== categoryId));
+  };
+
+  const handleCategorySavedInApp = (savedCat: any) => {
+    if (!savedCat || !savedCat.id) return;
+    const catId = savedCat.id;
+    const cleanImg = (savedCat.image || savedCat.imageUrl || savedCat.banner || savedCat.bannerUrl || "").trim();
+
+    // 1. Persist to local storage override map
+    try {
+      const raw = localStorage.getItem("kb_categories_override");
+      const map = raw ? JSON.parse(raw) : {};
+      map[catId] = {
+        id: catId,
+        nameBn: savedCat.nameBn,
+        nameEn: savedCat.nameEn,
+        iconName: savedCat.iconName,
+        image: cleanImg,
+        imageUrl: cleanImg,
+        colorClass: savedCat.colorClass,
+        borderColor: savedCat.borderColor,
+        isAvailable: savedCat.isAvailable !== false && savedCat.disabled !== true,
+        displayOrder: typeof savedCat.displayOrder === "number" ? savedCat.displayOrder : savedCat.order
+      };
+      localStorage.setItem("kb_categories_override", JSON.stringify(map));
+    } catch (e) {
+      console.warn("Notice saving category override in localStorage:", e);
+    }
+
+    // 2. Optimistically update categories in state and update cache
+    setCategories((prev) => {
+      const exists = prev.some((c) => c.id === catId);
+      let updated: Category[];
+      if (exists) {
+        updated = prev.map((c) => {
+          if (c.id === catId) {
+            return {
+              ...c,
+              ...savedCat,
+              image: cleanImg || c.image,
+              imageUrl: cleanImg || c.imageUrl
+            };
+          }
+          return c;
+        });
+      } else {
+        updated = [...prev, savedCat];
+      }
+      saveCachedCategories(updated);
+      return updated;
+    });
   };
 
   // Disabled destructive grocery sync to protect custom images and deletions in Firestore
@@ -4787,6 +4838,7 @@ export default function App() {
           onProductSaved={handleProductSavedInApp}
           onProductDeleted={handleProductDeletedInApp}
           onCategoryDeleted={handleCategoryDeletedInApp}
+          onCategorySaved={handleCategorySavedInApp}
           onOpenCart={() => {
             setShowPortalModal(false);
             setShowCart(true);
