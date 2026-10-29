@@ -3,7 +3,7 @@ import {
   TrendingUp, ShoppingBag, User, Store, Bike, DollarSign, 
   CheckCircle, Clock, X, ChevronRight, Award, FileText,
   Activity, Users, RefreshCw, AlertCircle, ShieldCheck,
-  Smartphone, Monitor, Globe, Radio, Eye
+  Smartphone, Monitor, Globe, Radio, Eye, Wifi, WifiOff, Database, Zap
 } from "lucide-react";
 import { subscribeToVisitorAnalytics, forceRefreshVisitorStats, VisitorAnalyticsData } from "../../lib/visitorTracker";
 import { normalizeCategoryId } from "../../lib/categoryUtils";
@@ -38,6 +38,69 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [showLiveViewModal, setShowLiveViewModal] = useState<boolean>(false);
 
+  // Live Cloud Connection & Sync State
+  const [isOnline, setIsOnline] = useState<boolean>(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [isSyncingDb, setIsSyncingDb] = useState<boolean>(false);
+
+  // Measure database & server ping
+  const checkHealthAndPing = async () => {
+    if (!navigator.onLine) {
+      setIsOnline(false);
+      setLatencyMs(null);
+      return;
+    }
+    const start = performance.now();
+    try {
+      const res = await fetch("/api/health", { cache: "no-store" });
+      if (res.ok) {
+        const ping = Math.round(performance.now() - start);
+        setLatencyMs(ping);
+        setIsOnline(true);
+        setLastSyncTime(new Date());
+      } else {
+        setLatencyMs(null);
+      }
+    } catch {
+      setLatencyMs(null);
+    }
+  };
+
+  // Monitor online / offline events and ping latency every 30 seconds
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      checkHealthAndPing();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      setLatencyMs(null);
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    // Initial ping
+    checkHealthAndPing();
+    const interval = setInterval(checkHealthAndPing, 30000);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Update last sync time whenever orders, products, or users updates
+  useEffect(() => {
+    if (orders.length > 0 || users.length > 0) {
+      setLastSyncTime(new Date());
+    }
+  }, [orders.length, users.length, products.length]);
+
   // Real-time Visitor Analytics State
   const [visitorData, setVisitorData] = useState<VisitorAnalyticsData>({
     todayViews: 0,
@@ -50,15 +113,21 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
+    setIsSyncingDb(true);
     try {
-      const refreshed = await forceRefreshVisitorStats();
-      if (refreshed) {
-        setVisitorData(refreshed);
-      }
+      await Promise.allSettled([
+        forceRefreshVisitorStats().then(refreshed => {
+          if (refreshed) setVisitorData(refreshed);
+        }),
+        checkHealthAndPing()
+      ]);
     } catch (e) {
       // ignore
     } finally {
-      setTimeout(() => setIsRefreshing(false), 400);
+      setTimeout(() => {
+        setIsRefreshing(false);
+        setIsSyncingDb(false);
+      }, 400);
     }
   };
 
@@ -181,19 +250,87 @@ export default function AdminDashboardReport({ orders, products, users, lang }: 
     <div className="space-y-6 text-slate-700">
       
       {/* Real-time Monitor Header */}
-      <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 p-4 rounded-2xl">
-        <div>
-          <h2 className="text-sm font-black text-emerald-800 uppercase tracking-wider flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-emerald-600 animate-pulse" />
-            <span>{getTranslation("রিয়েল-টাইম সিস্টেম মনিটর", "Real-Time System Monitor")}</span>
-          </h2>
-          <p className="text-xs text-emerald-600 mt-1">
-            {getTranslation("লাইভ ক্লাউড ডাটাবেস সিঙ্ক সক্রিয় রয়েছে।", "Live cloud database synchronization is active.")}
-          </p>
+      <div className={`p-4 rounded-2xl border transition-all ${
+        !isOnline 
+          ? "bg-red-50 border-red-200" 
+          : "bg-emerald-50/90 border-emerald-200/80 shadow-sm"
+      }`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-black text-emerald-900 uppercase tracking-wider flex items-center gap-2">
+                <TrendingUp className={`w-4 h-4 ${isOnline ? "text-emerald-600 animate-pulse" : "text-red-500"}`} />
+                <span>{getTranslation("রিয়েল-টাইম সিস্টেম মনিটর", "Real-Time System Monitor")}</span>
+              </h2>
+              
+              {/* Cloud engine status tag */}
+              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-white border border-emerald-200 text-emerald-800 shadow-xs">
+                <Database className="w-3 h-3 text-emerald-600" />
+                <span>Supabase PostgreSQL • Cloud Realtime</span>
+              </span>
+
+              {latencyMs !== null && (
+                <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100/60 text-emerald-700">
+                  <Zap className="w-2.5 h-2.5 text-emerald-600" />
+                  <span>{latencyMs}ms Ping</span>
+                </span>
+              )}
+            </div>
+
+            <p className={`text-xs mt-1.5 flex flex-wrap items-center gap-2 ${
+              !isOnline ? "text-red-650 font-bold" : "text-emerald-700"
+            }`}>
+              <span>
+                {isOnline 
+                  ? getTranslation("লাইভ ক্লাউড ডাটাবেস সিঙ্ক সক্রিয় রয়েছে।", "Live cloud database synchronization is active.")
+                  : getTranslation("ইন্টারনেট সংযোগ বিচ্ছিন্ন! অফলাইন মোড সক্রিয় রয়েছে।", "Internet disconnected! Offline cached data is displayed.")
+                }
+              </span>
+              <span className="text-slate-400 font-normal">•</span>
+              <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                <Clock className="w-3 h-3 text-slate-400" />
+                <span>
+                  {getTranslation("সর্বশেষ সিঙ্ক:", "Last synced:")}{" "}
+                  {lastSyncTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })}
+                </span>
+              </span>
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Quick manual re-sync button */}
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing || isSyncingDb}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-emerald-100/80 active:scale-95 text-emerald-800 hover:text-emerald-900 text-xs font-bold rounded-xl border border-emerald-200 shadow-xs transition cursor-pointer"
+              title={getTranslation("ক্লাউড ডাটাবেস ও অ্যানালিটিক্স রিফ্রেশ করুন", "Force sync cloud database & analytics")}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isRefreshing || isSyncingDb ? "animate-spin" : ""}`} />
+              <span>
+                {isRefreshing || isSyncingDb 
+                  ? getTranslation("সিঙ্ক হচ্ছে...", "Syncing...") 
+                  : getTranslation("ফোর্স সিঙ্ক", "Sync Now")
+                }
+              </span>
+            </button>
+
+            {/* Dynamic Status Badge */}
+            {isOnline ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-black rounded-xl uppercase tracking-wider shadow-xs">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-200"></span>
+                </span>
+                <span>{getTranslation("সক্রিয়", "Active")}</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-[11px] font-black rounded-xl uppercase tracking-wider shadow-xs">
+                <WifiOff className="w-3.5 h-3.5" />
+                <span>{getTranslation("সংযোগ বিচ্ছিন্ন", "Disconnected")}</span>
+              </span>
+            )}
+          </div>
         </div>
-        <span className="px-3 py-1 bg-emerald-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest animate-pulse">
-          {getTranslation("সক্রিয়", "Active")}
-        </span>
       </div>
 
       {/* Real-time App Visitor Analytics Section */}
