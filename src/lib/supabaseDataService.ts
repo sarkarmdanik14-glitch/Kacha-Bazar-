@@ -209,7 +209,11 @@ export function applyCategoryOverrides(cats: Category[]): Category[] {
       existingIds.add(cat.id);
       const ov = overrides[cat.id];
       if (ov) {
-        const cleanImg = (ov.image || ov.imageUrl || ov.banner || ov.bannerUrl || "").trim();
+        let cleanImg = (ov.image || ov.imageUrl || ov.banner || ov.bannerUrl || "").trim();
+        // Purge legacy herbal wreath image if accidentally cached in localStorage for buy-sell
+        if (cat.id === "buy-sell" && (cleanImg.includes("aisure-f85cf6e3") || cleanImg.includes("yqcbsu"))) {
+          cleanImg = "";
+        }
         return {
           ...cat,
           nameBn: ov.nameBn || cat.nameBn,
@@ -227,9 +231,9 @@ export function applyCategoryOverrides(cats: Category[]): Category[] {
       return cat;
     });
 
-    // Also include any standalone override categories not present in the base list
+    // Also include any standalone override categories not present in the base list (ignore obsolete organic-herbal)
     for (const id of Object.keys(overrides)) {
-      if (!existingIds.has(id)) {
+      if (!existingIds.has(id) && id !== "organic-herbal") {
         mapped.push(overrides[id]);
       }
     }

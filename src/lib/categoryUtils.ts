@@ -145,6 +145,24 @@ export const EVENT_MANAGEMENT_CATEGORY: Category = {
 };
 
 /**
+ * Buy & Sell Zone Category Definition
+ * Serial #14 in the category list.
+ */
+export const BUY_SELL_CATEGORY: Category = {
+  id: "buy-sell",
+  nameBn: "বাই-সেল জোন",
+  nameEn: "Buy & Sell Zone",
+  iconName: "Repeat",
+  colorClass: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+  borderColor: "border-emerald-100",
+  displayOrder: 14,
+  order: 14,
+  image: "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev/categories/Gemini_Generated_Image_91a9g291a9g291a9.jpg",
+  imageUrl: "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev/categories/Gemini_Generated_Image_91a9g291a9g291a9.jpg",
+  isAvailable: true
+};
+
+/**
  * Standard category order map ensuring:
  * 1: vegetables (তাজা শাকসবজি)
  * 2: groceries (মুদি পণ্য)
@@ -596,6 +614,7 @@ export function mergeCategoryCards(categories: any[]): any[] {
   let mobileZoneAdded = false;
   let cosmeticsAdded = false;
   let eventManagementAdded = false;
+  let buySellAdded = false;
 
   for (const cat of categories) {
     if (!cat || !cat.id) continue;
@@ -834,21 +853,31 @@ export function mergeCategoryCards(categories: any[]): any[] {
         });
         pharmacyAdded = true;
       }
-    } else if (cat.id === "buy-sell" || cat.id === "organic-herbal" || cat.id === "buysell") {
-      const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
-      result.push({
-        ...cat,
-        id: "buy-sell",
-        nameBn: "বাই-সেল জোন",
-        nameEn: "Buy & Sell Zone",
-        iconName: "Repeat",
-        colorClass: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
-        borderColor: "border-emerald-100",
-        image: catImg || cat.image || cat.imageUrl || "",
-        imageUrl: catImg || cat.imageUrl || cat.image || "",
-        displayOrder: 14,
-        order: 14
-      });
+    } else if (cat.id === "buy-sell" || cat.id === "organic-herbal" || cat.id === "buysell" || cat.nameBn === "বাই-সেল জোন") {
+      if (!buySellAdded) {
+        const officialImg = BUY_SELL_CATEGORY.image;
+        const candidateImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
+        const isLegacyHerbalImg = candidateImg.includes("aisure-f85cf6e3") || candidateImg.includes("yqcbsu");
+        const cleanImg = (!isLegacyHerbalImg && candidateImg) ? candidateImg : officialImg;
+
+        result.push({
+          ...BUY_SELL_CATEGORY,
+          ...cat,
+          id: "buy-sell",
+          nameBn: "বাই-সেল জোন",
+          nameEn: "Buy & Sell Zone",
+          iconName: "Repeat",
+          colorClass: cat.colorClass || "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+          borderColor: cat.borderColor || "border-emerald-100",
+          image: cleanImg,
+          imageUrl: cleanImg,
+          displayOrder: 14,
+          order: 14,
+          isAvailable: true
+        });
+        buySellAdded = true;
+      }
+      continue;
     } else if (cat.id === "cosmetics" || cat.id === "personal-care" || cat.id === "beauty" || cat.id === "beauty-cosmetics") {
       if (!cosmeticsAdded) {
         const catImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
@@ -922,6 +951,11 @@ export function mergeCategoryCards(categories: any[]): any[] {
   // If event-management wasn't added yet, insert it
   if (!eventManagementAdded) {
     result.push({ ...EVENT_MANAGEMENT_CATEGORY });
+  }
+
+  // If buy-sell wasn't added yet, insert it
+  if (!buySellAdded) {
+    result.push({ ...BUY_SELL_CATEGORY });
   }
 
   // Deduplicate by ID and name to strictly ensure no duplicate cards (e.g. duplicate "মোবাইল জোন") exist
