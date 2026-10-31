@@ -259,6 +259,119 @@ export default function App() {
   });
   const [photoLoadError, setPhotoLoadError] = useState<boolean>(false);
 
+  // Toast Notifications
+  const [toast, setToast] = useState<{ textBn: string; textEn: string } | null>(null);
+  const triggerToast = useCallback((textBn: string, textEn: string) => {
+    setToast({ textBn, textEn });
+  }, []);
+
+  // =========================================================================
+  // REAL-TIME CLOUD CART SYNCHRONIZATION (Mobile <-> PC Real-Time Sync)
+  // =========================================================================
+  const isSyncingFromRemoteRef = useRef<boolean>(false);
+  const lastSyncedCartHashRef = useRef<string>("");
+  const syncDebounceTimerRef = useRef<any>(null);
+
+  // Sync current cart to server/cloud for the logged-in user
+  const syncCartToCloud = useCallback(async (userId: string, itemsToSync: CartItem[]) => {
+    if (!userId) return;
+    const cleanUid = String(userId).trim();
+    if (!cleanUid) return;
+    const jsonStr = JSON.stringify(itemsToSync);
+    try {
+      await fetch("/api/cart/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: cleanUid, items: itemsToSync })
+      });
+      lastSyncedCartHashRef.current = jsonStr;
+      try {
+        if (typeof BroadcastChannel !== "undefined") {
+          const bc = new BroadcastChannel("megabazar_cart_channel");
+          bc.postMessage({ type: "CART_UPDATED", userId: cleanUid, cart: itemsToSync });
+          bc.close();
+        }
+      } catch {}
+    } catch (err) {
+      console.warn("[Cloud Cart] Sync notice:", err);
+    }
+  }, []);
+
+  // Fetch and intelligently merge cart for logged-in user across mobile and PC
+  const fetchAndMergeUserCart = useCallback(async (userId: string, isLogin: boolean = false) => {
+    if (!userId) return;
+    const cleanUid = String(userId).trim();
+    if (!cleanUid) return;
+
+    try {
+      const resp = await fetch(`/api/cart/${encodeURIComponent(cleanUid)}`).then(r => r.json()).catch(() => null);
+      const cloudItems: CartItem[] = (resp?.success && Array.isArray(resp.items)) ? resp.items : [];
+
+      if (isLogin) {
+        // User just logged in or loaded session: merge local guest items with cloud cart
+        let currentGuestItems: CartItem[] = [];
+        try {
+          const raw = localStorage.getItem("kb_cart");
+          if (raw) currentGuestItems = JSON.parse(raw);
+        } catch {}
+
+        if (currentGuestItems.length > 0) {
+          const merged: CartItem[] = [...cloudItems];
+          let newItemsAdded = 0;
+          currentGuestItems.forEach((guestItem) => {
+            const matchIndex = merged.findIndex((m) =>
+              m.product.id === guestItem.product.id &&
+              ((!m.selectedOption && !guestItem.selectedOption) ||
+               (m.selectedOption && guestItem.selectedOption &&
+                m.selectedOption.value === guestItem.selectedOption.value &&
+                m.selectedOption.unit === guestItem.selectedOption.unit))
+            );
+            if (matchIndex > -1) {
+              merged[matchIndex].quantity = Math.max(merged[matchIndex].quantity, guestItem.quantity);
+            } else {
+              merged.push(guestItem);
+              newItemsAdded++;
+            }
+          });
+
+          isSyncingFromRemoteRef.current = true;
+          setCart(merged);
+          localStorage.setItem("kb_cart", JSON.stringify(merged));
+          lastSyncedCartHashRef.current = JSON.stringify(merged);
+          window.dispatchEvent(new CustomEvent("kb_cart_updated"));
+          syncCartToCloud(cleanUid, merged);
+
+          if (cloudItems.length > 0 && newItemsAdded > 0) {
+            triggerToast(
+              "আপনার কার্ট সফলভাবে ক্লাউডের সাথে যুক্ত করা হয়েছে!",
+              "Your cart items have been synchronized across devices!"
+            );
+          }
+        } else if (cloudItems.length > 0) {
+          // No local guest items; load cloud cart
+          isSyncingFromRemoteRef.current = true;
+          setCart(cloudItems);
+          localStorage.setItem("kb_cart", JSON.stringify(cloudItems));
+          lastSyncedCartHashRef.current = JSON.stringify(cloudItems);
+          window.dispatchEvent(new CustomEvent("kb_cart_updated"));
+        }
+      } else {
+        // Polling / Tab focus check: only update if remote cart differs from local state
+        const cloudJson = JSON.stringify(cloudItems);
+        const currentJson = JSON.stringify(cart);
+        if (cloudJson !== currentJson && cloudJson !== lastSyncedCartHashRef.current) {
+          isSyncingFromRemoteRef.current = true;
+          setCart(cloudItems);
+          localStorage.setItem("kb_cart", cloudJson);
+          lastSyncedCartHashRef.current = cloudJson;
+          window.dispatchEvent(new CustomEvent("kb_cart_updated"));
+        }
+      }
+    } catch (e) {
+      console.warn("[Cloud Cart] Fetch notice:", e);
+    }
+  }, [cart, syncCartToCloud, triggerToast]);
+
   useEffect(() => {
     document.title = "মেগা বাজার - Mega Bazar";
   }, []);
@@ -587,6 +700,7 @@ export default function App() {
         }
         if (sbU.role) setUserRole(sbU.role);
         if (sbU.referralCode) setUserReferralCode(sbU.referralCode);
+        fetchAndMergeUserCart(sbU.id || sbU.uid, true);
       } else {
         // Fallback: Check if an active staff / admin session exists
         const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
@@ -634,6 +748,7 @@ export default function App() {
         if (sbUser.referralCode) {
           setUserReferralCode(sbUser.referralCode);
         }
+        fetchAndMergeUserCart(sbUser.id || sbUser.uid, true);
       } else if (!auth.currentUser) {
         const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
         if (!staffSessionId) {
@@ -642,6 +757,8 @@ export default function App() {
           setUserReferralCode("");
           setUserProfilePhoto("");
           setPhotoLoadError(false);
+          lastSyncedCartHashRef.current = "";
+          isSyncingFromRemoteRef.current = false;
           try {
             localStorage.removeItem("kb_user_photo");
           } catch {}
@@ -770,78 +887,16 @@ export default function App() {
           setUserReferralCode("REF" + user.uid.substring(0, 5).toUpperCase());
         }
 
-        // Automatically load and merge the guest cart after login
-        try {
-          const cartDocRef = doc(db, "carts", user.uid);
-          let dbCart: CartItem[] = [];
-
-          if (auth.currentUser && auth.currentUser.uid === user.uid) {
-            try {
-              const cartSnap = await getDoc(cartDocRef);
-              if (cartSnap.exists()) {
-                dbCart = cartSnap.data().items || [];
-              }
-            } catch {
-              const resp = await fetch(`/api/cart/${encodeURIComponent(user.uid)}`).then(r => r.json()).catch(() => null);
-              if (resp?.success && Array.isArray(resp.items)) {
-                dbCart = resp.items;
-              }
-            }
-          } else {
-            const resp = await fetch(`/api/cart/${encodeURIComponent(user.uid)}`).then(r => r.json()).catch(() => null);
-            if (resp?.success && Array.isArray(resp.items)) {
-              dbCart = resp.items;
-            }
-          }
-          
-          const guestCartJson = localStorage.getItem("kb_cart");
-          const guestCart: CartItem[] = guestCartJson ? JSON.parse(guestCartJson) : [];
-          
-          if (guestCart.length > 0) {
-            // Merge guest cart into db cart
-            const merged = [...dbCart];
-            guestCart.forEach((guestItem) => {
-              const existingIdx = merged.findIndex(item => item.product.id === guestItem.product.id);
-              if (existingIdx > -1) {
-                merged[existingIdx].quantity += guestItem.quantity;
-              } else {
-                merged.push(guestItem);
-              }
-            });
-            
-            // Save merged cart to Firestore and server API
-            if (auth.currentUser && auth.currentUser.uid === user.uid) {
-              await setDoc(cartDocRef, { items: merged }).catch(() => {});
-            }
-            await fetch("/api/cart/sync", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ userId: user.uid, items: merged })
-            }).catch(() => {});
-
-            setCart(merged);
-            localStorage.setItem("kb_cart", JSON.stringify(merged));
-            
-            triggerToast(
-              "আপনার পূর্ববর্তী কার্ট আইটেম সফলভাবে যোগ করা হয়েছে!",
-              "Your guest cart items have been successfully merged!"
-            );
-          } else if (dbCart.length > 0) {
-            // No guest cart, just load db cart
-            setCart(dbCart);
-            localStorage.setItem("kb_cart", JSON.stringify(dbCart));
-          }
-        } catch (e: any) {
-          if (!e?.message?.includes("offline")) {
-            console.warn("Notice merging guest cart on login:", e?.message || e);
-          }
-        }
+        // Automatically load and merge the user cart from cloud (syncs across devices)
+        fetchAndMergeUserCart(user.uid, true);
       } else {
         setLoggedInUser(null);
         setUserRole("customer");
         setUserReferralCode("");
         setUserProfilePhoto("");
         setPhotoLoadError(false);
+        lastSyncedCartHashRef.current = "";
+        isSyncingFromRemoteRef.current = false;
         try {
           localStorage.removeItem("kb_user_photo");
         } catch {}
@@ -1423,20 +1478,79 @@ export default function App() {
     { id: 3, textBn: "পদ্মার তাজা ইলিশ আজই মেগা বাজারে এসেছে!", textEn: "Fresh Padma Hilsha arrived at Mega Bazar today!", read: true }
   ]);
 
-  // Toast Notifications
-  const [toast, setToast] = useState<{ textBn: string; textEn: string } | null>(null);
-
   // Network Online/Offline Status Tracking
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
 
   // Flash Sale Countdown Timer (Ticks down live)
   const [timeLeft, setTimeLeft] = useState({ hours: 4, minutes: 34, seconds: 12 });
 
-  // Sync cart and wishlist to localStorage
+  // Sync cart to localStorage and Cloud Backend (for logged-in users on Mobile & PC)
   useEffect(() => {
     localStorage.setItem("kb_cart", JSON.stringify(cart));
     window.dispatchEvent(new CustomEvent("kb_cart_updated"));
-  }, [cart]);
+
+    const uid = loggedInUser?.id || loggedInUser?.uid;
+    if (!uid) return;
+
+    if (isSyncingFromRemoteRef.current) {
+      isSyncingFromRemoteRef.current = false;
+      return;
+    }
+
+    const cartJson = JSON.stringify(cart);
+    if (cartJson === lastSyncedCartHashRef.current) return;
+
+    clearTimeout(syncDebounceTimerRef.current);
+    syncDebounceTimerRef.current = setTimeout(() => {
+      syncCartToCloud(uid, cart);
+    }, 300);
+  }, [cart, loggedInUser, syncCartToCloud]);
+
+  // Real-time synchronization when switching tabs/windows (e.g. mobile to PC or window focus)
+  useEffect(() => {
+    const handleSyncOnFocus = () => {
+      const uid = loggedInUser?.id || loggedInUser?.uid;
+      if (uid && document.visibilityState === "visible") {
+        fetchAndMergeUserCart(uid, false);
+      }
+    };
+
+    window.addEventListener("focus", handleSyncOnFocus);
+    document.addEventListener("visibilitychange", handleSyncOnFocus);
+
+    // Heartbeat sync every 10 seconds for instant mobile-to-PC updates
+    const pollTimer = setInterval(() => {
+      const uid = loggedInUser?.id || loggedInUser?.uid;
+      if (uid && document.visibilityState === "visible") {
+        fetchAndMergeUserCart(uid, false);
+      }
+    }, 10000);
+
+    // Cross-tab live broadcast listener
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        bc = new BroadcastChannel("megabazar_cart_channel");
+        bc.onmessage = (event) => {
+          const uid = loggedInUser?.id || loggedInUser?.uid;
+          if (event.data?.type === "CART_UPDATED" && Array.isArray(event.data.cart)) {
+            if (!event.data.userId || event.data.userId === uid) {
+              isSyncingFromRemoteRef.current = true;
+              setCart(event.data.cart);
+              lastSyncedCartHashRef.current = JSON.stringify(event.data.cart);
+            }
+          }
+        };
+      }
+    } catch {}
+
+    return () => {
+      window.removeEventListener("focus", handleSyncOnFocus);
+      document.removeEventListener("visibilitychange", handleSyncOnFocus);
+      clearInterval(pollTimer);
+      try { bc?.close(); } catch {}
+    };
+  }, [loggedInUser, fetchAndMergeUserCart]);
 
   useEffect(() => {
     const handleOpenCartFromAnywhere = () => {
@@ -1511,10 +1625,6 @@ export default function App() {
     target.src = SAFE_PRODUCT_PLACEHOLDER;
   }, []);
 
-  // Toast triggers
-  const triggerToast = useCallback((textBn: string, textEn: string) => {
-    setToast({ textBn, textEn });
-  }, []);
 
   // Network Online/Offline Status Tracking
   useEffect(() => {

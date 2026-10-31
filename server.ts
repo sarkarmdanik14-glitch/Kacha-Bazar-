@@ -1147,10 +1147,42 @@ app.post("/api/memo/verify-status", (req, res) => {
 });
 
 // -----------------------------------------------------------------------------------
-// API ROUTE: Server-Authoritative Cart Sync & Retrieval
-// Securely stores and retrieves user carts via Firebase Admin SDK (bypasses client permission issues)
 // -----------------------------------------------------------------------------------
-app.post("/api/cart/sync", rateLimiter(60, 60000), async (req, res) => {
+// API ROUTE: Server-Authoritative Cart Sync & Retrieval
+// Securely stores and retrieves user carts via triple-layer persistence:
+// 1) Fast JSON storage (data/user_carts.json)
+// 2) Supabase Cloud Database (if configured)
+// 3) Firebase Firestore (if configured)
+// -----------------------------------------------------------------------------------
+const USER_CARTS_FILE = path.resolve(process.cwd(), "data", "user_carts.json");
+let inMemoryCartsCache: Record<string, { items: any[]; updatedAt: string }> | null = null;
+
+function readUserCartsFromDisk(): Record<string, { items: any[]; updatedAt: string }> {
+  if (inMemoryCartsCache) return inMemoryCartsCache;
+  try {
+    if (fs.existsSync(USER_CARTS_FILE)) {
+      inMemoryCartsCache = JSON.parse(fs.readFileSync(USER_CARTS_FILE, "utf-8")) || {};
+      return inMemoryCartsCache!;
+    }
+  } catch (e) {
+    console.warn("[Server Cart] Disk read notice:", e);
+  }
+  inMemoryCartsCache = {};
+  return inMemoryCartsCache;
+}
+
+function writeUserCartsToDisk(carts: Record<string, { items: any[]; updatedAt: string }>) {
+  inMemoryCartsCache = carts;
+  try {
+    const dir = path.dirname(USER_CARTS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(USER_CARTS_FILE, JSON.stringify(carts, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("[Server Cart] Disk write notice:", err);
+  }
+}
+
+app.post("/api/cart/sync", rateLimiter(120, 60000), async (req, res) => {
   try {
     const { userId, items } = req.body || {};
     if (!userId || typeof userId !== "string") {
@@ -1158,7 +1190,31 @@ app.post("/api/cart/sync", rateLimiter(60, 60000), async (req, res) => {
     }
     const cleanUserId = String(userId).trim();
     const cleanItems = Array.isArray(items) ? items : [];
+    const timestamp = new Date().toISOString();
 
+    // 1. Save to Disk Cache (always reliable & immediate cross-device sync)
+    const allCarts = readUserCartsFromDisk();
+    allCarts[cleanUserId] = {
+      items: cleanItems,
+      updatedAt: timestamp
+    };
+    writeUserCartsToDisk(allCarts);
+
+    // 2. Sync to Supabase if available
+    const sb = getServerSupabase();
+    if (sb) {
+      try {
+        await sb.from("carts").upsert({
+          user_id: cleanUserId,
+          items: cleanItems,
+          updated_at: timestamp
+        }, { onConflict: "user_id" });
+      } catch (sbErr: any) {
+        // Table might not exist or schema variation; fail silently
+      }
+    }
+
+    // 3. Sync to Firebase Firestore if available
     const adminDb = getAdminDb();
     if (adminDb) {
       try {
@@ -1167,30 +1223,63 @@ app.post("/api/cart/sync", rateLimiter(60, 60000), async (req, res) => {
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
       } catch (err: any) {
-        console.warn("[Server Cart] Firestore sync notice:", err?.message || err);
+        // FireStore notice
       }
     }
 
-    return res.json({ success: true, count: cleanItems.length });
+    return res.json({ success: true, count: cleanItems.length, updatedAt: timestamp });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message || "Failed to sync cart" });
   }
 });
 
-app.get("/api/cart/:userId", rateLimiter(60, 60000), async (req, res) => {
+app.get("/api/cart/:userId", rateLimiter(120, 60000), async (req, res) => {
   try {
     const userId = String(req.params.userId || "").trim();
     if (!userId) {
       return res.status(400).json({ success: false, error: "Valid userId required" });
     }
 
+    // 1. Check local persistent store
+    const allCarts = readUserCartsFromDisk();
+    if (allCarts[userId] && Array.isArray(allCarts[userId].items)) {
+      return res.json({
+        success: true,
+        items: allCarts[userId].items,
+        updatedAt: allCarts[userId].updatedAt
+      });
+    }
+
+    // 2. Check Supabase
+    const sb = getServerSupabase();
+    if (sb) {
+      try {
+        const { data } = await sb.from("carts").select("items, updated_at").eq("user_id", userId).maybeSingle();
+        if (data && Array.isArray(data.items)) {
+          allCarts[userId] = {
+            items: data.items,
+            updatedAt: data.updated_at || new Date().toISOString()
+          };
+          writeUserCartsToDisk(allCarts);
+          return res.json({ success: true, items: data.items, updatedAt: data.updated_at });
+        }
+      } catch {}
+    }
+
+    // 3. Check Firebase Firestore
     const adminDb = getAdminDb();
     if (adminDb) {
       try {
         const snap = await adminDb.collection("carts").doc(userId).get();
         if (snap.exists) {
           const data = snap.data();
-          return res.json({ success: true, items: data?.items || [] });
+          const items = Array.isArray(data?.items) ? data.items : [];
+          allCarts[userId] = {
+            items,
+            updatedAt: new Date().toISOString()
+          };
+          writeUserCartsToDisk(allCarts);
+          return res.json({ success: true, items });
         }
       } catch (err: any) {
         console.warn("[Server Cart] Firestore read notice:", err?.message || err);
@@ -5879,11 +5968,11 @@ async function startServer() {
     try {
       const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
-        server: { middlewareMode: true, allowedHosts: true },
+        server: { middlewareMode: true, allowedHosts: true, hmr: false },
         appType: "spa",
       });
       app.use(vite.middlewares);
-      console.log("Vite development middleware attached.");
+      console.log("Vite development middleware attached (HMR disabled).");
     } catch (err) {
       console.error("Failed to initialize Vite middleware in development mode:", err);
     }
@@ -5917,7 +6006,17 @@ async function startServer() {
   // Primary listener on PORT (e.g. 8080 in Cloud Run production, or 3000 in dev)
   const primaryServer = http.createServer(app);
   primaryServer.on("error", (err: any) => {
-    console.error(`Primary server error on port ${PORT}:`, err);
+    if (err.code === "EADDRINUSE") {
+      console.warn(`Port ${PORT} is temporarily busy. Retrying in 1s...`);
+      setTimeout(() => {
+        try {
+          primaryServer.close();
+        } catch {}
+        primaryServer.listen(PORT, "0.0.0.0");
+      }, 1000);
+    } else {
+      console.error(`Primary server error on port ${PORT}:`, err);
+    }
   });
   primaryServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server successfully listening on http://0.0.0.0:${PORT}`);
