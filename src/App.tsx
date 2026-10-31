@@ -102,6 +102,39 @@ function deduplicateSubcategories(subs: Subcategory[]): Subcategory[] {
   return result;
 }
 
+function isSameCartItem(a: CartItem, b: CartItem): boolean {
+  if (!a || !b || !a.product || !b.product) return false;
+  if (a.product.id !== b.product.id) return false;
+  if (!a.selectedOption && !b.selectedOption) return true;
+  if (a.selectedOption && b.selectedOption) {
+    return (
+      a.selectedOption.value === b.selectedOption.value &&
+      a.selectedOption.unit === b.selectedOption.unit
+    );
+  }
+  return false;
+}
+
+function mergeCartItemLists(base: CartItem[], incoming: CartItem[]): CartItem[] {
+  if (!Array.isArray(base)) return Array.isArray(incoming) ? incoming : [];
+  if (!Array.isArray(incoming) || incoming.length === 0) return base;
+
+  const result: CartItem[] = [...base];
+  for (const item of incoming) {
+    if (!item || !item.product) continue;
+    const matchIndex = result.findIndex(r => isSameCartItem(r, item));
+    if (matchIndex > -1) {
+      result[matchIndex] = {
+        ...result[matchIndex],
+        quantity: Math.max(result[matchIndex].quantity, item.quantity)
+      };
+    } else {
+      result.push(item);
+    }
+  }
+  return result;
+}
+
 export default function App() {
   // Localization: 'bn' (Bangla) or 'en' (English)
   const [lang, setLang] = useState<"bn" | "en">("bn");
@@ -272,6 +305,12 @@ export default function App() {
   const lastSyncedCartHashRef = useRef<string>("");
   const syncDebounceTimerRef = useRef<any>(null);
 
+  // Synchronized refs to eliminate stale closures in async handlers & event listeners
+  const cartRef = useRef<CartItem[]>(cart);
+  cartRef.current = cart;
+  const loggedInUserRef = useRef<any>(loggedInUser);
+  loggedInUserRef.current = loggedInUser;
+
   // Sync current cart to server/cloud for the logged-in user
   const syncCartToCloud = useCallback(async (userId: string, itemsToSync: CartItem[]) => {
     if (!userId) return;
@@ -298,6 +337,7 @@ export default function App() {
   }, []);
 
   // Fetch and intelligently merge cart for logged-in user across mobile and PC
+  // SAFETY PRINCIPLE: An empty cloud response must NEVER wipe out a non-empty local cart!
   const fetchAndMergeUserCart = useCallback(async (userId: string, isLogin: boolean = false) => {
     if (!userId) return;
     const cleanUid = String(userId).trim();
@@ -307,70 +347,94 @@ export default function App() {
       const resp = await fetch(`/api/cart/${encodeURIComponent(cleanUid)}`).then(r => r.json()).catch(() => null);
       const cloudItems: CartItem[] = (resp?.success && Array.isArray(resp.items)) ? resp.items : [];
 
-      if (isLogin) {
-        // User just logged in or loaded session: merge local guest items with cloud cart
-        let currentGuestItems: CartItem[] = [];
+      // Determine local items with fallback to disk to prevent state loss
+      let localItems: CartItem[] = Array.isArray(cartRef.current) && cartRef.current.length > 0
+        ? cartRef.current
+        : [];
+      if (localItems.length === 0) {
         try {
           const raw = localStorage.getItem("kb_cart");
-          if (raw) currentGuestItems = JSON.parse(raw);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) localItems = parsed;
+          }
         } catch {}
+      }
 
-        if (currentGuestItems.length > 0) {
-          const merged: CartItem[] = [...cloudItems];
-          let newItemsAdded = 0;
-          currentGuestItems.forEach((guestItem) => {
-            const matchIndex = merged.findIndex((m) =>
-              m.product.id === guestItem.product.id &&
-              ((!m.selectedOption && !guestItem.selectedOption) ||
-               (m.selectedOption && guestItem.selectedOption &&
-                m.selectedOption.value === guestItem.selectedOption.value &&
-                m.selectedOption.unit === guestItem.selectedOption.unit))
-            );
-            if (matchIndex > -1) {
-              merged[matchIndex].quantity = Math.max(merged[matchIndex].quantity, guestItem.quantity);
-            } else {
-              merged.push(guestItem);
-              newItemsAdded++;
-            }
-          });
+      // CASE 1: Cloud cart is empty, but local cart has items
+      // (e.g. user added items before logging in, or before cloud sync completed, or just reloaded)
+      // NEVER clear local items! Instead, push local items to cloud so other devices get them.
+      if (cloudItems.length === 0 && localItems.length > 0) {
+        syncCartToCloud(cleanUid, localItems);
+        lastSyncedCartHashRef.current = JSON.stringify(localItems);
+        return;
+      }
 
+      // CASE 2: Cloud cart has items, but local cart is completely empty
+      // (e.g. user logged in on a new device or cleared local browser data)
+      if (cloudItems.length > 0 && localItems.length === 0) {
+        const cloudJson = JSON.stringify(cloudItems);
+        isSyncingFromRemoteRef.current = true;
+        setCart(cloudItems);
+        cartRef.current = cloudItems;
+        localStorage.setItem("kb_cart", cloudJson);
+        lastSyncedCartHashRef.current = cloudJson;
+        window.dispatchEvent(new CustomEvent("kb_cart_updated"));
+        return;
+      }
+
+      // CASE 3: BOTH cloud and local have items
+      // Merge items from both devices so nothing is ever lost
+      if (cloudItems.length > 0 && localItems.length > 0) {
+        const merged = mergeCartItemLists(cloudItems, localItems);
+        const mergedJson = JSON.stringify(merged);
+        const localJson = JSON.stringify(localItems);
+        const cloudJson = JSON.stringify(cloudItems);
+
+        // Update local cart if new items arrived from cloud
+        if (mergedJson !== localJson) {
           isSyncingFromRemoteRef.current = true;
           setCart(merged);
-          localStorage.setItem("kb_cart", JSON.stringify(merged));
-          lastSyncedCartHashRef.current = JSON.stringify(merged);
-          window.dispatchEvent(new CustomEvent("kb_cart_updated"));
-          syncCartToCloud(cleanUid, merged);
-
-          if (cloudItems.length > 0 && newItemsAdded > 0) {
-            triggerToast(
-              "আপনার কার্ট সফলভাবে ক্লাউডের সাথে যুক্ত করা হয়েছে!",
-              "Your cart items have been synchronized across devices!"
-            );
-          }
-        } else if (cloudItems.length > 0) {
-          // No local guest items; load cloud cart
-          isSyncingFromRemoteRef.current = true;
-          setCart(cloudItems);
-          localStorage.setItem("kb_cart", JSON.stringify(cloudItems));
-          lastSyncedCartHashRef.current = JSON.stringify(cloudItems);
+          cartRef.current = merged;
+          localStorage.setItem("kb_cart", mergedJson);
+          lastSyncedCartHashRef.current = mergedJson;
           window.dispatchEvent(new CustomEvent("kb_cart_updated"));
         }
-      } else {
-        // Polling / Tab focus check: only update if remote cart differs from local state
-        const cloudJson = JSON.stringify(cloudItems);
-        const currentJson = JSON.stringify(cart);
-        if (cloudJson !== currentJson && cloudJson !== lastSyncedCartHashRef.current) {
-          isSyncingFromRemoteRef.current = true;
-          setCart(cloudItems);
-          localStorage.setItem("kb_cart", cloudJson);
-          lastSyncedCartHashRef.current = cloudJson;
-          window.dispatchEvent(new CustomEvent("kb_cart_updated"));
+
+        // Push merged items to cloud if local had items not yet in cloud
+        if (mergedJson !== cloudJson) {
+          syncCartToCloud(cleanUid, merged);
+        }
+
+        if (isLogin && merged.length > localItems.length) {
+          triggerToast(
+            "আপনার কার্ট সফলভাবে ক্লাউডের সাথে যুক্ত করা হয়েছে!",
+            "Your cart items have been synchronized across devices!"
+          );
         }
       }
     } catch (e) {
       console.warn("[Cloud Cart] Fetch notice:", e);
     }
-  }, [cart, syncCartToCloud, triggerToast]);
+  }, [syncCartToCloud, triggerToast]);
+
+  // Flush pending cart changes before page reload or navigation
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const uid = loggedInUserRef.current?.id || loggedInUserRef.current?.uid;
+      const currentCart = cartRef.current;
+      if (uid && Array.isArray(currentCart) && currentCart.length > 0) {
+        try {
+          const payload = JSON.stringify({ userId: uid, items: currentCart });
+          if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+            navigator.sendBeacon("/api/cart/sync", new Blob([payload], { type: "application/json" }));
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
 
   useEffect(() => {
     document.title = "মেগা বাজার - Mega Bazar";
@@ -916,44 +980,6 @@ export default function App() {
     };
   }, []);
 
-  // Sync cart when modified while logged in
-  useEffect(() => {
-    if (loggedInUser && loggedInUser.uid) {
-      const syncCart = async () => {
-        const cleanCart = JSON.parse(JSON.stringify(cart));
-        const targetUid = loggedInUser.uid;
-
-        // If user is currently authenticated with Firebase Auth and UIDs match,
-        // sync directly to Firestore client SDK:
-        if (auth.currentUser && auth.currentUser.uid === targetUid) {
-          try {
-            const cartDocRef = doc(db, "carts", targetUid);
-            await setDoc(cartDocRef, { items: cleanCart });
-            return;
-          } catch (e: any) {
-            // Direct write failed (e.g. offline or rule notice), fall back to server sync below
-          }
-        }
-
-        // For Supabase users or when Firebase Auth session is absent/differs,
-        // sync via server API using Firebase Admin SDK (no client permission restriction)
-        try {
-          await fetch("/api/cart/sync", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: targetUid, items: cleanCart })
-          });
-        } catch {
-          // Local storage is already the local offline fallback
-        }
-      };
-      
-      const timer = setTimeout(() => {
-        syncCart();
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [cart, loggedInUser]);
 
   const [products, setProducts] = useState<Product[]>(() => {
     const cached = getCachedProducts();
@@ -1537,6 +1563,10 @@ export default function App() {
             if (!event.data.userId || event.data.userId === uid) {
               isSyncingFromRemoteRef.current = true;
               setCart(event.data.cart);
+              cartRef.current = event.data.cart;
+              try {
+                localStorage.setItem("kb_cart", JSON.stringify(event.data.cart));
+              } catch {}
               lastSyncedCartHashRef.current = JSON.stringify(event.data.cart);
             }
           }
@@ -1729,16 +1759,28 @@ export default function App() {
       return;
     }
 
-    setCart((prev) => {
-      if (existingIdx > -1) {
-        return prev.map((item, idx) => 
+    const updated = existingIdx > -1
+      ? cart.map((item, idx) => 
           idx === existingIdx
             ? { ...item, quantity: item.quantity + quantity }
             : item
-        );
-      }
-      return [...prev, { product, quantity, selectedOption: opt }];
-    });
+        )
+      : [...cart, { product, quantity, selectedOption: opt }];
+
+    setCart(updated);
+    cartRef.current = updated;
+    try {
+      localStorage.setItem("kb_cart", JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent("kb_cart_updated"));
+    } catch {}
+
+    const uid = loggedInUserRef.current?.id || loggedInUserRef.current?.uid;
+    if (uid) {
+      clearTimeout(syncDebounceTimerRef.current);
+      syncDebounceTimerRef.current = setTimeout(() => {
+        syncCartToCloud(uid, updated);
+      }, 150);
+    }
     
     if (showFeedback) {
       const optionLabel = opt ? ` (${opt.value}${opt.unit})` : "";
@@ -1778,16 +1820,46 @@ export default function App() {
         );
       }
 
+      cartRef.current = updated;
+      try {
+        localStorage.setItem("kb_cart", JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent("kb_cart_updated"));
+      } catch {}
+
+      const uid = loggedInUserRef.current?.id || loggedInUserRef.current?.uid;
+      if (uid) {
+        clearTimeout(syncDebounceTimerRef.current);
+        syncDebounceTimerRef.current = setTimeout(() => {
+          syncCartToCloud(uid, updated);
+        }, 150);
+      }
+
       return updated;
     });
   };
 
   const removeFromCart = (productId: string, selectedOption?: any) => {
-    setCart((prev) => prev.filter(item => {
-      const matchesOption = (!item.selectedOption && !selectedOption) || 
-        (item.selectedOption && selectedOption && item.selectedOption.value === selectedOption.value && item.selectedOption.unit === selectedOption.unit);
-      return !(item.product.id === productId && matchesOption);
-    }));
+    setCart((prev) => {
+      const updated = prev.filter(item => {
+        const matchesOption = (!item.selectedOption && !selectedOption) || 
+          (item.selectedOption && selectedOption && item.selectedOption.value === selectedOption.value && item.selectedOption.unit === selectedOption.unit);
+        return !(item.product.id === productId && matchesOption);
+      });
+      cartRef.current = updated;
+      try {
+        localStorage.setItem("kb_cart", JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent("kb_cart_updated"));
+      } catch {}
+
+      const uid = loggedInUserRef.current?.id || loggedInUserRef.current?.uid;
+      if (uid) {
+        clearTimeout(syncDebounceTimerRef.current);
+        syncDebounceTimerRef.current = setTimeout(() => {
+          syncCartToCloud(uid, updated);
+        }, 150);
+      }
+      return updated;
+    });
     triggerToast("আইটেমটি কার্ট থেকে সরানো হয়েছে", "Item removed from cart");
   };
 
@@ -1796,12 +1868,28 @@ export default function App() {
       const targetItem = prev[itemIndex];
       if (!targetItem) return prev;
 
-      return prev.map((item, idx) => {
+      const updated = prev.map((item, idx) => {
         if (idx === itemIndex) {
           return { ...item, quantity: 1, selectedOption: newOption };
         }
         return item;
       });
+
+      cartRef.current = updated;
+      try {
+        localStorage.setItem("kb_cart", JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent("kb_cart_updated"));
+      } catch {}
+
+      const uid = loggedInUserRef.current?.id || loggedInUserRef.current?.uid;
+      if (uid) {
+        clearTimeout(syncDebounceTimerRef.current);
+        syncDebounceTimerRef.current = setTimeout(() => {
+          syncCartToCloud(uid, updated);
+        }, 150);
+      }
+
+      return updated;
     });
 
     if (!newOption.isCustom) {
@@ -2036,10 +2124,20 @@ export default function App() {
       createdAt: new Date().toISOString()
     });
     setCart([]);
+    cartRef.current = [];
+    try {
+      localStorage.setItem("kb_cart", "[]");
+      window.dispatchEvent(new CustomEvent("kb_cart_updated"));
+    } catch {}
+    const uid = loggedInUserRef.current?.id || loggedInUserRef.current?.uid;
+    if (uid) {
+      lastSyncedCartHashRef.current = "[]";
+      syncCartToCloud(uid, []);
+    }
     setAppliedCoupon(null);
     setCheckoutStatus("success");
     setShowCheckoutModal(false);
-  }, [cart, grandTotal, subtotal, discountAmt, deliveryFee]);
+  }, [grandTotal, subtotal, discountAmt, deliveryFee, cart, syncCartToCloud]);
 
   // Reviews submission
   const handleSubmitReview = (e: React.FormEvent) => {
