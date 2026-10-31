@@ -27,6 +27,8 @@ import { createTranslator } from "../lib/formatUtils";
 import { SAFE_PRODUCT_PLACEHOLDER } from "../lib/masterImageRegistry";
 import { checkAndUpgradePremiumMembership } from "../lib/membership";
 import { syncSingleOrderToSupabase } from "../lib/supabaseSync";
+import { supabase } from "../lib/supabase";
+import { fetchUserProfile } from "../lib/supabaseAuth";
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -41,6 +43,7 @@ interface CheckoutModalProps {
   onSuccess: (orderId: string, orderData?: any) => void;
   triggerToast: (bn: string, en: string) => void;
   isFullScreen?: boolean;
+  user?: any | null;
 }
 
 export default function CheckoutModal({ 
@@ -55,7 +58,8 @@ export default function CheckoutModal({
   lang, 
   onSuccess,
   triggerToast,
-  isFullScreen = false
+  isFullScreen = false,
+  user: propUser = null
 }: CheckoutModalProps) {
   const [name, setName] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
@@ -143,26 +147,60 @@ export default function CheckoutModal({
     );
   };
 
-  // Auto-fill user profiles from Firebase Auth if logged in
+  // Auto-fill user profiles from Supabase Auth / PostgreSQL if logged in
   useEffect(() => {
     if (!isOpen) return;
 
-    const user = auth.currentUser;
-    if (user) {
-      getDoc(doc(db, "users", user.uid)).then((snap) => {
-        if (snap.exists()) {
-          const uData = snap.data();
-          setCurrentUser(uData);
-          setName(uData.displayName || "");
-          setPhone(uData.phoneNumber || "");
-          setAddress(uData.address || "");
+    let isMounted = true;
+
+    const loadLoggedInUser = async () => {
+      try {
+        let activeUser = propUser || null;
+        let activeUid = activeUser?.uid || activeUser?.id;
+
+        if (!activeUid) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            activeUid = session.user.id;
+            activeUser = session.user;
+          }
         }
-      });
-    }
+
+        if (activeUid) {
+          const profile = await fetchUserProfile(activeUid);
+          if (!isMounted) return;
+
+          const meta = activeUser?.user_metadata || {};
+          const resolvedUser = {
+            ...(activeUser || {}),
+            ...(profile || {}),
+            uid: activeUid,
+            id: activeUid
+          };
+
+          setCurrentUser(resolvedUser);
+
+          const autoName = profile?.fullName || profile?.displayName || (profile as any)?.name || meta?.full_name || meta?.display_name || resolvedUser.displayName || resolvedUser.fullName || "";
+          const autoPhone = profile?.phone || profile?.phoneNumber || meta?.phone || resolvedUser.phoneNumber || resolvedUser.phone || "";
+          const autoAddress = profile?.address || resolvedUser.address || "";
+
+          // Auto-populate into state (keeps user ability to edit anytime)
+          setName((prev) => (prev.trim() ? prev : autoName));
+          setPhone((prev) => (prev.trim() ? prev : autoPhone));
+          setAddress((prev) => (prev.trim() ? prev : autoAddress));
+        } else {
+          setCurrentUser(null);
+        }
+      } catch (err) {
+        console.warn("[CheckoutModal] User profile auto-fill notice:", err);
+      }
+    };
+
+    loadLoggedInUser();
 
     // Fetch dynamic gateway numbers & store settings
     getDoc(doc(db, "settings", "global")).then((snap) => {
-      if (snap.exists()) {
+      if (snap.exists() && isMounted) {
         const data = snap.data();
         setSettings(data);
         setBkashNum(data.bKashNumber || "01700000000");
@@ -171,7 +209,10 @@ export default function CheckoutModal({
       }
     });
 
-  }, [isOpen]);
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, propUser]);
 
   useEffect(() => {
     if (isOpen) {
@@ -190,10 +231,41 @@ export default function CheckoutModal({
     e.preventDefault();
     if (submitting) return;
 
-    if (!name.trim() || !phone.trim() || !address.trim()) {
+    const trimmedName = name.trim();
+    const trimmedPhone = phone.trim();
+    const trimmedAddress = address.trim();
+
+    // Compulsory validation for all orders (Guest accounts MUST supply all details)
+    if (!trimmedName) {
       triggerToast(
-        "অনুগ্রহ করে সব তথ্য পূরণ করুন।",
-        "Please fill in all contact and delivery details."
+        "অনুগ্রহ করে আপনার পুরো নাম প্রদান করুন (বাধ্যতামূলক)।",
+        "Please provide your full name (Compulsory for delivery)."
+      );
+      return;
+    }
+
+    if (!trimmedPhone) {
+      triggerToast(
+        "অনুগ্রহ করে একটি মোবাইল নম্বর প্রদান করুন (বাধ্যতামূলক)।",
+        "Please provide an active mobile contact number (Compulsory)."
+      );
+      return;
+    }
+
+    // Validate Bangladeshi 11-digit phone number format (01XXXXXXXXX)
+    const cleanPhoneDigits = trimmedPhone.replace(/[\s-]/g, "");
+    if (!/^(?:\+?88)?01[3-9]\d{8}$/.test(cleanPhoneDigits)) {
+      triggerToast(
+        "অনুগ্রহ করে একটি সঠিক ১১-ডিজিটের বাংলাদেশি মোবাইল নম্বর দিন (যেমন: 01711XXXXXX)।",
+        "Please enter a valid 11-digit Bangladeshi mobile number (e.g. 01711XXXXXX)."
+      );
+      return;
+    }
+
+    if (!trimmedAddress || trimmedAddress.length < 5) {
+      triggerToast(
+        "অনুগ্রহ করে সম্পূর্ণ ডেলিভারি ঠিকানা প্রদান করুন (বাধ্যতামূলক)।",
+        "Please provide your full delivery address (Compulsory)."
       );
       return;
     }
@@ -277,7 +349,8 @@ export default function CheckoutModal({
 
     setSubmitting(true);
     const orderId = `KB-${Math.floor(100000 + Math.random() * 900000)}`;
-    const user = auth.currentUser;
+    const effectiveCustomerId = currentUser?.id || currentUser?.uid || auth.currentUser?.uid || "guest";
+    const isGuestOrder = effectiveCustomerId === "guest";
 
     // Clean items payload (strips undefined properties which cause Firestore setDoc/transaction failures)
     const cleanItems = JSON.parse(JSON.stringify(cart));
@@ -292,15 +365,15 @@ export default function CheckoutModal({
     // Create Order Object (with double-mapping fields for 100% compatibility across Admin, Seller, Rider and Customer portals)
     const orderPayload = {
       id: orderId,
-      customerId: user ? user.uid : "guest",
-      customerName: name || "",
-      customerPhone: phone || "",
-      deliveryAddress: address || "",
+      customerId: effectiveCustomerId,
+      customerName: name.trim(),
+      customerPhone: phone.trim(),
+      deliveryAddress: address.trim(),
       
       // Secondary redundant fields for Admin panel/report dashboard compatibility
-      name: name || "",
-      phone: phone || "",
-      address: address || "",
+      name: name.trim(),
+      phone: phone.trim(),
+      address: address.trim(),
       totalAmount: computedGrandTotal || 0,
 
       items: cleanItems,
@@ -317,7 +390,7 @@ export default function CheckoutModal({
       paymentStatus: "pending",
       orderStatus: "pending",
       createdAt: new Date().toISOString(),
-      isGuest: !user,
+      isGuest: isGuestOrder,
       couponUsed: appliedCoupon ? (appliedCoupon.code || "") : "",
       riderId: ""
     };
@@ -326,7 +399,7 @@ export default function CheckoutModal({
     const paymentPayload = payId ? {
       id: payId,
       orderId: orderId,
-      userId: user ? user.uid : "guest",
+      userId: effectiveCustomerId,
       amount: computedGrandTotal || 0,
       method: payMethod || "",
       status: "pending",
@@ -351,8 +424,8 @@ export default function CheckoutModal({
         "অর্ডার সফলভাবে সম্পন্ন হয়েছে!",
         "Order placed successfully!"
       );
-      if (user?.uid) {
-        checkAndUpgradePremiumMembership(user.uid);
+      if (effectiveCustomerId && effectiveCustomerId !== "guest") {
+        checkAndUpgradePremiumMembership(effectiveCustomerId);
       }
       // Real-time automatic sync of newly placed order to Supabase
       syncSingleOrderToSupabase({ ...orderPayload, id: orderId }).catch((err) => {
@@ -439,27 +512,76 @@ export default function CheckoutModal({
                     <span>{getTranslation("ডেলিভারি ঠিকানা ও তথ্য", "Shipping Details")}</span>
                   </h4>
 
+                  {/* Guest Notice or Logged-in Notice */}
+                  {!currentUser ? (
+                    <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900">
+                      <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="leading-relaxed">
+                        <p className="font-extrabold text-amber-900">
+                          {getTranslation("গেস্ট চেকআউট: তথ্য পূরণ বাধ্যতামূলক", "Guest Checkout: Details Required")}
+                        </p>
+                        <p className="text-[11px] text-amber-800 mt-0.5">
+                          {getTranslation(
+                            "যেহেতু আপনি একাউন্টে লগইন করেননি, তাই সঠিক ডেলিভারির জন্য নাম, সচল মোবাইল নম্বর ও বিস্তারিত ঠিকানা দেওয়া বাধ্যতামূলক।",
+                            "Since you are not logged in, your full name, active mobile contact, and full delivery address are strictly required for order confirmation."
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 bg-emerald-50/70 border border-emerald-100 rounded-2xl flex items-center justify-between text-xs text-emerald-800">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="font-bold text-[11px]">
+                          {getTranslation(
+                            "আপনার একাউন্ট থেকে তথ্য স্বয়ংক্রিয়ভাবে লোড করা হয়েছে",
+                            "Contact details auto-filled from your registered account"
+                          )}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200 font-extrabold shrink-0">
+                        {getTranslation("প্রয়োজনে পরিবর্তনযোগ্য", "Editable")}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                        {getTranslation("আপনার নাম", "Full Name")}
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <span>
+                          {getTranslation("আপনার নাম", "Full Name")} <span className="text-rose-500 font-black">* ({getTranslation("বাধ্যতামূলক", "Compulsory")})</span>
+                        </span>
+                        {currentUser && name.trim() && (
+                          <span className="text-[9.5px] text-emerald-700 font-black bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1">
+                            <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
+                            {getTranslation("অটো-ফিল্ড", "Auto-filled")}
+                          </span>
+                        )}
                       </label>
                       <div className="relative">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                         <input
                           type="text"
                           required
-                          placeholder={getTranslation("যেমন: মোহাম্মদ", "e.g., Mohammad")}
+                          placeholder={getTranslation("যেমন: মোঃ আবু হানিফ সরকার", "e.g., Mohammad Abu Hanif")}
                           value={name}
                           onChange={(e) => setName(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                        {getTranslation("মোবাইল নম্বর", "Mobile Contact")}
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <span>
+                          {getTranslation("মোবাইল নম্বর", "Mobile Contact")} <span className="text-rose-500 font-black">* ({getTranslation("বাধ্যতামূলক", "Compulsory")})</span>
+                        </span>
+                        {currentUser && phone.trim() && (
+                          <span className="text-[9.5px] text-emerald-700 font-black bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1">
+                            <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
+                            {getTranslation("অটো-ফিল্ড", "Auto-filled")}
+                          </span>
+                        )}
                       </label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
@@ -469,22 +591,30 @@ export default function CheckoutModal({
                           placeholder="01711XXXXXX"
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-mono font-bold"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                        {getTranslation("সম্পূর্ণ ডেলিভারি ঠিকানা", "Delivery Address")}
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <span>
+                          {getTranslation("সম্পূর্ণ ডেলিভারি ঠিকানা", "Delivery Address")} <span className="text-rose-500 font-black">* ({getTranslation("বাধ্যতামূলক", "Compulsory")})</span>
+                        </span>
+                        {currentUser && address.trim() && (
+                          <span className="text-[9.5px] text-emerald-700 font-black bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1">
+                            <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
+                            {getTranslation("অটো-ফিল্ড", "Auto-filled")}
+                          </span>
+                        )}
                       </label>
                       <textarea
                         required
                         rows={3}
-                        placeholder={getTranslation("যেমন: বাড়ি-১২, রোড-৪, চ্যাচকৈড় বাজার, গুরুদাশপুর", "e.g., House-12, Road-4, Gurudaspur, Natore")}
+                        placeholder={getTranslation("যেমন: বাড়ি-১২, রোড-৪, চাঁচকৈড় বাজার, গুরুদাশপুর", "e.g., House-12, Road-4, Gurudaspur, Natore")}
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs focus:bg-white outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
                       />
                       
                       {/* Geolocation Buttons */}

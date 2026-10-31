@@ -1975,6 +1975,7 @@ export default function App() {
           onSuccess={handleCheckoutSuccess} 
           triggerToast={triggerToast} 
           isFullScreen={true}
+          user={loggedInUser}
         />
         
         {/* ================= TOAST FLOATING BANNER ================= */}
