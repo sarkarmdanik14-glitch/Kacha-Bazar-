@@ -28,6 +28,7 @@ import {
   type ConfirmationResult
 } from "../../lib/firebase";
 import { supabase } from "../../lib/supabase";
+import { fetchUserProfile } from "../../lib/supabaseAuth";
 import { 
   User, CreditCard, ShoppingBag, Gift, MapPin, 
   ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, 
@@ -203,19 +204,20 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   }, [dbUser?.fullName, dbUser?.displayName, dbUser?.name, dbUser?.phone, dbUser?.email, dbUser?.address, dbUser?.photoURL]);
 
   // Digital ID and Membership States - Every ID strictly starts with CFI prefix
-  const customerId = normalizeMemberId(dbUser?.customerId, user?.uid);
+  const customerId = normalizeMemberId(dbUser?.customerId, user?.uid || user?.id);
 
   // Auto-sync & migrate legacy ID in Firestore (e.g. FCIMWZ -> CFIMWZ) without altering any user credentials or balance
   useEffect(() => {
-    if (user?.uid && dbUser) {
-      const fixedId = normalizeMemberId(dbUser.customerId, user.uid);
+    const targetUid = user?.uid || user?.id;
+    if (targetUid && dbUser) {
+      const fixedId = normalizeMemberId(dbUser.customerId, targetUid);
       if (dbUser.customerId !== fixedId) {
-        setDoc(doc(db, "users", user.uid), { customerId: fixedId }, { merge: true }).catch((err) => {
+        setDoc(doc(db, "users", targetUid), { customerId: fixedId }, { merge: true }).catch((err) => {
           console.warn("Notice syncing updated CFI customerId:", err);
         });
       }
     }
-  }, [user?.uid, dbUser?.customerId]);
+  }, [user?.uid, user?.id, dbUser?.customerId]);
 
   // Prioritize displaying the full name: userData?.fullName || userData?.displayName || user?.displayName || 'গ্রাহক'
   const profileName = (
@@ -806,20 +808,70 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   const getTranslation = createTranslator(lang);
 
   useEffect(() => {
-    if (!user?.uid) return;
+    const targetUid = user?.uid || user?.id;
+    if (!targetUid) {
+      setLoading(false);
+      return;
+    }
 
-    // Listen to real-time User details
+    // Safety timeout: NEVER allow loading spinner to spin forever under any circumstances
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 1200);
+
+    // 0. Fetch user profile from Supabase
+    const fetchUserData = async () => {
+      try {
+        const profile = await fetchUserProfile(targetUid);
+        if (profile) {
+          setDbUser((prev: any) => ({ ...prev, ...profile }));
+          const liveName = profile.fullName || profile.displayName || (profile as any).name;
+          if (liveName) {
+            setDisplayNameInput(liveName);
+          }
+          if (profile.walletBalance !== undefined) {
+            setWalletBalance(Number(profile.walletBalance) || 0);
+          }
+          if (profile.photoURL) {
+            setPhotoUrlInput(profile.photoURL);
+            try {
+              localStorage.setItem("kb_user_photo", profile.photoURL);
+              window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: profile.photoURL } }));
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.warn("[CustomerPortal] User profile load:", err);
+      }
+    };
+    fetchUserData();
+
+    // 0.1. Fetch wallet from Supabase wallets table
+    const fetchWallet = async () => {
+      try {
+        const { data: wData } = await supabase
+          .from("wallets")
+          .select("balance")
+          .eq("user_id", targetUid)
+          .maybeSingle();
+        if (wData && wData.balance !== undefined) {
+          setWalletBalance(Number(wData.balance) || 0);
+        }
+      } catch {}
+    };
+    fetchWallet();
+
+    // Listen to real-time User details (legacy fallback)
     const unsubUser = onSnapshot(
-      doc(db, "users", user.uid), 
+      doc(db, "users", targetUid), 
       (docSnap) => {
         if (docSnap.exists()) {
           const udata = docSnap.data();
-          setDbUser(udata);
+          setDbUser((prev: any) => ({ ...prev, ...udata }));
           const liveName = udata.fullName || udata.displayName || udata.name;
           if (liveName) {
             setDisplayNameInput(liveName);
           }
-          // Real-time synchronization of wallet balance directly from users/{userId}/walletBalance
           if (udata.walletBalance !== undefined) {
             setWalletBalance(Number(udata.walletBalance) || 0);
           } else if (udata.balance !== undefined) {
@@ -844,13 +896,17 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     // 1. PRIMARY: Fetch orders from Supabase
     const fetchSupabaseCustomerOrders = async () => {
       try {
-        const { data: supaOrders, error: sErr } = await supabase
-          .from("orders")
-          .select("*")
-          .or(`customer_id.eq.${user.uid},customer_phone.eq.${user.phoneNumber || ""}`)
-          .order("created_at", { ascending: false });
+        const phone = (user?.phoneNumber || user?.phone || "").trim();
+        let q = supabase.from("orders").select("*");
+        if (phone && phone.length >= 4) {
+          q = q.or(`customer_id.eq.${targetUid},customer_phone.eq.${phone}`);
+        } else {
+          q = q.eq("customer_id", targetUid);
+        }
 
-        if (!sErr && supaOrders && supaOrders.length > 0) {
+        const { data: supaOrders, error: sErr } = await q.order("created_at", { ascending: false });
+
+        if (!sErr && supaOrders) {
           const mapped = supaOrders.map((o: any) => ({
             ...o,
             orderNumber: o.order_number || o.id,
@@ -863,11 +919,16 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             createdAt: o.created_at
           }));
           setOrders(mapped);
-          setLoading(false);
-          checkAndUpgradePremiumMembership(user.uid);
+          if (mapped.length > 0) {
+            checkAndUpgradePremiumMembership(targetUid);
+          }
+        } else {
+          setOrders([]);
         }
       } catch (e) {
         console.warn("[Supabase] Customer orders load notice:", e);
+      } finally {
+        setLoading(false);
       }
     };
     fetchSupabaseCustomerOrders();
@@ -877,7 +938,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     try {
       const ordersQuery = query(
         collection(db, "orders"),
-        where("customerId", "==", user.uid),
+        where("customerId", "==", targetUid),
         orderBy("createdAt", "desc")
       );
       unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
@@ -889,7 +950,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
           setOrders(ords);
         }
         setLoading(false);
-        checkAndUpgradePremiumMembership(user.uid);
+        checkAndUpgradePremiumMembership(targetUid);
       }, (err) => {
         setLoading(false);
       });
@@ -899,7 +960,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
     // Listen to Wallet balance & transactions
     const unsubWallet = onSnapshot(
-      doc(db, "wallet", user.uid), 
+      doc(db, "wallet", targetUid), 
       (docSnap) => {
         if (docSnap.exists()) {
           setWalletBalance(docSnap.data().balance || 0);
@@ -910,7 +971,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
     const txQuery = query(
       collection(db, "transactions"),
-      where("userId", "==", user.uid),
+      where("userId", "==", targetUid),
       orderBy("createdAt", "desc")
     );
     const unsubTx = onSnapshot(
@@ -922,13 +983,12 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         });
         setTransactions(txs);
 
-        // Reset unintentional default 50 balance back to 0 if user has no actual transactions or qualifying tasks
         if (txs.length === 0) {
           const rawBal = Number(dbUser?.walletBalance ?? dbUser?.balance ?? walletBalance ?? 0);
           if (rawBal === 50) {
             setWalletBalance(0);
-            setDoc(doc(db, "wallet", user.uid), { balance: 0, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
-            setDoc(doc(db, "users", user.uid), { walletBalance: 0, balance: 0, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+            setDoc(doc(db, "wallet", targetUid), { balance: 0, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+            setDoc(doc(db, "users", targetUid), { walletBalance: 0, balance: 0, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
           }
         }
       },
@@ -938,7 +998,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     // Listen to notifications
     const notifyQuery = query(
       collection(db, "notifications"),
-      where("userId", "in", [user.uid, "all"]),
+      where("userId", "in", [targetUid, "all"]),
       orderBy("createdAt", "desc")
     );
     const unsubNotify = onSnapshot(
@@ -956,7 +1016,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     // Listen to referrals
     const refQuery = query(
       collection(db, "referrals"),
-      where("referrerId", "==", user.uid)
+      where("referrerId", "==", targetUid)
     );
     const unsubRef = onSnapshot(
       refQuery, 
@@ -975,6 +1035,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     );
 
     return () => {
+      clearTimeout(safetyTimer);
       unsubUser();
       unsubOrders();
       unsubWallet();
