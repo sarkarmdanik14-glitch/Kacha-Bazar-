@@ -1184,25 +1184,40 @@ function writeUserCartsToDisk(carts: Record<string, { items: any[]; updatedAt: s
 
 app.post("/api/cart/sync", rateLimiter(120, 60000), async (req, res) => {
   try {
-    const { userId, items } = req.body || {};
-    if (!userId || typeof userId !== "string") {
-      return res.status(400).json({ success: false, error: "Valid userId is required" });
+    const { userId, email, phone, items } = req.body || {};
+    if (!userId && !email && !phone) {
+      return res.status(400).json({ success: false, error: "Valid userId, email, or phone is required" });
     }
-    const cleanUserId = String(userId).trim();
+    const cleanUserId = String(userId || "").trim();
+    const cleanEmail = email ? String(email).trim().toLowerCase() : (cleanUserId.includes("@") ? cleanUserId.toLowerCase() : "");
+    const cleanPhone = phone ? String(phone).replace(/\s+/g, "") : (!cleanUserId.includes("@") && /^\+?\d{9,15}$/.test(cleanUserId) ? cleanUserId : "");
     const cleanItems = Array.isArray(items) ? items : [];
     const timestamp = new Date().toISOString();
 
-    // 1. Save to Disk Cache (always reliable & immediate cross-device sync)
-    const allCarts = readUserCartsFromDisk();
-    allCarts[cleanUserId] = {
+    const cartPayload = {
       items: cleanItems,
+      userId: cleanUserId,
+      email: cleanEmail,
+      phone: cleanPhone,
       updatedAt: timestamp
     };
+
+    // 1. Save to Disk Cache (mapped to userId, email, and phone for seamless cross-device resolution)
+    const allCarts = readUserCartsFromDisk();
+    if (cleanUserId) {
+      allCarts[cleanUserId] = cartPayload;
+    }
+    if (cleanEmail) {
+      allCarts[`email:${cleanEmail}`] = cartPayload;
+    }
+    if (cleanPhone) {
+      allCarts[`phone:${cleanPhone}`] = cartPayload;
+    }
     writeUserCartsToDisk(allCarts);
 
     // 2. Sync to Supabase if available
     const sb = getServerSupabase();
-    if (sb) {
+    if (sb && cleanUserId) {
       try {
         await sb.from("carts").upsert({
           user_id: cleanUserId,
@@ -1216,10 +1231,12 @@ app.post("/api/cart/sync", rateLimiter(120, 60000), async (req, res) => {
 
     // 3. Sync to Firebase Firestore if available
     const adminDb = getAdminDb();
-    if (adminDb) {
+    if (adminDb && cleanUserId) {
       try {
         await adminDb.collection("carts").doc(cleanUserId).set({
           items: cleanItems,
+          email: cleanEmail || null,
+          phone: cleanPhone || null,
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
       } catch (err: any) {
@@ -1235,18 +1252,53 @@ app.post("/api/cart/sync", rateLimiter(120, 60000), async (req, res) => {
 
 app.get("/api/cart/:userId", rateLimiter(120, 60000), async (req, res) => {
   try {
-    const userId = String(req.params.userId || "").trim();
-    if (!userId) {
-      return res.status(400).json({ success: false, error: "Valid userId required" });
+    const rawId = String(req.params.userId || "").trim();
+    const queryEmail = String(req.query.email || "").trim().toLowerCase();
+    const queryPhone = String(req.query.phone || "").replace(/\s+/g, "");
+
+    const cleanEmail = queryEmail || (rawId.includes("@") ? rawId.toLowerCase() : "");
+    const cleanPhone = queryPhone || (!rawId.includes("@") && /^\+?\d{9,15}$/.test(rawId) ? rawId : "");
+    const cleanUserId = rawId;
+
+    if (!cleanUserId && !cleanEmail && !cleanPhone) {
+      return res.status(400).json({ success: false, error: "Valid userId, email, or phone required" });
     }
 
-    // 1. Check local persistent store
+    // 1. Check local persistent store (try direct key, email key, phone key, or match in values)
     const allCarts = readUserCartsFromDisk();
-    if (allCarts[userId] && Array.isArray(allCarts[userId].items)) {
+
+    let matchedCart: any = null;
+    if (cleanUserId && allCarts[cleanUserId] && Array.isArray(allCarts[cleanUserId].items)) {
+      matchedCart = allCarts[cleanUserId];
+    } else if (cleanEmail && allCarts[`email:${cleanEmail}`] && Array.isArray(allCarts[`email:${cleanEmail}`].items)) {
+      matchedCart = allCarts[`email:${cleanEmail}`];
+    } else if (cleanPhone && allCarts[`phone:${cleanPhone}`] && Array.isArray(allCarts[`phone:${cleanPhone}`].items)) {
+      matchedCart = allCarts[`phone:${cleanPhone}`];
+    } else {
+      // Scan store records
+      for (const k of Object.keys(allCarts)) {
+        const c = allCarts[k];
+        if (!c || !Array.isArray(c.items)) continue;
+        if (cleanEmail && c.email && c.email.toLowerCase() === cleanEmail) {
+          matchedCart = c;
+          break;
+        }
+        if (cleanPhone && c.phone && c.phone === cleanPhone) {
+          matchedCart = c;
+          break;
+        }
+        if (cleanUserId && (c.userId === cleanUserId || k === cleanUserId)) {
+          matchedCart = c;
+          break;
+        }
+      }
+    }
+
+    if (matchedCart && Array.isArray(matchedCart.items)) {
       return res.json({
         success: true,
-        items: allCarts[userId].items,
-        updatedAt: allCarts[userId].updatedAt
+        items: matchedCart.items,
+        updatedAt: matchedCart.updatedAt
       });
     }
 
@@ -1254,30 +1306,40 @@ app.get("/api/cart/:userId", rateLimiter(120, 60000), async (req, res) => {
     const sb = getServerSupabase();
     if (sb) {
       try {
-        const { data } = await sb.from("carts").select("items, updated_at").eq("user_id", userId).maybeSingle();
-        if (data && Array.isArray(data.items)) {
-          allCarts[userId] = {
-            items: data.items,
-            updatedAt: data.updated_at || new Date().toISOString()
-          };
-          writeUserCartsToDisk(allCarts);
-          return res.json({ success: true, items: data.items, updatedAt: data.updated_at });
+        if (cleanUserId) {
+          const { data } = await sb.from("carts").select("items, updated_at").eq("user_id", cleanUserId).maybeSingle();
+          if (data && Array.isArray(data.items)) {
+            allCarts[cleanUserId] = {
+              items: data.items,
+              userId: cleanUserId,
+              email: cleanEmail,
+              phone: cleanPhone,
+              updatedAt: data.updated_at || new Date().toISOString()
+            };
+            if (cleanEmail) allCarts[`email:${cleanEmail}`] = allCarts[cleanUserId];
+            writeUserCartsToDisk(allCarts);
+            return res.json({ success: true, items: data.items, updatedAt: data.updated_at });
+          }
         }
       } catch {}
     }
 
     // 3. Check Firebase Firestore
     const adminDb = getAdminDb();
-    if (adminDb) {
+    if (adminDb && cleanUserId) {
       try {
-        const snap = await adminDb.collection("carts").doc(userId).get();
+        const snap = await adminDb.collection("carts").doc(cleanUserId).get();
         if (snap.exists) {
           const data = snap.data();
           const items = Array.isArray(data?.items) ? data.items : [];
-          allCarts[userId] = {
+          allCarts[cleanUserId] = {
             items,
+            userId: cleanUserId,
+            email: cleanEmail,
+            phone: cleanPhone,
             updatedAt: new Date().toISOString()
           };
+          if (cleanEmail) allCarts[`email:${cleanEmail}`] = allCarts[cleanUserId];
           writeUserCartsToDisk(allCarts);
           return res.json({ success: true, items });
         }

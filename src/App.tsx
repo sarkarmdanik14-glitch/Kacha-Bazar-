@@ -304,6 +304,7 @@ export default function App() {
   const isSyncingFromRemoteRef = useRef<boolean>(false);
   const lastSyncedCartHashRef = useRef<string>("");
   const syncDebounceTimerRef = useRef<any>(null);
+  const hasHydratedFromCloudRef = useRef<boolean>(false);
 
   // Synchronized refs to eliminate stale closures in async handlers & event listeners
   const cartRef = useRef<CartItem[]>(cart);
@@ -316,18 +317,25 @@ export default function App() {
     if (!userId) return;
     const cleanUid = String(userId).trim();
     if (!cleanUid) return;
+    const userEmail = (loggedInUserRef.current?.email || "").toLowerCase().trim();
+    const userPhone = (loggedInUserRef.current?.phone || loggedInUserRef.current?.phoneNumber || "").replace(/\s+/g, "");
     const jsonStr = JSON.stringify(itemsToSync);
     try {
       await fetch("/api/cart/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: cleanUid, items: itemsToSync })
+        body: JSON.stringify({
+          userId: cleanUid,
+          email: userEmail,
+          phone: userPhone,
+          items: itemsToSync
+        })
       });
       lastSyncedCartHashRef.current = jsonStr;
       try {
         if (typeof BroadcastChannel !== "undefined") {
           const bc = new BroadcastChannel("megabazar_cart_channel");
-          bc.postMessage({ type: "CART_UPDATED", userId: cleanUid, cart: itemsToSync });
+          bc.postMessage({ type: "CART_UPDATED", userId: cleanUid, email: userEmail, cart: itemsToSync });
           bc.close();
         }
       } catch {}
@@ -342,10 +350,14 @@ export default function App() {
     if (!userId) return;
     const cleanUid = String(userId).trim();
     if (!cleanUid) return;
+    const userEmail = (loggedInUserRef.current?.email || "").toLowerCase().trim();
+    const userPhone = (loggedInUserRef.current?.phone || loggedInUserRef.current?.phoneNumber || "").replace(/\s+/g, "");
 
     try {
-      const resp = await fetch(`/api/cart/${encodeURIComponent(cleanUid)}`).then(r => r.json()).catch(() => null);
+      const url = `/api/cart/${encodeURIComponent(cleanUid)}?email=${encodeURIComponent(userEmail)}&phone=${encodeURIComponent(userPhone)}`;
+      const resp = await fetch(url).then(r => r.json()).catch(() => null);
       const cloudItems: CartItem[] = (resp?.success && Array.isArray(resp.items)) ? resp.items : [];
+      hasHydratedFromCloudRef.current = true;
 
       // Determine local items with fallback to disk to prevent state loss
       let localItems: CartItem[] = Array.isArray(cartRef.current) && cartRef.current.length > 0
@@ -1523,14 +1535,30 @@ export default function App() {
       return;
     }
 
+    // CRITICAL SAFETY GUARD: If cart is empty [] and we haven't checked cloud yet,
+    // DO NOT push empty cart to cloud as it would erase the user's cart from other devices!
+    if (cart.length === 0 && !hasHydratedFromCloudRef.current) {
+      return;
+    }
+
     const cartJson = JSON.stringify(cart);
     if (cartJson === lastSyncedCartHashRef.current) return;
 
     clearTimeout(syncDebounceTimerRef.current);
     syncDebounceTimerRef.current = setTimeout(() => {
       syncCartToCloud(uid, cart);
-    }, 300);
+    }, 250);
   }, [cart, loggedInUser, syncCartToCloud]);
+
+  // Synchronize cart instantly when Cart Drawer is opened
+  useEffect(() => {
+    if (showCart) {
+      const uid = loggedInUserRef.current?.id || loggedInUserRef.current?.uid;
+      if (uid) {
+        fetchAndMergeUserCart(uid, false);
+      }
+    }
+  }, [showCart, fetchAndMergeUserCart]);
 
   // Real-time synchronization when switching tabs/windows (e.g. mobile to PC or window focus)
   useEffect(() => {
@@ -1544,13 +1572,13 @@ export default function App() {
     window.addEventListener("focus", handleSyncOnFocus);
     document.addEventListener("visibilitychange", handleSyncOnFocus);
 
-    // Heartbeat sync every 10 seconds for instant mobile-to-PC updates
+    // Heartbeat sync every 4 seconds for instant mobile-to-PC updates while active
     const pollTimer = setInterval(() => {
       const uid = loggedInUser?.id || loggedInUser?.uid;
       if (uid && document.visibilityState === "visible") {
         fetchAndMergeUserCart(uid, false);
       }
-    }, 10000);
+    }, 4000);
 
     // Cross-tab live broadcast listener
     let bc: BroadcastChannel | null = null;
@@ -1559,8 +1587,10 @@ export default function App() {
         bc = new BroadcastChannel("megabazar_cart_channel");
         bc.onmessage = (event) => {
           const uid = loggedInUser?.id || loggedInUser?.uid;
+          const uEmail = (loggedInUser?.email || "").toLowerCase().trim();
           if (event.data?.type === "CART_UPDATED" && Array.isArray(event.data.cart)) {
-            if (!event.data.userId || event.data.userId === uid) {
+            const isTargetUser = !event.data.userId || event.data.userId === uid || (event.data.email && event.data.email === uEmail);
+            if (isTargetUser) {
               isSyncingFromRemoteRef.current = true;
               setCart(event.data.cart);
               cartRef.current = event.data.cart;
@@ -5055,6 +5085,7 @@ export default function App() {
           initialUser={loggedInUser}
           onUserChange={(updatedUser) => {
             setLoggedInUser(updatedUser);
+            loggedInUserRef.current = updatedUser;
             if (updatedUser?.role) setUserRole(updatedUser.role);
             if (updatedUser?.referralCode) setUserReferralCode(updatedUser.referralCode);
             if (updatedUser?.photoURL) {
@@ -5063,6 +5094,9 @@ export default function App() {
               try {
                 localStorage.setItem("kb_user_photo", updatedUser.photoURL);
               } catch {}
+            }
+            if (updatedUser?.id || updatedUser?.uid) {
+              fetchAndMergeUserCart(updatedUser.id || updatedUser.uid, true);
             }
           }}
         />
