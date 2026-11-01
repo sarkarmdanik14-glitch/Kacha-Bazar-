@@ -308,13 +308,50 @@ export async function supabaseSignInWithGoogle(): Promise<{ success: boolean; er
  * Sign Out
  */
 export async function supabaseSignOut(): Promise<void> {
+  // 1. Revoke active server staff/user session
+  try {
+    await apiClient.post("/api/auth/logout", {}, { silent: true });
+  } catch {}
+
+  // 2. Local and global Supabase auth sign out
+  try {
+    await (supabase.auth as any).signOut({ scope: "local" });
+  } catch {}
   try {
     await supabase.auth.signOut();
   } catch {}
+
+  // 3. Exhaustive session cleanup from localStorage & sessionStorage
+  try {
+    if (typeof window !== "undefined") {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.startsWith("sb-") ||
+          key.startsWith("firebase:") ||
+          key.startsWith("kb_staff_") ||
+          key.startsWith("kb_user_") ||
+          key === "kb_current_user" ||
+          key === "kacha_user_session" ||
+          key === "user_role" ||
+          key === "current_partner" ||
+          key === "kb_supabase_token" ||
+          key === "kb_firebase_id_token" ||
+          key === "referredBy"
+        )) {
+          localStorage.removeItem(key);
+        }
+      }
+      sessionStorage.clear();
+    }
+  } catch {}
+
   localStorage.removeItem("kb_supabase_token");
   sessionStorage.removeItem("kb_supabase_token");
   localStorage.removeItem("kb_staff_session");
   sessionStorage.removeItem("kb_staff_session");
+  localStorage.removeItem("kb_current_user");
+  localStorage.removeItem("kb_user_photo");
 }
 
 /**
@@ -481,18 +518,46 @@ export async function fetchUserProfile(uid: string): Promise<SupabaseUserProfile
         isVerified: true
       };
     }
+
+    // 3. Server-authoritative fallback if client query returned null (RLS restriction or offline mode)
+    if (!data && !staffData && uid) {
+      try {
+        const sRes = await apiClient.get<any>(`/api/user/profile/${uid}?email=${encodeURIComponent(userEmail || "")}`, { silent: true });
+        if (sRes?.success && sRes?.profile) {
+          const sp = sRes.profile;
+          const userPhoto = sp.photoURL || sp.photo_url || sp.avatar || sp.image || "";
+          return {
+            uid: sp.userId || sp.uid || sp.id || uid,
+            id: sp.id || sp.userId || sp.uid || uid,
+            email: sp.email || resolvedEmail,
+            displayName: sp.displayName || sp.fullName || defaultTitle,
+            fullName: sp.fullName || sp.displayName || defaultTitle,
+            phone: sp.phone || "",
+            phoneNumber: sp.phone || "",
+            photoURL: userPhoto,
+            role: (sp.role || "customer") as any,
+            address: sp.address,
+            walletBalance: Number(sp.walletBalance || 0),
+            rewardPoints: Number(sp.rewardPoints || 0),
+            membershipTier: sp.membershipTier || "Silver",
+            isVerified: true
+          };
+        }
+      } catch {}
+    }
   } catch {}
   return null;
 }
 
 /**
- * Helper to save user profile into public.users
+ * Helper to save user profile into public.users and server storage
  */
 export async function saveUserProfile(profile: SupabaseUserProfile): Promise<void> {
+  const targetId = profile.id || profile.uid;
   try {
     await supabase.from("users").upsert({
-      id: profile.id || profile.uid,
-      uid: profile.uid || profile.id,
+      id: targetId,
+      uid: targetId,
       email: profile.email,
       full_name: profile.fullName,
       display_name: profile.displayName,
@@ -511,6 +576,31 @@ export async function saveUserProfile(profile: SupabaseUserProfile): Promise<voi
   } catch (err) {
     console.warn("Save user profile note:", err);
   }
+
+  // Dual sync to server profile store so it persists even when client RLS or offline mode applies
+  try {
+    if (targetId) {
+      await apiClient.post("/api/user/profile", {
+        userId: targetId,
+        ...profile
+      }, { silent: true });
+    }
+  } catch {}
+
+  // Sync Supabase Auth metadata if session is active
+  try {
+    if (profile.photoURL) {
+      await (supabase.auth as any).updateUser({
+        data: {
+          avatar_url: profile.photoURL,
+          picture: profile.photoURL,
+          photoURL: profile.photoURL,
+          full_name: profile.fullName,
+          display_name: profile.displayName
+        }
+      });
+    }
+  } catch {}
 }
 
 /**
@@ -529,6 +619,18 @@ export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
         const isSbAdmin = isSuper || (await checkIsSupabaseAdmin(uid, cleanEmail));
         const resolvedRole = isSuper ? "super_admin" : (isSbAdmin ? "admin" : (meta.role || "customer"));
         const name = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (isSbAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
+        
+        // Also check server-side disk cache for persistent photoURL
+        let restoredPhoto = meta.avatar_url || meta.picture || meta.photoURL || "";
+        if (!restoredPhoto) {
+          try {
+            const sRes = await apiClient.get<any>(`/api/user/profile/${uid}?email=${encodeURIComponent(cleanEmail)}`, { silent: true });
+            if (sRes?.success && sRes?.profile?.photoURL) {
+              restoredPhoto = sRes.profile.photoURL;
+            }
+          } catch {}
+        }
+
         profile = {
           uid,
           id: uid,
@@ -539,7 +641,7 @@ export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
           phoneNumber: meta.phone || session.user.phone || "",
           role: resolvedRole,
           isSuperAdmin: isSuper,
-          photoURL: meta.avatar_url || meta.picture || ""
+          photoURL: restoredPhoto
         };
       } else if (cleanEmail && SUPER_ADMIN_EMAILS.has(cleanEmail)) {
         profile.role = "super_admin";

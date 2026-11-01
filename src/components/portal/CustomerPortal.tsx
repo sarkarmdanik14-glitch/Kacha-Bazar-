@@ -211,7 +211,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   const [showMemoModal, setShowMemoModal] = useState<boolean>(false);
   const [refundReason, setRefundReason] = useState<string>("");
   const [showRefundForm, setShowRefundForm] = useState<boolean>(false);
-  const [profileAddress, setProfileAddress] = useState<string>(user.address || "");
+  const [profileAddress, setProfileAddress] = useState<string>(user?.address || "");
   const [loading, setLoading] = useState<boolean>(true);
   const [dbUser, setDbUser] = useState<any>(user);
   const [verifying, setVerifying] = useState<boolean>(false);
@@ -244,11 +244,12 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       if (dbUser.address !== undefined) {
         setProfileAddress(dbUser.address || "");
       }
-      if (dbUser.photoURL) {
-        setPhotoUrlInput(dbUser.photoURL);
+      const incomingPhoto = dbUser.photoURL || dbUser.photo_url || dbUser.avatar || dbUser.image;
+      if (incomingPhoto) {
+        setPhotoUrlInput(incomingPhoto);
       }
     }
-  }, [dbUser?.fullName, dbUser?.displayName, dbUser?.name, dbUser?.phone, dbUser?.email, dbUser?.address, dbUser?.photoURL]);
+  }, [dbUser?.fullName, dbUser?.displayName, dbUser?.name, dbUser?.phone, dbUser?.email, dbUser?.address, dbUser?.photoURL, dbUser?.photo_url, dbUser?.avatar, dbUser?.image]);
 
   // Merge remote wishlist from dbUser if available
   useEffect(() => {
@@ -893,6 +894,16 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         }, { silent: true }).catch(() => {});
       }
 
+      // Sync Supabase auth metadata immediately
+      try {
+        (supabase.auth as any).updateUser({
+          data: {
+            avatar_url: immediateDataUrl,
+            photoURL: immediateDataUrl
+          }
+        }).catch(() => {});
+      } catch {}
+
       // 3. Persist to Firestore and Supabase user documents under photoURL, avatar, and image
       if (targetUid) {
         await setDoc(doc(db, "users", targetUid), {
@@ -921,26 +932,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         quality: 0.85
       }).then(async (cdnUrl) => {
         if (cdnUrl && targetUid) {
-          setPhotoUrlInput(cdnUrl);
-          setDbUser((prev: any) => ({ 
-            ...prev, 
-            photoURL: cdnUrl, 
-            avatar: cdnUrl, 
-            image: cdnUrl 
-          }));
-          try {
-            localStorage.setItem("kb_user_photo", cdnUrl);
-            const savedStr = localStorage.getItem("kb_current_user");
-            if (savedStr) {
-              const parsed = JSON.parse(savedStr);
-              parsed.photoURL = cdnUrl;
-              parsed.avatar = cdnUrl;
-              localStorage.setItem("kb_current_user", JSON.stringify(parsed));
-            }
-            window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: cdnUrl } }));
-          } catch {}
-
-          // Update server profile cache with CDN url
+          // Always persist to server-side profile store
           apiClient.post("/api/user/profile", {
             userId: targetUid,
             photoURL: cdnUrl,
@@ -954,9 +946,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             image: cdnUrl,
             updatedAt: serverTimestamp()
           }, { merge: true }).catch(() => {});
-          if (auth.currentUser) {
-            updateProfile(auth.currentUser, { photoURL: cdnUrl }).catch(() => {});
-          }
+
           try {
             if (supabase) {
               supabase.from("users").update({
@@ -965,6 +955,48 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                 image: cdnUrl
               }).eq("id", targetUid).then(() => {}, () => {});
             }
+          } catch {}
+
+          // Guard: if user has logged out while background upload was running, DO NOT resurrect localStorage session!
+          const isStillLoggedIn = Boolean(
+            localStorage.getItem("kb_current_user") ||
+            sessionStorage.getItem("kb_current_user")
+          );
+          if (!isStillLoggedIn) {
+            return;
+          }
+
+          setPhotoUrlInput(cdnUrl);
+          setDbUser((prev: any) => ({ 
+            ...prev, 
+            photoURL: cdnUrl, 
+            avatar: cdnUrl, 
+            image: cdnUrl 
+          }));
+
+          try {
+            localStorage.setItem("kb_user_photo", cdnUrl);
+            const savedStr = localStorage.getItem("kb_current_user");
+            if (savedStr) {
+              const parsed = JSON.parse(savedStr);
+              parsed.photoURL = cdnUrl;
+              parsed.avatar = cdnUrl;
+              localStorage.setItem("kb_current_user", JSON.stringify(parsed));
+            }
+            window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: cdnUrl } }));
+          } catch {}
+
+          if (auth.currentUser) {
+            updateProfile(auth.currentUser, { photoURL: cdnUrl }).catch(() => {});
+          }
+
+          try {
+            (supabase.auth as any).updateUser({
+              data: {
+                avatar_url: cdnUrl,
+                photoURL: cdnUrl
+              }
+            }).catch(() => {});
           } catch {}
         }
       }).catch((cdnErr) => {
@@ -1143,15 +1175,12 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
           } else if (udata.balance !== undefined) {
             setWalletBalance(Number(udata.balance) || 0);
           }
-          if (udata.photoURL !== undefined) {
-            setPhotoUrlInput(udata.photoURL || "");
+          const firestorePhoto = udata.photoURL || udata.avatar || udata.image;
+          if (firestorePhoto) {
+            setPhotoUrlInput(firestorePhoto);
             try {
-              if (udata.photoURL) {
-                localStorage.setItem("kb_user_photo", udata.photoURL);
-              } else {
-                localStorage.removeItem("kb_user_photo");
-              }
-              window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: udata.photoURL || "" } }));
+              localStorage.setItem("kb_user_photo", firestorePhoto);
+              window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: firestorePhoto } }));
             } catch {}
           }
         }

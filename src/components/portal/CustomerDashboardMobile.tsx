@@ -42,6 +42,7 @@ import { db, doc, getDoc, setDoc, serverTimestamp, onSnapshot, auth, RecaptchaVe
 import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from "../../lib/memberIdUtils";
 import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
 import { apiClient } from "../../lib/apiClient";
+import { supabase } from "../../lib/supabase";
 import RewardRedemptionView from "./RewardRedemptionView";
 import { APP_LOGO_URL } from "../../constants/branding";
 
@@ -247,8 +248,8 @@ export default function CustomerDashboardMobile({
         }
         if (data.phone) setPhone(data.phone);
         if (data.email) setEmail(data.email);
-        if (data.address) setAddress(data.address);
-        if (data.photoURL !== undefined) setPhotoURL(data.photoURL || "");
+        const incomingPhoto = data.photoURL || data.avatar || data.image;
+        if (incomingPhoto) setPhotoURL(incomingPhoto);
       }
     }, (err) => {
       console.warn("Mobile live user listener notice:", err?.message || err);
@@ -873,9 +874,26 @@ export default function CustomerDashboardMobile({
         window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: immediateDataUrl } }));
       } catch {}
 
-      // 3. Persist to Firestore document under photoURL, avatar, image
+      // 3. Persist to Firestore and Server API under photoURL, avatar, image
       const uId = initialUser.uid || initialUser.id;
       if (uId) {
+        apiClient.post("/api/user/profile", {
+          userId: uId,
+          photoURL: immediateDataUrl,
+          avatar: immediateDataUrl,
+          image: immediateDataUrl
+        }, { silent: true }).catch(() => {});
+
+        try {
+          if (supabase) {
+            supabase.from("users").update({
+              photo_url: immediateDataUrl,
+              avatar: immediateDataUrl,
+              image: immediateDataUrl
+            }).eq("id", uId).then(() => {}, () => {});
+          }
+        } catch {}
+
         await setDoc(doc(db, "users", uId), {
           uid: uId,
           photoURL: immediateDataUrl,
@@ -903,17 +921,41 @@ export default function CustomerDashboardMobile({
         quality: 0.85
       }).then(async (cdnUrl) => {
         if (cdnUrl && !cdnUrl.startsWith("data:") && uId) {
-          setPhotoURL(cdnUrl);
+          apiClient.post("/api/user/profile", {
+            userId: uId,
+            photoURL: cdnUrl,
+            avatar: cdnUrl,
+            image: cdnUrl
+          }, { silent: true }).catch(() => {});
+
           try {
-            localStorage.setItem("kb_user_photo", cdnUrl);
-            window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: cdnUrl } }));
+            if (supabase) {
+              supabase.from("users").update({
+                photo_url: cdnUrl,
+                avatar: cdnUrl,
+                image: cdnUrl
+              }).eq("id", uId).then(() => {}, () => {});
+            }
           } catch {}
+
           await setDoc(doc(db, "users", uId), {
             photoURL: cdnUrl,
             avatar: cdnUrl,
             image: cdnUrl,
             updatedAt: serverTimestamp()
           }, { merge: true }).catch(() => {});
+
+          const isStillLoggedIn = Boolean(
+            localStorage.getItem("kb_current_user") ||
+            sessionStorage.getItem("kb_current_user")
+          );
+          if (!isStillLoggedIn) return;
+
+          setPhotoURL(cdnUrl);
+          try {
+            localStorage.setItem("kb_user_photo", cdnUrl);
+            window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: cdnUrl } }));
+          } catch {}
         }
       }).catch((cdnErr) => {
         console.warn("Background photo CDN upload notice:", cdnErr);

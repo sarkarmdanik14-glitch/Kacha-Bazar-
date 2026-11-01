@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { auth, db, doc, getDoc, setDoc, serverTimestamp, signOut, onAuthStateChanged, collection, query, where, getDocs } from "../../lib/firebase";
 import { supabase } from "../../lib/supabase";
-import { supabaseSignOut, onSupabaseAuthStateChange, getSupabaseUser, checkIsSupabaseAdmin, SUPER_ADMIN_EMAILS } from "../../lib/supabaseAuth";
+import { supabaseSignOut, onSupabaseAuthStateChange, getSupabaseUser, checkIsSupabaseAdmin, SUPER_ADMIN_EMAILS, fetchUserProfile } from "../../lib/supabaseAuth";
 import { X, RefreshCw, Key, Shield, LogOut, Lock } from "lucide-react";
 
 import AuthView from "./AuthView";
@@ -171,7 +171,19 @@ export default function PortalModal({
 
     const handleUserSession = async (user: any, sbAccessToken?: string) => {
       if (!user) {
-        // If we already have initialUser or currentUser (and not logging out), don't wipe it out on spurious null events
+        const hasSession = Boolean(
+          localStorage.getItem("kb_current_user") ||
+          localStorage.getItem("kb_staff_session") ||
+          sessionStorage.getItem("kb_staff_session")
+        );
+        if (!hasSession) {
+          setCurrentUser(null);
+          const resolvedRole = (forcedRole && forcedRole !== "customer") ? forcedRole : "customer";
+          setUserRole(resolvedRole);
+          setActivePortalTab(resolvedRole);
+          setLoading(false);
+          return;
+        }
         if (currentUser || initialUser) {
           return;
         }
@@ -447,6 +459,7 @@ export default function PortalModal({
           try {
             const { data: sbUser } = await supabase.from("users").select("*").or(`id.eq.${uid},uid.eq.${uid}`).single();
             if (sbUser) {
+              const photo = sbUser.photo_url || sbUser.photoURL || sbUser.avatar || sbUser.image || user.photoURL || user.avatar_url || user.user_metadata?.avatar_url || "";
               userData = {
                 uid,
                 id: uid,
@@ -458,17 +471,71 @@ export default function PortalModal({
                 role: sbUser.role || "customer",
                 referralCode: sbUser.referral_code,
                 address: sbUser.address,
+                photoURL: photo,
+                avatar: photo,
+                image: photo,
                 customerId: generateMemberId(uid)
               };
             }
           } catch {}
 
           if (!userData) {
+            // Check fetchUserProfile from supabaseAuth (with server fallback to /api/user/profile/:uid)
+            try {
+              const profile = await fetchUserProfile(uid);
+              if (profile) {
+                const photo = profile.photoURL || (profile as any).photo_url || (profile as any).avatar || (profile as any).image || user.photoURL || "";
+                userData = {
+                  ...profile,
+                  photoURL: photo,
+                  avatar: photo,
+                  image: photo,
+                  customerId: generateMemberId(uid)
+                };
+              }
+            } catch {}
+          }
+
+          if (!userData) {
             // Fallback to Firestore users
             try {
               const userDocSnap = await getDoc(doc(db, "users", uid));
               if (userDocSnap.exists()) {
-                userData = userDocSnap.data();
+                const fData = userDocSnap.data();
+                const photo = fData.photoURL || fData.avatar || fData.image || user.photoURL || "";
+                userData = {
+                  ...fData,
+                  photoURL: photo,
+                  avatar: photo,
+                  image: photo
+                };
+              }
+            } catch {}
+          }
+
+          if (!userData) {
+            // Fallback to /api/user/profile server endpoint directly
+            try {
+              const sRes = await apiClient.get<any>(`/api/user/profile/${uid}?email=${encodeURIComponent(email || "")}`, { silent: true });
+              if (sRes?.success && sRes?.profile) {
+                const sp = sRes.profile;
+                const photo = sp.photoURL || sp.photo_url || sp.avatar || sp.image || user.photoURL || "";
+                userData = {
+                  uid,
+                  id: uid,
+                  email: sp.email || email,
+                  displayName: sp.displayName || sp.fullName || "গ্রাহক",
+                  fullName: sp.fullName || sp.displayName || "গ্রাহক",
+                  name: sp.fullName || sp.displayName || "গ্রাহক",
+                  phone: sp.phone || "",
+                  role: sp.role || "customer",
+                  address: sp.address || "",
+                  photoURL: photo,
+                  avatar: photo,
+                  image: photo,
+                  customerId: generateMemberId(uid),
+                  referralCode: sp.referralCode || "REF" + uid.substring(0, 5).toUpperCase()
+                };
               }
             } catch {}
           }
@@ -476,6 +543,7 @@ export default function PortalModal({
           if (!userData) {
             const effectiveName = user.displayName || user.fullName || "গ্রাহক";
             const customerId = generateMemberId(uid);
+            const userPhoto = user.photoURL || user.photo_url || user.avatar || user.user_metadata?.avatar_url || (typeof localStorage !== "undefined" ? localStorage.getItem("kb_user_photo") || "" : "");
             userData = {
               uid,
               id: uid,
@@ -483,10 +551,23 @@ export default function PortalModal({
               displayName: effectiveName,
               fullName: effectiveName,
               name: effectiveName,
+              photoURL: userPhoto,
+              avatar: userPhoto,
+              image: userPhoto,
               role: "customer",
               customerId,
               referralCode: "REF" + uid.substring(0, 5).toUpperCase()
             };
+          } else {
+            // If photoURL is still empty, check user object or localStorage
+            if (!userData.photoURL && !userData.avatar) {
+              const fallbackPhoto = user.photoURL || user.avatar_url || user.user_metadata?.avatar_url || (typeof localStorage !== "undefined" ? localStorage.getItem("kb_user_photo") || "" : "");
+              if (fallbackPhoto) {
+                userData.photoURL = fallbackPhoto;
+                userData.avatar = fallbackPhoto;
+                userData.image = fallbackPhoto;
+              }
+            }
           }
 
           const targetRole = (userData?.role || "customer") as any;
@@ -621,11 +702,36 @@ export default function PortalModal({
     }
 
     // Default: Customer login
-    const customerUser = {
+    let customerUser = {
       ...userData,
       role: "customer",
       isSuperAdmin: false
     };
+    if (!customerUser.photoURL && !customerUser.avatar) {
+      const targetUid = customerUser.uid || customerUser.id;
+      if (targetUid) {
+        try {
+          const sRes = await apiClient.get<any>(`/api/user/profile/${targetUid}?email=${encodeURIComponent(customerUser.email || "")}`, { silent: true });
+          if (sRes?.success && sRes?.profile) {
+            const sp = sRes.profile;
+            const ph = sp.photoURL || sp.photo_url || sp.avatar || sp.image;
+            if (ph) {
+              customerUser.photoURL = ph;
+              customerUser.avatar = ph;
+              customerUser.image = ph;
+            }
+          }
+        } catch {}
+      }
+      if (!customerUser.photoURL) {
+        const localPhoto = localStorage.getItem("kb_user_photo");
+        if (localPhoto) {
+          customerUser.photoURL = localPhoto;
+          customerUser.avatar = localPhoto;
+          customerUser.image = localPhoto;
+        }
+      }
+    }
     try {
       localStorage.setItem("kb_current_user", JSON.stringify(customerUser));
       const photo = customerUser.photoURL || customerUser.photo_url || customerUser.avatar || customerUser.image;
@@ -651,16 +757,22 @@ export default function PortalModal({
       await supabaseSignOut().catch(() => {});
       await signOut(auth).catch(() => {});
       try {
-        localStorage.removeItem("kacha_user_session");
-        localStorage.removeItem("user_role");
-        localStorage.removeItem("kb_current_user");
-        localStorage.removeItem("kb_user_photo");
-        localStorage.removeItem("kb_staff_session");
-        localStorage.removeItem("kb_staff_email");
-        localStorage.removeItem("kb_staff_id");
-        localStorage.removeItem("kb_supabase_token");
-        localStorage.removeItem("kb_firebase_id_token");
-        sessionStorage.clear();
+        if (typeof window !== "undefined") {
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (key && (
+              key.startsWith("sb-") ||
+              key.startsWith("firebase:") ||
+              key.startsWith("kb_") ||
+              key === "kacha_user_session" ||
+              key === "user_role" ||
+              key === "current_partner"
+            )) {
+              localStorage.removeItem(key);
+            }
+          }
+          sessionStorage.clear();
+        }
       } catch (e) {}
       window.dispatchEvent(new CustomEvent("kb_user_logout"));
       setCurrentUser(null);
@@ -671,6 +783,8 @@ export default function PortalModal({
         "সফলভাবে লগআউট করা হয়েছে।",
         "Successfully logged out of your session."
       );
+      // Close the modal cleanly upon logout to prevent any residual interaction
+      onClose();
     } catch (err) {
       console.error("Signout error:", err);
     }

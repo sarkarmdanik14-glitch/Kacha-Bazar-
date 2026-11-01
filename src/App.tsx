@@ -959,16 +959,14 @@ export default function App() {
           unsubUserDoc = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
             if (docSnap.exists()) {
               const uData = docSnap.data();
-              const photo = uData.photoURL || user.photoURL || "";
-              setUserProfilePhoto(photo);
-              setPhotoLoadError(false);
-              try {
-                if (photo) {
+              const photo = uData.photoURL || uData.avatar || uData.image || user.photoURL || "";
+              if (photo) {
+                setUserProfilePhoto(photo);
+                setPhotoLoadError(false);
+                try {
                   localStorage.setItem("kb_user_photo", photo);
-                } else {
-                  localStorage.removeItem("kb_user_photo");
-                }
-              } catch {}
+                } catch {}
+              }
               if (uData.role) {
                 setUserRole(uData.role);
               }
@@ -1095,8 +1093,26 @@ export default function App() {
       lastSyncedCartHashRef.current = "";
       isSyncingFromRemoteRef.current = false;
       try {
-        localStorage.removeItem("kb_current_user");
-        localStorage.removeItem("kb_user_photo");
+        if (typeof window !== "undefined") {
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (key && (
+              key.startsWith("sb-") ||
+              key.startsWith("firebase:") ||
+              key.startsWith("kb_staff_") ||
+              key.startsWith("kb_user_") ||
+              key === "kb_current_user" ||
+              key === "kacha_user_session" ||
+              key === "user_role" ||
+              key === "current_partner" ||
+              key === "kb_supabase_token" ||
+              key === "kb_firebase_id_token"
+            )) {
+              localStorage.removeItem(key);
+            }
+          }
+          sessionStorage.clear();
+        }
       } catch {}
     };
     window.addEventListener("kb_user_logout", handleUserLogout);

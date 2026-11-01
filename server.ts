@@ -5157,13 +5157,21 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
       const isMatch = verifyStaffPassword(password, custRecord.passwordHash, custRecord.passwordSalt);
       if (isMatch) {
         const userId = custRecord.userId || "user_" + crypto.createHash("md5").update(cleanIdent).digest("hex").substring(0, 16);
-        const resolvedName = (custRecord.email ? custRecord.email.split("@")[0] : "গ্রাহক");
+        const allProfiles: Record<string, any> = readUserProfilesFromDisk();
+        const profile: Record<string, any> = allProfiles[userId] || allProfiles[cleanIdent] || {};
+        const resolvedName = profile.fullName || profile.displayName || (custRecord.email ? custRecord.email.split("@")[0] : "গ্রাহক");
+        const resolvedPhoto = profile.photoURL || profile.avatar || profile.image || "";
         const formattedUser = {
           uid: userId,
           id: userId,
           email: custRecord.email || cleanIdent,
           displayName: resolvedName,
           fullName: resolvedName,
+          phone: profile.phone || custRecord.phone || "",
+          photoURL: resolvedPhoto,
+          avatar: resolvedPhoto,
+          image: resolvedPhoto,
+          address: profile.address || "",
           role: "customer"
         };
         return res.json({
@@ -5183,6 +5191,26 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
   } catch (err: any) {
     console.error("Login verify error:", err);
     return res.status(500).json({ success: false, error: "যাচাইকরণ প্রক্রিয়া সম্পন্ন করা যায়নি।" });
+  }
+});
+
+// 6.2 POST /api/auth/logout - Authoritative Global Session Revocation
+app.post("/api/auth/logout", (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || (req.headers["x-session-id"] as string);
+    let sessionId = "";
+    if (authHeader) {
+      sessionId = authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : authHeader.trim();
+    }
+    if (req.body?.sessionId) {
+      sessionId = String(req.body.sessionId).trim();
+    }
+    if (sessionId) {
+      revokeStaffSession(sessionId);
+    }
+    return res.json({ success: true, message: "সফলভাবে লগআউট সম্পন্ন হয়েছে।" });
+  } catch (err: any) {
+    return res.status(200).json({ success: true });
   }
 });
 
