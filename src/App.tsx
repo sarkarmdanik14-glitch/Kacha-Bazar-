@@ -811,11 +811,12 @@ export default function App() {
     const unsubSb = onSupabaseAuthStateChange(async (sbUser) => {
       if (sbUser) {
         setLoggedInUser(sbUser as any);
-        if (sbUser.photoURL) {
-          setUserProfilePhoto(sbUser.photoURL);
+        const sbPhoto = sbUser.photoURL || (sbUser as any).photo_url || (sbUser as any).avatar || (sbUser as any).image;
+        if (sbPhoto) {
+          setUserProfilePhoto(sbPhoto);
           setPhotoLoadError(false);
           try {
-            localStorage.setItem("kb_user_photo", sbUser.photoURL);
+            localStorage.setItem("kb_user_photo", sbPhoto);
           } catch {}
         }
         if (sbUser.role) {

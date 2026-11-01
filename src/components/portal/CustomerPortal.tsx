@@ -223,7 +223,9 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   );
   const [phoneInput, setPhoneInput] = useState<string>(user?.phone || user?.phoneNumber || dbUser?.phone || "");
   const [emailInput, setEmailInput] = useState<string>(user?.email || dbUser?.email || "");
-  const [photoUrlInput, setPhotoUrlInput] = useState<string>(user?.photoURL || dbUser?.photoURL || "");
+  const [photoUrlInput, setPhotoUrlInput] = useState<string>(() => {
+    return user?.photoURL || user?.photo_url || user?.avatar || dbUser?.photoURL || dbUser?.photo_url || dbUser?.avatar || (typeof localStorage !== "undefined" ? localStorage.getItem("kb_user_photo") || "" : "");
+  });
   const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
 
@@ -752,8 +754,12 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         .replace(/\s+/g, "_")
         .replace(/[^\w\u0980-\u09FF]/gi, "") || customerId.toLowerCase();
 
+      const targetUid = user?.uid || user?.id || dbUser?.uid || dbUser?.id || (auth.currentUser ? auth.currentUser.uid : "");
+      if (!targetUid) return;
+
       const updatedFields: any = {
-        uid: user.uid,
+        uid: targetUid,
+        id: targetUid,
         displayName: trimmedName,
         name: trimmedName,
         fullName: trimmedName,
@@ -762,13 +768,31 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         email: emailInput.trim() || user.email || "",
         address: profileAddress.trim(),
         photoURL: photoUrlInput || "",
+        avatar: photoUrlInput || "",
+        image: photoUrlInput || "",
         customerId: customerId,
         role: dbUser?.role || user?.role || "customer",
         updatedAt: serverTimestamp()
       };
 
       // setDoc with merge: true creates the document if missing or updates if existing
-      await setDoc(doc(db, "users", user.uid), updatedFields, { merge: true });
+      await setDoc(doc(db, "users", targetUid), updatedFields, { merge: true }).catch(() => {});
+
+      try {
+        if (supabase) {
+          supabase.from("users").upsert({
+            id: targetUid,
+            full_name: trimmedName,
+            phone: phoneInput.trim(),
+            email: emailInput.trim() || user.email || "",
+            address: profileAddress.trim(),
+            photo_url: photoUrlInput || "",
+            avatar: photoUrlInput || "",
+            image: photoUrlInput || "",
+            updated_at: new Date().toISOString()
+          }, { onConflict: "id" }).then(() => {}, () => {});
+        }
+      } catch {}
 
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, {
@@ -842,24 +866,35 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: immediateDataUrl } }));
       } catch {}
 
-      // 3. Persist to Firestore user document under photoURL, avatar, and image without affecting other fields
-      if (user?.uid) {
-        await setDoc(doc(db, "users", user.uid), {
-          uid: user.uid,
+      // 3. Persist to Firestore and Supabase user documents under photoURL, avatar, and image
+      const targetUid = user?.uid || user?.id || dbUser?.uid || dbUser?.id || (auth.currentUser ? auth.currentUser.uid : "");
+      if (targetUid) {
+        await setDoc(doc(db, "users", targetUid), {
+          uid: targetUid,
           photoURL: immediateDataUrl,
           avatar: immediateDataUrl,
           image: immediateDataUrl,
           updatedAt: serverTimestamp()
-        }, { merge: true });
+        }, { merge: true }).catch(() => {});
+
+        try {
+          if (supabase) {
+            supabase.from("users").update({
+              photo_url: immediateDataUrl,
+              avatar: immediateDataUrl,
+              image: immediateDataUrl
+            }).eq("id", targetUid).then(() => {}, () => {});
+          }
+        } catch {}
       }
 
-      // 4. In background, upload to Cloudinary CDN / Firebase Storage fallback
+      // 4. In background, upload directly to Cloudflare R2 / CDN
       uploadImageWithFallback(file, {
         folder: "profiles",
         maxDimension: 400,
         quality: 0.85
       }).then(async (cdnUrl) => {
-        if (cdnUrl && !cdnUrl.startsWith("data:") && user?.uid) {
+        if (cdnUrl && targetUid) {
           setPhotoUrlInput(cdnUrl);
           setDbUser((prev: any) => ({ 
             ...prev, 
@@ -871,7 +906,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             localStorage.setItem("kb_user_photo", cdnUrl);
             window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: cdnUrl } }));
           } catch {}
-          await setDoc(doc(db, "users", user.uid), {
+          await setDoc(doc(db, "users", targetUid), {
             photoURL: cdnUrl,
             avatar: cdnUrl,
             image: cdnUrl,
@@ -886,7 +921,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                 photo_url: cdnUrl,
                 avatar: cdnUrl,
                 image: cdnUrl
-              }).eq("id", user.uid).then(() => {}, () => {});
+              }).eq("id", targetUid).then(() => {}, () => {});
             }
           } catch {}
         }
