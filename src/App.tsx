@@ -824,6 +824,15 @@ export default function App() {
         if (sbUser.referralCode) {
           setUserReferralCode(sbUser.referralCode);
         }
+        if (Array.isArray((sbUser as any).wishlist) && (sbUser as any).wishlist.length > 0) {
+          setWishlist((prev) => {
+            const merged = Array.from(new Set([...prev, ...(sbUser as any).wishlist]));
+            try {
+              localStorage.setItem("kb_wishlist", JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
         fetchAndMergeUserCart(sbUser.id || sbUser.uid, true);
       } else if (!auth.currentUser) {
         const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
@@ -903,6 +912,15 @@ export default function App() {
               }
               if (uData.referralCode) {
                 setUserReferralCode(uData.referralCode);
+              }
+              if (Array.isArray(uData.wishlist) && uData.wishlist.length > 0) {
+                setWishlist((prev) => {
+                  const merged = Array.from(new Set([...prev, ...uData.wishlist]));
+                  try {
+                    localStorage.setItem("kb_wishlist", JSON.stringify(merged));
+                  } catch {}
+                  return merged;
+                });
               }
             }
           }, (err) => {
@@ -1622,8 +1640,40 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("kb_wishlist", JSON.stringify(wishlist));
-  }, [wishlist]);
+    try {
+      localStorage.setItem("kb_wishlist", JSON.stringify(wishlist));
+    } catch {}
+    window.dispatchEvent(new CustomEvent("kb_wishlist_updated", { detail: wishlist }));
+
+    // Persist to logged-in user profile in database
+    const currentUid = loggedInUser?.uid || (loggedInUser as any)?.id || auth.currentUser?.uid;
+    if (currentUid) {
+      setDoc(doc(db, "users", currentUid), {
+        wishlist,
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch(() => {});
+
+      try {
+        if (supabase) {
+          supabase.from("users").update({ wishlist }).eq("id", currentUid).then(() => {}, () => {});
+        }
+      } catch {}
+    }
+  }, [wishlist, loggedInUser]);
+
+  // Listen to external wishlist updates (e.g., from CustomerPortal actions)
+  useEffect(() => {
+    const handleWishlistExternalUpdate = (e: any) => {
+      try {
+        const nextList = e.detail || JSON.parse(localStorage.getItem("kb_wishlist") || "[]");
+        if (Array.isArray(nextList)) {
+          setWishlist(nextList);
+        }
+      } catch {}
+    };
+    window.addEventListener("kb_wishlist_updated", handleWishlistExternalUpdate);
+    return () => window.removeEventListener("kb_wishlist_updated", handleWishlistExternalUpdate);
+  }, []);
 
   useEffect(() => {
     setSelectedSubcategory("all");

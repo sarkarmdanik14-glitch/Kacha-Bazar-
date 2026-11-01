@@ -49,7 +49,11 @@ import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHel
 import { apiClient } from "../../lib/apiClient";
 import { APP_LOGO_URL } from "../../constants/branding";
 import { checkAndRewardReferral } from "../../lib/referral";
-
+import { Product } from "../../types";
+import { ALL_PRODUCTS } from "../../data";
+import { getCachedProducts, fetchAllProductsFromSupabase } from "../../lib/supabaseDataService";
+import { resolveProductDisplayUnit } from "../../lib/productWeightUtils";
+import { SAFE_PRODUCT_PLACEHOLDER, optimizeProductImageUrl } from "../../lib/masterImageRegistry";
 
 interface CustomerPortalProps {
   user: any;
@@ -66,6 +70,47 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   const [showMembershipModal, setShowMembershipModal] = useState<boolean>(false);
   const [showAddressModal, setShowAddressModal] = useState<boolean>(false);
   const [showWishlistModal, setShowWishlistModal] = useState<boolean>(false);
+
+  // Wishlist synchronization state from localStorage and cloud profile
+  const [wishlist, setWishlist] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("kb_wishlist");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Cached product catalog for rendering wishlisted items
+  const [allProducts, setAllProducts] = useState<Product[]>(() => {
+    const cached = getCachedProducts();
+    return Array.isArray(cached) && cached.length > 0 ? cached : ALL_PRODUCTS;
+  });
+
+  useEffect(() => {
+    fetchAllProductsFromSupabase().then((prods) => {
+      if (Array.isArray(prods) && prods.length > 0) {
+        setAllProducts(prods);
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const handleWishlistSync = (e?: any) => {
+      try {
+        const saved = e?.detail || JSON.parse(localStorage.getItem("kb_wishlist") || "[]");
+        setWishlist(Array.isArray(saved) ? saved : []);
+      } catch {
+        setWishlist([]);
+      }
+    };
+    window.addEventListener("storage", handleWishlistSync);
+    window.addEventListener("kb_wishlist_updated", handleWishlistSync);
+    return () => {
+      window.removeEventListener("storage", handleWishlistSync);
+      window.removeEventListener("kb_wishlist_updated", handleWishlistSync);
+    };
+  }, []);
 
   // Cart synchronization state from localStorage
   const [cart, setCart] = useState<any[]>(() => {
@@ -202,6 +247,102 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       }
     }
   }, [dbUser?.fullName, dbUser?.displayName, dbUser?.name, dbUser?.phone, dbUser?.email, dbUser?.address, dbUser?.photoURL]);
+
+  // Merge remote wishlist from dbUser if available
+  useEffect(() => {
+    if (dbUser && Array.isArray(dbUser.wishlist) && dbUser.wishlist.length > 0) {
+      setWishlist((prev) => {
+        const merged = Array.from(new Set([...prev, ...dbUser.wishlist]));
+        try {
+          localStorage.setItem("kb_wishlist", JSON.stringify(merged));
+        } catch {}
+        window.dispatchEvent(new CustomEvent("kb_wishlist_updated", { detail: merged }));
+        return merged;
+      });
+    }
+  }, [dbUser?.wishlist]);
+
+  const wishlistedProducts = useMemo(() => {
+    return wishlist
+      .map(id => allProducts.find(p => p.id === id))
+      .filter(Boolean) as Product[];
+  }, [wishlist, allProducts]);
+
+  const handleRemoveFromWishlist = (productId: string, productName?: string) => {
+    const updated = wishlist.filter(id => id !== productId);
+    setWishlist(updated);
+    try {
+      localStorage.setItem("kb_wishlist", JSON.stringify(updated));
+    } catch {}
+    window.dispatchEvent(new CustomEvent("kb_wishlist_updated", { detail: updated }));
+    const currentUid = user?.uid || user?.id || auth.currentUser?.uid;
+    if (currentUid) {
+      setDoc(doc(db, "users", currentUid), { wishlist: updated, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+      try {
+        if (supabase) {
+          supabase.from("users").update({ wishlist: updated }).eq("id", currentUid).then(() => {}, () => {});
+        }
+      } catch {}
+    }
+    triggerToast(
+      `${productName || "পণ্যটি"} পছন্দের তালিকা থেকে সরানো হয়েছে`,
+      `${productName || "Item"} removed from wishlist`
+    );
+  };
+
+  const handleAddWishlistItemToCart = (product: Product) => {
+    try {
+      const savedCart: any[] = JSON.parse(localStorage.getItem("kb_cart") || "[]");
+      const matchIndex = savedCart.findIndex((item: any) => item.product?.id === product.id);
+      let updatedCart: any[];
+      if (matchIndex > -1) {
+        updatedCart = [...savedCart];
+        updatedCart[matchIndex] = {
+          ...updatedCart[matchIndex],
+          quantity: (updatedCart[matchIndex].quantity || 1) + 1
+        };
+      } else {
+        updatedCart = [...savedCart, { product, quantity: 1 }];
+      }
+      localStorage.setItem("kb_cart", JSON.stringify(updatedCart));
+      window.dispatchEvent(new CustomEvent("kb_cart_updated", { detail: updatedCart }));
+      setCart(updatedCart);
+      triggerToast(
+        `${product.nameBn || product.nameEn} কার্টে যোগ করা হয়েছে!`,
+        `${product.nameEn || product.nameBn} added to cart!`
+      );
+    } catch {
+      triggerToast("কার্ট আপডেট করতে সমস্যা হয়েছে", "Failed to update cart");
+    }
+  };
+
+  const handleAddAllWishlistToCart = () => {
+    if (wishlistedProducts.length === 0) return;
+    try {
+      const savedCart: any[] = JSON.parse(localStorage.getItem("kb_cart") || "[]");
+      let updatedCart = [...savedCart];
+      for (const product of wishlistedProducts) {
+        const matchIndex = updatedCart.findIndex((item: any) => item.product?.id === product.id);
+        if (matchIndex > -1) {
+          updatedCart[matchIndex] = {
+            ...updatedCart[matchIndex],
+            quantity: (updatedCart[matchIndex].quantity || 1) + 1
+          };
+        } else {
+          updatedCart.push({ product, quantity: 1 });
+        }
+      }
+      localStorage.setItem("kb_cart", JSON.stringify(updatedCart));
+      window.dispatchEvent(new CustomEvent("kb_cart_updated", { detail: updatedCart }));
+      setCart(updatedCart);
+      triggerToast(
+        "পছন্দের সকল পণ্য সফলভাবে কার্টে যোগ করা হয়েছে!",
+        "All wishlisted items successfully added to cart!"
+      );
+    } catch {
+      triggerToast("কার্ট আপডেট করতে সমস্যা হয়েছে", "Failed to update cart");
+    }
+  };
 
   // Digital ID and Membership States - Every ID strictly starts with CFI prefix
   const customerId = normalizeMemberId(dbUser?.customerId, user?.uid || user?.id);
@@ -739,6 +880,15 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
           if (auth.currentUser) {
             updateProfile(auth.currentUser, { photoURL: cdnUrl }).catch(() => {});
           }
+          try {
+            if (supabase) {
+              supabase.from("users").update({
+                photo_url: cdnUrl,
+                avatar: cdnUrl,
+                image: cdnUrl
+              }).eq("id", user.uid).then(() => {}, () => {});
+            }
+          } catch {}
         }
       }).catch((cdnErr) => {
         console.warn("Background photo CDN upload notice:", cdnErr);
@@ -2010,6 +2160,30 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                           </span>
                         </h4>
                       </div>
+
+                      {/* Card 5: পছন্দের তালিকা (উইশলিস্ট) */}
+                      <div 
+                        onClick={() => setShowWishlistModal(true)}
+                        className="relative overflow-hidden bg-gradient-to-br from-rose-500/10 via-pink-500/5 to-white border border-rose-200/60 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:border-rose-300 transition-all duration-200 cursor-pointer group active:scale-95 transform hover:-translate-y-0.5 col-span-2 sm:col-span-1"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-500 text-white flex items-center justify-center font-bold shadow-md shadow-rose-500/25 group-hover:scale-105 transition-transform duration-200">
+                            <Heart className="w-5 h-5 fill-white" />
+                          </div>
+                          <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200/80 shadow-xs flex items-center gap-1 group-hover:border-rose-300 transition-colors">
+                            <span>{getTranslation("তালিকা দেখুন", "View List")}</span>
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-500">
+                          {getTranslation("পছন্দের তালিকা", "Saved Wishlist")}
+                        </p>
+                        <h4 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight mt-1 flex items-baseline">
+                          <span>{wishlist.length}</span>
+                          <span className="text-xs font-bold text-rose-700 ml-1.5 bg-rose-100/70 px-2 py-0.5 rounded-lg border border-rose-200/60">
+                            {getTranslation("টি পণ্য", "items")}
+                          </span>
+                        </h4>
+                      </div>
                     </div>
                   </div>
 
@@ -2166,6 +2340,138 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
                           <ArrowRight className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* My Saved Wishlist Section (আমার পছন্দের তালিকা) */}
+                <div className="bg-white border border-rose-100/90 hover:border-rose-200 rounded-2xl p-5 shadow-sm space-y-4 transition-all">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold shrink-0">
+                        <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <h3 className="font-black text-sm text-slate-800 truncate">
+                            {getTranslation("আমার পছন্দের তালিকা (উইশলিস্ট)", "My Saved Wishlist")}
+                          </h3>
+                          {wishlist.length > 0 && (
+                            <span className="bg-rose-100 text-rose-700 text-[10px] font-black px-2 py-0.5 rounded-full shrink-0">
+                              {wishlist.length} {getTranslation("টি পণ্য", "items")}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 font-medium truncate">
+                          {wishlist.length > 0 
+                            ? getTranslation("আপনার সংরক্ষিত পছন্দের পণ্যসমূহ", "Your favorite saved items")
+                            : getTranslation("পছন্দের পণ্যের হার্ট (❤️) আইকনে ট্যাপ করে এখানে সেভ করুন", "Tap the heart (❤️) on products to save them here")}
+                        </p>
+                      </div>
+                    </div>
+                    {wishlist.length > 0 && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button 
+                          type="button"
+                          onClick={handleAddAllWishlistToCart}
+                          className="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs font-bold px-2.5 py-1.5 rounded-xl transition flex items-center gap-1 cursor-pointer"
+                          title={getTranslation("সব কার্টে যোগ করুন", "Add all to cart")}
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">{getTranslation("সব কার্টে নিন", "Add All")}</span>
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setShowWishlistModal(true)}
+                          className="text-rose-600 text-xs font-bold hover:text-rose-700 flex items-center space-x-1 cursor-pointer bg-rose-50 hover:bg-rose-100/80 px-2.5 py-1.5 rounded-xl transition"
+                        >
+                          <span>{getTranslation("সব দেখুন", "View All")}</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {wishlistedProducts.length === 0 ? (
+                    <div 
+                      onClick={() => {
+                        if (onClose) onClose();
+                      }}
+                      className="text-center py-6 px-4 bg-rose-50/20 border border-dashed border-rose-200/80 rounded-xl cursor-pointer hover:bg-rose-50/40 hover:border-rose-300 transition group"
+                    >
+                      <div className="w-12 h-12 mx-auto mb-2 rounded-2xl bg-rose-100/60 text-rose-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <Heart className="w-6 h-6 text-rose-500 fill-rose-500/30" />
+                      </div>
+                      <p className="text-xs font-bold text-slate-600">
+                        {getTranslation("আপনার পছন্দের তালিকা বর্তমানে খালি!", "Your wishlist is currently empty!")}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 max-w-sm mx-auto">
+                        {getTranslation("স্টোরফ্রন্টে যেকোনো পণ্যের উপরের হার্ট (❤️) আইকনে ক্লিক করলেই সেটি এখানে জমা হবে।", "Click the heart (❤️) icon on any product on the storefront to save it here.")}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onClose) onClose();
+                        }}
+                        className="mt-3 inline-flex items-center space-x-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-xs transition cursor-pointer"
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5" />
+                        <span>{getTranslation("পণ্য পছন্দ করুন", "Explore Products")}</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {wishlistedProducts.slice(0, 4).map((product) => (
+                          <div key={product.id} className="flex items-center gap-3 p-2.5 bg-slate-50/80 hover:bg-rose-50/20 rounded-xl border border-slate-100 transition group">
+                            <img 
+                              src={optimizeProductImageUrl(product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER, 80)} 
+                              alt={lang === "bn" ? product.nameBn : product.nameEn}
+                              className="w-12 h-12 rounded-lg object-cover bg-white shrink-0 border border-slate-200/60"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs font-bold text-slate-800 truncate">
+                                {lang === "bn" ? product.nameBn : product.nameEn}
+                              </h4>
+                              <p className="text-[10px] text-slate-500 font-medium">
+                                {resolveProductDisplayUnit(product, lang)}
+                              </p>
+                              <p className="text-xs font-black text-emerald-600 mt-0.5">
+                                ৳{product.price || 0}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button 
+                                type="button"
+                                onClick={() => handleAddWishlistItemToCart(product)}
+                                className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition shadow-xs cursor-pointer"
+                                title={getTranslation("কার্টে যোগ করুন", "Add to Cart")}
+                              >
+                                <ShoppingCart className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">{getTranslation("+ কার্ট", "Add")}</span>
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => handleRemoveFromWishlist(product.id, lang === "bn" ? product.nameBn : product.nameEn)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                title={getTranslation("মুছে ফেলুন", "Remove")}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {wishlist.length > 4 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowWishlistModal(true)}
+                          className="w-full py-2 text-center text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition border border-rose-100/80 cursor-pointer"
+                        >
+                          {getTranslation(`আরও ${wishlist.length - 4}টি পছন্দের পণ্য দেখুন`, `View ${wishlist.length - 4} more items`)} →
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -3205,19 +3511,24 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
             className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
             onClick={() => setShowWishlistModal(false)}
           />
-          <div className="relative bg-white rounded-3xl p-5 sm:p-7 max-w-md w-full shadow-2xl z-10 space-y-5 animate-in zoom-in-95 duration-200 my-auto text-center">
+          <div className="relative bg-white rounded-3xl p-5 sm:p-6 max-w-lg w-full shadow-2xl z-10 space-y-4 animate-in zoom-in-95 duration-200 my-auto text-left">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center space-x-2.5 text-left">
-                <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
-                  <Heart className="w-5 h-5 fill-rose-100" />
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold shrink-0">
+                  <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-800 text-base">
-                    {getTranslation("পছন্দের তালিকা (উইশলিস্ট)", "My Saved Wishlist")}
-                  </h3>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="font-black text-slate-800 text-base">
+                      {getTranslation("পছন্দের তালিকা (উইশলিস্ট)", "My Saved Wishlist")}
+                    </h3>
+                    <span className="bg-rose-100 text-rose-700 text-[10px] font-black px-2 py-0.5 rounded-full">
+                      {wishlist.length} {getTranslation("টি পণ্য", "items")}
+                    </span>
+                  </div>
                   <p className="text-[10px] text-slate-400">
-                    {getTranslation("আপনার সংরক্ষিত প্রিয় কাঁচাবাজার পণ্যসমূহ", "Your favorite saved grocery items")}
+                    {getTranslation("আপনার সংরক্ষিত প্রিয় পণ্যসমূহের তালিকা", "Your saved favorite items")}
                   </p>
                 </div>
               </div>
@@ -3230,49 +3541,125 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
               </button>
             </div>
 
-            {/* Wishlist Empty State / Info */}
-            <div className="py-6 space-y-3">
-              <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-500 mx-auto flex items-center justify-center border border-rose-100 shadow-inner">
-                <Heart className="w-8 h-8 fill-rose-500 animate-pulse" />
+            {/* Wishlist Content */}
+            {wishlistedProducts.length === 0 ? (
+              <div className="py-8 space-y-3 text-center">
+                <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-500 mx-auto flex items-center justify-center border border-rose-100 shadow-inner">
+                  <Heart className="w-8 h-8 fill-rose-500/20 text-rose-500" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-black text-slate-800">
+                    {getTranslation("পছন্দের তালিকা বর্তমানে খালি!", "Your Wishlist is Empty!")}
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                    {getTranslation(
+                      "স্টোরফ্রন্টে যেকোনো পণ্যের উপরের ডানপাশের হার্ট (❤️) আইকনে ক্লিক করলেই সেটি আপনার প্রোফাইলে সংরক্ষিত থাকবে।",
+                      "Click the heart (❤️) icon on any item on the storefront to save it to your profile."
+                    )}
+                  </p>
+                </div>
+                <div className="pt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowWishlistModal(false);
+                      if (onClose) onClose();
+                    }}
+                    className="inline-flex items-center space-x-2 py-2.5 px-5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black shadow-md shadow-emerald-600/20 cursor-pointer transition active:scale-95"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>{getTranslation("পণ্য পছন্দ করতে শপে যান", "Go to Store & Save Items")}</span>
+                  </button>
+                </div>
               </div>
-              <div className="space-y-1">
-                <h4 className="text-sm font-black text-slate-800">
-                  {getTranslation("পছন্দের কাঁচাবাজার পণ্যসমূহ সহজে খুঁজে পান", "Easily Find Your Favorite Items")}
-                </h4>
-                <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
-                  {getTranslation(
-                    "স্টোরফ্রন্টে যেকোনো পণ্যের উপরের ডানপাশের হার্ট (❤️) আইকনে ক্লিক করলেই সেটি আপনার পছন্দের তালিকায় সংরক্ষিত থাকবে।",
-                    "Click the heart (❤️) icon on any grocery item on the storefront to save it to your personal wishlist."
-                  )}
-                </p>
-              </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Actions Bar */}
+                <div className="flex items-center justify-between pb-1">
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    {getTranslation("সংরক্ষিত পণ্যগুলো সরাসরি কার্টে যোগ করতে পারেন", "Add saved products directly to cart")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAddAllWishlistToCart}
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold transition cursor-pointer border border-emerald-200/60"
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    <span>{getTranslation("সব কার্টে নিন", "Add All to Cart")}</span>
+                  </button>
+                </div>
 
-            {/* Buttons */}
-            <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowWishlistModal(false);
-                  if (onClose) {
-                    onClose();
-                  } else {
-                    triggerToast("শপে স্বাগতম! পছন্দের পণ্যগুলো বেছে নিন।", "Welcome to store! Pick your favorite items.");
-                  }
-                }}
-                className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2 cursor-pointer transition active:scale-95"
-              >
-                <ShoppingBag className="w-4 h-4" />
-                <span>{getTranslation("বাজার করুন / শপ ব্রাউজ করুন", "Browse Shop & Wishlist")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowWishlistModal(false)}
-                className="py-3 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer text-center"
-              >
-                <span>{getTranslation("বুঝেছি", "Got It")}</span>
-              </button>
-            </div>
+                {/* Items List */}
+                <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
+                  {wishlistedProducts.map((product) => (
+                    <div
+                      key={product.id}
+                      className="flex items-center justify-between gap-3 p-3 bg-slate-50/90 hover:bg-rose-50/20 rounded-2xl border border-slate-100 transition"
+                    >
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <img
+                          src={optimizeProductImageUrl(product.image || product.imageUrl || SAFE_PRODUCT_PLACEHOLDER, 80)}
+                          alt={lang === "bn" ? product.nameBn : product.nameEn}
+                          className="w-12 h-12 rounded-xl object-cover bg-white shrink-0 border border-slate-200/60"
+                        />
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-slate-800 truncate">
+                            {lang === "bn" ? product.nameBn : product.nameEn}
+                          </h4>
+                          <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                            {resolveProductDisplayUnit(product, lang)}
+                          </p>
+                          <p className="text-xs font-black text-emerald-600 mt-0.5">
+                            ৳{product.price || 0}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleAddWishlistItemToCart(product)}
+                          className="py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition flex items-center space-x-1 shadow-xs cursor-pointer active:scale-95"
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                          <span>{getTranslation("কার্ট", "Cart")}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFromWishlist(product.id, lang === "bn" ? product.nameBn : product.nameEn)}
+                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                          title={getTranslation("মুছে ফেলুন", "Remove")}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="pt-2 flex flex-col sm:flex-row gap-2.5 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowWishlistModal(false);
+                      if (onClose) onClose();
+                    }}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer text-center flex items-center justify-center space-x-1.5"
+                  >
+                    <ShoppingBag className="w-4 h-4 text-slate-500" />
+                    <span>{getTranslation("আরও পণ্য ব্রাউজ করুন", "Browse More Products")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowWishlistModal(false)}
+                    className="py-2.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer text-center"
+                  >
+                    <span>{getTranslation("ঠিক আছে", "Close")}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

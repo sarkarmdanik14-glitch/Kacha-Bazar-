@@ -95,6 +95,13 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
     }, { skipAuth: true, timeoutMs: 25000 });
 
     if (data?.url) {
+      if (data.provider === "cloudflare_r2") {
+        return data.url;
+      }
+      // If folder is profiles and R2 is not configured, preserve compressed base64 dataUrl so it never vanishes on container restart
+      if (folder === "profiles" && compressedDataUrl) {
+        return compressedDataUrl;
+      }
       return data.url;
     }
   } catch (r2Err) {

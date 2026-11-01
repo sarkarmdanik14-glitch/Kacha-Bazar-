@@ -32,7 +32,7 @@ const R2_ACCOUNT_ID = (process.env.R2_ACCOUNT_ID || "").trim();
 const R2_ACCESS_KEY_ID = (process.env.R2_ACCESS_KEY_ID || "").trim();
 const R2_SECRET_ACCESS_KEY = (process.env.R2_SECRET_ACCESS_KEY || "").trim();
 const R2_BUCKET_NAME = (process.env.R2_BUCKET_NAME || "").trim();
-const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || "").trim().replace(/\/+$/, "");
+const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev").trim().replace(/\/+$/, "");
 const R2_ENDPOINT = (process.env.R2_ENDPOINT || (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : "")).trim();
 
 const isR2Configured = Boolean(R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_BUCKET_NAME && R2_ENDPOINT);
@@ -1155,9 +1155,17 @@ app.post("/api/memo/verify-status", (req, res) => {
 // 3) Firebase Firestore (if configured)
 // -----------------------------------------------------------------------------------
 const USER_CARTS_FILE = path.resolve(process.cwd(), "data", "user_carts.json");
-let inMemoryCartsCache: Record<string, { items: any[]; updatedAt: string }> | null = null;
+interface CartRecord {
+  items: any[];
+  updatedAt: string;
+  userId?: string;
+  email?: string;
+  phone?: string;
+  [key: string]: any;
+}
+let inMemoryCartsCache: Record<string, CartRecord> | null = null;
 
-function readUserCartsFromDisk(): Record<string, { items: any[]; updatedAt: string }> {
+function readUserCartsFromDisk(): Record<string, CartRecord> {
   if (inMemoryCartsCache) return inMemoryCartsCache;
   try {
     if (fs.existsSync(USER_CARTS_FILE)) {
@@ -1171,7 +1179,7 @@ function readUserCartsFromDisk(): Record<string, { items: any[]; updatedAt: stri
   return inMemoryCartsCache;
 }
 
-function writeUserCartsToDisk(carts: Record<string, { items: any[]; updatedAt: string }>) {
+function writeUserCartsToDisk(carts: Record<string, CartRecord>) {
   inMemoryCartsCache = carts;
   try {
     const dir = path.dirname(USER_CARTS_FILE);
@@ -2970,18 +2978,20 @@ const handleImageUpload = async (req: express.Request, res: express.Response) =>
     let r2Success = false;
     let finalUrl = "";
 
-    try {
-      await r2Client.send(new PutObjectCommand({
-        Bucket: R2_BUCKET_NAME,
-        Key: r2Key,
-        Body: buffer,
-        ContentType: mimeType,
-      }));
-      r2Success = true;
-      finalUrl = `/api/media/${r2Key}`;
-      console.log(`[Cloudflare R2] Successfully uploaded: ${r2Key} -> ${finalUrl}`);
-    } catch (r2Err: any) {
-      console.warn("[Cloudflare R2] Upload warning, falling back to local storage:", r2Err?.message || r2Err);
+    if (isR2Configured && r2Client) {
+      try {
+        await r2Client.send(new PutObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: r2Key,
+          Body: buffer,
+          ContentType: mimeType,
+        }));
+        r2Success = true;
+        finalUrl = R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${r2Key}` : `/api/media/${r2Key}`;
+        console.log(`[Cloudflare R2] Successfully uploaded image: ${r2Key} -> ${finalUrl}`);
+      } catch (r2Err: any) {
+        console.warn("[Cloudflare R2] Upload warning, falling back to local storage:", r2Err?.message || r2Err);
+      }
     }
 
     // High-resilience fallback to local uploads if R2 write encounters an issue
@@ -3062,18 +3072,20 @@ const handleAudioUpload = async (req: express.Request, res: express.Response) =>
     let r2Success = false;
     let finalUrl = "";
 
-    try {
-      await r2Client.send(new PutObjectCommand({
-        Bucket: R2_BUCKET_NAME,
-        Key: r2Key,
-        Body: buffer,
-        ContentType: mimeType || "audio/mpeg",
-      }));
-      r2Success = true;
-      finalUrl = `/api/media/${r2Key}`;
-      console.log(`[Cloudflare R2] Successfully uploaded audio: ${r2Key} -> ${finalUrl}`);
-    } catch (r2Err: any) {
-      console.warn("[Cloudflare R2] Audio upload warning, falling back to local storage:", r2Err?.message || r2Err);
+    if (isR2Configured && r2Client) {
+      try {
+        await r2Client.send(new PutObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: r2Key,
+          Body: buffer,
+          ContentType: mimeType || "audio/mpeg",
+        }));
+        r2Success = true;
+        finalUrl = R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${r2Key}` : `/api/media/${r2Key}`;
+        console.log(`[Cloudflare R2] Successfully uploaded audio: ${r2Key} -> ${finalUrl}`);
+      } catch (r2Err: any) {
+        console.warn("[Cloudflare R2] Audio upload warning, falling back to local storage:", r2Err?.message || r2Err);
+      }
     }
 
     if (!r2Success) {
