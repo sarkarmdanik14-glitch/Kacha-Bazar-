@@ -4,17 +4,19 @@ import { APP_LOGO_URL } from "../constants/branding";
 interface AppSplashScreenProps {
   onFinish?: () => void;
   minDurationMs?: number;
+  isReady?: boolean;
 }
 
 export const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
   onFinish,
-  minDurationMs = 2000,
+  minDurationMs = 550,
+  isReady = true,
 }) => {
   const [isFadingOut, setIsFadingOut] = useState<boolean>(false);
   const [isMounted, setIsMounted] = useState<boolean>(true);
 
   useEffect(() => {
-    // Keep splash screen visible for at least minDurationMs for a smooth, premium feel
+    // Keep splash screen visible briefly for a crisp, smooth, ultra-fast feel
     const timer = setTimeout(() => {
       setIsFadingOut(true);
     }, minDurationMs);
@@ -23,11 +25,20 @@ export const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
   }, [minDurationMs]);
 
   useEffect(() => {
+    if (isReady && !isFadingOut) {
+      const readyTimer = setTimeout(() => {
+        setIsFadingOut(true);
+      }, minDurationMs);
+      return () => clearTimeout(readyTimer);
+    }
+  }, [isReady, minDurationMs, isFadingOut]);
+
+  useEffect(() => {
     if (isFadingOut) {
       const exitTimer = setTimeout(() => {
         setIsMounted(false);
         if (onFinish) onFinish();
-      }, 700); // 700ms fade-out transition duration
+      }, 300); // 300ms ultra-smooth fade-out transition duration
 
       return () => clearTimeout(exitTimer);
     }
@@ -38,7 +49,7 @@ export const AppSplashScreen: React.FC<AppSplashScreenProps> = ({
   return (
     <div
       onClick={() => setIsFadingOut(true)}
-      className={`fixed inset-0 z-[999999] flex flex-col items-center justify-center select-none overflow-hidden transition-all duration-700 ease-out cursor-pointer ${
+      className={`fixed inset-0 z-[999999] flex flex-col items-center justify-center select-none overflow-hidden transition-all duration-300 ease-out cursor-pointer ${
         isFadingOut
           ? "opacity-0 scale-105 pointer-events-none"
           : "opacity-100 scale-100"

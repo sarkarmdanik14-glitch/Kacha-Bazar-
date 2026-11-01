@@ -2525,7 +2525,7 @@ export default function App() {
     <div className="min-h-screen w-full bg-slate-50 font-sans text-slate-800 antialiased selection:bg-emerald-500 selection:text-white overflow-x-hidden">
       
       {/* App Launch Luxury Emerald Animated Splash Screen Overlay */}
-      <AppSplashScreen />
+      <AppSplashScreen isReady={products.length > 0 && categories.length > 0} minDurationMs={550} />
 
       {/* Main Page Layout Wrapper */}
       <div>
