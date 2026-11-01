@@ -1362,6 +1362,220 @@ app.get("/api/cart/:userId", rateLimiter(120, 60000), async (req, res) => {
   }
 });
 
+// -----------------------------------------------------------------------------------
+// API ROUTE: Server-Authoritative User Profile Sync & Retrieval
+// Securely stores and retrieves user profile details (photoURL, name, phone, address)
+// 1) Fast JSON storage (data/user_profiles.json)
+// 2) Supabase Cloud Database (if configured)
+// 3) Firebase Firestore (if configured)
+// -----------------------------------------------------------------------------------
+const USER_PROFILES_FILE = path.resolve(process.cwd(), "data", "user_profiles.json");
+interface ProfileRecord {
+  userId: string;
+  email?: string;
+  phone?: string;
+  displayName?: string;
+  fullName?: string;
+  photoURL?: string;
+  avatar?: string;
+  image?: string;
+  address?: string;
+  wishlist?: string[];
+  updatedAt: string;
+  [key: string]: any;
+}
+let inMemoryProfilesCache: Record<string, ProfileRecord> | null = null;
+
+function readUserProfilesFromDisk(): Record<string, ProfileRecord> {
+  if (inMemoryProfilesCache) return inMemoryProfilesCache;
+  try {
+    if (fs.existsSync(USER_PROFILES_FILE)) {
+      inMemoryProfilesCache = JSON.parse(fs.readFileSync(USER_PROFILES_FILE, "utf-8")) || {};
+      return inMemoryProfilesCache!;
+    }
+  } catch (e) {
+    console.warn("[Server Profile] Disk read notice:", e);
+  }
+  inMemoryProfilesCache = {};
+  return inMemoryProfilesCache;
+}
+
+function writeUserProfilesToDisk(profiles: Record<string, ProfileRecord>) {
+  inMemoryProfilesCache = profiles;
+  try {
+    const dir = path.dirname(USER_PROFILES_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(USER_PROFILES_FILE, JSON.stringify(profiles, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("[Server Profile] Disk write notice:", err);
+  }
+}
+
+app.post("/api/user/profile", rateLimiter(120, 60000), async (req, res) => {
+  try {
+    const { userId, email, phone, displayName, fullName, photoURL, avatar, image, address, wishlist } = req.body || {};
+    const cleanUserId = String(userId || "").trim();
+    const cleanEmail = email ? String(email).trim().toLowerCase() : (cleanUserId.includes("@") ? cleanUserId.toLowerCase() : "");
+    const cleanPhone = phone ? String(phone).replace(/\s+/g, "") : (!cleanUserId.includes("@") && /^\+?\d{9,15}$/.test(cleanUserId) ? cleanUserId : "");
+    const primaryId = cleanUserId || cleanEmail || cleanPhone;
+
+    if (!primaryId) {
+      return res.status(400).json({ success: false, error: "Valid userId, email, or phone is required" });
+    }
+
+    const allProfiles = readUserProfilesFromDisk();
+    const existing: Partial<ProfileRecord> = (allProfiles[primaryId] || (cleanUserId ? allProfiles[cleanUserId] : null) || (cleanEmail ? allProfiles[`email:${cleanEmail}`] : null) || {}) as Partial<ProfileRecord>;
+
+    const resolvedPhoto = photoURL || avatar || image || existing.photoURL || existing.avatar || existing.image || "";
+    const timestamp = new Date().toISOString();
+
+    const profilePayload: ProfileRecord = {
+      ...existing,
+      ...req.body,
+      userId: cleanUserId || existing.userId || primaryId,
+      email: cleanEmail || existing.email,
+      phone: cleanPhone || existing.phone,
+      displayName: displayName || fullName || existing.displayName || existing.fullName || "",
+      fullName: fullName || displayName || existing.fullName || existing.displayName || "",
+      photoURL: resolvedPhoto,
+      avatar: resolvedPhoto,
+      image: resolvedPhoto,
+      address: address !== undefined ? address : existing.address,
+      wishlist: Array.isArray(wishlist) ? wishlist : existing.wishlist || [],
+      updatedAt: timestamp
+    };
+
+    if (cleanUserId) allProfiles[cleanUserId] = profilePayload;
+    if (cleanEmail) allProfiles[`email:${cleanEmail}`] = profilePayload;
+    if (cleanPhone) allProfiles[`phone:${cleanPhone}`] = profilePayload;
+    writeUserProfilesToDisk(allProfiles);
+
+    // 2. Sync to Supabase if configured
+    const sb = getServerSupabase();
+    if (sb && cleanUserId) {
+      try {
+        await sb.from("users").upsert({
+          id: cleanUserId,
+          full_name: profilePayload.fullName,
+          email: cleanEmail || undefined,
+          phone: cleanPhone || undefined,
+          photo_url: resolvedPhoto,
+          avatar: resolvedPhoto,
+          image: resolvedPhoto,
+          address: profilePayload.address,
+          wishlist: profilePayload.wishlist,
+          updated_at: timestamp
+        }, { onConflict: "id" });
+      } catch (sbErr) {}
+    }
+
+    // 3. Sync to Firebase Firestore if configured
+    const adminDb = getAdminDb();
+    if (adminDb && cleanUserId) {
+      try {
+        await adminDb.collection("users").doc(cleanUserId).set({
+          ...profilePayload,
+          photoURL: resolvedPhoto,
+          avatar: resolvedPhoto,
+          image: resolvedPhoto,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      } catch (fbErr) {}
+    }
+
+    return res.json({ success: true, profile: profilePayload });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to sync profile" });
+  }
+});
+
+app.get("/api/user/profile/:userId", rateLimiter(120, 60000), async (req, res) => {
+  try {
+    const rawId = String(req.params.userId || "").trim();
+    const queryEmail = String(req.query.email || "").trim().toLowerCase();
+    const queryPhone = String(req.query.phone || "").replace(/\s+/g, "");
+
+    const cleanEmail = queryEmail || (rawId.includes("@") ? rawId.toLowerCase() : "");
+    const cleanPhone = queryPhone || (!rawId.includes("@") && /^\+?\d{9,15}$/.test(rawId) ? rawId : "");
+    const cleanUserId = rawId;
+
+    if (!cleanUserId && !cleanEmail && !cleanPhone) {
+      return res.status(400).json({ success: false, error: "Valid userId, email, or phone required" });
+    }
+
+    const allProfiles = readUserProfilesFromDisk();
+    let matchedProfile = cleanUserId && allProfiles[cleanUserId] 
+      ? allProfiles[cleanUserId] 
+      : (cleanEmail && allProfiles[`email:${cleanEmail}`] 
+        ? allProfiles[`email:${cleanEmail}`] 
+        : (cleanPhone && allProfiles[`phone:${cleanPhone}`] ? allProfiles[`phone:${cleanPhone}`] : null));
+
+    if (!matchedProfile) {
+      for (const k of Object.keys(allProfiles)) {
+        const p = allProfiles[k];
+        if (!p) continue;
+        if (cleanEmail && p.email && p.email.toLowerCase() === cleanEmail) { matchedProfile = p; break; }
+        if (cleanPhone && p.phone && p.phone === cleanPhone) { matchedProfile = p; break; }
+        if (cleanUserId && (p.userId === cleanUserId || k === cleanUserId)) { matchedProfile = p; break; }
+      }
+    }
+
+    if (matchedProfile) {
+      return res.json({ success: true, profile: matchedProfile });
+    }
+
+    // Check Supabase
+    const sb = getServerSupabase();
+    if (sb && cleanUserId) {
+      try {
+        const { data } = await sb.from("users").select("*").or(`id.eq.${cleanUserId},uid.eq.${cleanUserId}`).maybeSingle();
+        if (data) {
+          const profile: ProfileRecord = {
+            userId: data.id || data.uid || cleanUserId,
+            email: data.email || cleanEmail,
+            phone: data.phone || cleanPhone,
+            displayName: data.display_name || data.full_name || "",
+            fullName: data.full_name || data.display_name || "",
+            photoURL: data.photo_url || data.avatar || data.image || "",
+            avatar: data.photo_url || data.avatar || data.image || "",
+            image: data.photo_url || data.avatar || data.image || "",
+            address: data.address || "",
+            wishlist: Array.isArray(data.wishlist) ? data.wishlist : [],
+            updatedAt: data.updated_at || new Date().toISOString()
+          };
+          allProfiles[cleanUserId] = profile;
+          writeUserProfilesToDisk(allProfiles);
+          return res.json({ success: true, profile });
+        }
+      } catch {}
+    }
+
+    // Check Firebase Firestore
+    const adminDb = getAdminDb();
+    if (adminDb && cleanUserId) {
+      try {
+        const snap = await adminDb.collection("users").doc(cleanUserId).get();
+        if (snap.exists) {
+          const data = snap.data() || {};
+          const profile: ProfileRecord = {
+            userId: cleanUserId,
+            ...data,
+            photoURL: data.photoURL || data.avatar || data.image || "",
+            updatedAt: new Date().toISOString()
+          };
+          allProfiles[cleanUserId] = profile;
+          writeUserProfilesToDisk(allProfiles);
+          return res.json({ success: true, profile });
+        }
+      } catch {}
+    }
+
+    return res.status(404).json({ success: false, error: "Profile not found" });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to get profile" });
+  }
+});
+
 async function calculateVerifiedDiscount(
   rawCoupon: string,
   requestedDiscount: number,

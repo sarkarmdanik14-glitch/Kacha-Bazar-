@@ -244,8 +244,8 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       if (dbUser.address !== undefined) {
         setProfileAddress(dbUser.address || "");
       }
-      if (dbUser.photoURL !== undefined) {
-        setPhotoUrlInput(dbUser.photoURL || "");
+      if (dbUser.photoURL) {
+        setPhotoUrlInput(dbUser.photoURL);
       }
     }
   }, [dbUser?.fullName, dbUser?.displayName, dbUser?.name, dbUser?.phone, dbUser?.email, dbUser?.address, dbUser?.photoURL]);
@@ -806,13 +806,22 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         ...updatedFields
       }));
 
+      // Server-authoritative profile persistence
+      apiClient.post("/api/user/profile", {
+        userId: targetUid,
+        ...updatedFields
+      }, { silent: true }).catch(() => {});
+
       try {
         if (photoUrlInput) {
           localStorage.setItem("kb_user_photo", photoUrlInput);
         } else {
           localStorage.removeItem("kb_user_photo");
         }
-        window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: photoUrlInput || "" } }));
+        const savedStr = localStorage.getItem("kb_current_user");
+        const existing = savedStr ? JSON.parse(savedStr) : {};
+        localStorage.setItem("kb_current_user", JSON.stringify({ ...existing, ...updatedFields }));
+        window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: photoUrlInput || "", fullName: trimmedName, displayName: trimmedName } }));
       } catch {}
 
       triggerToast(
@@ -861,13 +870,30 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       const immediateDataUrl = compressed.dataUrl || localPreviewUrl;
 
       // Update storage and broadcast event
+      const targetUid = user?.uid || user?.id || dbUser?.uid || dbUser?.id || (auth.currentUser ? auth.currentUser.uid : "");
       try {
         localStorage.setItem("kb_user_photo", immediateDataUrl);
+        const savedStr = localStorage.getItem("kb_current_user");
+        if (savedStr) {
+          const parsed = JSON.parse(savedStr);
+          parsed.photoURL = immediateDataUrl;
+          parsed.avatar = immediateDataUrl;
+          localStorage.setItem("kb_current_user", JSON.stringify(parsed));
+        }
         window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: immediateDataUrl } }));
       } catch {}
 
+      // Server-authoritative profile update (immediate)
+      if (targetUid) {
+        apiClient.post("/api/user/profile", {
+          userId: targetUid,
+          photoURL: immediateDataUrl,
+          avatar: immediateDataUrl,
+          image: immediateDataUrl
+        }, { silent: true }).catch(() => {});
+      }
+
       // 3. Persist to Firestore and Supabase user documents under photoURL, avatar, and image
-      const targetUid = user?.uid || user?.id || dbUser?.uid || dbUser?.id || (auth.currentUser ? auth.currentUser.uid : "");
       if (targetUid) {
         await setDoc(doc(db, "users", targetUid), {
           uid: targetUid,
@@ -904,8 +930,24 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
           }));
           try {
             localStorage.setItem("kb_user_photo", cdnUrl);
+            const savedStr = localStorage.getItem("kb_current_user");
+            if (savedStr) {
+              const parsed = JSON.parse(savedStr);
+              parsed.photoURL = cdnUrl;
+              parsed.avatar = cdnUrl;
+              localStorage.setItem("kb_current_user", JSON.stringify(parsed));
+            }
             window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: cdnUrl } }));
           } catch {}
+
+          // Update server profile cache with CDN url
+          apiClient.post("/api/user/profile", {
+            userId: targetUid,
+            photoURL: cdnUrl,
+            avatar: cdnUrl,
+            image: cdnUrl
+          }, { silent: true }).catch(() => {});
+
           await setDoc(doc(db, "users", targetUid), {
             photoURL: cdnUrl,
             avatar: cdnUrl,
@@ -951,13 +993,25 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     if (!confirm(getTranslation("আপনি কি নিশ্চিত আপনার প্রোফাইল ছবি মুছে ফেলতে চান?", "Are you sure you want to remove your profile picture?"))) return;
 
     setIsUploadingPhoto(true);
+    const targetUid = user?.uid || user?.id || dbUser?.uid || dbUser?.id || (auth.currentUser ? auth.currentUser.uid : "");
     try {
       setPhotoUrlInput("");
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
-        photoURL: "",
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      if (targetUid) {
+        await setDoc(doc(db, "users", targetUid), {
+          uid: targetUid,
+          photoURL: "",
+          avatar: "",
+          image: "",
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        apiClient.post("/api/user/profile", {
+          userId: targetUid,
+          photoURL: "",
+          avatar: "",
+          image: ""
+        }, { silent: true }).catch(() => {});
+      }
 
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, {
@@ -967,11 +1021,20 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
       setDbUser((prev: any) => ({
         ...prev,
-        photoURL: ""
+        photoURL: "",
+        avatar: "",
+        image: ""
       }));
 
       try {
         localStorage.removeItem("kb_user_photo");
+        const savedStr = localStorage.getItem("kb_current_user");
+        if (savedStr) {
+          const parsed = JSON.parse(savedStr);
+          parsed.photoURL = "";
+          parsed.avatar = "";
+          localStorage.setItem("kb_current_user", JSON.stringify(parsed));
+        }
         window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: "" } }));
       } catch {}
 
@@ -1004,7 +1067,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       setLoading(false);
     }, 1200);
 
-    // 0. Fetch user profile from Supabase
+    // 0. Fetch user profile from Supabase & Server Store
     const fetchUserData = async () => {
       try {
         const profile = await fetchUserProfile(targetUid);
@@ -1028,6 +1091,24 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       } catch (err) {
         console.warn("[CustomerPortal] User profile load:", err);
       }
+
+      // Check server-authoritative profile cache (disk/R2 backed)
+      try {
+        const sRes = await apiClient.get<any>(`/api/user/profile/${targetUid}`, { silent: true });
+        if (sRes?.success && sRes?.profile) {
+          const sp = sRes.profile;
+          setDbUser((prev: any) => ({ ...prev, ...sp }));
+          const sName = sp.fullName || sp.displayName || sp.name;
+          if (sName) setDisplayNameInput(sName);
+          if (sp.photoURL) {
+            setPhotoUrlInput(sp.photoURL);
+            try {
+              localStorage.setItem("kb_user_photo", sp.photoURL);
+              window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: sp.photoURL } }));
+            } catch {}
+          }
+        }
+      } catch {}
     };
     fetchUserData();
 

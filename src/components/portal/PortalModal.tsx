@@ -626,6 +626,14 @@ export default function PortalModal({
       role: "customer",
       isSuperAdmin: false
     };
+    try {
+      localStorage.setItem("kb_current_user", JSON.stringify(customerUser));
+      const photo = customerUser.photoURL || customerUser.photo_url || customerUser.avatar || customerUser.image;
+      if (photo) {
+        localStorage.setItem("kb_user_photo", photo);
+        window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: photo } }));
+      }
+    } catch {}
     setCurrentUser(customerUser);
     setUserRole("customer");
     setActivePortalTab("customer");
@@ -646,6 +654,7 @@ export default function PortalModal({
         localStorage.removeItem("kacha_user_session");
         localStorage.removeItem("user_role");
         localStorage.removeItem("kb_current_user");
+        localStorage.removeItem("kb_user_photo");
         localStorage.removeItem("kb_staff_session");
         localStorage.removeItem("kb_staff_email");
         localStorage.removeItem("kb_staff_id");
@@ -653,6 +662,7 @@ export default function PortalModal({
         localStorage.removeItem("kb_firebase_id_token");
         sessionStorage.clear();
       } catch (e) {}
+      window.dispatchEvent(new CustomEvent("kb_user_logout"));
       setCurrentUser(null);
       setUserRole("customer");
       setActivePortalTab("customer");

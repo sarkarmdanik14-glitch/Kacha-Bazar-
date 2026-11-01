@@ -280,12 +280,39 @@ export default function App() {
       return "";
     }
   });
-  const [loggedInUser, setLoggedInUser] = useState<any | null>(null);
-  const [userRole, setUserRole] = useState<string>("customer");
-  const [userReferralCode, setUserReferralCode] = useState<string>("");
+  const [loggedInUser, setLoggedInUser] = useState<any | null>(() => {
+    try {
+      const saved = localStorage.getItem("kb_current_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [userRole, setUserRole] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem("kb_current_user");
+      const u = saved ? JSON.parse(saved) : null;
+      return u?.role || "customer";
+    } catch {
+      return "customer";
+    }
+  });
+  const [userReferralCode, setUserReferralCode] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem("kb_current_user");
+      const u = saved ? JSON.parse(saved) : null;
+      return u?.referralCode || "";
+    } catch {
+      return "";
+    }
+  });
   const [userProfilePhoto, setUserProfilePhoto] = useState<string>(() => {
     try {
-      return localStorage.getItem("kb_user_photo") || "";
+      const savedPhoto = localStorage.getItem("kb_user_photo");
+      if (savedPhoto) return savedPhoto;
+      const saved = localStorage.getItem("kb_current_user");
+      const u = saved ? JSON.parse(saved) : null;
+      return u?.photoURL || u?.photo_url || u?.avatar || "";
     } catch {
       return "";
     }
@@ -803,6 +830,42 @@ export default function App() {
               }
             }
           } catch {}
+        } else {
+          // Restore saved user session & profile photo from disk/localStorage
+          try {
+            const savedStr = localStorage.getItem("kb_current_user");
+            if (savedStr) {
+              const savedUser = JSON.parse(savedStr);
+              if (savedUser) {
+                setLoggedInUser(savedUser);
+                if (savedUser.role) setUserRole(savedUser.role);
+                if (savedUser.referralCode) setUserReferralCode(savedUser.referralCode);
+                const pPhoto = localStorage.getItem("kb_user_photo") || savedUser.photoURL || savedUser.photo_url || savedUser.avatar || savedUser.image;
+                if (pPhoto) {
+                  setUserProfilePhoto(pPhoto);
+                  setPhotoLoadError(false);
+                }
+                const uid = savedUser.uid || savedUser.id;
+                if (uid) {
+                  fetchAndMergeUserCart(uid, true);
+                  fetch(`/api/user/profile/${uid}`)
+                    .then(r => r.json())
+                    .then(pData => {
+                      if (pData?.success && pData?.profile) {
+                        const p = pData.profile;
+                        if (p.photoURL) {
+                          setUserProfilePhoto(p.photoURL);
+                          setPhotoLoadError(false);
+                          localStorage.setItem("kb_user_photo", p.photoURL);
+                        }
+                        setLoggedInUser((prev: any) => ({ ...prev, ...p }));
+                      }
+                    })
+                    .catch(() => {});
+                }
+              }
+            }
+          } catch {}
         }
       }
     });
@@ -837,7 +900,8 @@ export default function App() {
         fetchAndMergeUserCart(sbUser.id || sbUser.uid, true);
       } else if (!auth.currentUser) {
         const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
-        if (!staffSessionId) {
+        const savedLocalUser = localStorage.getItem("kb_current_user");
+        if (!staffSessionId && !savedLocalUser) {
           setLoggedInUser(null);
           setUserRole("customer");
           setUserReferralCode("");
@@ -845,9 +909,6 @@ export default function App() {
           setPhotoLoadError(false);
           lastSyncedCartHashRef.current = "";
           isSyncingFromRemoteRef.current = false;
-          try {
-            localStorage.removeItem("kb_user_photo");
-          } catch {}
         }
       }
     });
@@ -985,16 +1046,17 @@ export default function App() {
         // Automatically load and merge the user cart from cloud (syncs across devices)
         fetchAndMergeUserCart(user.uid, true);
       } else {
-        setLoggedInUser(null);
-        setUserRole("customer");
-        setUserReferralCode("");
-        setUserProfilePhoto("");
-        setPhotoLoadError(false);
-        lastSyncedCartHashRef.current = "";
-        isSyncingFromRemoteRef.current = false;
-        try {
-          localStorage.removeItem("kb_user_photo");
-        } catch {}
+        const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
+        const savedLocalUser = localStorage.getItem("kb_current_user");
+        if (!staffSessionId && !savedLocalUser) {
+          setLoggedInUser(null);
+          setUserRole("customer");
+          setUserReferralCode("");
+          setUserProfilePhoto("");
+          setPhotoLoadError(false);
+          lastSyncedCartHashRef.current = "";
+          isSyncingFromRemoteRef.current = false;
+        }
         if (unsubUserDoc) {
           unsubUserDoc();
           unsubUserDoc = null;
@@ -1002,12 +1064,51 @@ export default function App() {
       }
     });
 
+    // Profile photo & user updates listener across components
+    const handleProfileUpdated = (e: any) => {
+      const photo = e?.detail?.photoURL;
+      if (photo) {
+        setUserProfilePhoto(photo);
+        setPhotoLoadError(false);
+      }
+      try {
+        const saved = localStorage.getItem("kb_current_user");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (photo) parsed.photoURL = photo;
+          if (e?.detail?.fullName) parsed.fullName = e.detail.fullName;
+          if (e?.detail?.displayName) parsed.displayName = e.detail.displayName;
+          localStorage.setItem("kb_current_user", JSON.stringify(parsed));
+          setLoggedInUser((prev: any) => ({ ...prev, ...parsed }));
+        }
+      } catch {}
+    };
+    window.addEventListener("kb_profile_updated", handleProfileUpdated);
+
+    // Explicit user logout listener
+    const handleUserLogout = () => {
+      setLoggedInUser(null);
+      setUserRole("customer");
+      setUserReferralCode("");
+      setUserProfilePhoto("");
+      setPhotoLoadError(false);
+      lastSyncedCartHashRef.current = "";
+      isSyncingFromRemoteRef.current = false;
+      try {
+        localStorage.removeItem("kb_current_user");
+        localStorage.removeItem("kb_user_photo");
+      } catch {}
+    };
+    window.addEventListener("kb_user_logout", handleUserLogout);
+
     return () => {
       unsubSb();
       unsub();
       if (unsubUserDoc) {
         unsubUserDoc();
       }
+      window.removeEventListener("kb_profile_updated", handleProfileUpdated);
+      window.removeEventListener("kb_user_logout", handleUserLogout);
     };
   }, []);
 
@@ -5137,17 +5238,31 @@ export default function App() {
           onUserChange={(updatedUser) => {
             setLoggedInUser(updatedUser);
             loggedInUserRef.current = updatedUser;
-            if (updatedUser?.role) setUserRole(updatedUser.role);
-            if (updatedUser?.referralCode) setUserReferralCode(updatedUser.referralCode);
-            if (updatedUser?.photoURL) {
-              setUserProfilePhoto(updatedUser.photoURL);
-              setPhotoLoadError(false);
+            if (updatedUser) {
               try {
-                localStorage.setItem("kb_user_photo", updatedUser.photoURL);
+                localStorage.setItem("kb_current_user", JSON.stringify(updatedUser));
               } catch {}
-            }
-            if (updatedUser?.id || updatedUser?.uid) {
-              fetchAndMergeUserCart(updatedUser.id || updatedUser.uid, true);
+              if (updatedUser.role) setUserRole(updatedUser.role);
+              if (updatedUser.referralCode) setUserReferralCode(updatedUser.referralCode);
+              const photo = updatedUser.photoURL || updatedUser.photo_url || updatedUser.avatar || updatedUser.image;
+              if (photo) {
+                setUserProfilePhoto(photo);
+                setPhotoLoadError(false);
+                try {
+                  localStorage.setItem("kb_user_photo", photo);
+                } catch {}
+              }
+              if (updatedUser.id || updatedUser.uid) {
+                fetchAndMergeUserCart(updatedUser.id || updatedUser.uid, true);
+              }
+            } else {
+              setUserRole("customer");
+              setUserReferralCode("");
+              setUserProfilePhoto("");
+              try {
+                localStorage.removeItem("kb_current_user");
+                localStorage.removeItem("kb_user_photo");
+              } catch {}
             }
           }}
         />
