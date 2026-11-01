@@ -341,18 +341,6 @@ export default function AuthView({
           }
         } catch {}
       }
-
-      // Check Firestore as legacy fallback
-      if (uid) {
-        const adminDocRef = doc(db, "admins", uid);
-        const adminDocSnap = await getDoc(adminDocRef);
-        if (adminDocSnap.exists()) {
-          const adminData = adminDocSnap.data();
-          if (adminData && (adminData.isActive === undefined || adminData.isActive === true)) {
-            return true;
-          }
-        }
-      }
     } catch (err: any) {
       if (!err?.message?.includes("offline")) {
         console.warn("Notice verifying admin permissions:", err?.message || err);
@@ -361,7 +349,7 @@ export default function AuthView({
     return false;
   };
 
-  // Helper to verify seller role and status in Supabase / Firestore
+  // Helper to verify seller role and status in Supabase
   const checkSellerStatus = async (uid: string): Promise<{ isSeller: boolean; status: string }> => {
     try {
       // 1. Supabase check
@@ -382,20 +370,6 @@ export default function AuthView({
       if (sbUser?.role === "seller") {
         return { isSeller: true, status: sbUser.status || "pending" };
       }
-
-      // 2. Firestore fallback
-      const sellerDocSnap = await getDoc(doc(db, "sellers", uid));
-      if (sellerDocSnap.exists()) {
-        const data = sellerDocSnap.data();
-        return { isSeller: true, status: data?.status || "pending" };
-      }
-      const userDocSnap = await getDoc(doc(db, "users", uid));
-      if (userDocSnap.exists()) {
-        const uData = userDocSnap.data();
-        if (uData?.role === "seller") {
-          return { isSeller: true, status: uData?.sellerStatus || uData?.status || "pending" };
-        }
-      }
     } catch (err: any) {
       if (!err?.message?.includes("offline")) {
         console.warn("Notice checking seller status:", err?.message || err);
@@ -404,7 +378,7 @@ export default function AuthView({
     return { isSeller: false, status: "none" };
   };
 
-  // Helper to verify rider role and status in Supabase / Firestore
+  // Helper to verify rider role and status in Supabase
   const checkRiderStatus = async (uid: string): Promise<{ isRider: boolean; status: string }> => {
     try {
       // 1. Supabase check
@@ -424,20 +398,6 @@ export default function AuthView({
         .single();
       if (sbUser?.role === "rider") {
         return { isRider: true, status: sbUser.status || "pending" };
-      }
-
-      // 2. Firestore fallback
-      const riderDocSnap = await getDoc(doc(db, "riders", uid));
-      if (riderDocSnap.exists()) {
-        const data = riderDocSnap.data();
-        return { isRider: true, status: data?.status || "pending" };
-      }
-      const userDocSnap = await getDoc(doc(db, "users", uid));
-      if (userDocSnap.exists()) {
-        const uData = userDocSnap.data();
-        if (uData?.role === "rider") {
-          return { isRider: true, status: uData?.riderStatus || uData?.status || "pending" };
-        }
       }
     } catch (err: any) {
       if (!err?.message?.includes("offline")) {
@@ -908,18 +868,6 @@ export default function AuthView({
           }
         }
 
-        // Dual sync profile to Firestore in background for legacy listeners
-        try {
-          const userDocRef = doc(db, "users", userUid);
-          await setDoc(userDocRef, {
-            uid: userUid,
-            email: userEmail,
-            displayName: authenticatedUser.displayName || authenticatedUser.fullName || "গ্রাহক",
-            role: authenticatedRole,
-            updatedAt: serverTimestamp()
-          }, { merge: true }).catch(() => {});
-        } catch {}
-
         onAuthSuccess(authenticatedUser, authenticatedRole);
       } else {
         // Sign up with Supabase Auth (supabase.auth.signUp)
@@ -930,7 +878,7 @@ export default function AuthView({
           return;
         }
 
-        // 1. Primary: Create account via Supabase Auth
+        // 1. Primary: Create account via Supabase Auth & PostgreSQL
         const sbSignUpRes = await supabaseSignUpWithEmail({
           email: email.trim(),
           pass: password,
@@ -947,74 +895,6 @@ export default function AuthView({
         }
 
         const newUser = sbSignUpRes.user;
-
-        // 2. Dual-sync account to Firebase in background so legacy hooks remain functional
-        try {
-          const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password).catch(() => null);
-          if (userCredential?.user) {
-            await updateProfile(userCredential.user, { displayName: trimmedFullName }).catch(() => {});
-          }
-
-          const refCode = newUser.referralCode || ("REF" + newUser.uid.substring(0, 5).toUpperCase());
-          const customerId = generateMemberId(newUser.uid);
-          const sanitizedHandle = trimmedFullName
-            .toLowerCase()
-            .replace(/\s+/g, "_")
-            .replace(/[^\w\u0980-\u09FF]/gi, "") || customerId.toLowerCase();
-
-          const legacyUserData: any = {
-            uid: newUser.uid,
-            displayName: trimmedFullName,
-            fullName: trimmedFullName,
-            name: trimmedFullName,
-            phone: phone.trim(),
-            phoneNumber: phone.trim(),
-            email: email.trim(),
-            walletBalance: 0,
-            rewardPoints: 0,
-            balance: 0,
-            points: 0,
-            role: role || "customer",
-            createdAt: serverTimestamp(),
-            username: sanitizedHandle,
-            customerId: customerId,
-            address: getTranslation("চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর", "Chanchkoir Bazar, Gurudaspur, Natore"),
-            referralCode: refCode,
-            status: (role === "seller" || role === "rider") ? "pending" : "approved"
-          };
-
-          await setDoc(doc(db, "users", newUser.uid), legacyUserData).catch(() => {});
-
-          if (role === "seller") {
-            await setDoc(doc(db, "sellers", newUser.uid), {
-              uid: newUser.uid,
-              email: email.trim(),
-              shopName: shopName || getTranslation("আমার মেগা বাজার", "My Mega Bazar"),
-              ownerName: trimmedFullName,
-              phoneNumber: phone.trim(),
-              status: "pending",
-              createdAt: serverTimestamp(),
-              balance: 1000
-            }).catch(() => {});
-          } else if (role === "rider") {
-            await setDoc(doc(db, "riders", newUser.uid), {
-              uid: newUser.uid,
-              email: email.trim(),
-              name: trimmedFullName,
-              phoneNumber: phone.trim(),
-              vehicleType: vehicleType,
-              status: "pending",
-              createdAt: serverTimestamp(),
-              balance: 0
-            }).catch(() => {});
-          }
-
-          await setDoc(doc(db, "wallet", newUser.uid), {
-            userId: newUser.uid,
-            balance: 0,
-            updatedAt: serverTimestamp()
-          }).catch(() => {});
-        } catch {}
 
         await linkReferral(newUser.uid, referralInput);
 

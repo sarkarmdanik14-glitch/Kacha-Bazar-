@@ -41,7 +41,7 @@ import CustomerLiveChat from "./components/CustomerLiveChat";
 import CustomerVoiceCallModal from "./components/CustomerVoiceCallModal";
 import { seedDatabase, db, collection, onSnapshot, auth, onAuthStateChanged, doc, getDoc, getDocs, setDoc, query, where, limit, orderBy, or, addDoc, deleteDoc, serverTimestamp } from "./lib/firebase";
 import { supabase } from "./lib/supabase";
-import { onSupabaseAuthStateChange, getSupabaseUser } from "./lib/supabaseAuth";
+import { onSupabaseAuthStateChange, getSupabaseUser, fetchUserProfile } from "./lib/supabaseAuth";
 import { calculateDeliveryFeeFromSettings } from "./lib/delivery";
 import { visitorTracker } from "./lib/visitorTracker";
 import { initVoiceWelcome, setWelcomeAudioUrl, setWelcomeVoiceEnabled } from "./lib/voiceWelcome";
@@ -951,97 +951,22 @@ export default function App() {
           } catch {}
         }
 
-        // Attach real-time snapshot listener on the user's Firestore document
+        // Fetch user profile from Supabase & API cache
         try {
-          if (unsubUserDoc) {
-            unsubUserDoc();
-          }
-          unsubUserDoc = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
-            if (docSnap.exists()) {
-              const uData = docSnap.data();
-              const photo = uData.photoURL || uData.avatar || uData.image || user.photoURL || "";
-              if (photo) {
-                setUserProfilePhoto(photo);
-                setPhotoLoadError(false);
-                try {
-                  localStorage.setItem("kb_user_photo", photo);
-                } catch {}
-              }
-              if (uData.role) {
-                setUserRole(uData.role);
-              }
-              if (uData.referralCode) {
-                setUserReferralCode(uData.referralCode);
-              }
-              if (Array.isArray(uData.wishlist) && uData.wishlist.length > 0) {
-                setWishlist((prev) => {
-                  const merged = Array.from(new Set([...prev, ...uData.wishlist]));
-                  try {
-                    localStorage.setItem("kb_wishlist", JSON.stringify(merged));
-                  } catch {}
-                  return merged;
-                });
-              }
-            }
-          }, (err) => {
-            if (!err?.message?.includes("offline")) {
-              console.warn("Notice in user profile snapshot:", err?.message || err);
-            }
-          });
-        } catch (snapErr) {
-          console.warn("Could not attach user snapshot:", snapErr);
-        }
-        
-        // Fetch role
-        try {
-          const adminSnap = await getDoc(doc(db, "admins", user.uid));
-          if (adminSnap.exists()) {
-            setUserRole("admin");
-          } else {
-            const userSnap = await getDoc(doc(db, "users", user.uid));
-            if (userSnap.exists()) {
-              const data = userSnap.data();
-              setUserRole(data.role || "customer");
-            } else {
-              setUserRole("customer");
-              try {
-                await setDoc(doc(db, "users", user.uid), {
-                  uid: user.uid,
-                  email: user.email || "",
-                  displayName: user.displayName || "গ্রাহক",
-                  fullName: user.displayName || "গ্রাহক",
-                  role: "customer",
-                  createdAt: serverTimestamp(),
-                  referralCode: "REF" + user.uid.substring(0, 5).toUpperCase()
-                }, { merge: true });
-              } catch (e) {
-                // Ignore silent bootstrap error
-              }
+          const profile = await fetchUserProfile(user.uid);
+          if (profile) {
+            if (profile.role) setUserRole(profile.role);
+            if (profile.referralCode) setUserReferralCode(profile.referralCode);
+            const pPhoto = profile.photoURL || (profile as any).photo_url || (profile as any).avatar || (profile as any).image;
+            if (pPhoto) {
+              setUserProfilePhoto(pPhoto);
+              setPhotoLoadError(false);
+              localStorage.setItem("kb_user_photo", pPhoto);
             }
           }
-        } catch (err: any) {
-          if (!err?.message?.includes("offline")) {
-            console.warn("Notice fetching user role:", err?.message || err);
-          }
-          setUserRole("customer");
-        }
+        } catch {}
 
-        try {
-          const userSnap = await getDoc(doc(db, "users", user.uid));
-          if (userSnap.exists()) {
-            const data = userSnap.data();
-            setUserReferralCode(data.referralCode || "REF" + user.uid.substring(0, 5).toUpperCase());
-          } else {
-            setUserReferralCode("REF" + user.uid.substring(0, 5).toUpperCase());
-          }
-        } catch (err: any) {
-          if (!err?.message?.includes("offline")) {
-            console.warn("Notice loading referral code in App.tsx:", err?.message || err);
-          }
-          setUserReferralCode("REF" + user.uid.substring(0, 5).toUpperCase());
-        }
-
-        // Automatically load and merge the user cart from cloud (syncs across devices)
+        // Automatically load and merge the user cart from cloud
         fetchAndMergeUserCart(user.uid, true);
       } else {
         const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");

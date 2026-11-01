@@ -223,17 +223,6 @@ export default function PortalModal({
             }
           }
 
-          // 3. Firestore fallback
-          if (!isAdminUser) {
-            const adminDocSnap = await getDoc(doc(db, "admins", uid));
-            if (adminDocSnap.exists()) {
-              adminData = adminDocSnap.data();
-              if (adminData && (adminData.isActive === undefined || adminData.isActive === true)) {
-                isAdminUser = true;
-              }
-            }
-          }
-
           if (isAdminUser) {
             const adminUserObj = {
               uid,
@@ -312,18 +301,6 @@ export default function PortalModal({
             }
           } catch {}
 
-          // Fallback Firestore
-          if (!isSellerUser) {
-            try {
-              const sellerSnap = await getDoc(doc(db, "sellers", uid));
-              if (sellerSnap.exists()) {
-                isSellerUser = true;
-                sellerData = sellerSnap.data();
-                sellerStatus = sellerData?.status || "pending";
-              }
-            } catch {}
-          }
-
           if (isSellerUser) {
             if (sellerStatus === "rejected") {
               await supabaseSignOut().catch(() => {});
@@ -383,18 +360,6 @@ export default function PortalModal({
               }
             }
           } catch {}
-
-          // Fallback Firestore
-          if (!isRiderUser) {
-            try {
-              const riderSnap = await getDoc(doc(db, "riders", uid));
-              if (riderSnap.exists()) {
-                isRiderUser = true;
-                riderData = riderSnap.data();
-                riderStatus = riderData?.status || "pending";
-              }
-            } catch {}
-          }
 
           if (isRiderUser) {
             if (riderStatus === "rejected") {
@@ -497,23 +462,6 @@ export default function PortalModal({
           }
 
           if (!userData) {
-            // Fallback to Firestore users
-            try {
-              const userDocSnap = await getDoc(doc(db, "users", uid));
-              if (userDocSnap.exists()) {
-                const fData = userDocSnap.data();
-                const photo = fData.photoURL || fData.avatar || fData.image || user.photoURL || "";
-                userData = {
-                  ...fData,
-                  photoURL: photo,
-                  avatar: photo,
-                  image: photo
-                };
-              }
-            } catch {}
-          }
-
-          if (!userData) {
             // Fallback to /api/user/profile server endpoint directly
             try {
               const sRes = await apiClient.get<any>(`/api/user/profile/${uid}?email=${encodeURIComponent(email || "")}`, { silent: true });
@@ -592,21 +540,13 @@ export default function PortalModal({
       }
     });
 
-    // 2. Subscribe to Supabase Auth state changes
+    // 2. Subscribe to Supabase Auth state changes (Primary & Single Source of Truth)
     const unsubSb = onSupabaseAuthStateChange((sbU) => {
       handleUserSession(sbU);
     });
 
-    // 3. Fallback subscribe to Firebase Auth
-    const unsubFb = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser) {
-        handleUserSession(fbUser);
-      }
-    });
-
     return () => {
       unsubSb();
-      unsubFb();
     };
   }, [isOpen, forcedRole]);
 
@@ -743,6 +683,7 @@ export default function PortalModal({
     setCurrentUser(customerUser);
     setUserRole("customer");
     setActivePortalTab("customer");
+    setLoading(false);
     onUserChange?.(customerUser);
     triggerToast(
       "লগইন সফল হয়েছে! মেগা বাজারে স্বাগতম।",
