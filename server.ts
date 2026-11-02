@@ -5184,6 +5184,79 @@ app.post("/api/auth/login-verify", rateLimiter(30, 60000), async (req, res) => {
       }
     }
 
+    // 3. Direct Server-Side Supabase Auth check (immune to browser adblockers, Brave Shields, or client network timeouts)
+    const sb = getServerSupabase();
+    if (sb && cleanIdent.includes("@")) {
+      try {
+        const { data: authData, error: authErr } = await sb.auth.signInWithPassword({
+          email: cleanIdent,
+          password: password
+        });
+
+        if (authErr) {
+          const msg = authErr.message.toLowerCase();
+          if (msg.includes("invalid login credentials") || msg.includes("invalid credentials")) {
+            return res.status(401).json({
+              success: false,
+              error: "ভুল ইমেইল বা পাসওয়ার্ড!"
+            });
+          }
+          if (msg.includes("email not confirmed")) {
+            return res.status(403).json({
+              success: false,
+              error: "ইমেইল ভেরিফিকেশন এখনও সম্পন্ন হয়নি। অনুগ্রহ করে আপনার ইনবক্স চেক করুন।"
+            });
+          }
+        } else if (authData?.user) {
+          const u = authData.user;
+          const uid = u.id;
+
+          let profileName = u.user_metadata?.full_name || u.user_metadata?.display_name || cleanIdent.split("@")[0] || "গ্রাহক";
+          let profilePhone = u.user_metadata?.phone || u.phone || "";
+          let profileRole = u.user_metadata?.role || "customer";
+          let photoURL = u.user_metadata?.avatar_url || "";
+
+          try {
+            const { data: dbUser } = await sb.from("users").select("*").or(`uid.eq.${uid},id.eq.${uid}`).maybeSingle();
+            if (dbUser) {
+              profileName = dbUser.full_name || dbUser.name || dbUser.display_name || profileName;
+              profilePhone = dbUser.phone || dbUser.mobile || profilePhone;
+              profileRole = dbUser.role || profileRole;
+              photoURL = dbUser.photo_url || photoURL;
+            }
+          } catch {}
+
+          const formattedUser = {
+            uid,
+            id: uid,
+            email: u.email || cleanIdent,
+            displayName: profileName,
+            fullName: profileName,
+            phone: profilePhone,
+            photoURL,
+            role: profileRole,
+            accessToken: authData.session?.access_token || ""
+          };
+
+          return res.json({
+            success: true,
+            authenticated: true,
+            user: formattedUser,
+            role: profileRole,
+            session: authData.session ? {
+              access_token: authData.session.access_token,
+              refresh_token: authData.session.refresh_token,
+              expires_in: authData.session.expires_in,
+              token_type: authData.session.token_type
+            } : null,
+            message: "সফলভাবে লগইন হয়েছে!"
+          });
+        }
+      } catch (sbErr: any) {
+        console.warn("[Server Auth] Supabase sign in exception:", sbErr?.message || sbErr);
+      }
+    }
+
     return res.status(401).json({
       success: false,
       error: "ভুল পাসওয়ার্ড বা অ্যাকাউন্ট পাওয়া যায়নি।"

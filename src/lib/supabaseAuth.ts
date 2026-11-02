@@ -47,93 +47,189 @@ export async function supabaseSignInWithEmail(
   const lowerEmail = cleanEmail.toLowerCase();
   const effectivePreferredRole = preferredRole;
 
-  // 1. Direct Partner Shop / Staff credential check with secure server-side verification
-  try {
-    const verifyData = await apiClient.post<any>("/api/auth/login-verify", {
-      identifier: cleanEmail,
-      password: pass
-    }, { silent: true, timeoutMs: 10000 });
+  const isStaffOrPartner =
+    preferredRole === "admin" ||
+    preferredRole === "partner" ||
+    preferredRole === "super_admin" ||
+    cleanEmail.toUpperCase().startsWith("CFI-") ||
+    cleanEmail.toUpperCase().startsWith("KB-") ||
+    SUPER_ADMIN_EMAILS.has(lowerEmail);
 
-    if (verifyData?.success && verifyData?.user) {
-      const u = verifyData.user;
-      const targetRole = verifyData.role || effectivePreferredRole;
-      if (verifyData.sessionId) {
-        try {
-          localStorage.setItem("kb_staff_session", verifyData.sessionId);
-          sessionStorage.setItem("kb_staff_session", verifyData.sessionId);
-          if (u.email) localStorage.setItem("kb_staff_email", u.email);
-          if (u.staffId) localStorage.setItem("kb_staff_id", u.staffId);
-        } catch {}
+  // 1. For Staff or Partner, check server credentials first
+  if (isStaffOrPartner) {
+    try {
+      const verifyData = await apiClient.post<any>("/api/auth/login-verify", {
+        identifier: cleanEmail,
+        password: pass
+      }, { silent: true, timeoutMs: 4000 });
+
+      if (verifyData?.success && verifyData?.user) {
+        const u = verifyData.user;
+        const targetRole = verifyData.role || effectivePreferredRole;
+        if (verifyData.sessionId) {
+          try {
+            localStorage.setItem("kb_staff_session", verifyData.sessionId);
+            sessionStorage.setItem("kb_staff_session", verifyData.sessionId);
+            if (u.email) localStorage.setItem("kb_staff_email", u.email);
+            if (u.staffId) localStorage.setItem("kb_staff_id", u.staffId);
+          } catch {}
+        }
+
+        const verifiedProfile: SupabaseUserProfile = {
+          uid: u.uid || u.id || u.staffId,
+          id: u.id || u.staffId,
+          email: u.email || cleanEmail,
+          displayName: u.name || u.fullName || u.displayName || (targetRole === "admin" || targetRole === "super_admin" ? "এডমিনিস্ট্রেটর" : "স্টাফ মেম্বার"),
+          fullName: u.fullName || u.name || (targetRole === "admin" || targetRole === "super_admin" ? "এডমিনিস্ট্রেটর" : "স্টাফ মেম্বার"),
+          role: targetRole as any,
+          isSuperAdmin: targetRole === "super_admin" || SUPER_ADMIN_EMAILS.has((u.email || cleanEmail).toLowerCase()),
+          photoURL: u.photoURL || u.photo_url || ""
+        };
+
+        return {
+          success: true,
+          user: verifiedProfile,
+          role: targetRole
+        };
       }
-
-      const verifiedProfile: SupabaseUserProfile = {
-        uid: u.uid || u.id || u.staffId,
-        id: u.id || u.staffId,
-        email: u.email || cleanEmail,
-        displayName: u.name || u.fullName || u.displayName || (targetRole === "admin" || targetRole === "super_admin" ? "এডমিনিস্ট্রেটর" : "স্টাফ মেম্বার"),
-        fullName: u.fullName || u.name || (targetRole === "admin" || targetRole === "super_admin" ? "এডমিনিস্ট্রেটর" : "স্টাফ মেম্বার"),
-        role: targetRole as any,
-        isSuperAdmin: targetRole === "super_admin" || SUPER_ADMIN_EMAILS.has((u.email || cleanEmail).toLowerCase()),
-        photoURL: u.photoURL || u.photo_url || ""
-      };
-
-      return {
-        success: true,
-        user: verifiedProfile,
-        role: targetRole
-      };
+    } catch {
+      // Non-blocking, fallback to Supabase Auth
     }
-  } catch (verifyErr) {
-    // Non-blocking, fallback to Supabase Auth
   }
 
-  // 2. Authenticate with Supabase Auth with strict timeout
+  // 2. Authenticate with Supabase Auth (Fast Client Direct attempt + Instant Server Proxy Fallback)
   try {
-    const authPromise = supabase.auth.signInWithPassword({
-      email: cleanEmail,
-      password: pass
-    });
-    const timeoutPromise = new Promise<{ data: any; error: any }>((_, reject) =>
-      setTimeout(() => reject(new Error("লগইন অনুরোধের সময় শেষ হয়েছে (Timeout)। অনুগ্রহ করে আবার চেষ্টা করুন।")), 12000)
-    );
+    let authData: any = null;
+    let authError: any = null;
 
-    const { data, error } = await Promise.race([authPromise, timeoutPromise]) as any;
+    // Fast client-side authentication attempt (6-second race to avoid blocking the user)
+    try {
+      const authPromise = supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: pass
+      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("CLIENT_TIMEOUT")), 6000)
+      );
 
-    if (error) {
-      return { success: false, error: error.message || "ভুল ইমেইল বা পাসওয়ার্ড!" };
+      const res = (await Promise.race([authPromise, timeoutPromise])) as any;
+      authData = res?.data;
+      authError = res?.error;
+    } catch (clientErr: any) {
+      authError = clientErr;
     }
 
-    if (!data?.user) {
-      return { success: false, error: "ইউজার ডেটা পাওয়া যায়নি।" };
+    // Check for explicit wrong credentials on client
+    if (authError && authError.message !== "CLIENT_TIMEOUT") {
+      const msg = (authError.message || "").toLowerCase();
+      if (msg.includes("invalid login credentials") || msg.includes("invalid credentials")) {
+        return { success: false, error: "ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।" };
+      }
+      if (msg.includes("email not confirmed")) {
+        return {
+          success: false,
+          error: "ইমেইল কনফার্মেশন সম্পন্ন হয়নি! অনুগ্রহ করে আপনার ইমেইল ইনবক্স চেক করে লিঙ্কটিতে ক্লিক করুন।"
+        };
+      }
     }
 
-    const uid = data.user.id;
-    // Store access token for API authorization
-    if (data.session?.access_token) {
+    // 3. If client failed (Timeout, Brave Shields blocking supabase.co, or network delay):
+    // Rescue immediately using server-side Supabase verification proxy
+    if (!authData?.user) {
       try {
-        localStorage.setItem("kb_supabase_token", data.session.access_token);
-        sessionStorage.setItem("kb_supabase_token", data.session.access_token);
+        const fallbackRes = await apiClient.post<any>("/api/auth/login-verify", {
+          identifier: cleanEmail,
+          password: pass
+        }, { silent: true, timeoutMs: 8000 });
+
+        if (fallbackRes?.success && fallbackRes?.user) {
+          const u = fallbackRes.user;
+          const targetRole = fallbackRes.role || "customer";
+
+          if (fallbackRes.session) {
+            try {
+              await supabase.auth.setSession({
+                access_token: fallbackRes.session.access_token,
+                refresh_token: fallbackRes.session.refresh_token
+              });
+            } catch {}
+          }
+
+          if (fallbackRes.session?.access_token || u.accessToken) {
+            const token = fallbackRes.session?.access_token || u.accessToken;
+            try {
+              localStorage.setItem("kb_supabase_token", token);
+              sessionStorage.setItem("kb_supabase_token", token);
+            } catch {}
+          }
+
+          const fallbackProfile: SupabaseUserProfile = {
+            uid: u.uid || u.id,
+            id: u.id || u.uid,
+            email: u.email || cleanEmail,
+            displayName: u.displayName || u.fullName || "গ্রাহক",
+            fullName: u.fullName || u.displayName || "গ্রাহক",
+            phone: u.phone || "",
+            phoneNumber: u.phone || "",
+            role: targetRole as any,
+            isSuperAdmin: targetRole === "super_admin" || SUPER_ADMIN_EMAILS.has((u.email || cleanEmail).toLowerCase()),
+            photoURL: u.photoURL || ""
+          };
+
+          return {
+            success: true,
+            user: fallbackProfile,
+            role: targetRole
+          };
+        } else if (fallbackRes?.error) {
+          return { success: false, error: fallbackRes.error };
+        }
+      } catch {
+        // Both attempts encountered network trouble
+      }
+
+      if (authError && authError.message && authError.message !== "CLIENT_TIMEOUT") {
+        return { success: false, error: authError.message || "ভুল ইমেইল বা পাসওয়ার্ড!" };
+      }
+
+      return {
+        success: false,
+        error: "লগইন করতে সময় বেশি লেগেছে। অনুগ্রহ করে ইন্টারনেট সংযোগ চেক করে আবার চেষ্টা করুন।"
+      };
+    }
+
+    const uid = authData.user.id;
+    // Store access token for API authorization
+    if (authData.session?.access_token) {
+      try {
+        localStorage.setItem("kb_supabase_token", authData.session.access_token);
+        sessionStorage.setItem("kb_supabase_token", authData.session.access_token);
       } catch {}
     }
 
-    // 3. Fetch user profile from public.users table
-    let profile = await fetchUserProfile(uid);
+    // 4. Fetch user profile from public.users table (with safe 3.5s timeout)
+    let profile: SupabaseUserProfile | null = null;
+    try {
+      const profilePromise = fetchUserProfile(uid);
+      const profileTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500));
+      profile = await Promise.race([profilePromise, profileTimeout]);
+    } catch {}
 
     const isSuperAdminEmail = SUPER_ADMIN_EMAILS.has(lowerEmail);
 
     if (!profile) {
       // Auto-create user profile in public.users if not exists
-      const meta = data.user.user_metadata || {};
+      const meta = authData.user.user_metadata || {};
       const isDbAdmin = isSuperAdminEmail || (await checkIsSupabaseAdmin(uid, lowerEmail));
       const resolvedName = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (isDbAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
       profile = {
         uid,
         id: uid,
-        email: data.user.email || cleanEmail,
+        email: authData.user.email || cleanEmail,
         displayName: resolvedName,
         fullName: resolvedName,
-        phone: meta.phone || data.user.phone || "",
-        phoneNumber: meta.phone || data.user.phone || "",
+        phone: meta.phone || authData.user.phone || "",
+        phoneNumber: meta.phone || authData.user.phone || "",
         role: isSuperAdminEmail ? "super_admin" : (isDbAdmin ? "admin" : "customer"),
         isSuperAdmin: isSuperAdminEmail,
         referralCode: "REF" + uid.substring(0, 5).toUpperCase(),
@@ -142,7 +238,7 @@ export async function supabaseSignInWithEmail(
         rewardPoints: 0,
         membershipTier: isDbAdmin ? "Platinum" : "Silver"
       };
-      await saveUserProfile(profile);
+      saveUserProfile(profile).catch(() => {});
     } else if (isSuperAdminEmail) {
       profile.role = "super_admin";
       profile.isSuperAdmin = true;
@@ -152,9 +248,9 @@ export async function supabaseSignInWithEmail(
     if (profile.role === "admin" || profile.role === "super_admin" || profile.isSuperAdmin) {
       try {
         const sessionRes = await apiClient.post<any>("/api/staff/supabase-session", {
-          accessToken: data.session?.access_token,
-          token: data.session?.access_token
-        }, { silent: true, timeoutMs: 8000 });
+          accessToken: authData.session?.access_token,
+          token: authData.session?.access_token
+        }, { silent: true, timeoutMs: 4000 });
         if (sessionRes?.sessionId) {
           localStorage.setItem("kb_staff_session", sessionRes.sessionId);
           sessionStorage.setItem("kb_staff_session", sessionRes.sessionId);
