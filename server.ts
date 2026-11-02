@@ -56,9 +56,9 @@ let serverSupabaseClient: SupabaseClient | null = null;
 let currentSupabaseClientKey = "";
 
 function getServerSupabase(): SupabaseClient | null {
-  const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").trim();
+  const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://syqiyurjeuibpprfrmwa.supabase.co").trim();
   const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
-  const anonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "").trim();
+  const anonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i").trim();
 
   // Prefer serviceRoleKey when configured; otherwise fall back to anonKey
   const activeKey = serviceRoleKey || anonKey;

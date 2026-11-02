@@ -664,7 +664,12 @@ export default function AuthView({
     } catch (err: any) {
       if (isMountedRef.current) {
         let errMsg = err.message || "";
-        if (err.code === "auth/email-already-in-use") {
+        if (/failed to fetch/i.test(errMsg) || /networkerror/i.test(errMsg)) {
+          errMsg = getTranslation(
+            "সার্ভারের সাথে সংযোগ স্থাপন করা যায়নি (Failed to fetch)। অনুগ্রহ করে আপনার ইন্টারনেট সংযোগ অথবা Supabase প্রজেক্ট সচল (Active) আছে কিনা পরীক্ষা করুন।",
+            "Unable to connect to server (Failed to fetch). Please check your internet connection or Supabase project status."
+          );
+        } else if (err.code === "auth/email-already-in-use") {
           errMsg = getTranslation("এই ইমেইলটি ইতিমধ্যে ব্যবহৃত হয়েছে।", "This email is already in use.");
         } else if (err.code === "auth/weak-password") {
           errMsg = getTranslation("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।", "Password must be at least 6 characters.");

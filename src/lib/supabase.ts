@@ -1,8 +1,15 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-// Read environment variables safely
-export const SUPABASE_URL: string = (((import.meta as any).env?.VITE_SUPABASE_URL as string) || "").trim();
-export const SUPABASE_ANON_KEY: string = (((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string) || "").trim();
+// Read environment variables safely with production project fallbacks
+export const SUPABASE_URL: string = (
+  ((import.meta as any).env?.VITE_SUPABASE_URL as string) || 
+  "https://syqiyurjeuibpprfrmwa.supabase.co"
+).trim();
+
+export const SUPABASE_ANON_KEY: string = (
+  ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string) || 
+  "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i"
+).trim();
 
 export const isSupabaseConfigured = Boolean(
   SUPABASE_URL && 

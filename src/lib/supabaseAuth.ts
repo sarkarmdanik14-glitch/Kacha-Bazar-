@@ -189,6 +189,22 @@ export async function supabaseSignInWithEmail(
       }
 
       if (authError && authError.message && authError.message !== "CLIENT_TIMEOUT") {
+        const rawMsg = (authError.message || "").toLowerCase();
+        if (rawMsg.includes("failed to fetch") || rawMsg.includes("networkerror") || rawMsg.includes("fetch failed")) {
+          return {
+            success: false,
+            error: "সার্ভারের সাথে সংযোগ স্থাপন করা যায়নি (Failed to fetch)। অনুগ্রহ করে আপনার ইন্টারনেট সংযোগ অথবা Supabase প্রজেক্ট সচল (Active) আছে কিনা পরীক্ষা করুন।"
+          };
+        }
+        if (rawMsg.includes("invalid login credentials") || rawMsg.includes("invalid credentials")) {
+          return { success: false, error: "ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।" };
+        }
+        if (rawMsg.includes("email not confirmed")) {
+          return {
+            success: false,
+            error: "ইমেইল কনফার্মেশন সম্পন্ন হয়নি! অনুগ্রহ করে আপনার ইমেইল ইনবক্স চেক করে লিঙ্কটিতে ক্লিক করুন।"
+          };
+        }
         return { success: false, error: authError.message || "ভুল ইমেইল বা পাসওয়ার্ড!" };
       }
 
@@ -732,7 +748,7 @@ export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
   try {
     const sessionPromise = supabase.auth.getSession();
     const timeoutPromise = new Promise<{ data: { session: any } }>((resolve) => {
-      setTimeout(() => resolve({ data: { session: null } }), 3500);
+      setTimeout(() => resolve({ data: { session: null } }), 1200);
     });
     const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
     if (session?.user) {
