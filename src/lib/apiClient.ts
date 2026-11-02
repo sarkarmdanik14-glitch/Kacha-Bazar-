@@ -67,17 +67,6 @@ export function getApiAuthHeaders(user?: any): Record<string, string> {
         headers["Authorization"] = `Bearer ${supabaseToken}`;
       }
     }
-
-    const firebaseToken = user?.firebaseToken || user?.idToken ||
-      (typeof window !== "undefined"
-        ? (localStorage.getItem("kb_firebase_id_token") || sessionStorage.getItem("kb_firebase_id_token") || localStorage.getItem("firebase_id_token"))
-        : null);
-    if (firebaseToken) {
-      headers["x-firebase-id-token"] = firebaseToken;
-      if (!headers["Authorization"]) {
-        headers["Authorization"] = `Bearer ${firebaseToken}`;
-      }
-    }
   } catch (e) {
     // Non-blocking fallback
   }
@@ -122,7 +111,7 @@ export async function apiRequest<T = any>(
   url: string,
   options: ApiRequestOptions = {}
 ): Promise<T> {
-  const { timeoutMs = 25000, skipAuth = false, headers: customHeaders, body, ...restOptions } = options;
+  const { timeoutMs = 15000, skipAuth = false, headers: customHeaders, body, ...restOptions } = options;
 
   // Build headers
   const headers = new Headers();
@@ -148,6 +137,9 @@ export async function apiRequest<T = any>(
         if (freshToken) {
           headers.set("Authorization", `Bearer ${freshToken}`);
           headers.set("x-supabase-token", freshToken);
+          try {
+            sessionStorage.setItem("kb_supabase_token", freshToken);
+          } catch {}
         }
       } catch (authErr) {
         // Non-blocking

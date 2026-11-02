@@ -772,8 +772,8 @@ export default function App() {
         sessionStorage.setItem("referredBy", cleanRef);
       } catch {}
 
-      // If user is already authenticated in Firebase, DO NOT auto-trigger registration modal
-      if (!auth.currentUser && !loggedInUser) {
+      // If user is already authenticated, DO NOT auto-trigger registration modal
+      if (!loggedInUser) {
         setForcedPortalRole("customer");
         setPortalInitialTab("dashboard");
         setPortalInitialAuthMode("register");
@@ -788,90 +788,12 @@ export default function App() {
 
   // Listen to Auth State and Fetch Referral Code & Merge Cart
   useEffect(() => {
-    let unsubUserDoc: (() => void) | null = null;
+    let isMounted = true;
 
-    // 1. Initial check with Supabase user & Staff session
-    getSupabaseUser().then(async (sbU) => {
-      if (sbU) {
-        setLoggedInUser(sbU as any);
-        if (sbU.photoURL) {
-          setUserProfilePhoto(sbU.photoURL);
-          setPhotoLoadError(false);
-          try {
-            localStorage.setItem("kb_user_photo", sbU.photoURL);
-          } catch {}
-        }
-        if (sbU.role) setUserRole(sbU.role);
-        if (sbU.referralCode) setUserReferralCode(sbU.referralCode);
-        fetchAndMergeUserCart(sbU.id || sbU.uid, true);
-      } else {
-        // Fallback: Check if an active staff / admin session exists
-        const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
-        if (staffSessionId) {
-          try {
-            const sRes = await apiClient.get<any>("/api/staff/active-session", { silent: true });
-            if (sRes?.success && sRes?.staff) {
-              const st = sRes.staff;
-              const adminUser = {
-                uid: st.id || st.staffId,
-                id: st.id || st.staffId,
-                staffId: st.staffId,
-                email: st.email,
-                displayName: st.fullName || st.displayName || "System Admin",
-                fullName: st.fullName || st.displayName || "System Admin",
-                role: st.role || "admin",
-                photoURL: st.photoURL || ""
-              };
-              setLoggedInUser(adminUser as any);
-              setUserRole(st.role || "admin");
-              if (st.photoURL) {
-                setUserProfilePhoto(st.photoURL);
-                setPhotoLoadError(false);
-              }
-            }
-          } catch {}
-        } else {
-          // Restore saved user session & profile photo from disk/localStorage
-          try {
-            const savedStr = localStorage.getItem("kb_current_user");
-            if (savedStr) {
-              const savedUser = JSON.parse(savedStr);
-              if (savedUser) {
-                setLoggedInUser(savedUser);
-                if (savedUser.role) setUserRole(savedUser.role);
-                if (savedUser.referralCode) setUserReferralCode(savedUser.referralCode);
-                const pPhoto = localStorage.getItem("kb_user_photo") || savedUser.photoURL || savedUser.photo_url || savedUser.avatar || savedUser.image;
-                if (pPhoto) {
-                  setUserProfilePhoto(pPhoto);
-                  setPhotoLoadError(false);
-                }
-                const uid = savedUser.uid || savedUser.id;
-                if (uid) {
-                  fetchAndMergeUserCart(uid, true);
-                  fetch(`/api/user/profile/${uid}`)
-                    .then(r => r.json())
-                    .then(pData => {
-                      if (pData?.success && pData?.profile) {
-                        const p = pData.profile;
-                        if (p.photoURL) {
-                          setUserProfilePhoto(p.photoURL);
-                          setPhotoLoadError(false);
-                          localStorage.setItem("kb_user_photo", p.photoURL);
-                        }
-                        setLoggedInUser((prev: any) => ({ ...prev, ...p }));
-                      }
-                    })
-                    .catch(() => {});
-                }
-              }
-            }
-          } catch {}
-        }
-      }
-    });
-
-    // 2. Listen to Supabase Auth state changes
+    // Single Authoritative Supabase Auth Listener (No race conditions, no duplicate queries)
     const unsubSb = onSupabaseAuthStateChange(async (sbUser) => {
+      if (!isMounted) return;
+
       if (sbUser) {
         setLoggedInUser(sbUser as any);
         const sbPhoto = sbUser.photoURL || (sbUser as any).photo_url || (sbUser as any).avatar || (sbUser as any).image;
@@ -898,80 +820,59 @@ export default function App() {
           });
         }
         fetchAndMergeUserCart(sbUser.id || sbUser.uid, true);
-      } else if (!auth.currentUser) {
+      } else {
+        // Fallback: Check if an active staff / admin session exists
         const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
-        const savedLocalUser = localStorage.getItem("kb_current_user");
-        if (!staffSessionId && !savedLocalUser) {
-          setLoggedInUser(null);
-          setUserRole("customer");
-          setUserReferralCode("");
-          setUserProfilePhoto("");
-          setPhotoLoadError(false);
-          lastSyncedCartHashRef.current = "";
-          isSyncingFromRemoteRef.current = false;
-        }
-      }
-    });
-
-    // 3. Fallback Firebase auth listener
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setLoggedInUser(user);
-
-        try {
-          const idToken = await user.getIdToken();
-          if (idToken) {
-            localStorage.setItem("kb_firebase_id_token", idToken);
-            sessionStorage.setItem("kb_firebase_id_token", idToken);
-          }
-        } catch (e) {}
-
-        // If an authenticated user lands on a referral link, do NOT pop up the registration form
-        setPortalInitialAuthMode(prevMode => {
-          if (prevMode === "register") {
-            setShowPortalModal(false);
-            if (window.location.search.includes("ref=") || window.location.search.includes("referredBy=")) {
-              const url = new URL(window.location.href);
-              url.searchParams.delete("ref");
-              url.searchParams.delete("referredBy");
-              const cleanUrl = url.pathname + (url.search ? url.search : "") + (url.hash || "");
-              window.history.replaceState({}, document.title, cleanUrl || window.location.pathname);
-            }
-            return "login";
-          }
-          return prevMode;
-        });
-
-        // Immediate initial check from Auth User photo
-        if (user.photoURL) {
-          setUserProfilePhoto(user.photoURL);
-          setPhotoLoadError(false);
+        if (staffSessionId) {
           try {
-            localStorage.setItem("kb_user_photo", user.photoURL);
+            const sRes = await apiClient.get<any>("/api/staff/active-session", { silent: true, timeoutMs: 5000 });
+            if (isMounted && sRes?.success && sRes?.staff) {
+              const st = sRes.staff;
+              const adminUser = {
+                uid: st.id || st.staffId,
+                id: st.id || st.staffId,
+                staffId: st.staffId,
+                email: st.email,
+                displayName: st.fullName || st.displayName || "System Admin",
+                fullName: st.fullName || st.displayName || "System Admin",
+                role: st.role || "admin",
+                photoURL: st.photoURL || ""
+              };
+              setLoggedInUser(adminUser as any);
+              setUserRole(st.role || "admin");
+              if (st.photoURL) {
+                setUserProfilePhoto(st.photoURL);
+                setPhotoLoadError(false);
+              }
+              return;
+            }
           } catch {}
         }
 
-        // Fetch user profile from Supabase & API cache
-        try {
-          const profile = await fetchUserProfile(user.uid);
-          if (profile) {
-            if (profile.role) setUserRole(profile.role);
-            if (profile.referralCode) setUserReferralCode(profile.referralCode);
-            const pPhoto = profile.photoURL || (profile as any).photo_url || (profile as any).avatar || (profile as any).image;
-            if (pPhoto) {
-              setUserProfilePhoto(pPhoto);
-              setPhotoLoadError(false);
-              localStorage.setItem("kb_user_photo", pPhoto);
+        // Restore saved local user session if present
+        const savedStr = localStorage.getItem("kb_current_user");
+        if (savedStr) {
+          try {
+            const savedUser = JSON.parse(savedStr);
+            if (savedUser && isMounted) {
+              setLoggedInUser(savedUser);
+              if (savedUser.role) setUserRole(savedUser.role);
+              if (savedUser.referralCode) setUserReferralCode(savedUser.referralCode);
+              const pPhoto = localStorage.getItem("kb_user_photo") || savedUser.photoURL || savedUser.photo_url || savedUser.avatar || savedUser.image;
+              if (pPhoto) {
+                setUserProfilePhoto(pPhoto);
+                setPhotoLoadError(false);
+              }
+              const uid = savedUser.uid || savedUser.id;
+              if (uid) {
+                fetchAndMergeUserCart(uid, true);
+              }
+              return;
             }
-          }
-        } catch {}
+          } catch {}
+        }
 
-        // Automatically load and merge the user cart from cloud
-        fetchAndMergeUserCart(user.uid, true);
-      } else {
-        const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
-        const savedLocalUser = localStorage.getItem("kb_current_user");
-        if (!staffSessionId && !savedLocalUser) {
+        if (isMounted) {
           setLoggedInUser(null);
           setUserRole("customer");
           setUserReferralCode("");
@@ -979,16 +880,13 @@ export default function App() {
           setPhotoLoadError(false);
           lastSyncedCartHashRef.current = "";
           isSyncingFromRemoteRef.current = false;
-        }
-        if (unsubUserDoc) {
-          unsubUserDoc();
-          unsubUserDoc = null;
         }
       }
     });
 
     // Profile photo & user updates listener across components
     const handleProfileUpdated = (e: any) => {
+      if (!isMounted) return;
       const photo = e?.detail?.photoURL;
       if (photo) {
         setUserProfilePhoto(photo);
@@ -1010,6 +908,7 @@ export default function App() {
 
     // Explicit user logout listener
     const handleUserLogout = () => {
+      if (!isMounted) return;
       setLoggedInUser(null);
       setUserRole("customer");
       setUserReferralCode("");
@@ -1023,15 +922,13 @@ export default function App() {
             const key = localStorage.key(i);
             if (key && (
               key.startsWith("sb-") ||
-              key.startsWith("firebase:") ||
               key.startsWith("kb_staff_") ||
               key.startsWith("kb_user_") ||
               key === "kb_current_user" ||
               key === "kacha_user_session" ||
               key === "user_role" ||
               key === "current_partner" ||
-              key === "kb_supabase_token" ||
-              key === "kb_firebase_id_token"
+              key === "kb_supabase_token"
             )) {
               localStorage.removeItem(key);
             }
@@ -1043,11 +940,8 @@ export default function App() {
     window.addEventListener("kb_user_logout", handleUserLogout);
 
     return () => {
+      isMounted = false;
       unsubSb();
-      unsub();
-      if (unsubUserDoc) {
-        unsubUserDoc();
-      }
       window.removeEventListener("kb_profile_updated", handleProfileUpdated);
       window.removeEventListener("kb_user_logout", handleUserLogout);
     };
@@ -1689,7 +1583,7 @@ export default function App() {
     window.dispatchEvent(new CustomEvent("kb_wishlist_updated", { detail: wishlist }));
 
     // Persist to logged-in user profile in database
-    const currentUid = loggedInUser?.uid || (loggedInUser as any)?.id || auth.currentUser?.uid;
+    const currentUid = loggedInUser?.uid || (loggedInUser as any)?.id;
     if (currentUid) {
       setDoc(doc(db, "users", currentUid), {
         wishlist,

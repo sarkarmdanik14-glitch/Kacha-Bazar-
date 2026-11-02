@@ -1,25 +1,4 @@
-import React, { useState } from "react";
-import { 
-  auth, 
-  db, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signInWithPopup, 
-  googleProvider,
-  doc, 
-  setDoc, 
-  getDoc,
-  serverTimestamp,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  collection,
-  query,
-  where,
-  getDocs,
-  signOut,
-  updateProfile,
-  sendPasswordResetEmail
-} from "../../lib/firebase";
+import React, { useState, useRef, useEffect } from "react";
 import { User, Mail, Lock, AlertCircle, Key, LogIn, UserPlus, Gift, Sparkles, RefreshCw, Smartphone, Store, Eye, EyeOff, ArrowLeft, CheckCircle2, ShieldCheck, Check } from "lucide-react";
 import { authenticatePartner } from "../../lib/partnerManager";
 import { apiClient } from "../../lib/apiClient";
@@ -32,7 +11,8 @@ import {
   supabaseSignInWithGoogle, 
   supabaseSendPasswordResetEmail,
   supabaseSignOut,
-  checkIsSupabaseAdmin
+  checkIsSupabaseAdmin,
+  SUPER_ADMIN_EMAILS
 } from "../../lib/supabaseAuth";
 import { supabase } from "../../lib/supabase";
 const loginPartnerWithCredentials = authenticatePartner;
@@ -114,22 +94,21 @@ export default function AuthView({
   const [confirmationResult, setConfirmationResult] = useState<any | null>(null);
   const [otpNotice, setOtpNotice] = useState<string>("");
 
-  // Clean up any lingering invisible reCAPTCHA verifier instance when AuthView unmounts
-  React.useEffect(() => {
+  const isMountedRef = useRef<boolean>(true);
+  const isSubmittingRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
     return () => {
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {}
-        window.recaptchaVerifier = undefined;
-      }
+      isMountedRef.current = false;
+      isSubmittingRef.current = false;
     };
   }, []);
 
   const getTranslation = createTranslator(lang);
 
   // Countdown timer for resending OTP code
-  React.useEffect(() => {
+  useEffect(() => {
     if (forgotTimer <= 0) return;
     const interval = setInterval(() => {
       setForgotTimer((prev) => prev - 1);
@@ -140,6 +119,8 @@ export default function AuthView({
   // Step 1: Send Reset Code
   const handleSendResetCode = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (loading || isSubmittingRef.current) return;
+
     const ident = (forgotIdentifier || email || phone || "").trim();
     if (!ident) {
       setError(getTranslation("অনুগ্রহ করে আপনার নিবন্ধিত ইমেইল বা মোবাইল নম্বর দিন।", "Please enter your registered email or phone number."));
@@ -147,6 +128,7 @@ export default function AuthView({
     }
 
     setLoading(true);
+    isSubmittingRef.current = true;
     setError("");
     setSuccessMsg("");
 
@@ -154,8 +136,8 @@ export default function AuthView({
     const cleanDigits = ident.replace(/[^\d]/g, "");
     const isPhone = !isEmail && (cleanDigits.length >= 10 || ident.startsWith("+88") || ident.startsWith("01"));
 
-    // If user inputs a phone number without an active SMS API gateway configured
     if (isPhone) {
+      isSubmittingRef.current = false;
       setLoading(false);
       setError(getTranslation(
         "বর্তমানে মোবাইল এসএমএস সার্ভিস রক্ষণাবেক্ষণে রয়েছে, অনুগ্রহ করে ইমেইলের মাধ্যমে পাসওয়ার্ড রিসেট করুন।",
@@ -164,90 +146,67 @@ export default function AuthView({
       return;
     }
 
-    // When user inputs an email, ensure Supabase Auth and Firebase Auth reset dispatch are invoked cleanly
     let emailDispatched = false;
-    if (isEmail || ident.includes("@")) {
-      try {
-        await supabaseSendPasswordResetEmail(ident);
-        emailDispatched = true;
-      } catch (sbErr) {
-        console.warn("Supabase password reset note:", sbErr);
-      }
-
-      try {
-        await sendPasswordResetEmail(auth, ident);
-        emailDispatched = true;
-        setSuccessMsg(getTranslation(
-          "আপনার ইমেইলে পাসওয়ার্ড রিসেট নির্দেশিকা পাঠানো হয়েছে।",
-          "Password reset instructions have been sent to your email."
-        ));
-      } catch (fbErr: any) {
-        console.warn("Client sendPasswordResetEmail error:", fbErr?.code || fbErr?.message);
-        if (fbErr?.code === "auth/user-not-found") {
-          setError(getTranslation(
-            "এই ইমেইল ঠিকানায় কোনো অ্যাকাউন্ট খুঁজে পাওয়া যায়নি। অনুগ্রহ করে সঠিক ইমেইল দিন।",
-            "No account found matching this email address. Please check and try again."
-          ));
-          setLoading(false);
-          return;
-        } else if (fbErr?.code === "auth/invalid-email") {
-          setError(getTranslation(
-            "অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা প্রদান করুন।",
-            "Please enter a valid email address."
-          ));
-          setLoading(false);
-          return;
-        } else if (fbErr?.code === "auth/too-many-requests") {
-          setError(getTranslation(
-            "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।",
-            "Too many requests. Please wait a moment before trying again."
-          ));
-          setLoading(false);
-          return;
+    try {
+      if (isEmail || ident.includes("@")) {
+        const sbRes = await supabaseSendPasswordResetEmail(ident);
+        if (sbRes.success) {
+          emailDispatched = true;
+          if (isMountedRef.current) {
+            setSuccessMsg(getTranslation(
+              "আপনার ইমেইলে পাসওয়ার্ড রিসেট নির্দেশিকা পাঠানো হয়েছে।",
+              "Password reset instructions have been sent to your email."
+            ));
+          }
         }
       }
-    }
 
-    // Optional custom OTP code via backend API in safe try/catch
-    try {
+      // Backend OTP reset code endpoint
       const res = await apiClient.post("/api/auth/forgot-password/send-code", {
         identifier: ident
-      });
+      }, { timeoutMs: 10000, silent: true });
 
       if (res && res.success) {
-        setForgotResetId(res.resetId);
-        setForgotMaskedTarget(res.maskedTarget || ident);
-        setForgotStep("verify");
-        setForgotTimer(60);
-        setSuccessMsg(res.messageBn || getTranslation(
-          "আপনার ইমেইলে পাসওয়ার্ড রিসেট নির্দেশিকা পাঠানো হয়েছে।",
-          "Password reset instructions have been sent to your email."
-        ));
+        if (isMountedRef.current) {
+          setForgotResetId(res.resetId);
+          setForgotMaskedTarget(res.maskedTarget || ident);
+          setForgotStep("verify");
+          setForgotTimer(60);
+          setSuccessMsg(res.messageBn || getTranslation(
+            "আপনার ইমেইলে পাসওয়ার্ড রিসেট নির্দেশিকা পাঠানো হয়েছে।",
+            "Password reset instructions have been sent to your email."
+          ));
+        }
       } else if (!emailDispatched) {
-        throw new Error(res?.error || res?.message || "Failed to send code");
+        throw new Error(res?.error || res?.message || getTranslation("পাসওয়ার্ড রিসেট কোড পাঠাতে সমস্যা হয়েছে।", "Failed to send reset code."));
       }
     } catch (apiErr: any) {
-      console.warn("Backend send-code notice (fell back to standard Firebase Auth):", apiErr?.message);
-      // If email was already cleanly sent via Firebase SDK, keep success message and never throw 405 error
       if (emailDispatched) {
-        setSuccessMsg(getTranslation(
-          "আপনার ইমেইলে পাসওয়ার্ড রিসেট নির্দেশিকা পাঠানো হয়েছে।",
-          "Password reset instructions have been sent to your email."
-        ));
-      } else {
+        if (isMountedRef.current) {
+          setSuccessMsg(getTranslation(
+            "আপনার ইমেইলে পাসওয়ার্ড রিসেট নির্দেশিকা পাঠানো হয়েছে।",
+            "Password reset instructions have been sent to your email."
+          ));
+        }
+      } else if (isMountedRef.current) {
         setError(apiErr?.message || getTranslation(
           "পাসওয়ার্ড রিসেট করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
           "Failed to process password reset. Please try again."
         ));
       }
     } finally {
-      setLoading(false);
+      isSubmittingRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   // Step 2: Verify 6-digit Code
   const handleVerifyResetCode = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading || isSubmittingRef.current) return;
+
     const code = forgotOtpCode.trim();
     if (code.length < 6) {
       setError(getTranslation("অনুগ্রহ করে সম্পূর্ণ ৬-সংখ্যার কোড লিখুন।", "Please enter the complete 6-digit code."));
@@ -255,6 +214,7 @@ export default function AuthView({
     }
 
     setLoading(true);
+    isSubmittingRef.current = true;
     setError("");
     setSuccessMsg("");
 
@@ -262,25 +222,34 @@ export default function AuthView({
       const res = await apiClient.post("/api/auth/forgot-password/verify-code", {
         resetId: forgotResetId,
         code: code
-      });
+      }, { timeoutMs: 10000 });
 
       if (res && res.success && res.resetToken) {
-        setForgotResetToken(res.resetToken);
-        setForgotStep("reset");
-        setSuccessMsg(res.messageBn || getTranslation("কোড সফলভাবে যাচাই হয়েছে! এবার নতুন পাসওয়ার্ড দিন।", "Code verified! Now enter your new password."));
+        if (isMountedRef.current) {
+          setForgotResetToken(res.resetToken);
+          setForgotStep("reset");
+          setSuccessMsg(res.messageBn || getTranslation("কোড সফলভাবে যাচাই হয়েছে! এবার নতুন পাসওয়ার্ড দিন।", "Code verified! Now enter your new password."));
+        }
       } else {
         throw new Error(res?.error || res?.message || getTranslation("কোড যাচাই করতে সমস্যা হয়েছে।", "Failed to verify code."));
       }
     } catch (err: any) {
-      setError(err?.message || getTranslation("ভুল ভেরিফিকেশন কোড। অনুগ্রহ করে সঠিক কোড দিন।", "Invalid verification code. Please check and try again."));
+      if (isMountedRef.current) {
+        setError(err?.message || getTranslation("ভুল ভেরিফিকেশন কোড। অনুগ্রহ করে সঠিক কোড দিন।", "Invalid verification code. Please check and try again."));
+      }
     } finally {
-      setLoading(false);
+      isSubmittingRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   // Step 3: Complete Reset & Set New Password
   const handleCompleteReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading || isSubmittingRef.current) return;
+
     if (!newPassword || newPassword.length < 6) {
       setError(getTranslation("পাসওয়ার্ড ন্যূনতম ৬ অক্ষরের হতে হবে।", "Password must be at least 6 characters long."));
       return;
@@ -291,6 +260,7 @@ export default function AuthView({
     }
 
     setLoading(true);
+    isSubmittingRef.current = true;
     setError("");
     setSuccessMsg("");
 
@@ -298,32 +268,39 @@ export default function AuthView({
       const res = await apiClient.post("/api/auth/forgot-password/reset", {
         resetToken: forgotResetToken,
         newPassword: newPassword
-      });
+      }, { timeoutMs: 10000 });
 
       if (res && res.success) {
-        setForgotStep("success");
-        setSuccessMsg(res.messageBn || getTranslation("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!", "Password has been successfully reset!"));
-        if (forgotIdentifier && forgotIdentifier.includes("@")) {
-          setEmail(forgotIdentifier);
+        if (isMountedRef.current) {
+          setForgotStep("success");
+          setSuccessMsg(res.messageBn || getTranslation("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!", "Password has been successfully reset!"));
+          if (forgotIdentifier && forgotIdentifier.includes("@")) {
+            setEmail(forgotIdentifier);
+          }
         }
       } else {
         throw new Error(res?.error || res?.message || getTranslation("পাসওয়ার্ড পরিবর্তন করতে সমস্যা হয়েছে।", "Failed to reset password."));
       }
     } catch (err: any) {
-      setError(err?.message || getTranslation("পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।", "Failed to update password. Please try again."));
+      if (isMountedRef.current) {
+        setError(err?.message || getTranslation("পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।", "Failed to update password. Please try again."));
+      }
     } finally {
-      setLoading(false);
+      isSubmittingRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
-  // Helper to verify if user is a real admin in Supabase / Firestore
-  const checkIsAdmin = async (uid: string, email?: string): Promise<boolean> => {
+  // Helper to verify if user is a real admin in Supabase
+  const checkIsAdmin = async (uid: string, userEmail?: string): Promise<boolean> => {
     try {
-      const cleanEmail = (email || auth.currentUser?.email || "").toLowerCase().trim();
+      const cleanEmail = (userEmail || email || "").toLowerCase().trim();
       if (!uid && !cleanEmail) return false;
 
-      // 0. Super Admin / Founder emails
-      if (cleanEmail === "sarkarmdanik14@gmail.com" || cleanEmail === "megabajar@admin.com") {
+      // Super Admin emails
+      if (SUPER_ADMIN_EMAILS.has(cleanEmail)) {
         return true;
       }
 
@@ -335,16 +312,14 @@ export default function AuthView({
       const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
       if (staffSessionId) {
         try {
-          const sRes = await apiClient.get<any>("/api/staff/active-session", { silent: true });
+          const sRes = await apiClient.get<any>("/api/staff/active-session", { silent: true, timeoutMs: 5000 });
           if (sRes?.success && sRes?.staff && (sRes.staff.role === "admin" || sRes.staff.role === "super_admin" || sRes.staff.role === "founder")) {
             return true;
           }
         } catch {}
       }
     } catch (err: any) {
-      if (!err?.message?.includes("offline")) {
-        console.warn("Notice verifying admin permissions:", err?.message || err);
-      }
+      console.warn("Notice verifying admin permissions:", err?.message || err);
     }
     return false;
   };
@@ -352,12 +327,11 @@ export default function AuthView({
   // Helper to verify seller role and status in Supabase
   const checkSellerStatus = async (uid: string): Promise<{ isSeller: boolean; status: string }> => {
     try {
-      // 1. Supabase check
       const { data: sbSeller } = await supabase
         .from("sellers")
         .select("*")
         .or(`id.eq.${uid},user_id.eq.${uid}`)
-        .single();
+        .maybeSingle();
       if (sbSeller) {
         return { isSeller: true, status: sbSeller.status || "pending" };
       }
@@ -366,14 +340,12 @@ export default function AuthView({
         .from("users")
         .select("role, status")
         .or(`id.eq.${uid},uid.eq.${uid}`)
-        .single();
+        .maybeSingle();
       if (sbUser?.role === "seller") {
         return { isSeller: true, status: sbUser.status || "pending" };
       }
     } catch (err: any) {
-      if (!err?.message?.includes("offline")) {
-        console.warn("Notice checking seller status:", err?.message || err);
-      }
+      console.warn("Notice checking seller status:", err?.message || err);
     }
     return { isSeller: false, status: "none" };
   };
@@ -381,12 +353,11 @@ export default function AuthView({
   // Helper to verify rider role and status in Supabase
   const checkRiderStatus = async (uid: string): Promise<{ isRider: boolean; status: string }> => {
     try {
-      // 1. Supabase check
       const { data: sbRider } = await supabase
         .from("riders")
         .select("*")
         .or(`id.eq.${uid},user_id.eq.${uid}`)
-        .single();
+        .maybeSingle();
       if (sbRider) {
         return { isRider: true, status: sbRider.status || "pending" };
       }
@@ -395,60 +366,48 @@ export default function AuthView({
         .from("users")
         .select("role, status")
         .or(`id.eq.${uid},uid.eq.${uid}`)
-        .single();
+        .maybeSingle();
       if (sbUser?.role === "rider") {
         return { isRider: true, status: sbUser.status || "pending" };
       }
     } catch (err: any) {
-      if (!err?.message?.includes("offline")) {
-        console.warn("Notice checking rider status:", err?.message || err);
-      }
+      console.warn("Notice checking rider status:", err?.message || err);
     }
     return { isRider: false, status: "none" };
   };
 
-  // Helper to register the referral connection if a valid code was provided
+  // Helper to register the referral connection in Supabase
   const linkReferral = async (newUserId: string, referralCodeUsed: string) => {
     if (!referralCodeUsed || referralCodeUsed.trim() === "") return;
     try {
       const code = referralCodeUsed.trim().toUpperCase();
-      // Search for user who owns this referral code
-      const q = query(collection(db, "users"), where("referralCode", "==", code));
-      const qSnap = await getDocs(q);
-      if (!qSnap.empty) {
-        const referrerDoc = qSnap.docs[0];
-        const referrerId = referrerDoc.id;
-        if (referrerId !== newUserId) {
-          // 1. Create a referral tracking record
-          const refId = `ref_${referrerId}_${newUserId}`;
-          await setDoc(doc(db, "referrals", refId), {
-            id: refId,
-            referrerId: referrerId,
-            referredId: newUserId,
-            status: "pending",
-            bonusPaid: false,
-            createdAt: serverTimestamp()
-          });
+      const { data: refUser } = await supabase
+        .from("users")
+        .select("id, uid")
+        .eq("referral_code", code)
+        .maybeSingle();
 
-          // 2. Update the referredBy field in the newly created user's document
-          await setDoc(doc(db, "users", newUserId), {
-            referredBy: referrerId
-          }, { merge: true });
-
-          console.log(`Successfully linked referral code ${code}. Referrer ID: ${referrerId}`);
-          
-          // Clear used code from localStorage
-          localStorage.removeItem("referredBy");
-        }
-      } else {
-        console.warn(`Referral code ${code} not found in database.`);
+      const referrerId = refUser?.id || refUser?.uid;
+      if (referrerId && referrerId !== newUserId) {
+        const refId = `ref_${referrerId}_${newUserId}`;
+        await supabase.from("referrals").upsert({
+          id: refId,
+          referrer_id: referrerId,
+          referred_id: newUserId,
+          status: "pending",
+          bonus_paid: false,
+          created_at: new Date().toISOString()
+        });
+        localStorage.removeItem("referredBy");
       }
     } catch (err) {
-      console.error("Error linking referral:", err);
+      console.warn("Notice linking referral:", err);
     }
   };
 
+  // Phone Auth: Send OTP via backend SMS endpoint
   const handleSendOTP = async () => {
+    if (loading || isSubmittingRef.current || otpSending) return;
     setError("");
     setOtpNotice("");
     if (!phone || !phone.trim()) {
@@ -456,429 +415,228 @@ export default function AuthView({
       return;
     }
     setOtpSending(true);
-    
+
     let formattedPhone = phone.trim().replace(/[\s-]/g, "");
     if (formattedPhone.startsWith("0")) {
       formattedPhone = "+88" + formattedPhone;
     } else if (!formattedPhone.startsWith("+")) {
-      if (formattedPhone.startsWith("880")) {
-        formattedPhone = "+" + formattedPhone;
-      } else {
-        formattedPhone = "+880" + formattedPhone;
-      }
+      formattedPhone = "+880" + formattedPhone.replace(/^880/, "");
     }
 
     try {
-      // 1. Reset any previous verifier instance to clear stale tokens or rendering state
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {
-          console.warn("Notice clearing previous reCAPTCHA instance:", e);
+      const res = await apiClient.post("/api/auth/phone/send-verification-otp", {
+        phone: formattedPhone
+      }, { timeoutMs: 10000 });
+
+      if (res && res.success) {
+        if (isMountedRef.current) {
+          setOtpSent(true);
+          setOtpNotice(res.messageBn || getTranslation(
+            "আপনার মোবাইলে এসএমএস-এর মাধ্যমে ওটিপি কোড পাঠানো হয়েছে। অনুগ্রহ করে কোডটি লিখুন।",
+            "An SMS verification OTP has been sent to your phone. Please enter it below."
+          ));
         }
-        window.recaptchaVerifier = undefined;
+      } else {
+        throw new Error(res?.error || res?.message || getTranslation("ওটিপি পাঠাতে সমস্যা হয়েছে।", "Failed to send OTP."));
       }
-
-      // 2. Ensure target button element exists in DOM for binding
-      let targetButton = document.getElementById("phone-sign-in-button");
-      if (!targetButton) {
-        const fallbackContainer = document.createElement("div");
-        fallbackContainer.id = "phone-sign-in-button";
-        fallbackContainer.style.display = "none";
-        document.body.appendChild(fallbackContainer);
-      }
-
-      // 3. Configure invisible RecaptchaVerifier bound directly to phone-sign-in-button
-      // Do NOT render a visible checkbox container (size: 'invisible' renders silently in background)
-      const appVerifier = new RecaptchaVerifier(auth, "phone-sign-in-button", {
-        size: "invisible",
-        callback: () => {
-          // reCAPTCHA verification passed silently in the background
-        },
-        "expired-callback": () => {
-          // Reset verifier instance if token expires
-          if (window.recaptchaVerifier) {
-            try {
-              window.recaptchaVerifier.clear();
-            } catch (e) {}
-            window.recaptchaVerifier = undefined;
-          }
-          setError(
-            getTranslation(
-              "ক্যাপচা মেয়াদ উত্তীর্ণ হয়েছে। অনুগ্রহ করে আবার ওটিপি পাঠান।",
-              "reCAPTCHA token expired. Please click Send OTP again."
-            )
-          );
-        }
-      });
-
-      // Save active verifier to window
-      window.recaptchaVerifier = appVerifier;
-
-      // 4. Trigger signInWithPhoneNumber silently in background with invisible verifier
-      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-      setConfirmationResult(confirmation);
-      setOtpSent(true);
-      setError("");
-      setOtpNotice(
-        getTranslation(
-          "আপনার মোবাইলে এসএমএস-এর মাধ্যমে ওটিপি কোড পাঠানো হয়েছে। অনুগ্রহ করে কোডটি লিখুন।",
-          "An SMS verification OTP has been sent to your phone. Please enter it below."
-        )
-      );
     } catch (err: any) {
-      console.error("Firebase Phone Auth error:", err);
-      // If reCAPTCHA token expires or throws an error, reset the verifier instance
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-        } catch (e) {}
-        window.recaptchaVerifier = undefined;
+      if (isMountedRef.current) {
+        setOtpSent(false);
+        setError(err?.message || getTranslation(
+          "বর্তমানে এসএমএস সার্ভিস রক্ষণাবেক্ষণে রয়েছে। অনুগ্রহ করে ইমেইল ও পাসওয়ার্ড অথবা গুগল দিয়ে সাইন ইন করুন।",
+          "SMS service is temporarily unavailable. Please sign in with Email & Password or Google."
+        ));
       }
-      setConfirmationResult(null);
-      setOtpSent(false);
-      setOtpNotice("");
-
-      let userFriendlyMessage = getTranslation(
-        "এসএমএস ওটিপি পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন অথবা ইমেইল দিয়ে লগইন করুন।",
-        "Failed to send SMS OTP. Please retry sending SMS or sign in using Email."
-      );
-
-      if (err?.code === "auth/unauthorized-domain" || err?.message?.includes("unauthorized-domain")) {
-        const domain = typeof window !== "undefined" ? window.location.hostname : "localhost";
-        userFriendlyMessage = getTranslation(
-          `ডোমেইনটি অনুমোদিত নয় (${domain})। অনুগ্রহ করে Firebase Console → Authentication → Settings → Authorized domains-এ ডোমেইনটি যোগ করুন।`,
-          `Domain is not authorized (${domain}). Please add this domain to Firebase Console → Authentication → Settings → Authorized domains.`
-        );
-      } else if (err?.code === "auth/quota-exceeded" || err?.message?.includes("quota")) {
-        userFriendlyMessage = getTranslation(
-          "এসএমএস কোটার দৈনিক লিমিট শেষ হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন অথবা ইমেইল দিয়ে লগইন করুন।",
-          "SMS quota exceeded for today. Please retry later or sign in with Email."
-        );
-      } else if (err?.code === "auth/invalid-phone-number") {
-        userFriendlyMessage = getTranslation(
-          "মোবাইল নম্বরটি সঠিক নয়। অনুগ্রহ করে সঠিক ১১ ডিজিটের নম্বর দিন (যেমন: 017XXXXXXXX)।",
-          "Invalid phone number format. Please provide a valid 11-digit mobile number."
-        );
-      } else if (err?.code === "auth/too-many-requests") {
-        userFriendlyMessage = getTranslation(
-          "অতিরিক্ত অনুরোধের কারণে সাময়িক বিরতি প্রয়োজন। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।",
-          "Too many requests from this device. Please wait a moment and try again."
-        );
-      } else if (err?.code === "auth/captcha-check-failed") {
-        userFriendlyMessage = getTranslation(
-          "reCAPTCHA ভেরিফিকেশন সম্পন্ন হতে পারেনি। অনুগ্রহ করে আবার চেষ্টা করুন।",
-          "reCAPTCHA verification failed. Please try again."
-        );
-      } else if (err?.code === "auth/network-request-failed") {
-        userFriendlyMessage = getTranslation(
-          "নেটওয়ার্ক সংযোগ ত্রুটি। অনুগ্রহ করে আপনার ইন্টারনেট সংযোগ পরীক্ষা করুন।",
-          "Network error. Please check your internet connection and try again."
-        );
-      } else if (err?.message) {
-        userFriendlyMessage = `${getTranslation("এসএমএস পাঠাতে ব্যর্থ:", "Failed to send SMS:")} ${err.message}`;
-      }
-
-      setError(userFriendlyMessage);
     } finally {
-      setOtpSending(false);
+      if (isMountedRef.current) {
+        setOtpSending(false);
+      }
     }
   };
 
+  // Phone Auth: Verify OTP and log in user
   const handleVerifyOTP = async () => {
+    if (loading || isSubmittingRef.current) return;
     setError("");
-    setLoading(true);
-
-    if (!otpCode) {
+    if (!otpCode || otpCode.trim().length < 4) {
       setError(getTranslation("অনুগ্রহ করে ওটিপি কোডটি লিখুন।", "Please enter the OTP code."));
-      setLoading(false);
       return;
     }
 
-    if (!confirmationResult) {
-      setError(getTranslation("অনুগ্রহ করে প্রথমে মোবাইলে ওটিপি কোড পাঠান।", "Please request an SMS verification code first."));
-      setLoading(false);
-      return;
+    setLoading(true);
+    isSubmittingRef.current = true;
+
+    let formattedPhone = phone.trim().replace(/[\s-]/g, "");
+    if (formattedPhone.startsWith("0")) {
+      formattedPhone = "+88" + formattedPhone;
+    } else if (!formattedPhone.startsWith("+")) {
+      formattedPhone = "+880" + formattedPhone.replace(/^880/, "");
     }
 
     try {
-      const result = await confirmationResult.confirm(otpCode.trim());
-      const user = result.user;
-      const uid = user.uid;
-      const emailAddress = user.email || `${phone.trim()}@kachabazar.com`;
-      const displayName = user.displayName || fullName || getTranslation("ভেরিফাইড মোবাইল ব্যবহারকারী", "Verified Mobile User");
+      const res = await apiClient.post("/api/auth/phone/verify-otp", {
+        phone: formattedPhone,
+        code: otpCode.trim()
+      }, { timeoutMs: 10000 });
 
-      // Verify admin role if tab is admin
-      if (role === "admin") {
-        const isAdminUser = await checkIsAdmin(uid);
-        if (!isAdminUser) {
-          await signOut(auth);
-          throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।", "Access denied. You are not authorized as an admin."));
+      if (res && res.success) {
+        const { data: existingUser } = await supabase
+          .from("users")
+          .select("*")
+          .eq("phone", formattedPhone)
+          .maybeSingle();
+
+        if (existingUser) {
+          if (isMountedRef.current) {
+            onAuthSuccess(existingUser, existingUser.role || role);
+          }
+        } else {
+          const randomId = "user_" + Math.random().toString(36).substring(2, 10);
+          const newProfile = {
+            id: randomId,
+            uid: randomId,
+            phone: formattedPhone,
+            displayName: fullName || getTranslation("মোবাইল গ্রাহক", "Mobile Customer"),
+            fullName: fullName || getTranslation("মোবাইল গ্রাহক", "Mobile Customer"),
+            email: `${formattedPhone.replace(/[^\d]/g, "")}@megabazar.com`,
+            role: "customer"
+          };
+          if (isMountedRef.current) {
+            onAuthSuccess(newProfile, "customer");
+          }
         }
-      }
-
-      const userDocRef = doc(db, "users", uid);
-      const userDocSnap = await getDoc(userDocRef);
-
-      let userRole = role;
-      let userData: any = null;
-
-      if (userDocSnap.exists()) {
-        userData = userDocSnap.data();
-        userRole = userData.role || "customer";
       } else {
-        const refCode = "REF" + (uid.length >= 5 ? uid.substring(0, 5).toUpperCase() : Math.random().toString(36).substring(2, 7).toUpperCase());
-        userData = {
-          uid: uid,
-          email: emailAddress,
-          displayName: displayName,
-          role: role,
-          phoneNumber: phone,
-          createdAt: serverTimestamp(),
-          address: getTranslation("চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর", "Chanchkoir Bazar, Gurudaspur, Natore"),
-          referralCode: refCode,
-          balance: 0,
-          walletBalance: 0,
-          rewardPoints: 0,
-          points: 0,
-          // Conform to firestore.rules: status must be 'pending' or omitted
-          ...(role === "seller" || role === "rider" ? { status: "pending" } : {}),
-          ...(role === "seller" ? { sellerStatus: "pending" } : {}),
-          ...(role === "rider" ? { riderStatus: "pending" } : {})
-        };
-        await setDoc(userDocRef, userData);
-
-        if (role === "seller") {
-          await setDoc(doc(db, "sellers", uid), {
-            uid,
-            email: emailAddress,
-            shopName: shopName || getTranslation("আমার কাস্টম শপ", "My Custom Shop"),
-            ownerName: displayName,
-            phoneNumber: phone,
-            status: "pending",
-            createdAt: serverTimestamp(),
-            balance: 1000
-          });
-        } else if (role === "rider") {
-          await setDoc(doc(db, "riders", uid), {
-            uid,
-            email: emailAddress,
-            name: displayName,
-            phoneNumber: phone,
-            vehicleType: vehicleType || "Bicycle",
-            status: "pending",
-            createdAt: serverTimestamp(),
-            balance: 0,
-            currentOrderId: ""
-          });
-        }
-
-        try {
-          await setDoc(doc(db, "wallet", uid), {
-            userId: uid,
-            balance: 0,
-            updatedAt: serverTimestamp()
-          });
-        } catch (wErr) {
-          console.warn("Wallet creation notice:", wErr);
-        }
-
-        // Link referral if applicable
-        if (referralInput) {
-          await linkReferral(uid, referralInput);
-        }
+        throw new Error(res?.error || getTranslation("ভুল ওটিপি কোড! অনুগ্রহ করে আবার চেষ্টা করুন।", "Invalid OTP code! Please try again."));
       }
-
-      onAuthSuccess(userData, userRole);
     } catch (err: any) {
-      console.warn("Notice during OTP verification:", err?.message || err);
-      setError(err.message || getTranslation("ভুল ওটিপি কোড! অনুগ্রহ করে আবার চেষ্টা করুন।", "Invalid OTP code! Please try again."));
+      if (isMountedRef.current) {
+        setError(err?.message || getTranslation("ওটিপি যাচাই ব্যর্থ হয়েছে।", "OTP verification failed."));
+      }
     } finally {
-      setLoading(false);
+      isSubmittingRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
+  // Primary Authentication Handler (Email/Password & Registration)
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    if (loading || isSubmittingRef.current) return;
 
-    const cleanInputIdent = (email || "").trim().toLowerCase();
-    const cleanPassword = (password || "").trim();
-
-
-    
     if (isLogin && authMethod === "phone") {
       await handleVerifyOTP();
       return;
     }
 
-    setLoading(true);
+    setError("");
 
     if (!email || !password || (!isLogin && !fullName)) {
       setError(getTranslation("অনুগ্রহ করে সব তথ্য পূরণ করুন।", "Please fill in all fields."));
-      setLoading(false);
       return;
     }
 
-    // Direct registration for admin role is blocked
     if (!isLogin && role === "admin") {
       setError(getTranslation(
         "এডমিন অ্যাকাউন্ট সরাসরি তৈরি করা যাবে না।",
         "Admin account registration is not permitted."
       ));
-      setLoading(false);
       return;
     }
 
+    setLoading(true);
+    isSubmittingRef.current = true;
+
+    // Timeout safety fallback (15s)
+    const timeoutId = setTimeout(() => {
+      if (isMountedRef.current && isSubmittingRef.current) {
+        setLoading(false);
+        isSubmittingRef.current = false;
+        setError(getTranslation(
+          "অনুরোধ সম্পন্ন হতে অতিরিক্ত সময় লেগেছে। অনুগ্রহ করে ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।",
+          "Request timed out. Please check your internet connection and try again."
+        ));
+      }
+    }, 15000);
+
     try {
       if (isLogin) {
-
         // Direct Partner Shop login with Partner ID / Email & Password
         if (role === "partner" || email.trim().toUpperCase().startsWith("KB-SHOP-")) {
           const partnerRes = await loginPartnerWithCredentials(email, password);
           if (partnerRes.success && partnerRes.partner) {
-            onAuthSuccess(partnerRes.partner, "partner");
-            setLoading(false);
+            if (isMountedRef.current) {
+              onAuthSuccess(partnerRes.partner, "partner");
+            }
             return;
           } else {
             throw new Error(partnerRes.error || getTranslation("পার্টনার শপ লগইন ব্যর্থ হয়েছে। আইডি বা পাসওয়ার্ড সঠিক নয়।", "Partner shop login failed. Incorrect ID or password."));
           }
         }
 
-        // Check if credentials match server-verified credentials (Staff, Super Admin, or 6-digit OTP reset passwords)
-        try {
-          const verifyData = await apiClient.post<any>("/api/auth/login-verify", {
-            identifier: email,
-            password: password
-          }, { silent: true });
+        // Single authoritative call to Supabase Auth login (handles server verification, Supabase Auth, and profile resolution)
+        const sbRes = await supabaseSignInWithEmail(email, password, role);
 
-          if (verifyData?.success && verifyData?.user) {
-            const verifiedUser = verifyData.user;
-            const targetRole = verifyData.role || role;
-
-            if (verifyData.sessionId) {
-              try {
-                localStorage.setItem("kb_staff_session", verifyData.sessionId);
-                sessionStorage.setItem("kb_staff_session", verifyData.sessionId);
-                if (verifiedUser.email) localStorage.setItem("kb_staff_email", verifiedUser.email);
-                if (verifiedUser.staffId) localStorage.setItem("kb_staff_id", verifiedUser.staffId);
-              } catch (e) {}
-            }
-
-            onAuthSuccess(verifiedUser, targetRole);
-            setLoading(false);
-            return;
-          }
-        } catch (vErr: any) {
-          // not matched in server verified store, proceed to standard Firebase auth
-        }
-
-        // 1. Primary: Authenticate using Supabase Auth (supabase.auth.signInWithPassword)
-        let authenticatedUser: any = null;
-        let authenticatedRole: string = role;
-        let lastAuthError = "";
-
-        try {
-          const sbRes = await supabaseSignInWithEmail(email, password, role);
-          if (sbRes.success && sbRes.user) {
-            authenticatedUser = sbRes.user;
-            authenticatedRole = (sbRes.role || role) as any;
-          } else if (sbRes.error) {
-            lastAuthError = sbRes.error;
-          }
-        } catch (sbErr: any) {
-          lastAuthError = sbErr?.message || "";
-          console.warn("[AuthView] Supabase Auth login note:", sbErr);
-        }
-
-        // 2. Secondary fallback: Check server-verified credentials (Staff, Super Admin, OTP reset)
-        if (!authenticatedUser) {
-          try {
-            const fallbackData = await apiClient.post<any>("/api/auth/login-verify", {
-              identifier: email,
-              password: password
-            }, { silent: true }).catch(() => null);
-
-            if (fallbackData?.success && fallbackData?.user) {
-              authenticatedUser = fallbackData.user;
-              authenticatedRole = fallbackData.role || role;
-              if (fallbackData.sessionId) {
-                try {
-                  localStorage.setItem("kb_staff_session", fallbackData.sessionId);
-                  sessionStorage.setItem("kb_staff_session", fallbackData.sessionId);
-                  if (authenticatedUser.email) localStorage.setItem("kb_staff_email", authenticatedUser.email);
-                  if (authenticatedUser.staffId) localStorage.setItem("kb_staff_id", authenticatedUser.staffId);
-                } catch (e) {}
-              }
-            }
-          } catch (e) {}
-        }
-
-        // 3. If credentials could not be verified by Supabase Auth or Server Auth
-        if (!authenticatedUser) {
-          if (lastAuthError && /email not confirmed/i.test(lastAuthError)) {
+        if (!sbRes.success || !sbRes.user) {
+          const errText = sbRes.error || "";
+          if (/email not confirmed/i.test(errText)) {
             throw new Error(getTranslation(
-              "ইমেইল কনফার্মেশন সম্পন্ন হয়নি (Email not confirmed)! যেহেতু অ্যাকাউন্টটি পূর্বে তৈরি হয়েছিল, তাই Supabase Dashboard > Authentication > Users-এ গিয়ে 'megabajar@admin.com'-এর ডানপাশের তিনটি ডট (...) ক্লিক করে 'Confirm email' অপশনে চাপ দিন অথবা নিচের বাটনে চাপ দিয়ে ইনবক্সে লিঙ্ক নিন।",
-              "Email not confirmed! Since this account was created previously, please go to Supabase Dashboard > Authentication > Users, click the three dots (...) next to this user, and click 'Confirm email'."
+              "ইমেইল কনফার্মেশন সম্পন্ন হয়নি (Email not confirmed)! অনুগ্রহ করে আপনার ইমেইল ইনবক্স চেক করে লিঙ্কটিতে ক্লিক করুন।",
+              "Email not confirmed! Please check your email inbox to confirm your account."
             ));
           }
-          throw new Error(lastAuthError || getTranslation("ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।", "Incorrect email or password. Please check your credentials."));
+          throw new Error(errText || getTranslation("ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।", "Incorrect email or password. Please check your credentials."));
         }
 
-        // Authoritative role check: Detect admin / super_admin credentials immediately
-        const userUid = authenticatedUser?.uid || authenticatedUser?.id || "";
-        const userEmail = (authenticatedUser?.email || email || "").toLowerCase().trim();
-        const cleanEmail = userEmail;
-        const isSuperAdminEmail = cleanEmail === "sarkarmdanik14@gmail.com" || cleanEmail === "megabajar@admin.com";
-        const isAdmin = isSuperAdminEmail || (await checkIsAdmin(userUid, cleanEmail));
+        const authenticatedUser = sbRes.user;
+        let authenticatedRole = sbRes.role || role;
+        const userUid = authenticatedUser.uid || authenticatedUser.id || "";
+        const cleanEmail = (authenticatedUser.email || email).toLowerCase().trim();
+        const isSuper = SUPER_ADMIN_EMAILS.has(cleanEmail) || authenticatedUser.isSuperAdmin || authenticatedUser.role === "super_admin";
 
-        if (isAdmin || role === "admin") {
+        // Role authorization check for selected tab
+        if (role === "admin") {
+          const isAdmin = isSuper || authenticatedUser.role === "admin" || (await checkIsAdmin(userUid, cleanEmail));
           if (!isAdmin) {
             await supabaseSignOut();
-            await signOut(auth).catch(() => {});
             throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।", "Access denied. You are not authorized as an admin."));
           }
-          const finalAdminRole: "admin" | "super_admin" = (isSuperAdminEmail || authenticatedUser?.role === "super_admin") ? "super_admin" : "admin";
-          authenticatedRole = finalAdminRole;
-          authenticatedUser.role = finalAdminRole;
-          authenticatedUser.isSuperAdmin = isSuperAdminEmail || finalAdminRole === "super_admin";
+          authenticatedRole = isSuper ? "super_admin" : "admin";
+          authenticatedUser.role = authenticatedRole as any;
+          authenticatedUser.isSuperAdmin = isSuper;
         } else if (role === "seller") {
           const sRes = await checkSellerStatus(userUid);
           if (!sRes.isSeller) {
             await supabaseSignOut();
-            await signOut(auth).catch(() => {});
             throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি বিক্রেতা হিসেবে নিবন্ধিত নয়।", "Access denied. This account is not registered as a seller."));
           }
           if (sRes.status === "rejected") {
             await supabaseSignOut();
-            await signOut(auth).catch(() => {});
             throw new Error(getTranslation("আপনার বিক্রেতা অ্যাকাউন্টটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your seller account application was rejected by admin."));
           }
         } else if (role === "rider") {
           const rRes = await checkRiderStatus(userUid);
           if (!rRes.isRider) {
             await supabaseSignOut();
-            await signOut(auth).catch(() => {});
             throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি রাইডার হিসেবে নিবন্ধিত নয়।", "Access denied. This account is not registered as a rider."));
           }
           if (rRes.status === "rejected") {
             await supabaseSignOut();
-            await signOut(auth).catch(() => {});
             throw new Error(getTranslation("আপনার রাইডার অ্যাকাউন্টটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your rider account application was rejected by admin."));
           }
         }
 
-        onAuthSuccess(authenticatedUser, authenticatedRole);
+        if (isMountedRef.current) {
+          onAuthSuccess(authenticatedUser, authenticatedRole);
+        }
       } else {
-        // Sign up with Supabase Auth (supabase.auth.signUp)
+        // Sign up with Supabase Auth
         const trimmedFullName = (fullName || "").trim();
         if (!trimmedFullName) {
-          setError(getTranslation("অনুগ্রহ করে আপনার সম্পূর্ণ নাম লিখুন।", "Please enter your full name."));
-          setLoading(false);
-          return;
+          throw new Error(getTranslation("অনুগ্রহ করে আপনার সম্পূর্ণ নাম লিখুন।", "Please enter your full name."));
         }
 
-        // 1. Primary: Create account via Supabase Auth & PostgreSQL
         const sbSignUpRes = await supabaseSignUpWithEmail({
           email: email.trim(),
           pass: password,
@@ -895,163 +653,57 @@ export default function AuthView({
         }
 
         const newUser = sbSignUpRes.user;
-
         await linkReferral(newUser.uid, referralInput);
 
-        onAuthSuccess(newUser, role);
+        if (isMountedRef.current) {
+          onAuthSuccess(newUser, role);
+        }
       }
     } catch (err: any) {
-      if (!err?.message?.includes("offline")) {
-        console.warn("Auth error notice:", err?.message || err);
+      if (isMountedRef.current) {
+        let errMsg = err.message || "";
+        if (err.code === "auth/email-already-in-use") {
+          errMsg = getTranslation("এই ইমেইলটি ইতিমধ্যে ব্যবহৃত হয়েছে।", "This email is already in use.");
+        } else if (err.code === "auth/weak-password") {
+          errMsg = getTranslation("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।", "Password must be at least 6 characters.");
+        } else if (err.code === "auth/invalid-credential") {
+          errMsg = getTranslation("ভুল ইমেইল বা পাসওয়ার্ড।", "Invalid email or password.");
+        } else if (err.code === "auth/user-not-found") {
+          errMsg = getTranslation("এই ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি।", "No account found with this email.");
+        }
+        setError(errMsg || getTranslation("লগইন করতে সমস্যা হয়েছে।", "Authentication failed."));
       }
-      let errMsg = err.message || "";
-      if (err.code === "auth/unauthorized-domain" || err.message?.includes("unauthorized-domain")) {
-        const domain = typeof window !== "undefined" ? window.location.hostname : "kachabazar-fawn.vercel.app";
-        errMsg = getTranslation(
-          `ডোমেইনটি অনুমোদিত নয় (${domain})। অনুগ্রহ করে Firebase Console → Authentication → Settings → Authorized domains-এ ডোমেইনটি যোগ করুন।`,
-          `Domain is not authorized (${domain}). Please add this domain to Firebase Console → Authentication → Settings → Authorized domains.`
-        );
-      } else if (err.code === "auth/email-already-in-use") {
-        errMsg = getTranslation("এই ইমেইলটি ইতিমধ্যে ব্যবহৃত হয়েছে।", "This email is already in use.");
-      } else if (err.code === "auth/weak-password") {
-        errMsg = getTranslation("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।", "Password must be at least 6 characters.");
-      } else if (err.code === "auth/invalid-credential") {
-        errMsg = getTranslation("ভুল ইমেইল বা পাসওয়ার্ড।", "Invalid email or password.");
-      } else if (err.code === "auth/user-not-found") {
-        errMsg = getTranslation("এই ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি।", "No account found with this email.");
-      } else if (err.message?.includes("offline")) {
-        errMsg = getTranslation("ইন্টারনেট সংযোগ পাওয়া যায়নি। আপনার নেটওয়ার্ক পরীক্ষা করুন।", "Network offline. Please check your connection.");
+    } finally {
+      clearTimeout(timeoutId);
+      isSubmittingRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false);
       }
-      
-      setError(errMsg);
-      setLoading(false);
     }
   };
 
-  // Google Login Helper
+  // Google Sign-In via Supabase OAuth
   const handleGoogleLogin = async () => {
+    if (loading || isSubmittingRef.current) return;
     setError("");
     setLoading(true);
+    isSubmittingRef.current = true;
+
     try {
-      // 1. Primary: Supabase Google OAuth (supabase.auth.signInWithOAuth)
       const sbOAuth = await supabaseSignInWithGoogle();
-      if (sbOAuth.success) {
-        // Redirect initiated by Supabase OAuth
-        return;
+      if (!sbOAuth.success) {
+        throw new Error(sbOAuth.error || getTranslation("গুগল সাইন ইন সম্পন্ন হতে পারেনি।", "Google sign-in failed."));
       }
-
-      // 2. Fallback: Firebase popup login (if running inside strict iframe without redirect allowed)
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      
-      if (role === "admin") {
-        const isAdminUser = await checkIsAdmin(user.uid, user.email || "");
-        if (!isAdminUser) {
-          await supabaseSignOut();
-          await signOut(auth).catch(() => {});
-          throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।", "Access denied. You are not authorized as an admin."));
-        }
-      } else if (role === "seller") {
-        const sRes = await checkSellerStatus(user.uid);
-        if (!sRes.isSeller) {
-          await supabaseSignOut();
-          await signOut(auth).catch(() => {});
-          throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি বিক্রেতা হিসেবে নিবন্ধিত নয়।", "Access denied. This account is not registered as a seller."));
-        }
-        if (sRes.status === "rejected") {
-          await supabaseSignOut();
-          await signOut(auth).catch(() => {});
-          throw new Error(getTranslation("আপনার বিক্রেতা অ্যাকাউন্টটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your seller account application was rejected by admin."));
-        }
-      } else if (role === "rider") {
-        const rRes = await checkRiderStatus(user.uid);
-        if (!rRes.isRider) {
-          await supabaseSignOut();
-          await signOut(auth).catch(() => {});
-          throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি রাইডার হিসেবে নিবন্ধিত নয়।", "Access denied. This account is not registered as a rider."));
-        }
-        if (rRes.status === "rejected") {
-          await supabaseSignOut();
-          await signOut(auth).catch(() => {});
-          throw new Error(getTranslation("আপনার রাইডার অ্যাকাউন্টটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your rider account application was rejected by admin."));
-        }
-      }
-
-      const userDocRef = doc(db, "users", user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      
-      let userRole = role;
-      let userData = null;
-
-      if (userDocSnap.exists()) {
-        userData = userDocSnap.data();
-        userRole = userData.role || role;
-      } else {
-        const refCode = "REF" + user.uid.substring(0, 5).toUpperCase();
-        const customerId = generateMemberId(user.uid);
-        userData = {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName || "গ্রাহক",
-          fullName: user.displayName || "গ্রাহক",
-          name: user.displayName || "গ্রাহক",
-          customerId: customerId,
-          role: userRole,
-          createdAt: serverTimestamp(),
-          address: getTranslation("চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর", "Chanchkoir Bazar, Gurudaspur, Natore"),
-          referralCode: refCode,
-          balance: 0,
-          walletBalance: 0,
-          rewardPoints: 0,
-          points: 0
-        };
-        await setDoc(userDocRef, userData);
-        
-        // Strictly initialize wallet with 0 balance for all new registrations
-        await setDoc(doc(db, "wallet", user.uid), {
-          userId: user.uid,
-          balance: 0,
-          updatedAt: serverTimestamp()
-        });
-
-        await linkReferral(user.uid, referralInput);
-      }
-
-      // Sync to Supabase users table as well
-      try {
-        await supabase.from("users").upsert({
-          id: user.uid,
-          uid: user.uid,
-          email: user.email,
-          full_name: user.displayName || "গ্রাহক",
-          display_name: user.displayName || "গ্রাহক",
-          role: userRole,
-          photo_url: user.photoURL || null,
-          updated_at: new Date().toISOString()
-        });
-      } catch {}
-
-      onAuthSuccess(userData, userRole);
+      // Supabase initiates OAuth redirect to Google
     } catch (err: any) {
-      if (!err?.message?.includes("offline")) {
-        console.warn("Google Sign-In notice:", err?.message || err);
+      if (isMountedRef.current) {
+        setError(err?.message || getTranslation("গুগল সাইন ইন ত্রুটি।", "Google sign-in error."));
       }
-      let errorMsg = err.message || "Google Sign-In failed.";
-      if (err?.code === "auth/unauthorized-domain" || err?.message?.includes("unauthorized-domain") || err?.message?.includes("auth/unauthorized-domain")) {
-        const domain = typeof window !== "undefined" ? window.location.hostname : "kachabazar-fawn.vercel.app";
-        errorMsg = getTranslation(
-          `Firebase Authentication ডোমেইন অনুমোদন প্রয়োজন: "${domain}" ডোমেইনটি অনুমোদিত নয়। অনুগ্রহ করে Firebase Console (Authentication → Settings → Authorized domains)-এ "${domain}" ডোমেইনটি যুক্ত করুন।`,
-          `Firebase: Unauthorized domain (${domain}). Please add "${domain}" to Firebase Console → Authentication → Settings → Authorized domains.`
-        );
-      } else if (err?.code === "auth/popup-closed-by-user") {
-        errorMsg = getTranslation("লগইন উইন্ডো বন্ধ করা হয়েছে।", "Login window was closed by user.");
-      } else if (err?.code === "auth/popup-blocked") {
-        errorMsg = getTranslation("পপআপ উইন্ডো ব্রাউজার দ্বারা ব্লক করা হয়েছে। অনুগ্রহ করে পপআপ অনুমোদন করুন।", "Popup blocked by browser. Please allow popups for this site.");
-      } else if (err?.message?.includes("offline")) {
-        errorMsg = getTranslation("ইন্টারনেট সংযোগ পাওয়া যায়নি।", "Network offline. Please check your connection.");
+    } finally {
+      isSubmittingRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false);
       }
-      setError(errorMsg);
-      setLoading(false);
     }
   };
 

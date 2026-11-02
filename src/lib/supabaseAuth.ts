@@ -52,7 +52,7 @@ export async function supabaseSignInWithEmail(
     const verifyData = await apiClient.post<any>("/api/auth/login-verify", {
       identifier: cleanEmail,
       password: pass
-    }, { silent: true });
+    }, { silent: true, timeoutMs: 10000 });
 
     if (verifyData?.success && verifyData?.user) {
       const u = verifyData.user;
@@ -66,53 +66,65 @@ export async function supabaseSignInWithEmail(
         } catch {}
       }
 
+      const verifiedProfile: SupabaseUserProfile = {
+        uid: u.uid || u.id || u.staffId,
+        id: u.id || u.staffId,
+        email: u.email || cleanEmail,
+        displayName: u.name || u.fullName || u.displayName || (targetRole === "admin" || targetRole === "super_admin" ? "এডমিনিস্ট্রেটর" : "স্টাফ মেম্বার"),
+        fullName: u.fullName || u.name || (targetRole === "admin" || targetRole === "super_admin" ? "এডমিনিস্ট্রেটর" : "স্টাফ মেম্বার"),
+        role: targetRole as any,
+        isSuperAdmin: targetRole === "super_admin" || SUPER_ADMIN_EMAILS.has((u.email || cleanEmail).toLowerCase()),
+        photoURL: u.photoURL || u.photo_url || ""
+      };
+
       return {
         success: true,
-        user: {
-          uid: u.uid || u.id || u.staffId,
-          id: u.id || u.staffId,
-          email: u.email || cleanEmail,
-          displayName: u.name || u.fullName || u.displayName || "স্টাফ মেম্বার",
-          fullName: u.fullName || u.name || "স্টাফ মেম্বার",
-          role: targetRole as any,
-          photoURL: u.photoURL || u.photo_url || ""
-        },
+        user: verifiedProfile,
         role: targetRole
       };
     }
-  } catch {}
+  } catch (verifyErr) {
+    // Non-blocking, fallback to Supabase Auth
+  }
 
-  // 2. Authenticate with Supabase Auth
+  // 2. Authenticate with Supabase Auth with strict timeout
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const authPromise = supabase.auth.signInWithPassword({
       email: cleanEmail,
       password: pass
     });
+    const timeoutPromise = new Promise<{ data: any; error: any }>((_, reject) =>
+      setTimeout(() => reject(new Error("লগইন অনুরোধের সময় শেষ হয়েছে (Timeout)। অনুগ্রহ করে আবার চেষ্টা করুন।")), 12000)
+    );
+
+    const { data, error } = await Promise.race([authPromise, timeoutPromise]) as any;
 
     if (error) {
       return { success: false, error: error.message || "ভুল ইমেইল বা পাসওয়ার্ড!" };
     }
 
-    if (!data.user) {
+    if (!data?.user) {
       return { success: false, error: "ইউজার ডেটা পাওয়া যায়নি।" };
     }
 
     const uid = data.user.id;
     // Store access token for API authorization
     if (data.session?.access_token) {
-      localStorage.setItem("kb_supabase_token", data.session.access_token);
-      sessionStorage.setItem("kb_supabase_token", data.session.access_token);
+      try {
+        localStorage.setItem("kb_supabase_token", data.session.access_token);
+        sessionStorage.setItem("kb_supabase_token", data.session.access_token);
+      } catch {}
     }
 
     // 3. Fetch user profile from public.users table
     let profile = await fetchUserProfile(uid);
 
-    const isSuperAdminEmail = SUPER_ADMIN_EMAILS.has(cleanEmail.toLowerCase());
-    const isDbAdmin = isSuperAdminEmail || (await checkIsSupabaseAdmin(uid, cleanEmail));
+    const isSuperAdminEmail = SUPER_ADMIN_EMAILS.has(lowerEmail);
 
     if (!profile) {
       // Auto-create user profile in public.users if not exists
       const meta = data.user.user_metadata || {};
+      const isDbAdmin = isSuperAdminEmail || (await checkIsSupabaseAdmin(uid, lowerEmail));
       const resolvedName = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (isDbAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
       profile = {
         uid,
@@ -131,18 +143,18 @@ export async function supabaseSignInWithEmail(
         membershipTier: isDbAdmin ? "Platinum" : "Silver"
       };
       await saveUserProfile(profile);
-    } else if (isDbAdmin) {
-      profile.role = isSuperAdminEmail ? "super_admin" : (profile.role === "super_admin" ? "super_admin" : "admin");
-      profile.isSuperAdmin = isSuperAdminEmail || profile.role === "super_admin";
+    } else if (isSuperAdminEmail) {
+      profile.role = "super_admin";
+      profile.isSuperAdmin = true;
     }
 
     // Exchange staff session ONLY if genuinely admin or staff in the database
-    if (profile.role === "admin" || profile.role === "super_admin" || isDbAdmin) {
+    if (profile.role === "admin" || profile.role === "super_admin" || profile.isSuperAdmin) {
       try {
         const sessionRes = await apiClient.post<any>("/api/staff/supabase-session", {
           accessToken: data.session?.access_token,
           token: data.session?.access_token
-        }, { silent: true });
+        }, { silent: true, timeoutMs: 8000 });
         if (sessionRes?.sessionId) {
           localStorage.setItem("kb_staff_session", sessionRes.sessionId);
           sessionStorage.setItem("kb_staff_session", sessionRes.sessionId);
@@ -371,6 +383,8 @@ export async function supabaseSendPasswordResetEmail(email: string): Promise<{ s
   }
 }
 
+let latestAuthSequence = 0;
+
 /**
  * Listen to Auth State changes across the entire app
  */
@@ -378,19 +392,26 @@ export function onSupabaseAuthStateChange(
   callback: (user: SupabaseUserProfile | null) => void
 ): () => void {
   const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const currentSeq = ++latestAuthSequence;
 
     if (session?.user) {
       const uid = session.user.id;
       if (session.access_token) {
-        localStorage.setItem("kb_supabase_token", session.access_token);
-        sessionStorage.setItem("kb_supabase_token", session.access_token);
+        try {
+          localStorage.setItem("kb_supabase_token", session.access_token);
+          sessionStorage.setItem("kb_supabase_token", session.access_token);
+        } catch {}
       }
 
       let profile = await fetchUserProfile(uid);
+      if (currentSeq !== latestAuthSequence) return;
+
       if (!profile) {
         const cleanEmail = (session.user.email || "").toLowerCase().trim();
         const isSuper = cleanEmail ? SUPER_ADMIN_EMAILS.has(cleanEmail) : false;
         const isSbAdmin = isSuper || (await checkIsSupabaseAdmin(uid, cleanEmail));
+        if (currentSeq !== latestAuthSequence) return;
+
         const meta = session.user.user_metadata || {};
         const resolvedRole = isSuper ? "super_admin" : (isSbAdmin ? "admin" : (meta.role || "customer"));
         const name = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (isSbAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
@@ -409,21 +430,8 @@ export function onSupabaseAuthStateChange(
       }
       callback(profile);
     } else {
-      if (event === "SIGNED_OUT") {
-        callback(null);
-      } else if (event === "INITIAL_SESSION") {
-        // Double check active session before prematurely dispatching null
-        try {
-          const { data: { session: activeSession } } = await supabase.auth.getSession();
-          if (!activeSession) {
-            callback(null);
-          }
-        } catch {
-          callback(null);
-        }
-      } else {
-        callback(null);
-      }
+      if (currentSeq !== latestAuthSequence) return;
+      callback(null);
     }
   });
 
@@ -432,19 +440,29 @@ export function onSupabaseAuthStateChange(
   };
 }
 
+// In-flight request deduplication map for fetchUserProfile
+const profileInFlight = new Map<string, Promise<SupabaseUserProfile | null>>();
+
 /**
  * Helper to fetch user profile from public.users with authoritative staff/admin resolution
  */
 export async function fetchUserProfile(uid: string): Promise<SupabaseUserProfile | null> {
-  try {
-    const { data } = await supabase
-      .from("users")
-      .select("*")
-      .or(`uid.eq.${uid},id.eq.${uid}`)
-      .maybeSingle();
+  if (!uid) return null;
+  const cleanUid = String(uid).trim();
+  if (profileInFlight.has(cleanUid)) {
+    return profileInFlight.get(cleanUid)!;
+  }
 
-    let staffData: any = null;
-    const userEmail = (data?.email || "").toLowerCase().trim();
+  const promise = (async (): Promise<SupabaseUserProfile | null> => {
+    try {
+      const { data } = await supabase
+        .from("users")
+        .select("*")
+        .or(`uid.eq.${cleanUid},id.eq.${cleanUid}`)
+        .maybeSingle();
+
+      let staffData: any = null;
+      const userEmail = (data?.email || "").toLowerCase().trim();
 
     try {
       let staffQuery = supabase.from("staff").select("*");
@@ -547,6 +565,16 @@ export async function fetchUserProfile(uid: string): Promise<SupabaseUserProfile
     }
   } catch {}
   return null;
+})();
+
+  profileInFlight.set(cleanUid, promise);
+  promise.finally(() => {
+    setTimeout(() => {
+      profileInFlight.delete(cleanUid);
+    }, 2500);
+  });
+
+  return promise;
 }
 
 /**
