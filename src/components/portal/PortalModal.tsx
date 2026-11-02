@@ -36,6 +36,28 @@ interface PortalModalProps {
   onUserChange?: (user: any | null) => void;
 }
 
+// Helper to quickly detect if any session token exists locally before triggering async auth
+function hasStoredAuthSession(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (
+      localStorage.getItem("kb_current_user") ||
+      localStorage.getItem("kb_supabase_token") ||
+      localStorage.getItem("kb_staff_session") ||
+      sessionStorage.getItem("kb_staff_session")
+    ) {
+      return true;
+    }
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i) || "";
+      if (k.startsWith("sb-") && k.endsWith("-auth-token")) {
+        return true;
+      }
+    }
+  } catch {}
+  return false;
+}
+
 export default function PortalModal({ 
   isOpen, 
   onClose, 
@@ -78,7 +100,11 @@ export default function PortalModal({
     if (initialRole === "partner") return "partner";
     return "customer";
   });
-  const [loading, setLoading] = useState<boolean>(() => !initialUser && forcedRole !== "partner");
+  // If user is already provided or no stored session exists, never block on loading
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (initialUser || forcedRole === "partner") return false;
+    return hasStoredAuthSession();
+  });
   const [toasts, setToasts] = useState<{ id: string; bn: string; en: string }[]>([]);
 
   const getTranslation = createTranslator(lang);
@@ -132,6 +158,9 @@ export default function PortalModal({
         setActivePortalTab("customer");
       }
       setLoading(false);
+    } else if (!initialUser && !hasStoredAuthSession()) {
+      setCurrentUser(null);
+      setLoading(false);
     }
   }, [initialUser, forcedRole]);
 
@@ -148,6 +177,7 @@ export default function PortalModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    let isMounted = true;
 
     // Check for existing Partner Session first
     const partnerSession = getCurrentPartnerSession();
@@ -169,14 +199,17 @@ export default function PortalModal({
       }
     }
 
+    // Hard safety timeout: Spinner MUST NEVER remain visible for more than 1000ms
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted) {
+        setLoading(false);
+      }
+    }, 1000);
+
     const handleUserSession = async (user: any, sbAccessToken?: string) => {
-      if (!user) {
-        const hasSession = Boolean(
-          localStorage.getItem("kb_current_user") ||
-          localStorage.getItem("kb_staff_session") ||
-          sessionStorage.getItem("kb_staff_session")
-        );
-        if (!hasSession) {
+      if (!isMounted) return;
+      try {
+        if (!user) {
           setCurrentUser(null);
           const resolvedRole = (forcedRole && forcedRole !== "customer") ? forcedRole : "customer";
           setUserRole(resolvedRole);
@@ -184,21 +217,7 @@ export default function PortalModal({
           setLoading(false);
           return;
         }
-        if (currentUser || initialUser) {
-          return;
-        }
-        setCurrentUser(null);
-        const resolvedRole = (forcedRole && forcedRole !== "customer") ? forcedRole : "customer";
-        setUserRole(resolvedRole);
-        setActivePortalTab(resolvedRole);
-        setLoading(false);
-        return;
-      }
 
-      if (!currentUser && !initialUser) {
-        setLoading(true);
-      }
-      try {
         const uid = user.uid || user.id;
         const email = (user.email || "").toLowerCase().trim();
 
@@ -252,6 +271,7 @@ export default function PortalModal({
               console.warn("Notice authenticating staff session:", sessErr);
             }
 
+            if (!isMounted) return;
             setCurrentUser(adminUserObj);
             setUserRole("admin");
             setActivePortalTab("admin");
@@ -261,6 +281,7 @@ export default function PortalModal({
             // User is currently authenticated as customer, but opened admin panel:
             // Allow them to see the admin login interface without throwing an error or signing out
             if (user && (user.role === "customer" || !user.role)) {
+              if (!isMounted) return;
               setCurrentUser(user);
               setUserRole("customer");
               if (forcedRole === "admin") {
@@ -273,6 +294,7 @@ export default function PortalModal({
             }
             await supabaseSignOut().catch(() => {});
             await signOut(auth).catch(() => {});
+            if (!isMounted) return;
             setCurrentUser(null);
             setUserRole(forcedRole === "admin" ? "admin" : "customer");
             setActivePortalTab(forcedRole === "admin" ? "admin" : "customer");
@@ -301,10 +323,13 @@ export default function PortalModal({
             }
           } catch {}
 
+          if (!isMounted) return;
+
           if (isSellerUser) {
             if (sellerStatus === "rejected") {
               await supabaseSignOut().catch(() => {});
               await signOut(auth).catch(() => {});
+              if (!isMounted) return;
               setCurrentUser(null);
               setUserRole("customer");
               triggerToast(
@@ -330,6 +355,7 @@ export default function PortalModal({
           } else {
             await supabaseSignOut().catch(() => {});
             await signOut(auth).catch(() => {});
+            if (!isMounted) return;
             setCurrentUser(null);
             setUserRole("customer");
             triggerToast(
@@ -361,10 +387,13 @@ export default function PortalModal({
             }
           } catch {}
 
+          if (!isMounted) return;
+
           if (isRiderUser) {
             if (riderStatus === "rejected") {
               await supabaseSignOut().catch(() => {});
               await signOut(auth).catch(() => {});
+              if (!isMounted) return;
               setCurrentUser(null);
               setUserRole("customer");
               triggerToast(
@@ -390,6 +419,7 @@ export default function PortalModal({
           } else {
             await supabaseSignOut().catch(() => {});
             await signOut(auth).catch(() => {});
+            if (!isMounted) return;
             setCurrentUser(null);
             setUserRole("customer");
             triggerToast(
@@ -403,6 +433,8 @@ export default function PortalModal({
           // Customer App default authentication handling
           // Check if admin
           const isAdminUser = await checkIsSupabaseAdmin(uid, email);
+
+          if (!isMounted) return;
 
           if (isAdminUser) {
             setCurrentUser({
@@ -518,6 +550,7 @@ export default function PortalModal({
             }
           }
 
+          if (!isMounted) return;
           const targetRole = (userData?.role || "customer") as any;
           setCurrentUser(userData);
           setUserRole(targetRole);
@@ -529,23 +562,49 @@ export default function PortalModal({
         }
       } catch (err) {
         console.warn("Notice in portal user session handling:", err);
-        setLoading(false);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
-    // 1. Initial check with Supabase user
-    getSupabaseUser().then((sbU) => {
-      if (sbU) {
+    // If initialUser was already supplied, use it immediately
+    if (initialUser) {
+      handleUserSession(initialUser);
+    } else if (!hasStoredAuthSession()) {
+      // No stored session exists; finish loading immediately without waiting for network
+      setLoading(false);
+    } else {
+      // Initial check with Supabase user
+      getSupabaseUser()
+        .then((sbU) => {
+          if (isMounted) {
+            handleUserSession(sbU);
+          }
+        })
+        .catch(() => {
+          if (isMounted) {
+            handleUserSession(null);
+          }
+        })
+        .finally(() => {
+          if (isMounted) {
+            setLoading(false);
+          }
+        });
+    }
+
+    // Subscribe to Supabase Auth state changes (Primary & Single Source of Truth)
+    const unsubSb = onSupabaseAuthStateChange((sbU) => {
+      if (isMounted) {
         handleUserSession(sbU);
       }
     });
 
-    // 2. Subscribe to Supabase Auth state changes (Primary & Single Source of Truth)
-    const unsubSb = onSupabaseAuthStateChange((sbU) => {
-      handleUserSession(sbU);
-    });
-
     return () => {
+      isMounted = false;
+      clearTimeout(safetyTimeout);
       unsubSb();
     };
   }, [isOpen, forcedRole]);
@@ -762,9 +821,18 @@ export default function PortalModal({
         {/* Content body */}
         <div className="flex-1 min-h-0 bg-slate-50 overflow-hidden flex flex-col">
           {loading ? (
-            <div className="flex flex-col items-center justify-center h-full space-y-3">
+            <div className="flex flex-col items-center justify-center h-full space-y-4 p-6 text-center">
               <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin" />
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Loading Cloud Session...</p>
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                {lang === "bn" ? "সেশন যাচাই করা হচ্ছে..." : "Loading Session..."}
+              </p>
+              <button
+                type="button"
+                onClick={() => setLoading(false)}
+                className="mt-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-4 py-1.5 rounded-full transition cursor-pointer border border-emerald-200"
+              >
+                {lang === "bn" ? "সরাসরি লগইনে যান" : "Continue to Login"}
+              </button>
             </div>
           ) : !currentUser ? (
             <div className="h-full flex items-center justify-center p-4 py-12 overflow-y-auto">

@@ -636,7 +636,11 @@ export async function saveUserProfile(profile: SupabaseUserProfile): Promise<voi
  */
 export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const sessionPromise = supabase.auth.getSession();
+    const timeoutPromise = new Promise<{ data: { session: any } }>((resolve) => {
+      setTimeout(() => resolve({ data: { session: null } }), 3500);
+    });
+    const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
     if (session?.user) {
       const uid = session.user.id;
       const cleanEmail = (session.user.email || "").toLowerCase().trim();
