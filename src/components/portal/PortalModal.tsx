@@ -752,10 +752,15 @@ export default function PortalModal({
 
   const handleLogout = async () => {
     try {
+      // 1. Immediately reset portal state and partner session synchronously
       logoutPartnerSession();
       setCurrentPartner(null);
-      await supabaseSignOut().catch(() => {});
-      await signOut(auth).catch(() => {});
+      setCurrentUser(null);
+      setUserRole("customer");
+      setActivePortalTab("customer");
+      setLoading(false);
+
+      // 2. Immediately purge all credentials and session caches
       try {
         if (typeof window !== "undefined") {
           for (let i = localStorage.length - 1; i >= 0; i--) {
@@ -766,7 +771,11 @@ export default function PortalModal({
               key.startsWith("kb_") ||
               key === "kacha_user_session" ||
               key === "user_role" ||
-              key === "current_partner"
+              key === "current_partner" ||
+              key === "kb_current_user" ||
+              key === "kb_user_photo" ||
+              key === "kb_supabase_token" ||
+              key === "kb_staff_session"
             )) {
               localStorage.removeItem(key);
             }
@@ -774,17 +783,20 @@ export default function PortalModal({
           sessionStorage.clear();
         }
       } catch (e) {}
-      window.dispatchEvent(new CustomEvent("kb_user_logout"));
-      setCurrentUser(null);
-      setUserRole("customer");
-      setActivePortalTab("customer");
+
+      // 3. Immediately inform parent App component and broadcast global logout event
       onUserChange?.(null);
+      window.dispatchEvent(new CustomEvent("kb_user_logout"));
+
+      // 4. Trigger positive confirmation toast
       triggerToast(
         "সফলভাবে লগআউট করা হয়েছে।",
         "Successfully logged out of your session."
       );
-      // Close the modal cleanly upon logout to prevent any residual interaction
-      onClose();
+
+      // 5. Fire background network cleanup (non-blocking)
+      supabaseSignOut().catch(() => {});
+      signOut(auth).catch(() => {});
     } catch (err) {
       console.error("Signout error:", err);
     }

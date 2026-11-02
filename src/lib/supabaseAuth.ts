@@ -102,14 +102,14 @@ export async function supabaseSignInWithEmail(
     let authData: any = null;
     let authError: any = null;
 
-    // Fast client-side authentication attempt (6-second race to avoid blocking the user)
+    // Resilient client-side authentication attempt (9-second race to accommodate mobile latencies)
     try {
       const authPromise = supabase.auth.signInWithPassword({
         email: cleanEmail,
         password: pass
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("CLIENT_TIMEOUT")), 6000)
+        setTimeout(() => reject(new Error("CLIENT_TIMEOUT")), 9000)
       );
 
       const res = (await Promise.race([authPromise, timeoutPromise])) as any;
@@ -416,20 +416,7 @@ export async function supabaseSignInWithGoogle(): Promise<{ success: boolean; er
  * Sign Out
  */
 export async function supabaseSignOut(): Promise<void> {
-  // 1. Revoke active server staff/user session
-  try {
-    await apiClient.post("/api/auth/logout", {}, { silent: true });
-  } catch {}
-
-  // 2. Local and global Supabase auth sign out
-  try {
-    await (supabase.auth as any).signOut({ scope: "local" });
-  } catch {}
-  try {
-    await supabase.auth.signOut();
-  } catch {}
-
-  // 3. Exhaustive session cleanup from localStorage & sessionStorage
+  // 1. Exhaustive session cleanup from localStorage & sessionStorage FIRST (instant client-side logout)
   try {
     if (typeof window !== "undefined") {
       for (let i = localStorage.length - 1; i >= 0; i--) {
@@ -460,6 +447,17 @@ export async function supabaseSignOut(): Promise<void> {
   sessionStorage.removeItem("kb_staff_session");
   localStorage.removeItem("kb_current_user");
   localStorage.removeItem("kb_user_photo");
+
+  // 2. Revoke active server staff/user session in background (non-blocking with 2s timeout)
+  apiClient.post("/api/auth/logout", {}, { silent: true, timeoutMs: 2000 }).catch(() => {});
+
+  // 3. Local and global Supabase auth sign out in background (non-blocking)
+  try {
+    (supabase.auth as any).signOut({ scope: "local" }).catch(() => {});
+  } catch {}
+  try {
+    supabase.auth.signOut().catch(() => {});
+  } catch {}
 }
 
 /**

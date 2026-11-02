@@ -12,6 +12,7 @@ import {
   supabaseSendPasswordResetEmail,
   supabaseSignOut,
   checkIsSupabaseAdmin,
+  saveUserProfile,
   SUPER_ADMIN_EMAILS
 } from "../../lib/supabaseAuth";
 import { supabase } from "../../lib/supabase";
@@ -501,6 +502,7 @@ export default function AuthView({
             email: `${formattedPhone.replace(/[^\d]/g, "")}@megabazar.com`,
             role: "customer"
           };
+          saveUserProfile(newProfile as any).catch(() => {});
           if (isMountedRef.current) {
             onAuthSuccess(newProfile, "customer");
           }
@@ -548,7 +550,7 @@ export default function AuthView({
     setLoading(true);
     isSubmittingRef.current = true;
 
-    // Timeout safety fallback (15s)
+    // Timeout safety fallback (20s for mobile network resilience)
     const timeoutId = setTimeout(() => {
       if (isMountedRef.current && isSubmittingRef.current) {
         setLoading(false);
@@ -558,7 +560,7 @@ export default function AuthView({
           "Request timed out. Please check your internet connection and try again."
         ));
       }
-    }, 15000);
+    }, 20000);
 
     try {
       if (isLogin) {
