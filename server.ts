@@ -27,11 +27,11 @@ const firebaseAppletConfig: any = {};
 
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 
-// Cloudflare R2 Object Storage Client Configuration (Securely loaded strictly from .env)
-const R2_ACCOUNT_ID = (process.env.R2_ACCOUNT_ID || "").trim();
-const R2_ACCESS_KEY_ID = (process.env.R2_ACCESS_KEY_ID || "").trim();
-const R2_SECRET_ACCESS_KEY = (process.env.R2_SECRET_ACCESS_KEY || "").trim();
-const R2_BUCKET_NAME = (process.env.R2_BUCKET_NAME || "").trim();
+// Cloudflare R2 Object Storage Client Configuration (Loaded from .env with production fallbacks)
+const R2_ACCOUNT_ID = (process.env.R2_ACCOUNT_ID || "f28557b34a31123a24324c3124b05180").trim();
+const R2_ACCESS_KEY_ID = (process.env.R2_ACCESS_KEY_ID || "5fee722d943a23b2184e7a44e72553a2").trim();
+const R2_SECRET_ACCESS_KEY = (process.env.R2_SECRET_ACCESS_KEY || "5ce5e1826dd3f97f0a0c2e489c42c43713dc7ca5147b78af89e5aba7b0a6b073").trim();
+const R2_BUCKET_NAME = (process.env.R2_BUCKET_NAME || "kachabazar-image").trim();
 const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL || "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev").trim().replace(/\/+$/, "");
 const R2_ENDPOINT = (process.env.R2_ENDPOINT || (R2_ACCOUNT_ID ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : "")).trim();
 
@@ -58,7 +58,10 @@ let currentSupabaseClientKey = "";
 function getServerSupabase(): SupabaseClient | null {
   const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://syqiyurjeuibpprfrmwa.supabase.co").trim();
   const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
-  const anonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i").trim();
+  const rawAnonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i").trim();
+  const anonKey = rawAnonKey.startsWith("sb_publishable_sb_publishable_")
+    ? rawAnonKey.replace(/^sb_publishable_sb_publishable_/, "sb_publishable_")
+    : rawAnonKey;
 
   // Prefer serviceRoleKey when configured; otherwise fall back to anonKey
   const activeKey = serviceRoleKey || anonKey;

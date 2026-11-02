@@ -6,10 +6,15 @@ export const SUPABASE_URL: string = (
   "https://syqiyurjeuibpprfrmwa.supabase.co"
 ).trim();
 
-export const SUPABASE_ANON_KEY: string = (
+const rawAnonKey: string = (
   ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string) || 
   "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i"
 ).trim();
+
+// Auto-sanitize accidental double prefix (e.g. sb_publishable_sb_publishable_...)
+export const SUPABASE_ANON_KEY: string = rawAnonKey.startsWith("sb_publishable_sb_publishable_")
+  ? rawAnonKey.replace(/^sb_publishable_sb_publishable_/, "sb_publishable_")
+  : rawAnonKey;
 
 export const isSupabaseConfigured = Boolean(
   SUPABASE_URL && 
