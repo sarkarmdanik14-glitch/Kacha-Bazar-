@@ -129,10 +129,12 @@ export async function apiRequest<T = any>(
       if (value) headers.set(key, value);
     }
 
-    // Dynamic Supabase Auth token resolution if missing from headers
+    // Dynamic Supabase Auth token resolution if missing from headers (fast 500ms safety race)
     if (!headers.has("Authorization") && typeof window !== "undefined") {
       try {
-        const { data } = await supabase.auth.getSession();
+        const sessionPromise = supabase.auth.getSession();
+        const sessionTimeout = new Promise<any>((resolve) => setTimeout(() => resolve({ data: { session: null } }), 500));
+        const { data } = await Promise.race([sessionPromise, sessionTimeout]);
         const freshToken = data?.session?.access_token;
         if (freshToken) {
           headers.set("Authorization", `Bearer ${freshToken}`);

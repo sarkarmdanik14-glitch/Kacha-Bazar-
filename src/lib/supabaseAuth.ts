@@ -4,7 +4,7 @@
  * backed by PostgreSQL 'users', 'staff', 'sellers', and 'riders' tables.
  */
 
-import { supabase } from "./supabase";
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase";
 import { apiClient } from "./apiClient";
 import { generateMemberId } from "./memberIdUtils";
 
@@ -102,14 +102,14 @@ export async function supabaseSignInWithEmail(
     let authData: any = null;
     let authError: any = null;
 
-    // Resilient client-side authentication attempt (9-second race to accommodate mobile latencies)
+    // Fast client-side authentication attempt (3.5-second race to prevent user wait)
     try {
       const authPromise = supabase.auth.signInWithPassword({
         email: cleanEmail,
         password: pass
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("CLIENT_TIMEOUT")), 9000)
+        setTimeout(() => reject(new Error("CLIENT_TIMEOUT")), 4500)
       );
 
       const res = (await Promise.race([authPromise, timeoutPromise])) as any;
@@ -133,14 +133,51 @@ export async function supabaseSignInWithEmail(
       }
     }
 
-    // 3. If client failed (Timeout, Brave Shields blocking supabase.co, or network delay):
-    // Rescue immediately using server-side Supabase verification proxy
+    // 3. If SDK direct call timed out or was blocked by browser shields:
+    // Try Direct Supabase REST API (works on static Cloudflare Pages without backend server!)
+    if (!authData?.user) {
+      try {
+        const directResp = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+          method: "POST",
+          headers: {
+            "apikey": SUPABASE_ANON_KEY,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ email: cleanEmail, password: pass })
+        });
+        const directData = await directResp.json();
+        if (directResp.ok && directData?.user) {
+          authData = directData;
+          try {
+            await supabase.auth.setSession({
+              access_token: directData.access_token,
+              refresh_token: directData.refresh_token
+            });
+          } catch {}
+        } else if (directData?.error_description || directData?.msg || directData?.message) {
+          const directMsg = (directData.error_description || directData.msg || directData.message || "").toLowerCase();
+          if (directMsg.includes("invalid login credentials") || directMsg.includes("invalid credentials")) {
+            return { success: false, error: "ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।" };
+          }
+          if (directMsg.includes("email not confirmed")) {
+            return {
+              success: false,
+              error: "ইমেইল কনফার্মেশন সম্পন্ন হয়নি! অনুগ্রহ করে আপনার ইমেইল ইনবক্স চেক করে লিঙ্কটিতে ক্লিক করুন।"
+            };
+          }
+        }
+      } catch (directErr) {
+        // Direct fetch failed, proceed to server proxy rescue
+      }
+    }
+
+    // 4. If still not authenticated, try server-side verification proxy as ultimate safety
     if (!authData?.user) {
       try {
         const fallbackRes = await apiClient.post<any>("/api/auth/login-verify", {
           identifier: cleanEmail,
           password: pass
-        }, { silent: true, timeoutMs: 8000 });
+        }, { silent: true, timeoutMs: 6000, skipAuth: true });
 
         if (fallbackRes?.success && fallbackRes?.user) {
           const u = fallbackRes.user;
@@ -148,10 +185,12 @@ export async function supabaseSignInWithEmail(
 
           if (fallbackRes.session) {
             try {
-              await supabase.auth.setSession({
+              const setSessionPromise = supabase.auth.setSession({
                 access_token: fallbackRes.session.access_token,
                 refresh_token: fallbackRes.session.refresh_token
               });
+              const setSessionTimeout = new Promise((resolve) => setTimeout(resolve, 800));
+              await Promise.race([setSessionPromise, setSessionTimeout]);
             } catch {}
           }
 
@@ -185,7 +224,7 @@ export async function supabaseSignInWithEmail(
           return { success: false, error: fallbackRes.error };
         }
       } catch {
-        // Both attempts encountered network trouble
+        // Network trouble
       }
 
       if (authError && authError.message && authError.message !== "CLIENT_TIMEOUT") {
@@ -474,6 +513,13 @@ export async function supabaseSignOut(): Promise<void> {
   try {
     supabase.auth.signOut().catch(() => {});
   } catch {}
+
+  // 4. Synchronously notify the entire application that user has logged out
+  if (typeof window !== "undefined") {
+    try {
+      window.dispatchEvent(new CustomEvent("kb_user_logout"));
+    } catch {}
+  }
 }
 
 /**

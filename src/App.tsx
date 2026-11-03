@@ -282,6 +282,15 @@ export default function App() {
   });
   const [loggedInUser, setLoggedInUser] = useState<any | null>(() => {
     try {
+      const hasToken = Boolean(
+        localStorage.getItem("kb_supabase_token") || 
+        sessionStorage.getItem("kb_supabase_token") ||
+        localStorage.getItem("kb_staff_session")
+      );
+      if (!hasToken) {
+        localStorage.removeItem("kb_current_user");
+        return null;
+      }
       const saved = localStorage.getItem("kb_current_user");
       return saved ? JSON.parse(saved) : null;
     } catch {
@@ -290,6 +299,12 @@ export default function App() {
   });
   const [userRole, setUserRole] = useState<string>(() => {
     try {
+      const hasToken = Boolean(
+        localStorage.getItem("kb_supabase_token") || 
+        sessionStorage.getItem("kb_supabase_token") ||
+        localStorage.getItem("kb_staff_session")
+      );
+      if (!hasToken) return "customer";
       const saved = localStorage.getItem("kb_current_user");
       const u = saved ? JSON.parse(saved) : null;
       return u?.role || "customer";
@@ -299,6 +314,12 @@ export default function App() {
   });
   const [userReferralCode, setUserReferralCode] = useState<string>(() => {
     try {
+      const hasToken = Boolean(
+        localStorage.getItem("kb_supabase_token") || 
+        sessionStorage.getItem("kb_supabase_token") ||
+        localStorage.getItem("kb_staff_session")
+      );
+      if (!hasToken) return "";
       const saved = localStorage.getItem("kb_current_user");
       const u = saved ? JSON.parse(saved) : null;
       return u?.referralCode || "";
@@ -308,6 +329,12 @@ export default function App() {
   });
   const [userProfilePhoto, setUserProfilePhoto] = useState<string>(() => {
     try {
+      const hasToken = Boolean(
+        localStorage.getItem("kb_supabase_token") || 
+        sessionStorage.getItem("kb_supabase_token") ||
+        localStorage.getItem("kb_staff_session")
+      );
+      if (!hasToken) return "";
       const savedPhoto = localStorage.getItem("kb_user_photo");
       if (savedPhoto) return savedPhoto;
       const saved = localStorage.getItem("kb_current_user");
@@ -849,9 +876,15 @@ export default function App() {
           } catch {}
         }
 
-        // Restore saved local user session if present
+        // Restore saved local user session ONLY if an active auth token is legitimately present
         const savedStr = localStorage.getItem("kb_current_user");
-        if (savedStr) {
+        const hasActiveToken = Boolean(
+          localStorage.getItem("kb_supabase_token") || 
+          sessionStorage.getItem("kb_supabase_token") ||
+          localStorage.getItem("kb_staff_session")
+        );
+
+        if (savedStr && hasActiveToken) {
           try {
             const savedUser = JSON.parse(savedStr);
             if (savedUser && isMounted) {
@@ -869,6 +902,11 @@ export default function App() {
               }
               return;
             }
+          } catch {}
+        } else if (savedStr && !hasActiveToken) {
+          // Stale zombie session detected without valid token - cleanly purge
+          try {
+            localStorage.removeItem("kb_current_user");
           } catch {}
         }
 

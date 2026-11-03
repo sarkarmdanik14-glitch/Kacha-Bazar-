@@ -83,8 +83,8 @@ export const VEHICLES_CATEGORY: Category = {
   borderColor: "border-blue-100",
   displayOrder: 17,
   order: 17,
-  image: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=600&auto=format&fit=crop&q=80",
-  imageUrl: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=600&auto=format&fit=crop&q=80",
+  image: "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev/categories/Gemini_Generated_Image_17jl4517jl4517jl.jpg",
+  imageUrl: "https://pub-8c990c8869bf42c8b8248b786e5a546d.r2.dev/categories/Gemini_Generated_Image_17jl4517jl4517jl.jpg",
   isAvailable: true
 };
 
@@ -628,10 +628,6 @@ export function mergeCategoryCards(categories: any[]): any[] {
         cat.id !== "mobiles")
     ) {
       continue;
-    }
-
-    if (cat.id === "vehicles" || cat.id === "transport" || cat.id === "car-rental") {
-      vehiclesAdded = true;
     }
 
     // 0. Mobile Zone -> Ensure only one card exists, with ID "mobile-zone"

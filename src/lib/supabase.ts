@@ -132,8 +132,6 @@ export const supabase: SupabaseClient = isSupabaseConfigured
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        // Prevent browser navigator.locks deadlocks (especially across multiple tabs or Brave Shields)
-        lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<any>) => fn(),
       },
     })
   : createMockSupabaseClient();
