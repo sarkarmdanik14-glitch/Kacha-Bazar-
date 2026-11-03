@@ -97,30 +97,14 @@ export async function supabaseSignInWithEmail(
     }
   }
 
-  // 2. Authenticate with Supabase Auth (Fast Client Direct attempt + Instant Server Proxy Fallback)
+  // 2. Direct, standard Supabase Auth call (Pure and robust without artificial CLIENT_TIMEOUT)
   try {
-    let authData: any = null;
-    let authError: any = null;
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password: pass
+    });
 
-    // Fast client-side authentication attempt (3.5-second race to prevent user wait)
-    try {
-      const authPromise = supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: pass
-      });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("CLIENT_TIMEOUT")), 4500)
-      );
-
-      const res = (await Promise.race([authPromise, timeoutPromise])) as any;
-      authData = res?.data;
-      authError = res?.error;
-    } catch (clientErr: any) {
-      authError = clientErr;
-    }
-
-    // Check for explicit wrong credentials on client
-    if (authError && authError.message !== "CLIENT_TIMEOUT") {
+    if (authError) {
       const msg = (authError.message || "").toLowerCase();
       if (msg.includes("invalid login credentials") || msg.includes("invalid credentials")) {
         return { success: false, error: "ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।" };
@@ -131,126 +115,17 @@ export async function supabaseSignInWithEmail(
           error: "ইমেইল কনফার্মেশন সম্পন্ন হয়নি! অনুগ্রহ করে আপনার ইমেইল ইনবক্স চেক করে লিঙ্কটিতে ক্লিক করুন।"
         };
       }
+      if (msg.includes("failed to fetch") || msg.includes("networkerror") || msg.includes("fetch failed")) {
+        return {
+          success: false,
+          error: "ইন্টারনেট সংযোগে সমস্যা দেখা দিয়েছে। অনুগ্রহ করে আপনার ইন্টারনেট কানেকশন চেক করে আবার চেষ্টা করুন।"
+        };
+      }
+      return { success: false, error: authError.message || "ভুল ইমেইল বা পাসওয়ার্ড!" };
     }
 
-    // 3. If SDK direct call timed out or was blocked by browser shields:
-    // Try Direct Supabase REST API (works on static Cloudflare Pages without backend server!)
     if (!authData?.user) {
-      try {
-        const directResp = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-          method: "POST",
-          headers: {
-            "apikey": SUPABASE_ANON_KEY,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ email: cleanEmail, password: pass })
-        });
-        const directData = await directResp.json();
-        if (directResp.ok && directData?.user) {
-          authData = directData;
-          try {
-            await supabase.auth.setSession({
-              access_token: directData.access_token,
-              refresh_token: directData.refresh_token
-            });
-          } catch {}
-        } else if (directData?.error_description || directData?.msg || directData?.message) {
-          const directMsg = (directData.error_description || directData.msg || directData.message || "").toLowerCase();
-          if (directMsg.includes("invalid login credentials") || directMsg.includes("invalid credentials")) {
-            return { success: false, error: "ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।" };
-          }
-          if (directMsg.includes("email not confirmed")) {
-            return {
-              success: false,
-              error: "ইমেইল কনফার্মেশন সম্পন্ন হয়নি! অনুগ্রহ করে আপনার ইমেইল ইনবক্স চেক করে লিঙ্কটিতে ক্লিক করুন।"
-            };
-          }
-        }
-      } catch (directErr) {
-        // Direct fetch failed, proceed to server proxy rescue
-      }
-    }
-
-    // 4. If still not authenticated, try server-side verification proxy as ultimate safety
-    if (!authData?.user) {
-      try {
-        const fallbackRes = await apiClient.post<any>("/api/auth/login-verify", {
-          identifier: cleanEmail,
-          password: pass
-        }, { silent: true, timeoutMs: 6000, skipAuth: true });
-
-        if (fallbackRes?.success && fallbackRes?.user) {
-          const u = fallbackRes.user;
-          const targetRole = fallbackRes.role || "customer";
-
-          if (fallbackRes.session) {
-            try {
-              const setSessionPromise = supabase.auth.setSession({
-                access_token: fallbackRes.session.access_token,
-                refresh_token: fallbackRes.session.refresh_token
-              });
-              const setSessionTimeout = new Promise((resolve) => setTimeout(resolve, 800));
-              await Promise.race([setSessionPromise, setSessionTimeout]);
-            } catch {}
-          }
-
-          if (fallbackRes.session?.access_token || u.accessToken) {
-            const token = fallbackRes.session?.access_token || u.accessToken;
-            try {
-              localStorage.setItem("kb_supabase_token", token);
-              sessionStorage.setItem("kb_supabase_token", token);
-            } catch {}
-          }
-
-          const fallbackProfile: SupabaseUserProfile = {
-            uid: u.uid || u.id,
-            id: u.id || u.uid,
-            email: u.email || cleanEmail,
-            displayName: u.displayName || u.fullName || "গ্রাহক",
-            fullName: u.fullName || u.displayName || "গ্রাহক",
-            phone: u.phone || "",
-            phoneNumber: u.phone || "",
-            role: targetRole as any,
-            isSuperAdmin: targetRole === "super_admin" || SUPER_ADMIN_EMAILS.has((u.email || cleanEmail).toLowerCase()),
-            photoURL: u.photoURL || ""
-          };
-
-          return {
-            success: true,
-            user: fallbackProfile,
-            role: targetRole
-          };
-        } else if (fallbackRes?.error) {
-          return { success: false, error: fallbackRes.error };
-        }
-      } catch {
-        // Network trouble
-      }
-
-      if (authError && authError.message && authError.message !== "CLIENT_TIMEOUT") {
-        const rawMsg = (authError.message || "").toLowerCase();
-        if (rawMsg.includes("failed to fetch") || rawMsg.includes("networkerror") || rawMsg.includes("fetch failed")) {
-          return {
-            success: false,
-            error: "সার্ভারের সাথে সংযোগ স্থাপন করা যায়নি (Failed to fetch)। অনুগ্রহ করে আপনার ইন্টারনেট সংযোগ অথবা Supabase প্রজেক্ট সচল (Active) আছে কিনা পরীক্ষা করুন।"
-          };
-        }
-        if (rawMsg.includes("invalid login credentials") || rawMsg.includes("invalid credentials")) {
-          return { success: false, error: "ভুল ইমেইল বা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।" };
-        }
-        if (rawMsg.includes("email not confirmed")) {
-          return {
-            success: false,
-            error: "ইমেইল কনফার্মেশন সম্পন্ন হয়নি! অনুগ্রহ করে আপনার ইমেইল ইনবক্স চেক করে লিঙ্কটিতে ক্লিক করুন।"
-          };
-        }
-        return { success: false, error: authError.message || "ভুল ইমেইল বা পাসওয়ার্ড!" };
-      }
-
-      return {
-        success: false,
-        error: "লগইন করতে সময় বেশি লেগেছে। অনুগ্রহ করে ইন্টারনেট সংযোগ চেক করে আবার চেষ্টা করুন।"
-      };
+      return { success: false, error: "লগইন সম্পন্ন করা সম্ভব হয়নি। অনুগ্রহ করে আবার চেষ্টা করুন।" };
     }
 
     const uid = authData.user.id;
@@ -264,16 +139,24 @@ export async function supabaseSignInWithEmail(
 
     // 4. Fetch user profile from public.users table (with safe 3.5s timeout)
     let profile: SupabaseUserProfile | null = null;
+    let isProfileFetchTimeoutOrError = false;
     try {
       const profilePromise = fetchUserProfile(uid);
-      const profileTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500));
-      profile = await Promise.race([profilePromise, profileTimeout]);
-    } catch {}
+      const profileTimeout = new Promise<"FETCH_TIMEOUT">((resolve) => setTimeout(() => resolve("FETCH_TIMEOUT"), 3500));
+      const res = await Promise.race([profilePromise, profileTimeout]);
+      if (res === "FETCH_TIMEOUT") {
+        isProfileFetchTimeoutOrError = true;
+      } else {
+        profile = res;
+      }
+    } catch {
+      isProfileFetchTimeoutOrError = true;
+    }
 
     const isSuperAdminEmail = SUPER_ADMIN_EMAILS.has(lowerEmail);
 
     if (!profile) {
-      // Auto-create user profile in public.users if not exists
+      // In-memory fallback profile from auth metadata so user is never blocked
       const meta = authData.user.user_metadata || {};
       const isDbAdmin = isSuperAdminEmail || (await checkIsSupabaseAdmin(uid, lowerEmail));
       const resolvedName = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (isDbAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
@@ -293,7 +176,11 @@ export async function supabaseSignInWithEmail(
         rewardPoints: 0,
         membershipTier: isDbAdmin ? "Platinum" : "Silver"
       };
-      saveUserProfile(profile).catch(() => {});
+
+      // Point 4: ONLY save into database if genuinely missing, NEVER on network timeout or query error
+      if (!isProfileFetchTimeoutOrError) {
+        saveUserProfile(profile).catch(() => {});
+      }
     } else if (isSuperAdminEmail) {
       profile.role = "super_admin";
       profile.isSuperAdmin = true;

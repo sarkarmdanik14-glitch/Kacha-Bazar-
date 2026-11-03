@@ -97,6 +97,7 @@ export default function AuthView({
 
   const isMountedRef = useRef<boolean>(true);
   const isSubmittingRef = useRef<boolean>(false);
+  const authRequestSeqRef = useRef<number>(0);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -549,10 +550,11 @@ export default function AuthView({
 
     setLoading(true);
     isSubmittingRef.current = true;
+    const currentRequestSeq = ++authRequestSeqRef.current;
 
     // Timeout safety fallback (20s for mobile network resilience)
     const timeoutId = setTimeout(() => {
-      if (isMountedRef.current && isSubmittingRef.current) {
+      if (isMountedRef.current && currentRequestSeq === authRequestSeqRef.current) {
         setLoading(false);
         isSubmittingRef.current = false;
         setError(getTranslation(
@@ -568,7 +570,7 @@ export default function AuthView({
         if (role === "partner" || email.trim().toUpperCase().startsWith("KB-SHOP-")) {
           const partnerRes = await loginPartnerWithCredentials(email, password);
           if (partnerRes.success && partnerRes.partner) {
-            if (isMountedRef.current) {
+            if (isMountedRef.current && currentRequestSeq === authRequestSeqRef.current) {
               onAuthSuccess(partnerRes.partner, "partner");
             }
             return;
@@ -579,6 +581,12 @@ export default function AuthView({
 
         // Single authoritative call to Supabase Auth login (handles server verification, Supabase Auth, and profile resolution)
         const sbRes = await supabaseSignInWithEmail(email, password, role);
+
+        // Point 1: Invalidate stale response if request was superseded or timed out
+        if (currentRequestSeq !== authRequestSeqRef.current) {
+          console.warn("[AuthView] Discarding stale login response from previous timed-out request");
+          return;
+        }
 
         if (!sbRes.success || !sbRes.user) {
           const errText = sbRes.error || "";
@@ -629,7 +637,7 @@ export default function AuthView({
           }
         }
 
-        if (isMountedRef.current) {
+        if (isMountedRef.current && currentRequestSeq === authRequestSeqRef.current) {
           onAuthSuccess(authenticatedUser, authenticatedRole);
         }
       } else {
@@ -1378,7 +1386,10 @@ export default function AuthView({
           className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white py-3 rounded-2xl text-xs font-black shadow-md hover:shadow-lg transition flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
           {loading ? (
-            <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            <span className="flex items-center justify-center space-x-2">
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              <span>{getTranslation("যাচাই করা হচ্ছে...", "Verifying...")}</span>
+            </span>
           ) : isLogin ? (
             <>
               <LogIn className="w-4 h-4" />

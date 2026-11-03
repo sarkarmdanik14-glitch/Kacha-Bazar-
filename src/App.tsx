@@ -280,70 +280,10 @@ export default function App() {
       return "";
     }
   });
-  const [loggedInUser, setLoggedInUser] = useState<any | null>(() => {
-    try {
-      const hasToken = Boolean(
-        localStorage.getItem("kb_supabase_token") || 
-        sessionStorage.getItem("kb_supabase_token") ||
-        localStorage.getItem("kb_staff_session")
-      );
-      if (!hasToken) {
-        localStorage.removeItem("kb_current_user");
-        return null;
-      }
-      const saved = localStorage.getItem("kb_current_user");
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [userRole, setUserRole] = useState<string>(() => {
-    try {
-      const hasToken = Boolean(
-        localStorage.getItem("kb_supabase_token") || 
-        sessionStorage.getItem("kb_supabase_token") ||
-        localStorage.getItem("kb_staff_session")
-      );
-      if (!hasToken) return "customer";
-      const saved = localStorage.getItem("kb_current_user");
-      const u = saved ? JSON.parse(saved) : null;
-      return u?.role || "customer";
-    } catch {
-      return "customer";
-    }
-  });
-  const [userReferralCode, setUserReferralCode] = useState<string>(() => {
-    try {
-      const hasToken = Boolean(
-        localStorage.getItem("kb_supabase_token") || 
-        sessionStorage.getItem("kb_supabase_token") ||
-        localStorage.getItem("kb_staff_session")
-      );
-      if (!hasToken) return "";
-      const saved = localStorage.getItem("kb_current_user");
-      const u = saved ? JSON.parse(saved) : null;
-      return u?.referralCode || "";
-    } catch {
-      return "";
-    }
-  });
-  const [userProfilePhoto, setUserProfilePhoto] = useState<string>(() => {
-    try {
-      const hasToken = Boolean(
-        localStorage.getItem("kb_supabase_token") || 
-        sessionStorage.getItem("kb_supabase_token") ||
-        localStorage.getItem("kb_staff_session")
-      );
-      if (!hasToken) return "";
-      const savedPhoto = localStorage.getItem("kb_user_photo");
-      if (savedPhoto) return savedPhoto;
-      const saved = localStorage.getItem("kb_current_user");
-      const u = saved ? JSON.parse(saved) : null;
-      return u?.photoURL || u?.photo_url || u?.avatar || "";
-    } catch {
-      return "";
-    }
-  });
+  const [loggedInUser, setLoggedInUser] = useState<any | null>(null);
+  const [userRole, setUserRole] = useState<string>("customer");
+  const [userReferralCode, setUserReferralCode] = useState<string>("");
+  const [userProfilePhoto, setUserProfilePhoto] = useState<string>("");
   const [photoLoadError, setPhotoLoadError] = useState<boolean>(false);
 
   // Toast Notifications
@@ -816,6 +756,21 @@ export default function App() {
   // Listen to Auth State and Fetch Referral Code & Merge Cart
   useEffect(() => {
     let isMounted = true;
+
+    // Point 3: Explicitly verify session validity with Supabase getSession() on boot
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (!isMounted) return;
+      if (!session?.user || error) {
+        // No valid active session in Supabase: ensure clean guest state
+        setLoggedInUser(null);
+        setUserRole("customer");
+        setUserProfilePhoto("");
+        try {
+          localStorage.removeItem("kb_current_user");
+          localStorage.removeItem("kb_supabase_token");
+        } catch {}
+      }
+    }).catch(() => {});
 
     // Single Authoritative Supabase Auth Listener (No race conditions, no duplicate queries)
     const unsubSb = onSupabaseAuthStateChange(async (sbUser) => {
