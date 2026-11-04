@@ -99,10 +99,23 @@ export async function supabaseSignInWithEmail(
 
   // 2. Direct, standard Supabase Auth call (Pure and robust without artificial CLIENT_TIMEOUT)
   try {
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    const signInPromise = supabase.auth.signInWithPassword({
       email: cleanEmail,
       password: pass
     });
+    const signInTimeout = new Promise<{ data: any; error: any; isTimeout: true }>((resolve) =>
+      setTimeout(() => resolve({ data: null, error: null, isTimeout: true }), 15000)
+    );
+
+    const raceResult = await Promise.race([signInPromise, signInTimeout]);
+    if ("isTimeout" in raceResult && raceResult.isTimeout) {
+      return {
+        success: false,
+        error: "সার্ভার সাড়া দিচ্ছে না। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।"
+      };
+    }
+
+    const { data: authData, error: authError } = raceResult;
 
     if (authError) {
       const msg = (authError.message || "").toLowerCase();
@@ -158,7 +171,10 @@ export async function supabaseSignInWithEmail(
     if (!profile) {
       // In-memory fallback profile from auth metadata so user is never blocked
       const meta = authData.user.user_metadata || {};
-      const isDbAdmin = isSuperAdminEmail || (await checkIsSupabaseAdmin(uid, lowerEmail));
+      const isDbAdmin = isSuperAdminEmail || (await Promise.race([
+        checkIsSupabaseAdmin(uid, lowerEmail),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000))
+      ]));
       const resolvedName = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (isDbAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
       profile = {
         uid,
@@ -434,7 +450,7 @@ let latestAuthSequence = 0;
 export function onSupabaseAuthStateChange(
   callback: (user: SupabaseUserProfile | null) => void
 ): () => void {
-  const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+  async function handleAuthChange(_event: string, session: any) {
     const currentSeq = ++latestAuthSequence;
 
     if (session?.user) {
@@ -476,6 +492,14 @@ export function onSupabaseAuthStateChange(
       if (currentSeq !== latestAuthSequence) return;
       callback(null);
     }
+  }
+
+  const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+    setTimeout(() => {
+      handleAuthChange(event, session).catch((e) =>
+        console.warn("[Supabase Auth] auth state handler error:", e)
+      );
+    }, 0);
   });
 
   return () => {
