@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, Share2, Eye, Plus, Minus, Trash2, X, 
   MapPin, Bell, User, Check, Send, Tag, Gift, Award, Smartphone, 
   QrCode, ArrowRight, ArrowLeft, ThumbsUp, Info, ChevronDown, ChevronUp, CheckCircle, Percent, Volume2,
-  Phone, PhoneCall, Mail, ExternalLink, Navigation, Locate, Copy, Zap, Printer, Download, FileText, Loader2, Wifi, WifiOff, MessageSquare, Globe, Home, Utensils, Pill, Repeat
+  Phone, PhoneCall, Mail, ExternalLink, Navigation, Locate, Copy, Zap, Printer, Download, FileText, Loader2, Wifi, WifiOff, MessageSquare, Globe, Home, Utensils, Pill, Repeat, Radio
 } from "lucide-react";
 import BuySellMarketplace from "./components/buysell/BuySellMarketplace";
 import OrderMemoModal from "./components/portal/OrderMemoModal";
@@ -753,6 +753,8 @@ export default function App() {
     }
   }, [loggedInUser]);
 
+  const isLoggingOutRef = useRef<boolean>(false);
+
   // Listen to Auth State and Fetch Referral Code & Merge Cart
   useEffect(() => {
     let isMounted = true;
@@ -777,6 +779,7 @@ export default function App() {
       if (!isMounted) return;
 
       if (sbUser) {
+        if (isLoggingOutRef.current) return;
         setLoggedInUser(sbUser as any);
         const sbPhoto = sbUser.photoURL || (sbUser as any).photo_url || (sbUser as any).avatar || (sbUser as any).image;
         if (sbPhoto) {
@@ -803,6 +806,19 @@ export default function App() {
         }
         fetchAndMergeUserCart(sbUser.id || sbUser.uid, true);
       } else {
+        if (isLoggingOutRef.current) {
+          if (isMounted) {
+            setLoggedInUser(null);
+            setUserRole("customer");
+            setUserReferralCode("");
+            setUserProfilePhoto("");
+            setPhotoLoadError(false);
+            lastSyncedCartHashRef.current = "";
+            isSyncingFromRemoteRef.current = false;
+          }
+          return;
+        }
+
         // Fallback: Check if an active staff / admin session exists
         const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
         if (staffSessionId) {
@@ -901,8 +917,13 @@ export default function App() {
 
     // Explicit user logout listener
     const handleUserLogout = () => {
+      isLoggingOutRef.current = true;
+      setTimeout(() => {
+        isLoggingOutRef.current = false;
+      }, 3500);
       if (!isMounted) return;
       setLoggedInUser(null);
+      loggedInUserRef.current = null;
       setUserRole("customer");
       setUserReferralCode("");
       setUserProfilePhoto("");
@@ -2018,6 +2039,9 @@ export default function App() {
       case "Smartphone":
       case "Phone":
       case "Mobile": return <Smartphone className="w-5 h-5 md:w-6 md:h-6" />;
+      case "Radio":
+      case "Telecom":
+      case "Signal": return <Radio className="w-5 h-5 md:w-6 md:h-6" />;
       default: return <LayoutGrid className="w-5 h-5 md:w-6 md:h-6" />;
     }
   };
@@ -5064,6 +5088,9 @@ export default function App() {
           }}
           initialUser={loggedInUser}
           onUserChange={(updatedUser) => {
+            if (updatedUser) {
+              isLoggingOutRef.current = false;
+            }
             setLoggedInUser(updatedUser);
             loggedInUserRef.current = updatedUser;
             if (updatedUser) {

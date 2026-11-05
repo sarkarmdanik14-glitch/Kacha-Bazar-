@@ -105,6 +105,12 @@ export const DEFAULT_SUBCATEGORIES: Omit<Subcategory, "id">[] = [
   { categoryId: "mobile-zone", nameBn: "GDL / Grameen (গ্রামীণ)", nameEn: "GDL / Grameen", order: 6, isActive: true },
   { categoryId: "mobile-zone", nameBn: "Infinix (ইনফিনিক্স)", nameEn: "Infinix", order: 7, isActive: true },
 
+  // 13.1. Telecom (টেলিকম)
+  { categoryId: "telecom", nameBn: "ফ্লেক্সিলোড ও রিচার্জ", nameEn: "Mobile Recharge", order: 1, isActive: true },
+  { categoryId: "telecom", nameBn: "সিম কার্ড ও ইন্টারনেট প্যাক", nameEn: "SIM & Data Packs", order: 2, isActive: true },
+  { categoryId: "telecom", nameBn: "মোবাইল ব্যাংকিং ক্যাশ আউট", nameEn: "Mobile Banking Cash Out", order: 3, isActive: true },
+  { categoryId: "telecom", nameBn: "টেলিকম এক্সেসরিজ", nameEn: "Telecom Accessories", order: 4, isActive: true },
+
   // 14. Event Management (ইভেন্ট ম্যানেজমেন্ট)
   { 
     categoryId: "pet-food-care", 

@@ -108,6 +108,25 @@ export const MOBILE_ZONE_CATEGORY: Category = {
 };
 
 /**
+ * Telecom Category Definition
+ * Mobile recharge, SIM cards, data packs, telecom accessories.
+ * Serial #19 in the category list.
+ */
+export const TELECOM_CATEGORY: Category = {
+  id: "telecom",
+  nameBn: "টেলিকম",
+  nameEn: "Telecom",
+  iconName: "Radio",
+  colorClass: "bg-cyan-50 text-cyan-700 hover:bg-cyan-100",
+  borderColor: "border-cyan-100",
+  displayOrder: 19,
+  order: 19,
+  image: "",
+  imageUrl: "",
+  isAvailable: true
+};
+
+/**
  * Cosmetics & Beauty Corner Category Definition
  * Serial #10 in the category list.
  */
@@ -235,9 +254,12 @@ export const CATEGORY_SERIAL_MAP: Record<string, number> = {
   "mobile": 18,
   "mobiles": 18,
   "mobilezone": 18,
-  "pan-supari": 19,
-  "pan": 19,
-  "supari": 19
+  "telecom": 19,
+  "telecoms": 19,
+  "টেলিকম": 19,
+  "pan-supari": 20,
+  "pan": 20,
+  "supari": 20
 };
 
 /**
@@ -458,6 +480,23 @@ export function isCategoryMatch(
     return pCat === "mobile-zone" || pCat === "mobile" || pCat === "mobiles" || pCat === "mobilezone" || pCat === "home-appliances";
   }
 
+  // If filtering by telecom
+  if (
+    sCat === "telecom" ||
+    sCat === "telecoms" ||
+    sCat === "টেলিকম" ||
+    sCat.includes("টেলিকম") ||
+    sCat.includes("telecom")
+  ) {
+    return (
+      pCat === "telecom" ||
+      pCat === "telecoms" ||
+      pCat === "টেলিকম" ||
+      pCat.includes("টেলিকম") ||
+      pCat.includes("telecom")
+    );
+  }
+
   // If filtering by pan-supari
   if (sCat === "pan-supari" || sCat === "pan" || sCat === "supari") {
     return pCat === "pan-supari" || pCat === "pan" || pCat === "supari";
@@ -590,6 +629,9 @@ export function normalizeCategoryId(catId: string | undefined | null): string {
   ) {
     return "pet-food-care";
   }
+  if (lower === "telecom" || lower === "telecoms" || lower === "টেলিকম" || lower.includes("টেলিকম") || lower.includes("telecom")) {
+    return "telecom";
+  }
   return catId;
 }
 
@@ -612,6 +654,7 @@ export function mergeCategoryCards(categories: any[]): any[] {
   let pharmacyAdded = false;
   let vehiclesAdded = false;
   let mobileZoneAdded = false;
+  let telecomAdded = false;
   let cosmeticsAdded = false;
   let eventManagementAdded = false;
   let buySellAdded = false;
@@ -648,6 +691,31 @@ export function mergeCategoryCards(categories: any[]): any[] {
           isAvailable: true
         });
         mobileZoneAdded = true;
+      }
+      continue;
+    }
+
+    // 0.05. Telecom -> Ensure only one card exists, with ID "telecom" at serial #19
+    if (cat.id === "telecom" || cat.id === "telecoms" || cat.nameBn === "টেলিকম" || (cat.nameEn && cat.nameEn.toLowerCase() === "telecom")) {
+      if (!telecomAdded) {
+        const rawCatImg = (cat.image || cat.imageUrl || cat.banner || cat.bannerUrl || "").trim();
+        const catImg = rawCatImg.includes("unsplash.com") ? "" : rawCatImg;
+        result.push({
+          ...TELECOM_CATEGORY,
+          ...cat,
+          id: "telecom",
+          nameBn: "টেলিকম",
+          nameEn: "Telecom",
+          iconName: cat.iconName || "Radio",
+          colorClass: cat.colorClass || TELECOM_CATEGORY.colorClass,
+          borderColor: cat.borderColor || TELECOM_CATEGORY.borderColor,
+          image: catImg,
+          imageUrl: catImg,
+          displayOrder: 19,
+          order: 19,
+          isAvailable: cat.isAvailable !== false
+        });
+        telecomAdded = true;
       }
       continue;
     }
@@ -942,6 +1010,11 @@ export function mergeCategoryCards(categories: any[]): any[] {
   // If mobile-zone wasn't added yet, insert it
   if (!mobileZoneAdded) {
     result.push({ ...MOBILE_ZONE_CATEGORY });
+  }
+
+  // If telecom wasn't added yet, insert it
+  if (!telecomAdded) {
+    result.push({ ...TELECOM_CATEGORY });
   }
 
   // If event-management wasn't added yet, insert it

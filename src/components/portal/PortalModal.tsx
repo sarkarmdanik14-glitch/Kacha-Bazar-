@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { auth, db, doc, getDoc, setDoc, serverTimestamp, signOut, onAuthStateChanged, collection, query, where, getDocs } from "../../lib/firebase";
 import { supabase } from "../../lib/supabase";
-import { supabaseSignOut, onSupabaseAuthStateChange, getSupabaseUser, checkIsSupabaseAdmin, SUPER_ADMIN_EMAILS, fetchUserProfile } from "../../lib/supabaseAuth";
+import { supabaseSignOut, onSupabaseAuthStateChange, getSupabaseUser, checkIsSupabaseAdmin, SUPER_ADMIN_EMAILS, fetchUserProfile, isExplicitLogoutActive } from "../../lib/supabaseAuth";
 import { X, RefreshCw, Key, Shield, LogOut, Lock } from "lucide-react";
 
 import AuthView from "./AuthView";
@@ -106,6 +106,7 @@ export default function PortalModal({
     return hasStoredAuthSession();
   });
   const [toasts, setToasts] = useState<{ id: string; bn: string; en: string }[]>([]);
+  const isLoggingOutLocalRef = useRef<boolean>(false);
 
   const getTranslation = createTranslator(lang);
 
@@ -207,7 +208,7 @@ export default function PortalModal({
     }, 1000);
 
     const handleUserSession = async (user: any, sbAccessToken?: string) => {
-      if (!isMounted) return;
+      if (!isMounted || isLoggingOutLocalRef.current || isExplicitLogoutActive()) return;
       try {
         if (!user) {
           setCurrentUser(null);
@@ -597,7 +598,7 @@ export default function PortalModal({
 
     // Subscribe to Supabase Auth state changes (Primary & Single Source of Truth)
     const unsubSb = onSupabaseAuthStateChange((sbU) => {
-      if (isMounted) {
+      if (isMounted && !isLoggingOutLocalRef.current && !isExplicitLogoutActive()) {
         handleUserSession(sbU);
       }
     });
@@ -610,6 +611,7 @@ export default function PortalModal({
   }, [isOpen, forcedRole]);
 
   const handleAuthSuccess = async (userData: any, authRole: string) => {
+    isLoggingOutLocalRef.current = false;
     const cleanEmail = (userData?.email || "").toLowerCase().trim();
     const uid = userData?.uid || userData?.id || "";
     const isSuperAdminEmail = SUPER_ADMIN_EMAILS.has(cleanEmail);
@@ -752,6 +754,7 @@ export default function PortalModal({
 
   const handleLogout = async () => {
     try {
+      isLoggingOutLocalRef.current = true;
       // 1. Immediately reset portal state and partner session synchronously
       logoutPartnerSession();
       setCurrentPartner(null);
@@ -760,45 +763,30 @@ export default function PortalModal({
       setActivePortalTab("customer");
       setLoading(false);
 
-      // 2. Immediately purge all credentials and session caches
-      try {
-        if (typeof window !== "undefined") {
-          for (let i = localStorage.length - 1; i >= 0; i--) {
-            const key = localStorage.key(i);
-            if (key && (
-              key.startsWith("sb-") ||
-              key.startsWith("firebase:") ||
-              key.startsWith("kb_") ||
-              key === "kacha_user_session" ||
-              key === "user_role" ||
-              key === "current_partner" ||
-              key === "kb_current_user" ||
-              key === "kb_user_photo" ||
-              key === "kb_supabase_token" ||
-              key === "kb_staff_session"
-            )) {
-              localStorage.removeItem(key);
-            }
-          }
-          sessionStorage.clear();
-        }
-      } catch (e) {}
-
-      // 3. Immediately inform parent App component and broadcast global logout event
+      // 2. Immediately inform parent App component and broadcast global logout event
       onUserChange?.(null);
       window.dispatchEvent(new CustomEvent("kb_user_logout"));
 
-      // 4. Trigger positive confirmation toast
+      // 3. Trigger positive confirmation toast
       triggerToast(
         "সফলভাবে লগআউট করা হয়েছে।",
         "Successfully logged out of your session."
       );
 
-      // 5. Fire background network cleanup (non-blocking)
-      supabaseSignOut().catch(() => {});
+      // 4. Safely complete server and Supabase sign out (handles server session first, then purges local/session storage)
+      await supabaseSignOut().catch(() => {});
       signOut(auth).catch(() => {});
+
+      // 5. Cleanly close the modal so customer returns to shop
+      if (onClose) {
+        onClose();
+      }
     } catch (err) {
       console.error("Signout error:", err);
+    } finally {
+      setTimeout(() => {
+        isLoggingOutLocalRef.current = false;
+      }, 2500);
     }
   };
 

@@ -43,6 +43,7 @@ export async function supabaseSignInWithEmail(
   pass: string,
   preferredRole: string = "customer"
 ): Promise<{ success: boolean; user?: SupabaseUserProfile; role?: string; error?: string }> {
+  clearExplicitLogout();
   const cleanEmail = email.trim();
   const lowerEmail = cleanEmail.toLowerCase();
   const effectivePreferredRole = preferredRole;
@@ -244,6 +245,7 @@ export async function supabaseSignUpWithEmail(params: {
   vehicleType?: string;
   referralCode?: string;
 }): Promise<{ success: boolean; user?: SupabaseUserProfile; role?: string; error?: string }> {
+  clearExplicitLogout();
   const cleanEmail = params.email.trim();
   const cleanName = params.fullName.trim();
   const userRole = params.role || "customer";
@@ -370,11 +372,39 @@ export async function supabaseSignInWithGoogle(): Promise<{ success: boolean; er
   }
 }
 
+let explicitLogoutUntil = 0;
+
+export function markExplicitLogout(): void {
+  explicitLogoutUntil = Date.now() + 3500;
+}
+
+export function clearExplicitLogout(): void {
+  explicitLogoutUntil = 0;
+}
+
+export function isExplicitLogoutActive(): boolean {
+  return Date.now() < explicitLogoutUntil;
+}
+
 /**
  * Sign Out
  */
 export async function supabaseSignOut(): Promise<void> {
-  // 1. Exhaustive session cleanup from localStorage & sessionStorage FIRST (instant client-side logout)
+  // 1. Immediately bump auth sequence and set explicit logout guard
+  latestAuthSequence++;
+  markExplicitLogout();
+
+  // 2. Perform Supabase server sign-out BEFORE deleting local credentials,
+  // with a 1.5s timeout so slow or offline networks never cause a hang.
+  try {
+    const signOutPromise = supabase.auth.signOut();
+    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 1500));
+    await Promise.race([signOutPromise, timeoutPromise]);
+  } catch (err) {
+    console.warn("[Supabase Auth] Notice during server sign-out:", err);
+  }
+
+  // 3. Exhaustive session cleanup from localStorage & sessionStorage
   try {
     if (typeof window !== "undefined") {
       for (let i = localStorage.length - 1; i >= 0; i--) {
@@ -389,6 +419,7 @@ export async function supabaseSignOut(): Promise<void> {
           key === "user_role" ||
           key === "current_partner" ||
           key === "kb_supabase_token" ||
+          key === "kb_staff_session" ||
           key === "kb_firebase_id_token" ||
           key === "referredBy"
         )) {
@@ -406,18 +437,10 @@ export async function supabaseSignOut(): Promise<void> {
   localStorage.removeItem("kb_current_user");
   localStorage.removeItem("kb_user_photo");
 
-  // 2. Revoke active server staff/user session in background (non-blocking with 2s timeout)
+  // 4. Revoke active server staff/user session in background (non-blocking with 2s timeout)
   apiClient.post("/api/auth/logout", {}, { silent: true, timeoutMs: 2000 }).catch(() => {});
 
-  // 3. Local and global Supabase auth sign out in background (non-blocking)
-  try {
-    (supabase.auth as any).signOut({ scope: "local" }).catch(() => {});
-  } catch {}
-  try {
-    supabase.auth.signOut().catch(() => {});
-  } catch {}
-
-  // 4. Synchronously notify the entire application that user has logged out
+  // 5. Synchronously notify the entire application that user has logged out
   if (typeof window !== "undefined") {
     try {
       window.dispatchEvent(new CustomEvent("kb_user_logout"));
@@ -454,6 +477,9 @@ export function onSupabaseAuthStateChange(
     const currentSeq = ++latestAuthSequence;
 
     if (session?.user) {
+      if (isExplicitLogoutActive()) {
+        return;
+      }
       const uid = session.user.id;
       if (session.access_token) {
         try {
@@ -702,6 +728,7 @@ export async function saveUserProfile(profile: SupabaseUserProfile): Promise<voi
  * Get currently authenticated Supabase user profile
  */
 export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
+  if (isExplicitLogoutActive()) return null;
   try {
     const sessionPromise = supabase.auth.getSession();
     const timeoutPromise = new Promise<{ data: { session: any } }>((resolve) => {

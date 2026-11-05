@@ -4,7 +4,7 @@ import {
   Plus, Edit, Trash2, Upload, Download, Check, X, RefreshCw, 
   Layers, ChevronRight, FileText, ImageIcon, ArrowUp, ArrowDown,
   Eye, EyeOff, Search, Filter, CheckCircle2, XCircle, Salad,
-  Grid, Tag, Settings, Sparkles, Package, FolderPlus, Flame, Coffee, Apple, Milk, ShoppingBag, Sliders, Fish, Pill
+  Grid, Tag, Settings, Sparkles, Package, FolderPlus, Flame, Coffee, Apple, Milk, ShoppingBag, Sliders, Fish, Pill, Radio
 } from "lucide-react";
 import { db, doc, setDoc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp } from "../../lib/firebase";
 import { ProductOption, Subcategory } from "../../types";
@@ -617,6 +617,8 @@ export default function AdminProductsTab({
       case "pill":
       case "cross":
       case "medicine": return <Pill className="w-5 h-5" />;
+      case "radio":
+      case "telecom": return <Radio className="w-5 h-5" />;
       default: return <Salad className="w-5 h-5" />;
     }
   };
@@ -2530,7 +2532,9 @@ export default function AdminProductsTab({
           "car-rental": 17,
           "mobile-zone": 18,
           "mobile": 18,
-          "mobiles": 18
+          "mobiles": 18,
+          "telecom": 19,
+          "telecoms": 19
         };
         const sortedAllCats = categories
           .filter(c => c.id !== "all" && c.id !== "home-appliances" && !((c.nameBn === "মোবাইল জোন" || c.nameEn === "Mobile Zone") && c.id !== "mobile-zone"))
@@ -3198,7 +3202,7 @@ export default function AdminProductsTab({
                   {getTranslation("আইকন নির্বাচন করুন (Lucide Icon)", "Icon Selection")}
                 </label>
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {["Salad", "Milk", "Apple", "Fish", "Flame", "Coffee", "Sparkles", "Package", "ShoppingBag"].map((ic) => (
+                  {["Salad", "Milk", "Apple", "Fish", "Flame", "Coffee", "Sparkles", "Package", "ShoppingBag", "Radio"].map((ic) => (
                     <button
                       key={ic}
                       type="button"
