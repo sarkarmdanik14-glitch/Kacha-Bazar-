@@ -615,11 +615,16 @@ export default function PortalModal({
     const cleanEmail = (userData?.email || "").toLowerCase().trim();
     const uid = userData?.uid || userData?.id || "";
     const isSuperAdminEmail = SUPER_ADMIN_EMAILS.has(cleanEmail);
-    const isAdmin = isSuperAdminEmail || (await checkIsSupabaseAdmin(uid, cleanEmail));
 
     let targetRole = (userData?.role || authRole || "customer").toLowerCase();
-    if (isAdmin || targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder") {
-      targetRole = isSuperAdminEmail ? "super_admin" : (targetRole === "super_admin" ? "super_admin" : "admin");
+
+    // Check admin only if attempting admin or if user has super admin email
+    let isAdmin = false;
+    if (isSuperAdminEmail || targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder" || authRole === "admin") {
+      isAdmin = isSuperAdminEmail || (await checkIsSupabaseAdmin(uid, cleanEmail));
+      if (isAdmin || targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder") {
+        targetRole = isSuperAdminEmail ? "super_admin" : (targetRole === "super_admin" ? "super_admin" : "admin");
+      }
     }
 
     if (targetRole === "partner") {
@@ -708,31 +713,16 @@ export default function PortalModal({
       role: "customer",
       isSuperAdmin: false
     };
+
     if (!customerUser.photoURL && !customerUser.avatar) {
-      const targetUid = customerUser.uid || customerUser.id;
-      if (targetUid) {
-        try {
-          const sRes = await apiClient.get<any>(`/api/user/profile/${targetUid}?email=${encodeURIComponent(customerUser.email || "")}`, { silent: true });
-          if (sRes?.success && sRes?.profile) {
-            const sp = sRes.profile;
-            const ph = sp.photoURL || sp.photo_url || sp.avatar || sp.image;
-            if (ph) {
-              customerUser.photoURL = ph;
-              customerUser.avatar = ph;
-              customerUser.image = ph;
-            }
-          }
-        } catch {}
-      }
-      if (!customerUser.photoURL) {
-        const localPhoto = localStorage.getItem("kb_user_photo");
-        if (localPhoto) {
-          customerUser.photoURL = localPhoto;
-          customerUser.avatar = localPhoto;
-          customerUser.image = localPhoto;
-        }
+      const localPhoto = localStorage.getItem("kb_user_photo");
+      if (localPhoto) {
+        customerUser.photoURL = localPhoto;
+        customerUser.avatar = localPhoto;
+        customerUser.image = localPhoto;
       }
     }
+
     try {
       localStorage.setItem("kb_current_user", JSON.stringify(customerUser));
       const photo = customerUser.photoURL || customerUser.photo_url || customerUser.avatar || customerUser.image;
@@ -741,6 +731,8 @@ export default function PortalModal({
         window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: photo } }));
       }
     } catch {}
+
+    // Instant switch to Customer Dashboard with 0 lag
     setCurrentUser(customerUser);
     setUserRole("customer");
     setActivePortalTab("customer");
@@ -750,6 +742,28 @@ export default function PortalModal({
       "লগইন সফল হয়েছে! মেগা বাজারে স্বাগতম।",
       "Login successful! Welcome to Kacha Bazar."
     );
+
+    // If photoURL is still missing, fetch profile asynchronously in background without blocking UI
+    if (!customerUser.photoURL && !customerUser.avatar) {
+      const targetUid = customerUser.uid || customerUser.id;
+      if (targetUid) {
+        apiClient.get<any>(`/api/user/profile/${targetUid}?email=${encodeURIComponent(customerUser.email || "")}`, { silent: true })
+          .then((sRes) => {
+            if (sRes?.success && sRes?.profile) {
+              const sp = sRes.profile;
+              const ph = sp.photoURL || sp.photo_url || sp.avatar || sp.image;
+              if (ph) {
+                setCurrentUser((prev: any) => prev ? ({ ...prev, photoURL: ph, avatar: ph, image: ph }) : prev);
+                try {
+                  localStorage.setItem("kb_user_photo", ph);
+                  window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: ph } }));
+                } catch {}
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    }
   };
 
   const handleLogout = async () => {

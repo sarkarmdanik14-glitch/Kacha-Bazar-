@@ -19,7 +19,7 @@ import { supabase } from "../../lib/supabase";
 const loginPartnerWithCredentials = authenticatePartner;
 
 interface AuthViewProps {
-  onAuthSuccess: (user: any, role: string) => void;
+  onAuthSuccess: (user: any, role: string) => void | Promise<void>;
   lang: "bn" | "en";
   forcedRole?: "customer" | "admin" | "seller" | "rider" | "partner";
   initialAuthMode?: "login" | "register";
@@ -475,6 +475,7 @@ export default function AuthView({
       formattedPhone = "+880" + formattedPhone.replace(/^880/, "");
     }
 
+    let otpSuccess = false;
     try {
       const res = await apiClient.post("/api/auth/phone/verify-otp", {
         phone: formattedPhone,
@@ -490,7 +491,8 @@ export default function AuthView({
 
         if (existingUser) {
           if (isMountedRef.current) {
-            onAuthSuccess(existingUser, existingUser.role || role);
+            otpSuccess = true;
+            await onAuthSuccess(existingUser, existingUser.role || role);
           }
         } else {
           const randomId = "user_" + Math.random().toString(36).substring(2, 10);
@@ -505,7 +507,8 @@ export default function AuthView({
           };
           saveUserProfile(newProfile as any).catch(() => {});
           if (isMountedRef.current) {
-            onAuthSuccess(newProfile, "customer");
+            otpSuccess = true;
+            await onAuthSuccess(newProfile, "customer");
           }
         }
       } else {
@@ -516,9 +519,11 @@ export default function AuthView({
         setError(err?.message || getTranslation("ওটিপি যাচাই ব্যর্থ হয়েছে।", "OTP verification failed."));
       }
     } finally {
-      isSubmittingRef.current = false;
-      if (isMountedRef.current) {
-        setLoading(false);
+      if (!otpSuccess) {
+        isSubmittingRef.current = false;
+        if (isMountedRef.current) {
+          setLoading(false);
+        }
       }
     }
   };
@@ -564,6 +569,7 @@ export default function AuthView({
       }
     }, 20000);
 
+    let authSucceeded = false;
     try {
       if (isLogin) {
         // Direct Partner Shop login with Partner ID / Email & Password
@@ -571,7 +577,8 @@ export default function AuthView({
           const partnerRes = await loginPartnerWithCredentials(email, password);
           if (partnerRes.success && partnerRes.partner) {
             if (isMountedRef.current && currentRequestSeq === authRequestSeqRef.current) {
-              onAuthSuccess(partnerRes.partner, "partner");
+              authSucceeded = true;
+              await onAuthSuccess(partnerRes.partner, "partner");
             }
             return;
           } else {
@@ -638,7 +645,8 @@ export default function AuthView({
         }
 
         if (isMountedRef.current && currentRequestSeq === authRequestSeqRef.current) {
-          onAuthSuccess(authenticatedUser, authenticatedRole);
+          authSucceeded = true;
+          await onAuthSuccess(authenticatedUser, authenticatedRole);
         }
       } else {
         // Sign up with Supabase Auth
@@ -666,7 +674,8 @@ export default function AuthView({
         await linkReferral(newUser.uid, referralInput);
 
         if (isMountedRef.current) {
-          onAuthSuccess(newUser, role);
+          authSucceeded = true;
+          await onAuthSuccess(newUser, role);
         }
       }
     } catch (err: any) {
@@ -690,9 +699,11 @@ export default function AuthView({
       }
     } finally {
       clearTimeout(timeoutId);
-      isSubmittingRef.current = false;
-      if (isMountedRef.current) {
-        setLoading(false);
+      if (!authSucceeded) {
+        isSubmittingRef.current = false;
+        if (isMountedRef.current) {
+          setLoading(false);
+        }
       }
     }
   };
