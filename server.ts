@@ -57,7 +57,7 @@ let currentSupabaseClientKey = "";
 
 function getServerSupabase(): SupabaseClient | null {
   const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://syqiyurjeuibpprfrmwa.supabase.co").trim();
-  const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+  const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN5cWl5dXJqZXVpYnBwcmZybXdhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTYxMzA2MCwiZXhwIjoyMTA3MTg5MDYwfQ.gFGlf9ZkoJlJu4pmNRE0Bvm8ECJTfGfNo2HKwn-J3zE").trim();
   const rawAnonKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_Qn84fITCN65xtGt1dRdrHg_d6zq4G0i").trim();
   const anonKey = rawAnonKey.startsWith("sb_publishable_sb_publishable_")
     ? rawAnonKey.replace(/^sb_publishable_sb_publishable_/, "sb_publishable_")
@@ -5228,7 +5228,39 @@ app.post("/api/staff/login", rateLimiter(15, 60000), async (req, res) => {
              sMobile === cleanIdent;
     });
 
-    // If not found in local store, query Firestore
+    // If not found in local store, query Supabase staff table
+    if (!staff) {
+      try {
+        const sb = getServerSupabase();
+        if (sb) {
+          const { data: sbStaff } = await sb
+            .from("staff")
+            .select("*")
+            .or(`email.eq.${cleanIdent},staff_id.eq.${cleanIdent.toUpperCase()},id.eq.${cleanIdent}`)
+            .maybeSingle();
+
+          if (sbStaff && sbStaff.status === "active") {
+            staff = {
+              id: sbStaff.id,
+              staffId: sbStaff.staff_id || sbStaff.id,
+              username: sbStaff.username || sbStaff.staff_id,
+              fullName: sbStaff.full_name || sbStaff.name || "Staff Member",
+              mobile: sbStaff.mobile || sbStaff.phone || "",
+              email: sbStaff.email,
+              role: sbStaff.role || "admin",
+              status: sbStaff.status || "active",
+              passwordHash: sbStaff.password_hash || sbStaff.passwordHash,
+              passwordSalt: sbStaff.password_salt || sbStaff.passwordSalt,
+              permissions: sbStaff.permissions || {},
+              isSuperAdmin: sbStaff.role === "super_admin"
+            };
+            staffList.push(staff);
+          }
+        }
+      } catch (sErr) {}
+    }
+
+    // Fallback: query Firestore
     if (!staff) {
       try {
         const fdb = getAdminDb();
@@ -5325,6 +5357,22 @@ app.post("/api/staff/login", rateLimiter(15, 60000), async (req, res) => {
       staff.salt = salt;
       delete staff.password;
       writeStaffDb(staffList);
+    }
+
+    // Also verify via Supabase Auth if hash verification did not match
+    if (!isMatch && staff.email) {
+      try {
+        const sb = getServerSupabase();
+        if (sb) {
+          const { data: authData, error: authErr } = await sb.auth.signInWithPassword({
+            email: staff.email,
+            password: password
+          });
+          if (!authErr && authData?.user) {
+            isMatch = true;
+          }
+        }
+      } catch {}
     }
 
     if (!isMatch) {
@@ -6158,6 +6206,24 @@ app.post("/api/staff/supabase-session", rateLimiter(20, 60000), async (req, res)
           staffList.push(staff);
         }
       } catch (uErr) {}
+    }
+
+    // Check Server Super Admin Whitelist
+    if (!staff && email && SUPER_ADMIN_WHITELIST.has(email)) {
+      staff = {
+        id: uid,
+        staffId: "CFI-KB-001",
+        username: email.split("@")[0],
+        fullName: sbData.user.user_metadata?.full_name || sbData.user.user_metadata?.displayName || "System Super Admin",
+        email: email,
+        role: "super_admin",
+        designation: "Super Administrator",
+        department: "Executive Administration",
+        status: "active",
+        isSuperAdmin: true,
+        permissions: { all: true }
+      };
+      staffList.push(staff);
     }
 
     if (!staff || staff.status === "inactive") {
