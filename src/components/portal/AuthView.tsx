@@ -13,7 +13,7 @@ import {
   supabaseSignOut,
   checkIsSupabaseAdmin,
   saveUserProfile,
-  SUPER_ADMIN_EMAILS
+  verifyServerAdminOrStaffSession
 } from "../../lib/supabaseAuth";
 import { supabase } from "../../lib/supabase";
 const loginPartnerWithCredentials = authenticatePartner;
@@ -295,31 +295,32 @@ export default function AuthView({
     }
   };
 
-  // Helper to verify if user is a real admin in Supabase
+  // Helper to verify if user is a real admin via backend verification
   const checkIsAdmin = async (uid: string, userEmail?: string): Promise<boolean> => {
     try {
       const cleanEmail = (userEmail || email || "").toLowerCase().trim();
       if (!uid && !cleanEmail) return false;
 
-      // Super Admin emails
-      if (SUPER_ADMIN_EMAILS.has(cleanEmail)) {
+      // Authoritative backend staff session verification
+      const serverCheck = await verifyServerAdminOrStaffSession();
+      if (serverCheck.isAuthenticated && (serverCheck.isAdmin || serverCheck.isSuperAdmin)) {
         return true;
       }
-
-      // Check Supabase staff and users tables
-      const isSbAdmin = await checkIsSupabaseAdmin(uid, cleanEmail);
-      if (isSbAdmin) return true;
 
       // Check server active staff session
       const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
       if (staffSessionId) {
         try {
           const sRes = await apiClient.get<any>("/api/staff/active-session", { silent: true, timeoutMs: 5000 });
-          if (sRes?.success && sRes?.staff && (sRes.staff.role === "admin" || sRes.staff.role === "super_admin" || sRes.staff.role === "founder")) {
+          if (sRes?.success && sRes?.staff && (sRes.staff.role === "admin" || sRes.staff.role === "super_admin" || sRes.staff.isSuperAdmin)) {
             return true;
           }
         } catch {}
       }
+
+      // Check Supabase staff and users tables
+      const isSbAdmin = await checkIsSupabaseAdmin(uid, cleanEmail);
+      if (isSbAdmin) return true;
     } catch (err: any) {
       console.warn("Notice verifying admin permissions:", err?.message || err);
     }
@@ -610,18 +611,18 @@ export default function AuthView({
         let authenticatedRole = sbRes.role || role;
         const userUid = authenticatedUser.uid || authenticatedUser.id || "";
         const cleanEmail = (authenticatedUser.email || email).toLowerCase().trim();
-        const isSuper = SUPER_ADMIN_EMAILS.has(cleanEmail) || authenticatedUser.isSuperAdmin || authenticatedUser.role === "super_admin";
 
-        // Role authorization check for selected tab
+        // Role authorization check for selected tab: strictly verified on backend
         if (role === "admin") {
-          const isAdmin = isSuper || authenticatedUser.role === "admin" || (await checkIsAdmin(userUid, cleanEmail));
+          const serverCheck = await verifyServerAdminOrStaffSession();
+          const isAdmin = serverCheck.isAuthenticated && (serverCheck.isAdmin || serverCheck.isSuperAdmin);
           if (!isAdmin) {
             await supabaseSignOut();
             throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।", "Access denied. You are not authorized as an admin."));
           }
-          authenticatedRole = isSuper ? "super_admin" : "admin";
+          authenticatedRole = serverCheck.role;
           authenticatedUser.role = authenticatedRole as any;
-          authenticatedUser.isSuperAdmin = isSuper;
+          authenticatedUser.isSuperAdmin = serverCheck.isSuperAdmin;
         } else if (role === "seller") {
           const sRes = await checkSellerStatus(userUid);
           if (!sRes.isSeller) {

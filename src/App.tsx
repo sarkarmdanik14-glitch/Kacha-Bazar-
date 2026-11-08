@@ -41,7 +41,7 @@ import CustomerLiveChat from "./components/CustomerLiveChat";
 import CustomerVoiceCallModal from "./components/CustomerVoiceCallModal";
 import { seedDatabase, db, collection, onSnapshot, auth, onAuthStateChanged, doc, getDoc, getDocs, setDoc, query, where, limit, orderBy, or, addDoc, deleteDoc, serverTimestamp } from "./lib/firebase";
 import { supabase } from "./lib/supabase";
-import { onSupabaseAuthStateChange, getSupabaseUser, fetchUserProfile } from "./lib/supabaseAuth";
+import { onSupabaseAuthStateChange, getSupabaseUser, fetchUserProfile, isExplicitLogoutActive } from "./lib/supabaseAuth";
 import { calculateDeliveryFeeFromSettings } from "./lib/delivery";
 import { visitorTracker } from "./lib/visitorTracker";
 import { initVoiceWelcome, setWelcomeAudioUrl, setWelcomeVoiceEnabled } from "./lib/voiceWelcome";
@@ -49,6 +49,7 @@ import { matchesProductSearch } from "./lib/banglishSearch";
 import { isUserPremiumMember, calculatePremiumDiscount } from "./lib/membership";
 import { fetchCouponsFromSupabase } from "./lib/supabaseLiveService";
 import { apiClient } from "./lib/apiClient";
+import { resolveProfilePhotoUrl } from "./lib/profileImageService";
 
 import { BannerSlider } from "./components/BannerSlider";
 import { CartItemRow } from "./components/CartItemRow";
@@ -463,6 +464,14 @@ export default function App() {
         setUserProfilePhoto(e.newValue || "");
         setPhotoLoadError(false);
       }
+      if (e.key === "kb_explicit_logout" || (e.key === "kb_supabase_token" && !e.newValue) || (e.key === "kb_current_user" && !e.newValue)) {
+        // Multi-tab logout sync: another tab logged out
+        setLoggedInUser(null);
+        setUserRole("customer");
+        setUserReferralCode("");
+        setUserProfilePhoto("");
+        setPhotoLoadError(false);
+      }
     };
 
     window.addEventListener("kb_profile_updated", handleProfileUpdate);
@@ -760,9 +769,21 @@ export default function App() {
     let isMounted = true;
 
     // Point 3: Explicitly verify session validity with Supabase getSession() on boot
+    if (isExplicitLogoutActive()) {
+      setLoggedInUser(null);
+      setUserRole("customer");
+      setUserProfilePhoto("");
+      try {
+        localStorage.removeItem("kb_current_user");
+        localStorage.removeItem("kb_supabase_token");
+        localStorage.removeItem("kb_staff_session");
+      } catch {}
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (!isMounted) return;
-      if (!session?.user || error) {
+      if (isExplicitLogoutActive() || !session?.user || error) {
         // No valid active session in Supabase: ensure clean guest state
         setLoggedInUser(null);
         setUserRole("customer");
@@ -847,6 +868,16 @@ export default function App() {
           } catch {}
         }
 
+        if (isExplicitLogoutActive()) {
+          if (isMounted) {
+            setLoggedInUser(null);
+            setUserRole("customer");
+            setUserReferralCode("");
+            setUserProfilePhoto("");
+          }
+          return;
+        }
+
         // Restore saved local user session ONLY if an active auth token is legitimately present
         const savedStr = localStorage.getItem("kb_current_user");
         const hasActiveToken = Boolean(
@@ -862,7 +893,11 @@ export default function App() {
               setLoggedInUser(savedUser);
               if (savedUser.role) setUserRole(savedUser.role);
               if (savedUser.referralCode) setUserReferralCode(savedUser.referralCode);
-              const pPhoto = localStorage.getItem("kb_user_photo") || savedUser.photoURL || savedUser.photo_url || savedUser.avatar || savedUser.image;
+              const localPhoto = localStorage.getItem("kb_user_photo");
+              if (localPhoto && (localPhoto.startsWith("data:") || localPhoto.startsWith("blob:"))) {
+                try { localStorage.removeItem("kb_user_photo"); } catch {}
+              }
+              const pPhoto = resolveProfilePhotoUrl(savedUser);
               if (pPhoto) {
                 setUserProfilePhoto(pPhoto);
                 setPhotoLoadError(false);
@@ -1599,15 +1634,14 @@ export default function App() {
     // Persist to logged-in user profile in database
     const currentUid = loggedInUser?.uid || (loggedInUser as any)?.id;
     if (currentUid) {
-      setDoc(doc(db, "users", currentUid), {
-        wishlist,
-        updatedAt: serverTimestamp()
-      }, { merge: true }).catch(() => {});
-
       try {
-        if (supabase) {
-          supabase.from("users").update({ wishlist }).eq("id", currentUid).then(() => {}, () => {});
-        }
+        const cleanWishlist = Array.isArray(wishlist)
+          ? wishlist.map((x: any) => typeof x === "string" ? x : (x?.id || "")).filter(Boolean)
+          : [];
+        apiClient.post("/api/user/profile", {
+          userId: currentUid,
+          wishlist: cleanWishlist
+        }, { silent: true }).catch(() => {});
       } catch {}
     }
   }, [wishlist, loggedInUser]);
@@ -5099,12 +5133,17 @@ export default function App() {
               } catch {}
               if (updatedUser.role) setUserRole(updatedUser.role);
               if (updatedUser.referralCode) setUserReferralCode(updatedUser.referralCode);
-              const photo = updatedUser.photoURL || updatedUser.photo_url || updatedUser.avatar || updatedUser.image;
+              const photo = resolveProfilePhotoUrl(updatedUser);
               if (photo) {
                 setUserProfilePhoto(photo);
                 setPhotoLoadError(false);
                 try {
                   localStorage.setItem("kb_user_photo", photo);
+                } catch {}
+              } else {
+                setUserProfilePhoto("");
+                try {
+                  localStorage.removeItem("kb_user_photo");
                 } catch {}
               }
               if (updatedUser.id || updatedUser.uid) {

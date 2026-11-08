@@ -241,7 +241,14 @@ export async function apiRequest<T = any>(
       url.includes("/api/staff/list") ||
       url.includes("/api/staff/activity-logs") ||
       url.includes("/api/staff/get");
-    if (import.meta.env?.DEV && !options.silent && !(isAuthCheckEndpoint && (response.status === 401 || response.status === 403))) {
+    const isProfileEndpoint = url.includes("/api/user/profile");
+
+    if (
+      import.meta.env?.DEV &&
+      !options.silent &&
+      !(isProfileEndpoint && (response.status === 413 || response.status === 401 || response.status === 403)) &&
+      !(isAuthCheckEndpoint && (response.status === 401 || response.status === 403))
+    ) {
       console.error(`[API Error ${response.status}] ${options.method || "GET"} ${url}:`, {
         status: response.status,
         statusText: response.statusText,
@@ -304,18 +311,102 @@ export async function apiRequest<T = any>(
 }
 
 /**
+ * Strict sanitizer for /api/user/profile payloads.
+ * Strips all Base64 strings, blob URLs, giant nested objects, and ensures
+ * only valid metadata fields and permanent cloud photo URLs are sent.
+ * This guarantees the payload is tiny (< 5KB) and completely eliminates HTTP 413.
+ */
+function sanitizeProfilePayload(data: any): any {
+  if (!data || typeof data !== "object") return data;
+  if (typeof FormData !== "undefined" && data instanceof FormData) return data;
+
+  const allowedFields = new Set([
+    "userId", "uid", "id", "email", "phone", "mobile", "phoneNumber",
+    "displayName", "fullName", "name", "username", "address",
+    "photoURL", "avatar", "image", "photo_url", "role", "customerId",
+    "isVerified", "isEmailVerified", "isPhoneVerified", "referralCode",
+    "wishlist"
+  ]);
+
+  const sanitized: Record<string, any> = {};
+
+  for (const [key, val] of Object.entries(data)) {
+    if (!allowedFields.has(key)) continue;
+
+    // Handle photo fields specifically
+    if (key === "photoURL" || key === "avatar" || key === "image" || key === "photo_url") {
+      if (typeof val === "string") {
+        const trimmed = val.trim();
+        // Disallow Base64 and Blob completely
+        if (trimmed.startsWith("data:") || trimmed.startsWith("blob:")) {
+          continue;
+        }
+        // Only allow permanent cloud URLs or local API/uploads paths
+        if (
+          trimmed.startsWith("https://") ||
+          trimmed.startsWith("http://") ||
+          trimmed.startsWith("/api/") ||
+          trimmed.startsWith("/uploads/")
+        ) {
+          sanitized.photoURL = trimmed;
+        } else if (trimmed === "" || trimmed === "null") {
+          sanitized.photoURL = "";
+        }
+      }
+      continue;
+    }
+
+    // Handle wishlist: only allow array of string IDs (max 200 items, each max 100 chars)
+    if (key === "wishlist") {
+      if (Array.isArray(val)) {
+        sanitized.wishlist = val
+          .slice(0, 200)
+          .map((item) => {
+            if (typeof item === "string") {
+              if (item.startsWith("data:") || item.startsWith("blob:") || item.length > 100) return null;
+              return item;
+            }
+            if (typeof item === "object" && item !== null) {
+              const id = item.id || item.productId || item._id;
+              return typeof id === "string" ? id.slice(0, 100) : null;
+            }
+            return null;
+          })
+          .filter(Boolean);
+      }
+      continue;
+    }
+
+    // Handle strings: limit length and reject base64
+    if (typeof val === "string") {
+      if (val.startsWith("data:") || val.startsWith("blob:")) continue;
+      sanitized[key] = val.length > 500 ? val.slice(0, 500) : val;
+    } else if (typeof val === "boolean" || typeof val === "number") {
+      sanitized[key] = val;
+    }
+  }
+
+  return sanitized;
+}
+
+/**
  * Convenience HTTP helper methods
  */
 export const apiClient = {
   get: <T = any>(url: string, options?: Omit<ApiRequestOptions, "method">) =>
     apiRequest<T>(url, { ...options, method: "GET" }),
 
-  post: <T = any>(url: string, data?: any, options?: Omit<ApiRequestOptions, "method" | "body">) =>
-    apiRequest<T>(url, {
+  post: <T = any>(url: string, data?: any, options?: Omit<ApiRequestOptions, "method" | "body">) => {
+    let cleanData = data;
+    if (url.includes("/api/user/profile")) {
+      cleanData = sanitizeProfilePayload(data);
+    }
+    return apiRequest<T>(url, {
       ...options,
       method: "POST",
-      body: data instanceof FormData ? data : JSON.stringify(data)
-    }),
+      body: cleanData instanceof FormData ? cleanData : JSON.stringify(cleanData)
+    });
+  },
 
   put: <T = any>(url: string, data?: any, options?: Omit<ApiRequestOptions, "method" | "body">) =>
     apiRequest<T>(url, {

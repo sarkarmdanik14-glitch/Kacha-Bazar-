@@ -92,16 +92,9 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
       dataUrl: compressedDataUrl,
       filename,
       folder
-    }, { skipAuth: true, timeoutMs: 25000 });
+    }, { skipAuth: false, timeoutMs: 25000 });
 
     if (data?.url) {
-      if (data.provider === "cloudflare_r2") {
-        return data.url;
-      }
-      // If folder is profiles and R2 is not configured, preserve compressed base64 dataUrl so it never vanishes on container restart
-      if (folder === "profiles" && compressedDataUrl) {
-        return compressedDataUrl;
-      }
       return data.url;
     }
   } catch (r2Err) {
@@ -143,7 +136,12 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
   }
   }
 
-  // TIER 3: High-efficiency Base64 Data URL Fallback
+  // Profile and staff images must be permanent cloud URLs, never Base64
+  if (folder === "profiles" || folder === "staff") {
+    throw new Error("ক্লাউড স্টোরেজে ছবি আপলোড করা সম্ভব হয়নি। পূর্বের ছবিটি অপরিবর্তিত রাখা হয়েছে।");
+  }
+
+  // TIER 3: High-efficiency Base64 Data URL Fallback for other general images
   if (compressedDataUrl) {
     return compressedDataUrl;
   }

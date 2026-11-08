@@ -46,6 +46,7 @@ import { createTranslator } from "../../lib/formatUtils";
 import { normalizeMemberId, generateMemberId, getDigitalMembershipCardId } from "../../lib/memberIdUtils";
 import { checkAndUpgradePremiumMembership } from "../../lib/membership";
 import { uploadImageWithFallback, compressImage } from "../../lib/imageUploadHelper";
+import { uploadProfilePhotoUnified, resolveProfilePhotoUrl, isPermanentCloudUrl } from "../../lib/profileImageService";
 import { apiClient } from "../../lib/apiClient";
 import { APP_LOGO_URL } from "../../constants/branding";
 import { checkAndRewardReferral } from "../../lib/referral";
@@ -224,7 +225,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   const [phoneInput, setPhoneInput] = useState<string>(user?.phone || user?.phoneNumber || dbUser?.phone || "");
   const [emailInput, setEmailInput] = useState<string>(user?.email || dbUser?.email || "");
   const [photoUrlInput, setPhotoUrlInput] = useState<string>(() => {
-    return user?.photoURL || user?.photo_url || user?.avatar || dbUser?.photoURL || dbUser?.photo_url || dbUser?.avatar || (typeof localStorage !== "undefined" ? localStorage.getItem("kb_user_photo") || "" : "");
+    return resolveProfilePhotoUrl(user) || resolveProfilePhotoUrl(dbUser) || "";
   });
   const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
@@ -244,7 +245,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       if (dbUser.address !== undefined) {
         setProfileAddress(dbUser.address || "");
       }
-      const incomingPhoto = dbUser.photoURL || dbUser.photo_url || dbUser.avatar || dbUser.image;
+      const incomingPhoto = resolveProfilePhotoUrl(dbUser);
       if (incomingPhoto) {
         setPhotoUrlInput(incomingPhoto);
       }
@@ -280,12 +281,10 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     window.dispatchEvent(new CustomEvent("kb_wishlist_updated", { detail: updated }));
     const currentUid = user?.uid || user?.id || auth.currentUser?.uid;
     if (currentUid) {
-      setDoc(doc(db, "users", currentUid), { wishlist: updated, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
-      try {
-        if (supabase) {
-          supabase.from("users").update({ wishlist: updated }).eq("id", currentUid).then(() => {}, () => {});
-        }
-      } catch {}
+      apiClient.post("/api/user/profile", {
+        userId: currentUid,
+        wishlist: updated
+      }, { silent: true }).catch(() => {});
     }
     triggerToast(
       `${productName || "পণ্যটি"} পছন্দের তালিকা থেকে সরানো হয়েছে`,
@@ -350,18 +349,7 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   // Digital ID and Membership States - Every ID strictly starts with CFI prefix
   const customerId = normalizeMemberId(dbUser?.customerId, user?.uid || user?.id);
 
-  // Auto-sync & migrate legacy ID in Firestore (e.g. FCIMWZ -> CFIMWZ) without altering any user credentials or balance
-  useEffect(() => {
-    const targetUid = user?.uid || user?.id;
-    if (targetUid && dbUser) {
-      const fixedId = normalizeMemberId(dbUser.customerId, targetUid);
-      if (dbUser.customerId !== fixedId) {
-        setDoc(doc(db, "users", targetUid), { customerId: fixedId }, { merge: true }).catch((err) => {
-          console.warn("Notice syncing updated CFI customerId:", err);
-        });
-      }
-    }
-  }, [user?.uid, user?.id, dbUser?.customerId]);
+  // Digital ID format normalized deterministically from user ID
 
   // Prioritize displaying the full name: userData?.fullName || userData?.displayName || user?.displayName || 'গ্রাহক'
   const profileName = (
@@ -411,20 +399,6 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
   // Real-time numeric value strictly from users/{userId}/walletBalance, fallback to users/{userId}/balance, then wallet/{userId}/balance, strictly defaulting to 0
   const realTimeWalletBalance = Number(dbUser?.walletBalance ?? dbUser?.balance ?? walletBalance ?? 0);
-
-  // Auto-initialize reward points strictly at 0 in Firestore if missing
-  useEffect(() => {
-    if (user?.uid && dbUser && dbUser.rewardPoints === undefined && dbUser.points === undefined) {
-      setDoc(doc(db, "users", user.uid), { rewardPoints: 0, points: 0 }, { merge: true }).catch(() => {});
-    }
-  }, [user?.uid, dbUser?.rewardPoints, dbUser?.points]);
-
-  // Auto-initialize wallet balance strictly at 0 in Firestore if missing
-  useEffect(() => {
-    if (user?.uid && dbUser && dbUser.walletBalance === undefined && dbUser.balance === undefined) {
-      setDoc(doc(db, "users", user.uid), { walletBalance: 0, balance: 0 }, { merge: true }).catch(() => {});
-    }
-  }, [user?.uid, dbUser?.walletBalance, dbUser?.balance]);
 
   // Dynamic Premium Membership criteria evaluation (e.g. single-day delivered orders >= ৳6,000)
   const isPremiumQualified = useMemo(() => {
@@ -487,11 +461,12 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
           await auth.currentUser.reload();
           if (auth.currentUser.emailVerified && !isEmailVerified && user?.uid) {
             const willBeFullyVerified = isPhoneVerified;
-            await setDoc(doc(db, "users", user.uid), {
-              isEmailVerified: true,
-              ...(willBeFullyVerified ? { isVerified: true } : {}),
-              updatedAt: serverTimestamp()
-            }, { merge: true });
+            if (supabase && user.uid) {
+              await supabase.from("users").update({
+                is_verified: willBeFullyVerified,
+                updated_at: new Date().toISOString()
+              }).or(`id.eq.${user.uid},uid.eq.${user.uid}`).then(() => {}, () => {});
+            }
             setDbUser((prev: any) => ({
               ...prev,
               isEmailVerified: true,
@@ -697,12 +672,11 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         }
       }
 
-      // Update Firestore user document timestamp
-      if (user?.uid) {
-        await updateDoc(doc(db, "users", user.uid), {
-          passwordUpdatedAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        }).catch(() => {});
+      // Update Supabase user record timestamp
+      if (user?.uid && supabase) {
+        supabase.from("users").update({
+          updated_at: new Date().toISOString()
+        }).or(`id.eq.${user.uid},uid.eq.${user.uid}`).then(() => {}, () => {});
       }
 
       setSecuritySuccess(getTranslation("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!", "Password has been successfully changed!"));
@@ -776,30 +750,31 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         updatedAt: serverTimestamp()
       };
 
-      // setDoc with merge: true creates the document if missing or updates if existing
-      await setDoc(doc(db, "users", targetUid), updatedFields, { merge: true }).catch(() => {});
-
+      // Authoritative Supabase public.users persistence
       try {
         if (supabase) {
-          supabase.from("users").upsert({
+          await supabase.from("users").upsert({
             id: targetUid,
+            uid: targetUid,
             full_name: trimmedName,
+            display_name: trimmedName,
             phone: phoneInput.trim(),
+            mobile: phoneInput.trim(),
             email: emailInput.trim() || user.email || "",
             address: profileAddress.trim(),
-            photo_url: photoUrlInput || "",
-            avatar: photoUrlInput || "",
-            image: photoUrlInput || "",
+            photo_url: isPermanentCloudUrl(photoUrlInput) ? photoUrlInput : null,
             updated_at: new Date().toISOString()
-          }, { onConflict: "id" }).then(() => {}, () => {});
+          }, { onConflict: "id" });
         }
-      } catch {}
+      } catch (sbErr) {
+        console.warn("Supabase profile save notice:", sbErr);
+      }
 
-      if (auth.currentUser) {
+      if (auth.currentUser && isPermanentCloudUrl(photoUrlInput)) {
         await updateProfile(auth.currentUser, {
           displayName: trimmedName,
-          photoURL: photoUrlInput || ""
-        });
+          photoURL: photoUrlInput
+        }).catch(() => {});
       }
 
       setDbUser((prev: any) => ({
@@ -808,15 +783,18 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       }));
 
       // Server-authoritative profile persistence
+      const { photoURL, avatar, image, ...safeFields } = (updatedFields || {}) as any;
+      const safeCloudPhoto = isPermanentCloudUrl(photoUrlInput) ? photoUrlInput : undefined;
       apiClient.post("/api/user/profile", {
         userId: targetUid,
-        ...updatedFields
+        ...safeFields,
+        ...(safeCloudPhoto ? { photoURL: safeCloudPhoto } : {})
       }, { silent: true }).catch(() => {});
 
       try {
-        if (photoUrlInput) {
+        if (isPermanentCloudUrl(photoUrlInput)) {
           localStorage.setItem("kb_user_photo", photoUrlInput);
-        } else {
+        } else if (!photoUrlInput) {
           localStorage.removeItem("kb_user_photo");
         }
         const savedStr = localStorage.getItem("kb_current_user");
@@ -853,155 +831,46 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       return;
     }
 
+    const targetUid = user?.uid || user?.id || dbUser?.uid || dbUser?.id || (auth.currentUser ? auth.currentUser.uid : "");
+    const previousPhoto = photoUrlInput || resolveProfilePhotoUrl(dbUser) || resolveProfilePhotoUrl(user) || "";
+
     setIsUploadingPhoto(true);
 
-    // 1. Immediate local preview via URL.createObjectURL for 0ms perceived lag
-    const localPreviewUrl = URL.createObjectURL(file);
-    setPhotoUrlInput(localPreviewUrl);
-    setDbUser((prev: any) => ({
-      ...prev,
-      photoURL: localPreviewUrl,
-      avatar: localPreviewUrl,
-      image: localPreviewUrl
-    }));
-
     try {
-      // 2. Compress image for fast transfer & local data URL
-      const compressed = await compressImage(file, 400, 0.85);
-      const immediateDataUrl = compressed.dataUrl || localPreviewUrl;
-
-      // Update storage and broadcast event
-      const targetUid = user?.uid || user?.id || dbUser?.uid || dbUser?.id || (auth.currentUser ? auth.currentUser.uid : "");
-      try {
-        localStorage.setItem("kb_user_photo", immediateDataUrl);
-        const savedStr = localStorage.getItem("kb_current_user");
-        if (savedStr) {
-          const parsed = JSON.parse(savedStr);
-          parsed.photoURL = immediateDataUrl;
-          parsed.avatar = immediateDataUrl;
-          localStorage.setItem("kb_current_user", JSON.stringify(parsed));
-        }
-        window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: immediateDataUrl } }));
-      } catch {}
-
-      // Server-authoritative profile update (immediate)
-      if (targetUid) {
-        apiClient.post("/api/user/profile", {
-          userId: targetUid,
-          photoURL: immediateDataUrl,
-          avatar: immediateDataUrl,
-          image: immediateDataUrl
-        }, { silent: true }).catch(() => {});
-      }
-
-      // Sync Supabase auth metadata immediately
-      try {
-        (supabase.auth as any).updateUser({
-          data: {
-            avatar_url: immediateDataUrl,
-            photoURL: immediateDataUrl
-          }
-        }).catch(() => {});
-      } catch {}
-
-      // 3. Persist to Firestore and Supabase user documents under photoURL, avatar, and image
-      if (targetUid) {
-        await setDoc(doc(db, "users", targetUid), {
-          uid: targetUid,
-          photoURL: immediateDataUrl,
-          avatar: immediateDataUrl,
-          image: immediateDataUrl,
-          updatedAt: serverTimestamp()
-        }, { merge: true }).catch(() => {});
-
-        try {
-          if (supabase) {
-            supabase.from("users").update({
-              photo_url: immediateDataUrl,
-              avatar: immediateDataUrl,
-              image: immediateDataUrl
-            }).eq("id", targetUid).then(() => {}, () => {});
-          }
-        } catch {}
-      }
-
-      // 4. In background, upload directly to Cloudflare R2 / CDN
-      uploadImageWithFallback(file, {
+      const result = await uploadProfilePhotoUnified({
+        file,
+        userId: targetUid,
         folder: "profiles",
-        maxDimension: 400,
-        quality: 0.85
-      }).then(async (cdnUrl) => {
-        if (cdnUrl && targetUid) {
-          // Always persist to server-side profile store
-          apiClient.post("/api/user/profile", {
-            userId: targetUid,
-            photoURL: cdnUrl,
-            avatar: cdnUrl,
-            image: cdnUrl
-          }, { silent: true }).catch(() => {});
-
-          await setDoc(doc(db, "users", targetUid), {
-            photoURL: cdnUrl,
-            avatar: cdnUrl,
-            image: cdnUrl,
-            updatedAt: serverTimestamp()
-          }, { merge: true }).catch(() => {});
-
-          try {
-            if (supabase) {
-              supabase.from("users").update({
-                photo_url: cdnUrl,
-                avatar: cdnUrl,
-                image: cdnUrl
-              }).eq("id", targetUid).then(() => {}, () => {});
-            }
-          } catch {}
-
-          // Guard: if user has logged out while background upload was running, DO NOT resurrect localStorage session!
-          const isStillLoggedIn = Boolean(
-            localStorage.getItem("kb_current_user") ||
-            sessionStorage.getItem("kb_current_user")
-          );
-          if (!isStillLoggedIn) {
-            return;
-          }
-
-          setPhotoUrlInput(cdnUrl);
-          setDbUser((prev: any) => ({ 
-            ...prev, 
-            photoURL: cdnUrl, 
-            avatar: cdnUrl, 
-            image: cdnUrl 
+        previousPhotoUrl: previousPhoto,
+        onPreview: (previewUrl) => {
+          setPhotoUrlInput(previewUrl);
+          setDbUser((prev: any) => ({
+            ...prev,
+            photoURL: previewUrl,
+            photo_url: previewUrl
           }));
-
-          try {
-            localStorage.setItem("kb_user_photo", cdnUrl);
-            const savedStr = localStorage.getItem("kb_current_user");
-            if (savedStr) {
-              const parsed = JSON.parse(savedStr);
-              parsed.photoURL = cdnUrl;
-              parsed.avatar = cdnUrl;
-              localStorage.setItem("kb_current_user", JSON.stringify(parsed));
-            }
-            window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: cdnUrl } }));
-          } catch {}
-
-          if (auth.currentUser) {
-            updateProfile(auth.currentUser, { photoURL: cdnUrl }).catch(() => {});
-          }
-
-          try {
-            (supabase.auth as any).updateUser({
-              data: {
-                avatar_url: cdnUrl,
-                photoURL: cdnUrl
-              }
-            }).catch(() => {});
-          } catch {}
         }
-      }).catch((cdnErr) => {
-        console.warn("Background photo CDN upload notice:", cdnErr);
       });
+
+      const permanentUrl = result.permanentUrl;
+
+      // Guard: if user has logged out while upload was running, do not resurrect session
+      const isStillLoggedIn = Boolean(
+        localStorage.getItem("kb_current_user") ||
+        sessionStorage.getItem("kb_current_user")
+      );
+      if (!isStillLoggedIn) return;
+
+      setPhotoUrlInput(permanentUrl);
+      setDbUser((prev: any) => ({
+        ...prev,
+        photoURL: permanentUrl,
+        photo_url: permanentUrl
+      }));
+
+      if (auth.currentUser) {
+        updateProfile(auth.currentUser, { photoURL: permanentUrl }).catch(() => {});
+      }
 
       triggerToast(
         "প্রোফাইল ছবি সফলভাবে আপডেট করা হয়েছে!",
@@ -1009,9 +878,16 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
       );
     } catch (err: any) {
       console.error("Error uploading photo:", err);
+      // Rollback to previous profile image if upload or database save failed
+      setPhotoUrlInput(previousPhoto);
+      setDbUser((prev: any) => ({
+        ...prev,
+        photoURL: previousPhoto,
+        photo_url: previousPhoto
+      }));
       triggerToast(
-        "ছবি আপলোড করতে সমস্যা হয়েছে!",
-        "Failed to upload photo!"
+        err?.message || "ছবি আপলোড করতে সমস্যা হয়েছে! পূর্বের ছবিটি বহাল রাখা হয়েছে।",
+        err?.message || "Failed to upload photo! Previous image preserved."
       );
     } finally {
       setIsUploadingPhoto(false);
@@ -1024,26 +900,42 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
   const handleRemovePhoto = async () => {
     if (!confirm(getTranslation("আপনি কি নিশ্চিত আপনার প্রোফাইল ছবি মুছে ফেলতে চান?", "Are you sure you want to remove your profile picture?"))) return;
 
+    const previousPhoto = photoUrlInput;
     setIsUploadingPhoto(true);
     const targetUid = user?.uid || user?.id || dbUser?.uid || dbUser?.id || (auth.currentUser ? auth.currentUser.uid : "");
     try {
       setPhotoUrlInput("");
-      if (targetUid) {
-        await setDoc(doc(db, "users", targetUid), {
-          uid: targetUid,
-          photoURL: "",
-          avatar: "",
-          image: "",
-          updatedAt: serverTimestamp()
-        }, { merge: true });
+      setDbUser((prev: any) => ({
+        ...prev,
+        photoURL: "",
+        photo_url: null
+      }));
 
-        apiClient.post("/api/user/profile", {
+      if (targetUid) {
+        if (supabase) {
+          await supabase.from("users").update({
+            photo_url: null,
+            updated_at: new Date().toISOString()
+          }).or(`id.eq.${targetUid},uid.eq.${targetUid}`);
+        }
+
+        await apiClient.post("/api/user/profile", {
           userId: targetUid,
-          photoURL: "",
-          avatar: "",
-          image: ""
-        }, { silent: true }).catch(() => {});
+          photoURL: ""
+        }, { silent: true });
       }
+
+      try {
+        localStorage.removeItem("kb_user_photo");
+        const savedStr = localStorage.getItem("kb_current_user");
+        if (savedStr) {
+          const parsed = JSON.parse(savedStr);
+          parsed.photoURL = "";
+          parsed.photo_url = "";
+          localStorage.setItem("kb_current_user", JSON.stringify(parsed));
+        }
+        window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: "" } }));
+      } catch {}
 
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, {
@@ -1159,34 +1051,50 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
     };
     fetchWallet();
 
-    // Listen to real-time User details (legacy fallback)
-    const unsubUser = onSnapshot(
-      doc(db, "users", targetUid), 
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const udata = docSnap.data();
-          setDbUser((prev: any) => ({ ...prev, ...udata }));
-          const liveName = udata.fullName || udata.displayName || udata.name;
-          if (liveName) {
-            setDisplayNameInput(liveName);
-          }
-          if (udata.walletBalance !== undefined) {
-            setWalletBalance(Number(udata.walletBalance) || 0);
-          } else if (udata.balance !== undefined) {
-            setWalletBalance(Number(udata.balance) || 0);
-          }
-          const firestorePhoto = udata.photoURL || udata.avatar || udata.image;
-          if (firestorePhoto) {
-            setPhotoUrlInput(firestorePhoto);
-            try {
-              localStorage.setItem("kb_user_photo", firestorePhoto);
-              window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: firestorePhoto } }));
-            } catch {}
-          }
+    // Authoritative real-time Supabase user profile listener
+    let userChannel: any = null;
+    try {
+      if (supabase && targetUid) {
+        userChannel = supabase
+          .channel(`customer_profile_${targetUid}`)
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "users", filter: `id=eq.${targetUid}` },
+            (payload) => {
+              if (payload.new) {
+                const udata = payload.new as any;
+                const photo = udata.photo_url || "";
+                setDbUser((prev: any) => ({
+                  ...prev,
+                  ...udata,
+                  photoURL: photo || prev?.photoURL,
+                  avatar: photo || prev?.avatar,
+                  image: photo || prev?.image
+                }));
+                const liveName = udata.full_name || udata.display_name;
+                if (liveName) setDisplayNameInput(liveName);
+                if (udata.wallet_balance !== undefined) setWalletBalance(Number(udata.wallet_balance) || 0);
+                if (photo) {
+                  setPhotoUrlInput(photo);
+                  try {
+                    localStorage.setItem("kb_user_photo", photo);
+                    window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: photo } }));
+                  } catch {}
+                }
+              }
+            }
+          )
+          .subscribe();
+      }
+    } catch {}
+
+    const unsubUser = () => {
+      try {
+        if (userChannel && supabase) {
+          supabase.removeChannel(userChannel);
         }
-      },
-      (err) => console.warn("Customer user sync notice:", err.message)
-    );
+      } catch {}
+    };
 
     // 1. PRIMARY: Fetch orders from Supabase
     const fetchSupabaseCustomerOrders = async () => {
@@ -1283,7 +1191,6 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
           if (rawBal === 50) {
             setWalletBalance(0);
             setDoc(doc(db, "wallet", targetUid), { balance: 0, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
-            setDoc(doc(db, "users", targetUid), { walletBalance: 0, balance: 0, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
           }
         }
       },
@@ -1395,11 +1302,29 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
   const updateAddress = async () => {
     try {
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
-        address: profileAddress.trim(),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      const targetUid = user?.uid || user?.id || auth.currentUser?.uid;
+      const cleanAddress = profileAddress.trim();
+      if (targetUid) {
+        apiClient.post("/api/user/profile", {
+          userId: targetUid,
+          address: cleanAddress
+        }, { silent: true }).catch(() => {});
+
+        try {
+          if (supabase) {
+            supabase.from("users").update({
+              address: cleanAddress,
+              updated_at: new Date().toISOString()
+            }).or(`id.eq.${targetUid},uid.eq.${targetUid}`).then(() => {}, () => {});
+          }
+        } catch {}
+      }
+
+      setDbUser((prev: any) => ({
+        ...prev,
+        address: cleanAddress
+      }));
+
       triggerToast(
         "ডেলিভারি ঠিকানা সফলভাবে আপডেট করা হয়েছে!",
         "Delivery address successfully updated!"
@@ -1566,14 +1491,24 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         return;
       }
 
-      // 3. If matched, update user profile in Firestore: isEmailVerified: true
+      // 3. If matched, update user profile in Supabase & backend: is_verified: true
       const willBeFullyVerified = isPhoneVerified;
-      await setDoc(doc(db, "users", uId), {
-        uid: uId,
-        isEmailVerified: true,
-        ...(willBeFullyVerified ? { isVerified: true } : {}),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      if (uId) {
+        try {
+          await supabase.from("users").update({
+            is_verified: true,
+            updated_at: new Date().toISOString()
+          }).or(`id.eq.${uId},uid.eq.${uId}`);
+        } catch (sErr) {
+          console.warn("Supabase email verify update:", sErr);
+        }
+        try {
+          await apiClient.post("/api/user/profile", {
+            userId: uId,
+            isVerified: true
+          }, { silent: true });
+        } catch (pErr) {}
+      }
 
       // Mark verification record completed
       try {
@@ -1699,13 +1634,24 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
 
       const willBeFullyVerified = isEmailVerified;
       if (uId) {
-        await setDoc(doc(db, "users", uId), {
-          uid: uId,
-          isPhoneVerified: true,
-          phone: targetPhone,
-          ...(willBeFullyVerified ? { isVerified: true } : { isVerified: false }),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
+        try {
+          await supabase.from("users").update({
+            phone: targetPhone,
+            mobile: targetPhone,
+            is_verified: willBeFullyVerified,
+            updated_at: new Date().toISOString()
+          }).or(`id.eq.${uId},uid.eq.${uId}`);
+        } catch (sErr) {
+          console.warn("Supabase phone verify update:", sErr);
+        }
+        try {
+          await apiClient.post("/api/user/profile", {
+            userId: uId,
+            phone: targetPhone,
+            mobile: targetPhone,
+            ...(willBeFullyVerified ? { isVerified: true } : {})
+          }, { silent: true });
+        } catch (pErr) {}
       }
 
       setDbUser((prev: any) => ({

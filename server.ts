@@ -456,7 +456,8 @@ function getTargetPort(): number {
 }
 const PORT = getTargetPort();
 
-app.use(express.json({ limit: "15mb" }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use("/uploads", express.static(path.resolve(process.cwd(), "public", "uploads")));
 
 // Universal CORS & Preflight OPTIONS Handler
@@ -1416,75 +1417,166 @@ function writeUserProfilesToDisk(profiles: Record<string, ProfileRecord>) {
 
 app.post("/api/user/profile", rateLimiter(120, 60000), async (req, res) => {
   try {
-    const { userId, email, phone, displayName, fullName, photoURL, avatar, image, address, wishlist } = req.body || {};
-    const cleanUserId = String(userId || "").trim();
-    const cleanEmail = email ? String(email).trim().toLowerCase() : (cleanUserId.includes("@") ? cleanUserId.toLowerCase() : "");
-    const cleanPhone = phone ? String(phone).replace(/\s+/g, "") : (!cleanUserId.includes("@") && /^\+?\d{9,15}$/.test(cleanUserId) ? cleanUserId : "");
-    const primaryId = cleanUserId || cleanEmail || cleanPhone;
-
-    if (!primaryId) {
-      return res.status(400).json({ success: false, error: "Valid userId, email, or phone is required" });
+    // 1. Authenticate caller (never trust frontend-supplied userId, role, or admin status)
+    const caller = await getAuthenticatedCaller(req);
+    if (!caller) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+        message: "প্রোফাইল আপডেট করতে অনুগ্রহ করে লগইন করুন।"
+      });
     }
 
-    const allProfiles = readUserProfilesFromDisk();
-    const existing: Partial<ProfileRecord> = (allProfiles[primaryId] || (cleanUserId ? allProfiles[cleanUserId] : null) || (cleanEmail ? allProfiles[`email:${cleanEmail}`] : null) || {}) as Partial<ProfileRecord>;
+    const {
+      userId,
+      email,
+      phone,
+      displayName,
+      fullName,
+      photoURL,
+      avatar,
+      image,
+      address,
+      wishlist
+    } = req.body || {};
 
-    const resolvedPhoto = photoURL || avatar || image || existing.photoURL || existing.avatar || existing.image || "";
+    const reqUserId = userId ? String(userId).trim() : "";
+    const reqEmail = email ? String(email).trim().toLowerCase() : "";
+
+    // 2. Authorization check: Users can ONLY update their own profile; admin verified server-side
+    let cleanUserId = "";
+    let cleanEmail = "";
+
+    if (caller.isAdmin) {
+      cleanUserId = reqUserId || caller.uid;
+      cleanEmail = reqEmail || caller.email;
+    } else {
+      if (reqUserId && reqUserId !== caller.uid && (!caller.email || reqUserId.toLowerCase() !== caller.email)) {
+        return res.status(403).json({
+          success: false,
+          error: "Forbidden: You are only allowed to update your own profile",
+          message: "আপনি শুধুমাত্র আপনার নিজের প্রোফাইল আপডেট করতে পারবেন।"
+        });
+      }
+      if (reqEmail && caller.email && reqEmail !== caller.email) {
+        return res.status(403).json({
+          success: false,
+          error: "Forbidden: You cannot change account email to a different user",
+          message: "আপনি অন্যের ইমেইল ব্যবহার করতে পারবেন না।"
+        });
+      }
+
+      // Bound strictly to authenticated caller's identity
+      cleanUserId = caller.uid;
+      cleanEmail = caller.email || reqEmail;
+    }
+
+    if (!cleanUserId && !cleanEmail) {
+      return res.status(400).json({ success: false, error: "Valid userId or email is required" });
+    }
+
+    const cleanPhone = phone ? String(phone).replace(/[^\d+]/g, "").slice(0, 25) : "";
+    const primaryId = cleanUserId || cleanEmail;
+
+    const allProfiles = readUserProfilesFromDisk();
+    const existing: Partial<ProfileRecord> = (
+      allProfiles[cleanUserId] ||
+      (cleanEmail ? allProfiles[`email:${cleanEmail}`] : null) ||
+      allProfiles[primaryId] ||
+      {}
+    ) as Partial<ProfileRecord>;
+
+    // 3. Strict field sanitization - Only accept permanent cloud URLs or empty/null (removal).
+    // Reject Base64 data URLs so they never pollute Supabase public.users as permanent storage.
+    let resolvedPhoto = "";
+    const incomingPhoto = photoURL !== undefined ? photoURL : (avatar !== undefined ? avatar : image);
+    if (incomingPhoto !== undefined) {
+      const incomingStr = typeof incomingPhoto === "string" ? incomingPhoto.trim() : "";
+      if (incomingStr === "" || incomingStr === "null") {
+        resolvedPhoto = ""; // User explicitly removed photo
+      } else if (incomingStr.startsWith("data:") || incomingStr.startsWith("blob:")) {
+        // Base64 rejected as permanent storage; preserve existing cloud photo
+        resolvedPhoto = existing.photoURL || (existing as any).photo_url || existing.avatar || "";
+      } else if (
+        incomingStr.startsWith("http://") ||
+        incomingStr.startsWith("https://") ||
+        incomingStr.startsWith("/api/media/") ||
+        incomingStr.startsWith("/uploads/")
+      ) {
+        resolvedPhoto = incomingStr;
+      } else {
+        resolvedPhoto = existing.photoURL || (existing as any).photo_url || "";
+      }
+    } else {
+      resolvedPhoto = existing.photoURL || (existing as any).photo_url || existing.avatar || existing.image || "";
+    }
+
+    const rawFullName = fullName || displayName || existing.fullName || existing.displayName || "";
+    const resolvedFullName = typeof rawFullName === "string" ? rawFullName.trim().slice(0, 100) : "";
+
+    const rawDisplayName = displayName || fullName || existing.displayName || existing.fullName || "";
+    const resolvedDisplayName = typeof rawDisplayName === "string" ? rawDisplayName.trim().slice(0, 100) : "";
+
+    const resolvedAddress = address !== undefined
+      ? (typeof address === "string" ? address.trim().slice(0, 500) : String(address || "").slice(0, 500))
+      : (existing.address || "");
+
+    const resolvedWishlist = Array.isArray(wishlist)
+      ? wishlist.slice(0, 200)
+      : (Array.isArray(existing.wishlist) ? existing.wishlist : []);
+
+    const resolvedPhone = cleanPhone || existing.phone || "";
     const timestamp = new Date().toISOString();
 
     const profilePayload: ProfileRecord = {
-      ...existing,
-      ...req.body,
       userId: cleanUserId || existing.userId || primaryId,
-      email: cleanEmail || existing.email,
-      phone: cleanPhone || existing.phone,
-      displayName: displayName || fullName || existing.displayName || existing.fullName || "",
-      fullName: fullName || displayName || existing.fullName || existing.displayName || "",
+      email: cleanEmail || existing.email || "",
+      phone: resolvedPhone,
+      displayName: resolvedDisplayName,
+      fullName: resolvedFullName,
       photoURL: resolvedPhoto,
       avatar: resolvedPhoto,
       image: resolvedPhoto,
-      address: address !== undefined ? address : existing.address,
-      wishlist: Array.isArray(wishlist) ? wishlist : existing.wishlist || [],
+      address: resolvedAddress,
+      wishlist: resolvedWishlist,
+      createdAt: existing.createdAt || timestamp,
       updatedAt: timestamp
     };
 
     if (cleanUserId) allProfiles[cleanUserId] = profilePayload;
     if (cleanEmail) allProfiles[`email:${cleanEmail}`] = profilePayload;
-    if (cleanPhone) allProfiles[`phone:${cleanPhone}`] = profilePayload;
+    if (resolvedPhone) allProfiles[`phone:${resolvedPhone}`] = profilePayload;
     writeUserProfilesToDisk(allProfiles);
 
-    // 2. Sync to Supabase if configured
+    // 4. Primary Authoritative Persistence: Supabase public.users
     const sb = getServerSupabase();
     if (sb && cleanUserId) {
       try {
-        await sb.from("users").upsert({
+        const { error: sbErr } = await sb.from("users").upsert({
           id: cleanUserId,
+          uid: cleanUserId,
           full_name: profilePayload.fullName,
+          display_name: profilePayload.displayName,
           email: cleanEmail || undefined,
-          phone: cleanPhone || undefined,
-          photo_url: resolvedPhoto,
-          avatar: resolvedPhoto,
-          image: resolvedPhoto,
+          phone: resolvedPhone || undefined,
+          mobile: resolvedPhone || undefined,
+          photo_url: resolvedPhoto || undefined,
           address: profilePayload.address,
-          wishlist: profilePayload.wishlist,
           updated_at: timestamp
         }, { onConflict: "id" });
-      } catch (sbErr) {}
+        if (sbErr) {
+          console.warn("[Profile Authoritative Sync] Supabase upsert note:", sbErr.message || sbErr);
+        }
+      } catch (sbErr: any) {
+        console.warn("[Profile Authoritative Sync] Supabase error:", sbErr?.message || sbErr);
+      }
     }
 
-    // 3. Sync to Firebase Firestore if configured
-    const adminDb = getAdminDb();
-    if (adminDb && cleanUserId) {
-      try {
-        await adminDb.collection("users").doc(cleanUserId).set({
-          ...profilePayload,
-          photoURL: resolvedPhoto,
-          avatar: resolvedPhoto,
-          image: resolvedPhoto,
-          updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
-      } catch (fbErr) {}
-    }
+    // 5. Secondary temporary cache (maintains local cache & wishlist for fast offline fallback)
+    if (cleanUserId) allProfiles[cleanUserId] = profilePayload;
+    if (cleanEmail) allProfiles[`email:${cleanEmail}`] = profilePayload;
+    if (resolvedPhone) allProfiles[`phone:${resolvedPhone}`] = profilePayload;
+    writeUserProfilesToDisk(allProfiles);
 
     return res.json({ success: true, profile: profilePayload });
   } catch (err: any) {
@@ -1494,9 +1586,19 @@ app.post("/api/user/profile", rateLimiter(120, 60000), async (req, res) => {
 
 app.get("/api/user/profile/:userId", rateLimiter(120, 60000), async (req, res) => {
   try {
+    // 1. Authenticate caller (never trust frontend-supplied userId, role, or admin status)
+    const caller = await getAuthenticatedCaller(req);
+    if (!caller) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
+        message: "প্রোফাইল দেখতে অনুগ্রহ করে লগইন করুন।"
+      });
+    }
+
     const rawId = String(req.params.userId || "").trim();
     const queryEmail = String(req.query.email || "").trim().toLowerCase();
-    const queryPhone = String(req.query.phone || "").replace(/\s+/g, "");
+    const queryPhone = String(req.query.phone || "").replace(/[^\d+]/g, "");
 
     const cleanEmail = queryEmail || (rawId.includes("@") ? rawId.toLowerCase() : "");
     const cleanPhone = queryPhone || (!rawId.includes("@") && /^\+?\d{9,15}$/.test(rawId) ? rawId : "");
@@ -1506,74 +1608,120 @@ app.get("/api/user/profile/:userId", rateLimiter(120, 60000), async (req, res) =
       return res.status(400).json({ success: false, error: "Valid userId, email, or phone required" });
     }
 
-    const allProfiles = readUserProfilesFromDisk();
-    let matchedProfile = cleanUserId && allProfiles[cleanUserId] 
-      ? allProfiles[cleanUserId] 
-      : (cleanEmail && allProfiles[`email:${cleanEmail}`] 
-        ? allProfiles[`email:${cleanEmail}`] 
-        : (cleanPhone && allProfiles[`phone:${cleanPhone}`] ? allProfiles[`phone:${cleanPhone}`] : null));
+    // 2. Authorization check: allow only the account owner or an authorized admin
+    if (!caller.isAdmin) {
+      const isOwner =
+        (cleanUserId && cleanUserId === caller.uid) ||
+        (cleanEmail && caller.email && cleanEmail === caller.email) ||
+        (rawId && caller.email && rawId.toLowerCase() === caller.email) ||
+        (rawId && rawId === caller.uid);
 
-    if (!matchedProfile) {
-      for (const k of Object.keys(allProfiles)) {
-        const p = allProfiles[k];
-        if (!p) continue;
-        if (cleanEmail && p.email && p.email.toLowerCase() === cleanEmail) { matchedProfile = p; break; }
-        if (cleanPhone && p.phone && p.phone === cleanPhone) { matchedProfile = p; break; }
-        if (cleanUserId && (p.userId === cleanUserId || k === cleanUserId)) { matchedProfile = p; break; }
+      if (!isOwner) {
+        return res.status(403).json({
+          success: false,
+          error: "Forbidden: You are not authorized to view this profile",
+          message: "আপনার এই প্রোফাইলটি দেখার অনুমতি নেই।"
+        });
       }
     }
 
-    if (matchedProfile) {
-      return res.json({ success: true, profile: matchedProfile });
-    }
-
-    // Check Supabase
+    // 3. Primary Authoritative Read from Supabase public.users
     const sb = getServerSupabase();
+    let matchedProfile: ProfileRecord | null = null;
+    const allProfiles = readUserProfilesFromDisk();
+    const cached = cleanUserId && allProfiles[cleanUserId] ? allProfiles[cleanUserId] : null;
+
     if (sb && cleanUserId) {
       try {
-        const { data } = await sb.from("users").select("*").or(`id.eq.${cleanUserId},uid.eq.${cleanUserId}`).maybeSingle();
-        if (data) {
-          const profile: ProfileRecord = {
-            userId: data.id || data.uid || cleanUserId,
-            email: data.email || cleanEmail,
-            phone: data.phone || cleanPhone,
-            displayName: data.display_name || data.full_name || "",
-            fullName: data.full_name || data.display_name || "",
-            photoURL: data.photo_url || data.avatar || data.image || "",
-            avatar: data.photo_url || data.avatar || data.image || "",
-            image: data.photo_url || data.avatar || data.image || "",
-            address: data.address || "",
-            wishlist: Array.isArray(data.wishlist) ? data.wishlist : [],
-            updatedAt: data.updated_at || new Date().toISOString()
+        const { data: dbUser, error: sbErr } = await sb
+          .from("users")
+          .select("*")
+          .or(`id.eq.${cleanUserId},uid.eq.${cleanUserId}${cleanEmail ? `,email.eq.${cleanEmail}` : ""}`)
+          .maybeSingle();
+
+        if (dbUser && !sbErr) {
+          const photo = dbUser.photo_url || cached?.photoURL || "";
+          matchedProfile = {
+            userId: dbUser.id || dbUser.uid || cleanUserId,
+            email: dbUser.email || cleanEmail || cached?.email || "",
+            phone: dbUser.phone || dbUser.mobile || cleanPhone || cached?.phone || "",
+            displayName: dbUser.display_name || dbUser.full_name || cached?.displayName || "",
+            fullName: dbUser.full_name || dbUser.display_name || cached?.fullName || "",
+            photoURL: photo,
+            avatar: photo,
+            image: photo,
+            address: dbUser.address || cached?.address || "",
+            wishlist: Array.isArray(cached?.wishlist) ? cached.wishlist : [],
+            createdAt: dbUser.created_at || cached?.createdAt,
+            updatedAt: dbUser.updated_at || cached?.updatedAt || new Date().toISOString()
           };
-          allProfiles[cleanUserId] = profile;
+          // Synchronize local cache with authoritative Supabase record
+          allProfiles[cleanUserId] = matchedProfile;
           writeUserProfilesToDisk(allProfiles);
-          return res.json({ success: true, profile });
         }
-      } catch {}
+      } catch (err) {
+        console.warn("[Profile Read] Authoritative Supabase query error:", err);
+      }
     }
 
-    // Check Firebase Firestore
-    const adminDb = getAdminDb();
-    if (adminDb && cleanUserId) {
-      try {
-        const snap = await adminDb.collection("users").doc(cleanUserId).get();
-        if (snap.exists) {
-          const data = snap.data() || {};
-          const profile: ProfileRecord = {
-            userId: cleanUserId,
-            ...data,
-            photoURL: data.photoURL || data.avatar || data.image || "",
-            updatedAt: new Date().toISOString()
-          };
-          allProfiles[cleanUserId] = profile;
-          writeUserProfilesToDisk(allProfiles);
-          return res.json({ success: true, profile });
+    // 4. Secondary fallback to local temporary cache if Supabase query returned null
+    if (!matchedProfile) {
+      matchedProfile = cleanUserId && allProfiles[cleanUserId]
+        ? allProfiles[cleanUserId]
+        : (cleanEmail && allProfiles[`email:${cleanEmail}`]
+          ? allProfiles[`email:${cleanEmail}`]
+          : (cleanPhone && allProfiles[`phone:${cleanPhone}`] ? allProfiles[`phone:${cleanPhone}`] : null));
+
+      if (!matchedProfile) {
+        for (const k of Object.keys(allProfiles)) {
+          const p = allProfiles[k];
+          if (!p) continue;
+          if (cleanEmail && p.email && p.email.toLowerCase() === cleanEmail) { matchedProfile = p; break; }
+          if (cleanPhone && p.phone && p.phone === cleanPhone) { matchedProfile = p; break; }
+          if (cleanUserId && (p.userId === cleanUserId || k === cleanUserId)) { matchedProfile = p; break; }
         }
-      } catch {}
+      }
     }
 
-    return res.status(404).json({ success: false, error: "Profile not found" });
+    if (!matchedProfile) {
+      if (caller.uid === cleanUserId || (caller.email && caller.email === cleanEmail)) {
+        matchedProfile = {
+          userId: cleanUserId || caller.uid,
+          email: cleanEmail || caller.email || "",
+          phone: cleanPhone || "",
+          displayName: caller.email?.split("@")[0] || "Customer",
+          fullName: caller.email?.split("@")[0] || "Customer",
+          role: "customer",
+          photoURL: "",
+          avatar: "",
+          image: "",
+          address: "",
+          wishlist: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+      } else {
+        return res.status(404).json({ success: false, error: "Profile not found" });
+      }
+    }
+
+    // 6. Sanitize profile data to prevent exposing sensitive internal fields
+    const safeProfile = {
+      userId: matchedProfile.userId || cleanUserId,
+      email: matchedProfile.email || cleanEmail || "",
+      phone: matchedProfile.phone || "",
+      displayName: matchedProfile.displayName || matchedProfile.fullName || "",
+      fullName: matchedProfile.fullName || matchedProfile.displayName || "",
+      photoURL: matchedProfile.photoURL || matchedProfile.avatar || matchedProfile.image || "",
+      avatar: matchedProfile.avatar || matchedProfile.photoURL || matchedProfile.image || "",
+      image: matchedProfile.image || matchedProfile.photoURL || matchedProfile.avatar || "",
+      address: matchedProfile.address || "",
+      wishlist: Array.isArray(matchedProfile.wishlist) ? matchedProfile.wishlist : [],
+      createdAt: matchedProfile.createdAt,
+      updatedAt: matchedProfile.updatedAt
+    };
+
+    return res.json({ success: true, profile: safeProfile });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message || "Failed to get profile" });
   }
@@ -2229,6 +2377,20 @@ function getStaffFromSession(req: express.Request): { staffId: string; email: st
   }
 
   // 1. Check in-memory active session cache
+  if (sessionId && !activeStaffSessions.has(sessionId)) {
+    try {
+      if (fs.existsSync(SESSIONS_FILE)) {
+        const fileData = JSON.parse(fs.readFileSync(SESSIONS_FILE, "utf-8"));
+        if (fileData && fileData[sessionId]) {
+          const s = fileData[sessionId];
+          if (s.expiresAt > Date.now()) {
+            activeStaffSessions.set(sessionId, s);
+          }
+        }
+      }
+    } catch {}
+  }
+
   if (sessionId && activeStaffSessions.has(sessionId)) {
     const session = activeStaffSessions.get(sessionId)!;
     if (session.expiresAt > Date.now()) {
@@ -2252,7 +2414,7 @@ function getStaffFromSession(req: express.Request): { staffId: string; email: st
  * Cryptographically verifies authentication token using Supabase Auth (supabase.auth.getUser(jwt)).
  * Serves as the authoritative token validation mechanism for all requests.
  */
-async function verifySupabaseToken(token: string): Promise<{ email: string; uid: string; role?: string } | null> {
+async function verifySupabaseToken(token: string): Promise<{ email: string; uid: string; role?: string; isAppMetadataRole?: boolean } | null> {
   if (!token || typeof token !== "string" || token.length < 20) return null;
   const cleanToken = token.startsWith("Bearer ") ? token.substring(7).trim() : token.trim();
 
@@ -2263,11 +2425,19 @@ async function verifySupabaseToken(token: string): Promise<{ email: string; uid:
       if (!error && data?.user) {
         const u = data.user;
         const email = (u.email || "").toLowerCase().trim();
-        const role = u.user_metadata?.role || (u.app_metadata as any)?.role;
+        // Authoritative role check: Never trust client-supplied user_metadata for admin or super_admin
+        const appRole = (u.app_metadata as any)?.role;
+        const userMetaRole = u.user_metadata?.role;
+        let role = appRole || "customer";
+        let isAppMetadataRole = Boolean(appRole);
+        if (!appRole && userMetaRole && userMetaRole !== "admin" && userMetaRole !== "super_admin") {
+          role = userMetaRole;
+        }
         return {
           email,
           uid: u.id,
-          role
+          role,
+          isAppMetadataRole
         };
       }
     }
@@ -2367,6 +2537,139 @@ async function verifyFirebaseTokenAuth(req: express.Request): Promise<{ staffId:
     }
   } catch (sbErr) {
     console.warn("[Auth Middleware] Supabase token auth notice:", sbErr);
+  }
+
+  return null;
+}
+
+interface AuthenticatedCaller {
+  uid: string;
+  email: string;
+  role: string;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  isStaff: boolean;
+}
+
+const SUPER_ADMIN_WHITELIST = new Set([
+  "sarkarmdanik14@gmail.com",
+  "megabajar@admin.com"
+]);
+
+/**
+ * Universal Server-Authoritative Request Authenticator.
+ * Validates Supabase JWTs, active staff sessions, and staff tokens.
+ * Returns verified identity and privileges. Never trusts frontend-supplied roles or user IDs.
+ */
+async function getAuthenticatedCaller(req: express.Request): Promise<AuthenticatedCaller | null> {
+  // 1. Check active staff session
+  try {
+    const staffSession = getStaffFromSession(req);
+    if (staffSession) {
+      const email = (staffSession.email || "").toLowerCase().trim();
+      const isSuper = staffSession.role === "super_admin" || !!staffSession.isSuperAdmin || SUPER_ADMIN_WHITELIST.has(email);
+      const isAdmin = isSuper || staffSession.role === "admin";
+      return {
+        uid: staffSession.staffId,
+        email,
+        role: staffSession.role || "staff",
+        isAdmin,
+        isSuperAdmin: isSuper,
+        isStaff: true
+      };
+    }
+  } catch (err) {
+    console.warn("[Auth] Staff session inspection error:", err);
+  }
+
+  // 2. Check staff token via verifyFirebaseTokenAuth
+  try {
+    const staffTokenAuth = await verifyFirebaseTokenAuth(req);
+    if (staffTokenAuth) {
+      const email = (staffTokenAuth.email || "").toLowerCase().trim();
+      const isSuper = staffTokenAuth.role === "super_admin" || !!staffTokenAuth.isSuperAdmin || SUPER_ADMIN_WHITELIST.has(email);
+      const isAdmin = isSuper || staffTokenAuth.role === "admin";
+      return {
+        uid: staffTokenAuth.staffId,
+        email,
+        role: staffTokenAuth.role || "staff",
+        isAdmin,
+        isSuperAdmin: isSuper,
+        isStaff: true
+      };
+    }
+  } catch (err) {
+    console.warn("[Auth] Staff token auth error:", err);
+  }
+
+  // 3. Extract and cryptographically verify Supabase JWT token
+  const authHeader = req.headers.authorization;
+  const rawToken = (req.headers["x-supabase-token"] as string) ||
+    (req.headers["x-firebase-id-token"] as string) ||
+    (authHeader?.startsWith("Bearer ") ? authHeader.substring(7).trim() : (authHeader || "").trim());
+
+  if (!rawToken || rawToken.length < 20) {
+    return null;
+  }
+
+  try {
+    const sbUser = await verifySupabaseToken(rawToken);
+    if (sbUser && (sbUser.uid || sbUser.email)) {
+      const email = (sbUser.email || "").toLowerCase().trim();
+      const uid = String(sbUser.uid || "").trim();
+
+      let isAdmin = false;
+      let isSuperAdmin = false;
+      let isStaff = false;
+      let role = sbUser.role || "customer";
+
+      if (email && SUPER_ADMIN_WHITELIST.has(email)) {
+        isAdmin = true;
+        isSuperAdmin = true;
+        isStaff = true;
+        role = "super_admin";
+      }
+
+      // Check staff database for role
+      try {
+        const staffList = readStaffDb();
+        const staffMatch = staffList.find(s =>
+          (email && s.email && s.email.toLowerCase() === email) ||
+          (uid && (s.id === uid || s.staffId === uid))
+        );
+        if (staffMatch && staffMatch.status === "active") {
+          isStaff = true;
+          if (staffMatch.role === "admin" || staffMatch.role === "super_admin" || staffMatch.isSuperAdmin) {
+            isAdmin = true;
+            if (staffMatch.role === "super_admin" || staffMatch.isSuperAdmin) {
+              isSuperAdmin = true;
+            }
+          }
+          role = staffMatch.role || role;
+        }
+      } catch {}
+
+      if (!isAdmin) {
+        const lowerRole = String(role).toLowerCase();
+        if ((sbUser as any).isAppMetadataRole || (email && SUPER_ADMIN_WHITELIST.has(email))) {
+          if (lowerRole === "admin" || lowerRole === "super_admin") {
+            isAdmin = true;
+            if (lowerRole === "super_admin") isSuperAdmin = true;
+          }
+        }
+      }
+
+      return {
+        uid,
+        email,
+        role,
+        isAdmin,
+        isSuperAdmin,
+        isStaff
+      };
+    }
+  } catch (err) {
+    console.warn("[Auth] Supabase caller verification error:", err);
   }
 
   return null;
@@ -2614,6 +2917,27 @@ app.get("/api/staff/active-session", async (req, res) => {
   let auth = getStaffFromSession(req);
   if (!auth) {
     auth = await verifyFirebaseTokenAuth(req);
+  }
+  if (!auth) {
+    // Also verify if a Supabase JWT caller is an authorized staff/admin
+    try {
+      const caller = await getAuthenticatedCaller(req);
+      if (caller && (caller.isAdmin || caller.isStaff)) {
+        return res.json({
+          success: true,
+          authenticated: true,
+          staff: {
+            id: caller.uid,
+            staffId: caller.uid,
+            email: caller.email,
+            role: caller.role,
+            isSuperAdmin: caller.isSuperAdmin,
+            isAdmin: caller.isAdmin,
+            status: "active"
+          }
+        });
+      }
+    } catch {}
   }
   if (!auth) {
     return res.status(401).json({ success: false, authenticated: false });
@@ -3188,7 +3512,42 @@ const handleImageUpload = async (req: express.Request, res: express.Response) =>
     }
 
     const cleanFolder = (typeof folder === "string" && folder.trim()) ? folder.trim().replace(/[^a-zA-Z0-9_-]/g, "_") : "products";
-    const safeName = `img_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
+
+    // SECURITY CHECK: When folder="profiles" or "staff", require authenticated user/staff session & enforce ownership
+    let authenticatedUid = "";
+    if (cleanFolder === "profiles" || cleanFolder === "staff") {
+      const caller = await getAuthenticatedCaller(req);
+      if (!caller) {
+        return res.status(401).json({
+          success: false,
+          error: "Authentication required to upload profile pictures",
+          message: "ছবি আপলোড করতে অনুগ্রহ করে লগইন করুন।"
+        });
+      }
+
+      const targetUserId = (req.body.userId || req.body.targetUserId || req.body.staffId || "").trim();
+      if (cleanFolder === "profiles" && targetUserId && targetUserId !== caller.uid && !caller.isAdmin && !caller.isSuperAdmin) {
+        return res.status(403).json({
+          success: false,
+          error: "Forbidden: You are only allowed to upload profile pictures for your own account",
+          message: "আপনি শুধুমাত্র নিজের একাউন্টের ছবি আপলোড করতে পারবেন।"
+        });
+      }
+
+      if (cleanFolder === "staff" && !caller.isStaff && !caller.isAdmin && !caller.isSuperAdmin) {
+        return res.status(403).json({
+          success: false,
+          error: "Forbidden: Only staff or administrators can upload staff photos",
+          message: "শুধুমাত্র অনুমোদিত স্টাফ বা অ্যাডমিন স্টাফ ছবি আপলোড করতে পারবেন।"
+        });
+      }
+
+      authenticatedUid = (targetUserId || caller.uid).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 48);
+    }
+
+    const safeName = cleanFolder === "profiles"
+      ? `profile_${authenticatedUid || "user"}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`
+      : `img_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
     const r2Key = `${cleanFolder}/${safeName}`;
 
     // Upload to Cloudflare R2
@@ -4364,27 +4723,18 @@ app.post("/api/auth/verify-email-otp", rateLimiter(40, 60000), async (req, res) 
       });
     }
 
-    // Update user profile in Firestore: isEmailVerified: true
+    // Authoritative update in Supabase public.users
     if (cleanUserId) {
       try {
-        const adminDb = getAdminDb();
-        await adminDb.collection("users").doc(cleanUserId).set({
-          uid: cleanUserId,
-          isEmailVerified: true,
-          updatedAt: FieldValue.serverTimestamp()
-        }, { merge: true });
-        await adminDb.collection("email_verifications").doc(cleanUserId).update({ verified: true }).catch(() => {});
-      } catch (err) {
-        try {
-          const sdb = await getServerDb();
-          if (sdb) {
-            await setDoc(doc(sdb, "users", cleanUserId), {
-              uid: cleanUserId,
-              isEmailVerified: true,
-              updatedAt: FieldValue.serverTimestamp()
-            }, { merge: true });
-          }
-        } catch (e) {}
+        const sb = getServerSupabase();
+        if (sb) {
+          await sb.from("users").update({
+            is_verified: true,
+            updated_at: new Date().toISOString()
+          }).or(`id.eq.${cleanUserId},uid.eq.${cleanUserId}`);
+        }
+      } catch (sbErr) {
+        console.warn("[Email Verify] Supabase sync notice:", sbErr);
       }
     }
 
@@ -5283,6 +5633,21 @@ app.post("/api/auth/logout", (req, res) => {
     }
     if (sessionId) {
       revokeStaffSession(sessionId);
+    }
+    const staffId = req.body?.staffId;
+    const staffEmail = (req.body?.email || "").toLowerCase().trim();
+    if (staffId || staffEmail) {
+      const staffList = readStaffDb();
+      const staff = staffList.find(s => 
+        (staffId && (s.staffId === staffId || s.id === staffId)) ||
+        (staffEmail && s.email && s.email.toLowerCase() === staffEmail)
+      );
+      if (staff) {
+        if (staff.sessionId) revokeStaffSession(staff.sessionId);
+        staff.sessionId = `revoked_${Date.now()}`;
+        staff.onlineStatus = "offline";
+        writeStaffDb(staffList);
+      }
     }
     return res.json({ success: true, message: "সফলভাবে লগআউট সম্পন্ন হয়েছে।" });
   } catch (err: any) {
@@ -6338,6 +6703,13 @@ app.all("/api/*", (req, res) => {
 // 17. Dedicated Global JSON Error Handler for API routes
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (req.originalUrl?.startsWith("/api/") || req.path?.startsWith("/api/")) {
+    if (err.type === "entity.too.large" || err.status === 413) {
+      return res.status(413).json({
+        success: false,
+        error: "Payload Too Large: Please upload images via /api/upload instead of sending raw data",
+        message: "অনুরোধের আকার অনেক বড়। ছবি আপলোডের জন্য স্থায়ী ক্লাউড ইউআরএল ব্যবহার করুন।"
+      });
+    }
     console.error("[API Error]", req.method, req.originalUrl, err);
     return res.status(err.status || 500).json({
       success: false,

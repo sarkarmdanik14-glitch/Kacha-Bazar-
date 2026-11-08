@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { auth, db, doc, getDoc, setDoc, serverTimestamp, signOut, onAuthStateChanged, collection, query, where, getDocs } from "../../lib/firebase";
 import { supabase } from "../../lib/supabase";
-import { supabaseSignOut, onSupabaseAuthStateChange, getSupabaseUser, checkIsSupabaseAdmin, SUPER_ADMIN_EMAILS, fetchUserProfile, isExplicitLogoutActive } from "../../lib/supabaseAuth";
+import { supabaseSignOut, onSupabaseAuthStateChange, getSupabaseUser, checkIsSupabaseAdmin, verifyServerAdminOrStaffSession, fetchUserProfile, isExplicitLogoutActive } from "../../lib/supabaseAuth";
 import { X, RefreshCw, Key, Shield, LogOut, Lock } from "lucide-react";
 
 import AuthView from "./AuthView";
@@ -80,8 +80,6 @@ export default function PortalModal({
 }: PortalModalProps) {
   const resolveInitialRole = () => {
     if (forcedRole && forcedRole !== "customer") return forcedRole;
-    const cleanEmail = (initialUser?.email || "").toLowerCase().trim();
-    if (cleanEmail && SUPER_ADMIN_EMAILS.has(cleanEmail)) return "super_admin";
     if (initialUser?.role) return initialUser.role;
     return "customer";
   };
@@ -92,8 +90,6 @@ export default function PortalModal({
   const [userRole, setUserRole] = useState<string>(initialRole);
   const [activePortalTab, setActivePortalTab] = useState<string>(() => {
     if (forcedRole && forcedRole !== "customer") return forcedRole;
-    const cleanEmail = (initialUser?.email || "").toLowerCase().trim();
-    if (cleanEmail && SUPER_ADMIN_EMAILS.has(cleanEmail)) return "admin";
     if (initialRole === "admin" || initialRole === "super_admin") return "admin";
     if (initialRole === "seller") return "seller";
     if (initialRole === "rider") return "rider";
@@ -141,15 +137,13 @@ export default function PortalModal({
   // Keep in sync if initialUser updates from parent
   useEffect(() => {
     if (initialUser && (!currentUser || currentUser.uid !== initialUser.uid || currentUser.id !== initialUser.id)) {
-      const cleanEmail = (initialUser.email || "").toLowerCase().trim();
-      const isSuper = cleanEmail && SUPER_ADMIN_EMAILS.has(cleanEmail);
-      const role = isSuper ? "super_admin" : ((forcedRole && forcedRole !== "customer") ? forcedRole : (initialUser.role || "customer"));
+      const role = (forcedRole && forcedRole !== "customer") ? forcedRole : (initialUser.role || "customer");
       
-      setCurrentUser({ ...initialUser, role, isSuperAdmin: isSuper || initialUser.isSuperAdmin });
+      setCurrentUser({ ...initialUser, role, isSuperAdmin: Boolean(initialUser.isSuperAdmin || role === "super_admin") });
       setUserRole(role);
       if (forcedRole && forcedRole !== "customer") {
         setActivePortalTab(forcedRole);
-      } else if (role === "admin" || role === "super_admin" || isSuper) {
+      } else if (role === "admin" || role === "super_admin") {
         setActivePortalTab("admin");
       } else if (role === "seller") {
         setActivePortalTab("seller");
@@ -614,16 +608,25 @@ export default function PortalModal({
     isLoggingOutLocalRef.current = false;
     const cleanEmail = (userData?.email || "").toLowerCase().trim();
     const uid = userData?.uid || userData?.id || "";
-    const isSuperAdminEmail = SUPER_ADMIN_EMAILS.has(cleanEmail);
 
     let targetRole = (userData?.role || authRole || "customer").toLowerCase();
 
-    // Check admin only if attempting admin or if user has super admin email
+    // Verify staff/admin privileges authoritatively on backend
     let isAdmin = false;
-    if (isSuperAdminEmail || targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder" || authRole === "admin") {
-      isAdmin = isSuperAdminEmail || (await checkIsSupabaseAdmin(uid, cleanEmail));
-      if (isAdmin || targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder") {
-        targetRole = isSuperAdminEmail ? "super_admin" : (targetRole === "super_admin" ? "super_admin" : "admin");
+    let isSuperAdmin = false;
+    let verifiedStaffObj: any = null;
+
+    if (targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder" || authRole === "admin") {
+      const serverCheck = await verifyServerAdminOrStaffSession();
+      if (serverCheck.isAuthenticated && (serverCheck.isAdmin || serverCheck.isSuperAdmin)) {
+        isAdmin = serverCheck.isAdmin;
+        isSuperAdmin = serverCheck.isSuperAdmin;
+        targetRole = serverCheck.role;
+        verifiedStaffObj = serverCheck.staff;
+      } else {
+        isAdmin = false;
+        isSuperAdmin = false;
+        targetRole = "customer";
       }
     }
 
@@ -640,27 +643,13 @@ export default function PortalModal({
       return;
     }
 
-    if (targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder" || isAdmin) {
-      const finalRole: string = isSuperAdminEmail ? "super_admin" : (targetRole === "super_admin" ? "super_admin" : (targetRole === "founder" ? "founder" : "admin"));
+    if (isAdmin || targetRole === "admin" || targetRole === "super_admin") {
       let adminObj = {
         ...userData,
-        role: finalRole,
-        isSuperAdmin: Boolean(userData.isSuperAdmin || isSuperAdminEmail || finalRole === "super_admin" || finalRole === "founder")
+        ...(verifiedStaffObj || {}),
+        role: targetRole,
+        isSuperAdmin: isSuperAdmin
       };
-
-      // Try to enrich with server session if available
-      try {
-        const activeRes = await apiClient.get<any>("/api/staff/active-session", { silent: true });
-        if (activeRes?.success && activeRes?.staff) {
-          adminObj = {
-            ...adminObj,
-            ...activeRes.staff,
-            role: activeRes.staff.role || finalRole,
-            isSuperAdmin: Boolean(activeRes.staff.isSuperAdmin || activeRes.staff.role === "super_admin" || finalRole === "super_admin"),
-            permissions: activeRes.staff.permissions || {}
-          };
-        }
-      } catch {}
 
       setCurrentUser(adminObj);
       setUserRole(adminObj.role);
@@ -716,7 +705,7 @@ export default function PortalModal({
 
     if (!customerUser.photoURL && !customerUser.avatar) {
       const localPhoto = localStorage.getItem("kb_user_photo");
-      if (localPhoto) {
+      if (localPhoto && !localPhoto.startsWith("data:") && !localPhoto.startsWith("blob:")) {
         customerUser.photoURL = localPhoto;
         customerUser.avatar = localPhoto;
         customerUser.image = localPhoto;
@@ -726,7 +715,7 @@ export default function PortalModal({
     try {
       localStorage.setItem("kb_current_user", JSON.stringify(customerUser));
       const photo = customerUser.photoURL || customerUser.photo_url || customerUser.avatar || customerUser.image;
-      if (photo) {
+      if (photo && !photo.startsWith("data:") && !photo.startsWith("blob:")) {
         localStorage.setItem("kb_user_photo", photo);
         window.dispatchEvent(new CustomEvent("kb_profile_updated", { detail: { photoURL: photo } }));
       }

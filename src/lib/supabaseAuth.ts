@@ -2,6 +2,9 @@
  * Supabase Authentication Engine for Kacha Bazar
  * Handles user & staff authentication via Supabase Auth (Email/Password, Google OAuth, Session Management)
  * backed by PostgreSQL 'users', 'staff', 'sellers', and 'riders' tables.
+ * 
+ * Security: Staff and admin permissions are verified server-side only. Client-supplied
+ * user_metadata and frontend email lists are never trusted for privilege elevation.
  */
 
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase";
@@ -30,10 +33,124 @@ export interface SupabaseUserProfile {
   createdAt?: string;
 }
 
-export const SUPER_ADMIN_EMAILS = new Set([
-  "sarkarmdanik14@gmail.com",
-  "megabajar@admin.com"
-]);
+// Deprecated: Kept for type signature compatibility; permissions are strictly verified on the backend
+export const SUPER_ADMIN_EMAILS = new Set<string>();
+
+let currentAuthEpoch = 1;
+const EXPLICIT_LOGOUT_STORAGE_KEY = "kb_explicit_logout";
+
+export function getAuthEpoch(): number {
+  return currentAuthEpoch;
+}
+
+/**
+ * Mark explicit logout: sets in-memory epoch and persists across tabs via localStorage.
+ */
+export function markExplicitLogout(): void {
+  currentAuthEpoch++;
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(EXPLICIT_LOGOUT_STORAGE_KEY, String(Date.now()));
+      sessionStorage.setItem(EXPLICIT_LOGOUT_STORAGE_KEY, String(Date.now()));
+    } catch {}
+  }
+}
+
+/**
+ * Clear explicit logout: called when user starts a fresh login action.
+ */
+export function clearExplicitLogout(): void {
+  currentAuthEpoch++;
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.removeItem(EXPLICIT_LOGOUT_STORAGE_KEY);
+      sessionStorage.removeItem(EXPLICIT_LOGOUT_STORAGE_KEY);
+    } catch {}
+  }
+}
+
+/**
+ * Checks if explicit logout is active to prevent resurrection of old sessions.
+ */
+export function isExplicitLogoutActive(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const val = localStorage.getItem(EXPLICIT_LOGOUT_STORAGE_KEY) || sessionStorage.getItem(EXPLICIT_LOGOUT_STORAGE_KEY);
+    return Boolean(val);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Authoritatively verifies staff/admin permissions on the backend server.
+ * Never assigns admin or super_admin privileges based on client-supplied lists or metadata.
+ */
+export async function verifyServerAdminOrStaffSession(token?: string): Promise<{
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  role: "customer" | "admin" | "super_admin" | "staff" | string;
+  staff?: any;
+}> {
+  try {
+    const sbToken = token || (typeof window !== "undefined"
+      ? (localStorage.getItem("kb_supabase_token") || sessionStorage.getItem("kb_supabase_token"))
+      : null);
+    const staffSession = typeof window !== "undefined"
+      ? (localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session"))
+      : null;
+
+    if (sbToken) {
+      const res = await apiClient.post<any>("/api/staff/supabase-session", {
+        accessToken: sbToken,
+        token: sbToken
+      }, { silent: true, timeoutMs: 4000 });
+
+      if (res?.success && res?.staff) {
+        if (res.sessionId && typeof window !== "undefined") {
+          try {
+            localStorage.setItem("kb_staff_session", res.sessionId);
+            sessionStorage.setItem("kb_staff_session", res.sessionId);
+            if (res.staff.email) localStorage.setItem("kb_staff_email", res.staff.email);
+            if (res.staff.staffId) localStorage.setItem("kb_staff_id", res.staff.staffId);
+          } catch {}
+        }
+        const isSuper = Boolean(res.staff.role === "super_admin" || res.staff.isSuperAdmin);
+        const isAdmin = isSuper || Boolean(res.staff.role === "admin");
+        return {
+          isAuthenticated: true,
+          isAdmin,
+          isSuperAdmin: isSuper,
+          role: res.staff.role || (isSuper ? "super_admin" : (isAdmin ? "admin" : "staff")),
+          staff: res.staff
+        };
+      }
+    }
+
+    if (staffSession) {
+      const aRes = await apiClient.get<any>("/api/staff/active-session", { silent: true, timeoutMs: 4000 });
+      if (aRes?.success && aRes?.staff) {
+        const isSuper = Boolean(aRes.staff.role === "super_admin" || aRes.staff.isSuperAdmin);
+        const isAdmin = isSuper || Boolean(aRes.staff.role === "admin");
+        return {
+          isAuthenticated: true,
+          isAdmin,
+          isSuperAdmin: isSuper,
+          role: aRes.staff.role || (isSuper ? "super_admin" : (isAdmin ? "admin" : "staff")),
+          staff: aRes.staff
+        };
+      }
+    }
+  } catch {}
+
+  return {
+    isAuthenticated: false,
+    isAdmin: false,
+    isSuperAdmin: false,
+    role: "customer"
+  };
+}
 
 /**
  * Sign In with Email & Password via Supabase Auth
@@ -44,6 +161,7 @@ export async function supabaseSignInWithEmail(
   preferredRole: string = "customer"
 ): Promise<{ success: boolean; user?: SupabaseUserProfile; role?: string; error?: string }> {
   clearExplicitLogout();
+  const thisEpoch = currentAuthEpoch;
   const cleanEmail = email.trim();
   const lowerEmail = cleanEmail.toLowerCase();
   const effectivePreferredRole = preferredRole;
@@ -53,8 +171,7 @@ export async function supabaseSignInWithEmail(
     preferredRole === "partner" ||
     preferredRole === "super_admin" ||
     cleanEmail.toUpperCase().startsWith("CFI-") ||
-    cleanEmail.toUpperCase().startsWith("KB-") ||
-    SUPER_ADMIN_EMAILS.has(lowerEmail);
+    cleanEmail.toUpperCase().startsWith("KB-");
 
   // 1. For Staff or Partner, check server credentials first
   if (isStaffOrPartner) {
@@ -76,6 +193,8 @@ export async function supabaseSignInWithEmail(
           } catch {}
         }
 
+        const isSuper = Boolean(targetRole === "super_admin" || u.isSuperAdmin);
+
         const verifiedProfile: SupabaseUserProfile = {
           uid: u.uid || u.id || u.staffId,
           id: u.id || u.staffId,
@@ -83,7 +202,7 @@ export async function supabaseSignInWithEmail(
           displayName: u.name || u.fullName || u.displayName || (targetRole === "admin" || targetRole === "super_admin" ? "এডমিনিস্ট্রেটর" : "স্টাফ মেম্বার"),
           fullName: u.fullName || u.name || (targetRole === "admin" || targetRole === "super_admin" ? "এডমিনিস্ট্রেটর" : "স্টাফ মেম্বার"),
           role: targetRole as any,
-          isSuperAdmin: targetRole === "super_admin" || SUPER_ADMIN_EMAILS.has((u.email || cleanEmail).toLowerCase()),
+          isSuperAdmin: isSuper,
           photoURL: u.photoURL || u.photo_url || ""
         };
 
@@ -94,11 +213,11 @@ export async function supabaseSignInWithEmail(
         };
       }
     } catch {
-      // Non-blocking, fallback to Supabase Auth
+      // Non-blocking, fallback to standard Supabase Auth
     }
   }
 
-  // 2. Direct, standard Supabase Auth call (Pure and robust without artificial CLIENT_TIMEOUT)
+  // 2. Direct, standard Supabase Auth call
   try {
     const signInPromise = supabase.auth.signInWithPassword({
       email: cleanEmail,
@@ -142,6 +261,10 @@ export async function supabaseSignInWithEmail(
       return { success: false, error: "লগইন সম্পন্ন করা সম্ভব হয়নি। অনুগ্রহ করে আবার চেষ্টা করুন।" };
     }
 
+    if (isExplicitLogoutActive() || thisEpoch !== currentAuthEpoch) {
+      return { success: false, error: "সেশন বাতিল করা হয়েছে।" };
+    }
+
     const uid = authData.user.id;
     // Store access token for API authorization
     if (authData.session?.access_token) {
@@ -150,6 +273,9 @@ export async function supabaseSignInWithEmail(
         sessionStorage.setItem("kb_supabase_token", authData.session.access_token);
       } catch {}
     }
+
+    // 3. Authoritatively verify staff/admin privileges on backend
+    const serverAuth = await verifyServerAdminOrStaffSession(authData.session?.access_token);
 
     // 4. Fetch user profile from public.users table (with safe 3.5s timeout)
     let profile: SupabaseUserProfile | null = null;
@@ -167,16 +293,14 @@ export async function supabaseSignInWithEmail(
       isProfileFetchTimeoutOrError = true;
     }
 
-    const isSuperAdminEmail = SUPER_ADMIN_EMAILS.has(lowerEmail);
+    if (isExplicitLogoutActive() || thisEpoch !== currentAuthEpoch) {
+      return { success: false, error: "সেশন বাতিল করা হয়েছে।" };
+    }
 
     if (!profile) {
-      // In-memory fallback profile from auth metadata so user is never blocked
       const meta = authData.user.user_metadata || {};
-      const isDbAdmin = isSuperAdminEmail || (await Promise.race([
-        checkIsSupabaseAdmin(uid, lowerEmail),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000))
-      ]));
-      const resolvedName = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (isDbAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
+      const resolvedRole = serverAuth.isAdmin ? serverAuth.role : "customer";
+      const resolvedName = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (serverAuth.isAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
       profile = {
         uid,
         id: uid,
@@ -185,40 +309,24 @@ export async function supabaseSignInWithEmail(
         fullName: resolvedName,
         phone: meta.phone || authData.user.phone || "",
         phoneNumber: meta.phone || authData.user.phone || "",
-        role: isSuperAdminEmail ? "super_admin" : (isDbAdmin ? "admin" : "customer"),
-        isSuperAdmin: isSuperAdminEmail,
+        role: resolvedRole as any,
+        isSuperAdmin: serverAuth.isSuperAdmin,
         referralCode: "REF" + uid.substring(0, 5).toUpperCase(),
         address: "চাঁচকৈড় বাজার, গুরুদাশপুর, নাটোর",
         walletBalance: 0,
         rewardPoints: 0,
-        membershipTier: isDbAdmin ? "Platinum" : "Silver"
+        membershipTier: serverAuth.isAdmin ? "Platinum" : "Silver"
       };
 
-      // Point 4: ONLY save into database if genuinely missing, NEVER on network timeout or query error
       if (!isProfileFetchTimeoutOrError) {
         saveUserProfile(profile).catch(() => {});
       }
-    } else if (isSuperAdminEmail) {
-      profile.role = "super_admin";
-      profile.isSuperAdmin = true;
-    }
-
-    // Exchange staff session ONLY if genuinely admin or staff in the database
-    if (profile.role === "admin" || profile.role === "super_admin" || profile.isSuperAdmin) {
-      try {
-        const sessionRes = await apiClient.post<any>("/api/staff/supabase-session", {
-          accessToken: authData.session?.access_token,
-          token: authData.session?.access_token
-        }, { silent: true, timeoutMs: 4000 });
-        if (sessionRes?.sessionId) {
-          localStorage.setItem("kb_staff_session", sessionRes.sessionId);
-          sessionStorage.setItem("kb_staff_session", sessionRes.sessionId);
-          if (sessionRes.staff?.staffId) localStorage.setItem("kb_staff_id", sessionRes.staff.staffId);
-          if (sessionRes.staff?.email) localStorage.setItem("kb_staff_email", sessionRes.staff.email);
-        }
-      } catch (sessErr) {
-        console.warn("Notice exchanging admin staff session:", sessErr);
-      }
+    } else if (serverAuth.isAdmin) {
+      profile.role = serverAuth.role as any;
+      profile.isSuperAdmin = serverAuth.isSuperAdmin;
+    } else {
+      profile.role = "customer";
+      profile.isSuperAdmin = false;
     }
 
     return {
@@ -248,7 +356,10 @@ export async function supabaseSignUpWithEmail(params: {
   clearExplicitLogout();
   const cleanEmail = params.email.trim();
   const cleanName = params.fullName.trim();
-  const userRole = params.role || "customer";
+  // Role security: customer is the default for new signups unless verified by backend
+  const userRole = (params.role === "seller" || params.role === "rider" || params.role === "partner")
+    ? params.role
+    : "customer";
 
   try {
     const { data, error } = await supabase.auth.signUp({
@@ -274,7 +385,6 @@ export async function supabaseSignUpWithEmail(params: {
 
     const uid = data.user.id;
     const refCode = "REF" + uid.substring(0, 5).toUpperCase();
-    const customerId = generateMemberId(uid);
 
     const profile: SupabaseUserProfile = {
       uid,
@@ -335,8 +445,10 @@ export async function supabaseSignUpWithEmail(params: {
 
     // Save access token if session is returned
     if (data.session?.access_token) {
-      localStorage.setItem("kb_supabase_token", data.session.access_token);
-      sessionStorage.setItem("kb_supabase_token", data.session.access_token);
+      try {
+        localStorage.setItem("kb_supabase_token", data.session.access_token);
+        sessionStorage.setItem("kb_supabase_token", data.session.access_token);
+      } catch {}
     }
 
     return {
@@ -354,6 +466,7 @@ export async function supabaseSignUpWithEmail(params: {
  * Google OAuth Sign In via Supabase
  */
 export async function supabaseSignInWithGoogle(): Promise<{ success: boolean; error?: string }> {
+  clearExplicitLogout();
   try {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -372,39 +485,59 @@ export async function supabaseSignInWithGoogle(): Promise<{ success: boolean; er
   }
 }
 
-let explicitLogoutUntil = 0;
-
-export function markExplicitLogout(): void {
-  explicitLogoutUntil = Date.now() + 3500;
-}
-
-export function clearExplicitLogout(): void {
-  explicitLogoutUntil = 0;
-}
-
-export function isExplicitLogoutActive(): boolean {
-  return Date.now() < explicitLogoutUntil;
-}
-
 /**
- * Sign Out
+ * Authoritative Universal Logout
+ * 1. Bumps auth epoch & marks persistent explicit logout.
+ * 2. Captures all required session identifiers before clearing storage.
+ * 3. Awaits server session invalidation and Supabase signOut safely.
+ * 4. Exhaustively clears authentication tokens and cached user state.
+ * 5. Broadcasts logout event across tabs and window.
  */
 export async function supabaseSignOut(): Promise<void> {
-  // 1. Immediately bump auth sequence and set explicit logout guard
-  latestAuthSequence++;
+  // 1. Immediately bump auth epoch & mark explicit logout flag
   markExplicitLogout();
 
-  // 2. Perform Supabase server sign-out BEFORE deleting local credentials,
-  // with a 1.5s timeout so slow or offline networks never cause a hang.
+  // 2. CAPTURE all required session identifiers BEFORE clearing storage
+  let staffSessionId = "";
+  let supabaseToken = "";
+  let staffId = "";
+  let staffEmail = "";
+
   try {
-    const signOutPromise = supabase.auth.signOut();
-    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 1500));
-    await Promise.race([signOutPromise, timeoutPromise]);
+    if (typeof window !== "undefined") {
+      staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session") || "";
+      supabaseToken = localStorage.getItem("kb_supabase_token") || sessionStorage.getItem("kb_supabase_token") || "";
+      staffId = localStorage.getItem("kb_staff_id") || sessionStorage.getItem("kb_staff_id") || "";
+      staffEmail = localStorage.getItem("kb_staff_email") || "";
+    }
+  } catch {}
+
+  // 3. AWAIT server session invalidation and Supabase signOut safely (protected against hung networks)
+  try {
+    const serverLogoutPromise = apiClient.post(
+      "/api/auth/logout",
+      { sessionId: staffSessionId, token: supabaseToken, staffId, email: staffEmail },
+      {
+        silent: true,
+        timeoutMs: 3000,
+        headers: staffSessionId ? { Authorization: `Bearer ${staffSessionId}` } : undefined
+      }
+    ).catch(() => {});
+
+    const supabaseSignOutPromise = supabase.auth.signOut().catch(() => {});
+
+    await Promise.allSettled([
+      serverLogoutPromise,
+      Promise.race([
+        supabaseSignOutPromise,
+        new Promise((resolve) => setTimeout(resolve, 2000))
+      ])
+    ]);
   } catch (err) {
-    console.warn("[Supabase Auth] Notice during server sign-out:", err);
+    console.warn("[Supabase Auth] Notice during logout synchronization:", err);
   }
 
-  // 3. Exhaustive session cleanup from localStorage & sessionStorage
+  // 4. Exhaustively clear all authentication tokens, session identifiers, and user cached state
   try {
     if (typeof window !== "undefined") {
       for (let i = localStorage.length - 1; i >= 0; i--) {
@@ -427,20 +560,12 @@ export async function supabaseSignOut(): Promise<void> {
         }
       }
       sessionStorage.clear();
+      // Retain the explicit logout marker so refreshes never auto-restore zombie sessions
+      localStorage.setItem(EXPLICIT_LOGOUT_STORAGE_KEY, String(Date.now()));
     }
   } catch {}
 
-  localStorage.removeItem("kb_supabase_token");
-  sessionStorage.removeItem("kb_supabase_token");
-  localStorage.removeItem("kb_staff_session");
-  sessionStorage.removeItem("kb_staff_session");
-  localStorage.removeItem("kb_current_user");
-  localStorage.removeItem("kb_user_photo");
-
-  // 4. Revoke active server staff/user session in background (non-blocking with 2s timeout)
-  apiClient.post("/api/auth/logout", {}, { silent: true, timeoutMs: 2000 }).catch(() => {});
-
-  // 5. Synchronously notify the entire application that user has logged out
+  // 5. Synchronously notify entire application that user has logged out
   if (typeof window !== "undefined") {
     try {
       window.dispatchEvent(new CustomEvent("kb_user_logout"));
@@ -465,8 +590,6 @@ export async function supabaseSendPasswordResetEmail(email: string): Promise<{ s
   }
 }
 
-let latestAuthSequence = 0;
-
 /**
  * Listen to Auth State changes across the entire app
  */
@@ -474,10 +597,11 @@ export function onSupabaseAuthStateChange(
   callback: (user: SupabaseUserProfile | null) => void
 ): () => void {
   async function handleAuthChange(_event: string, session: any) {
-    const currentSeq = ++latestAuthSequence;
+    const thisEpoch = ++currentAuthEpoch;
 
     if (session?.user) {
       if (isExplicitLogoutActive()) {
+        callback(null);
         return;
       }
       const uid = session.user.id;
@@ -489,17 +613,15 @@ export function onSupabaseAuthStateChange(
       }
 
       let profile = await fetchUserProfile(uid);
-      if (currentSeq !== latestAuthSequence) return;
+      if (thisEpoch !== currentAuthEpoch || isExplicitLogoutActive()) return;
 
       if (!profile) {
-        const cleanEmail = (session.user.email || "").toLowerCase().trim();
-        const isSuper = cleanEmail ? SUPER_ADMIN_EMAILS.has(cleanEmail) : false;
-        const isSbAdmin = isSuper || (await checkIsSupabaseAdmin(uid, cleanEmail));
-        if (currentSeq !== latestAuthSequence) return;
+        const serverAuth = await verifyServerAdminOrStaffSession(session.access_token);
+        if (thisEpoch !== currentAuthEpoch || isExplicitLogoutActive()) return;
 
         const meta = session.user.user_metadata || {};
-        const resolvedRole = isSuper ? "super_admin" : (isSbAdmin ? "admin" : (meta.role || "customer"));
-        const name = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (isSbAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
+        const resolvedRole = serverAuth.isAdmin ? serverAuth.role : "customer";
+        const name = meta.full_name || meta.display_name || session.user.email?.split("@")[0] || (serverAuth.isAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
         profile = {
           uid,
           id: uid,
@@ -508,14 +630,14 @@ export function onSupabaseAuthStateChange(
           fullName: name,
           phone: meta.phone || session.user.phone || "",
           phoneNumber: meta.phone || session.user.phone || "",
-          role: resolvedRole,
-          isSuperAdmin: isSuper,
+          role: resolvedRole as any,
+          isSuperAdmin: serverAuth.isSuperAdmin,
           photoURL: meta.avatar_url || meta.picture || ""
         };
       }
       callback(profile);
     } else {
-      if (currentSeq !== latestAuthSequence) return;
+      if (thisEpoch !== currentAuthEpoch) return;
       callback(null);
     }
   }
@@ -537,10 +659,11 @@ export function onSupabaseAuthStateChange(
 const profileInFlight = new Map<string, Promise<SupabaseUserProfile | null>>();
 
 /**
- * Helper to fetch user profile from public.users with authoritative staff/admin resolution
+ * Helper to fetch user profile from public.users with authoritative backend staff/admin resolution
  */
 export async function fetchUserProfile(uid: string): Promise<SupabaseUserProfile | null> {
-  if (!uid) return null;
+  if (!uid || isExplicitLogoutActive()) return null;
+  const thisEpoch = currentAuthEpoch;
   const cleanUid = String(uid).trim();
   if (profileInFlight.has(cleanUid)) {
     return profileInFlight.get(cleanUid)!;
@@ -548,117 +671,128 @@ export async function fetchUserProfile(uid: string): Promise<SupabaseUserProfile
 
   const promise = (async (): Promise<SupabaseUserProfile | null> => {
     try {
+      if (isExplicitLogoutActive() || thisEpoch !== currentAuthEpoch) return null;
+
       const { data } = await supabase
         .from("users")
         .select("*")
         .or(`uid.eq.${cleanUid},id.eq.${cleanUid}`)
         .maybeSingle();
 
+      if (isExplicitLogoutActive() || thisEpoch !== currentAuthEpoch) return null;
+
       let staffData: any = null;
       const userEmail = (data?.email || "").toLowerCase().trim();
 
-    try {
-      let staffQuery = supabase.from("staff").select("*");
-      if (uid && userEmail) {
-        staffQuery = staffQuery.or(`id.eq.${uid},staff_id.eq.${uid},email.ilike.${userEmail}`);
-      } else if (uid) {
-        staffQuery = staffQuery.or(`id.eq.${uid},staff_id.eq.${uid}`);
-      } else if (userEmail) {
-        staffQuery = staffQuery.eq("email", userEmail);
-      }
-      const { data: sRow } = await staffQuery.maybeSingle();
-      if (sRow && (sRow.status === "active" || sRow.status === undefined)) {
-        staffData = sRow;
-      }
-    } catch {}
-
-    const resolvedEmail = (data?.email || staffData?.email || "").toLowerCase().trim();
-    const isSuperAdminEmail = resolvedEmail ? SUPER_ADMIN_EMAILS.has(resolvedEmail) : false;
-    const isStaffAdmin = staffData && (staffData.role === "admin" || staffData.role === "super_admin" || staffData.role === "founder");
-    const isSuper = isSuperAdminEmail || staffData?.role === "super_admin" || staffData?.role === "founder";
-
-    let role = "customer";
-    if (isSuper) {
-      role = "super_admin";
-    } else if (isStaffAdmin || data?.role === "admin" || data?.role === "super_admin") {
-      role = (data?.role === "super_admin" || staffData?.role === "super_admin") ? "super_admin" : "admin";
-    } else if (data?.role) {
-      role = data.role;
-    } else if (staffData?.role) {
-      role = staffData.role;
-    }
-
-    const defaultTitle = role === "super_admin" ? "সুপার এডমিন" : (role === "admin" ? "এডমিনিস্ট্রেটর" : "সম্মানিত গ্রাহক");
-
-    if (data) {
-      return {
-        uid: data.uid || data.id || uid,
-        id: data.id || data.uid || uid,
-        email: data.email || resolvedEmail,
-        displayName: data.display_name || data.full_name || staffData?.name || staffData?.fullName || defaultTitle,
-        fullName: data.full_name || data.display_name || staffData?.fullName || staffData?.name || defaultTitle,
-        phone: data.phone || data.mobile || staffData?.phone || "",
-        phoneNumber: data.phone || data.mobile || staffData?.phone || "",
-        photoURL: data.photo_url || staffData?.photoURL || staffData?.photo_url || "",
-        role: role as any,
-        isSuperAdmin: isSuper,
-        address: data.address || staffData?.address,
-        referralCode: data.referral_code,
-        referredBy: data.referred_by,
-        walletBalance: Number(data.wallet_balance || 0),
-        rewardPoints: Number(data.reward_points || 0),
-        membershipTier: (role === "admin" || role === "super_admin") ? "Platinum" : (data.membership_tier || "Silver"),
-        isVerified: Boolean(data.is_verified || staffData)
-      };
-    }
-
-    if (staffData) {
-      return {
-        uid: staffData.id || staffData.staff_id || uid,
-        id: staffData.id || staffData.staff_id || uid,
-        email: staffData.email || resolvedEmail,
-        displayName: staffData.name || staffData.fullName || staffData.displayName || defaultTitle,
-        fullName: staffData.fullName || staffData.name || staffData.displayName || defaultTitle,
-        phone: staffData.phone || staffData.mobile || "",
-        phoneNumber: staffData.phone || staffData.mobile || "",
-        photoURL: staffData.photo_url || staffData.photoURL || "",
-        role: role as any,
-        isSuperAdmin: isSuper,
-        address: staffData.address,
-        membershipTier: "Platinum",
-        isVerified: true
-      };
-    }
-
-    // 3. Server-authoritative fallback if client query returned null (RLS restriction or offline mode)
-    if (!data && !staffData && uid) {
       try {
-        const sRes = await apiClient.get<any>(`/api/user/profile/${uid}?email=${encodeURIComponent(userEmail || "")}`, { silent: true });
-        if (sRes?.success && sRes?.profile) {
-          const sp = sRes.profile;
-          const userPhoto = sp.photoURL || sp.photo_url || sp.avatar || sp.image || "";
-          return {
-            uid: sp.userId || sp.uid || sp.id || uid,
-            id: sp.id || sp.userId || sp.uid || uid,
-            email: sp.email || resolvedEmail,
-            displayName: sp.displayName || sp.fullName || defaultTitle,
-            fullName: sp.fullName || sp.displayName || defaultTitle,
-            phone: sp.phone || "",
-            phoneNumber: sp.phone || "",
-            photoURL: userPhoto,
-            role: (sp.role || "customer") as any,
-            address: sp.address,
-            walletBalance: Number(sp.walletBalance || 0),
-            rewardPoints: Number(sp.rewardPoints || 0),
-            membershipTier: sp.membershipTier || "Silver",
-            isVerified: true
-          };
+        let staffQuery = supabase.from("staff").select("*");
+        if (uid && userEmail) {
+          staffQuery = staffQuery.or(`id.eq.${uid},staff_id.eq.${uid},email.ilike.${userEmail}`);
+        } else if (uid) {
+          staffQuery = staffQuery.or(`id.eq.${uid},staff_id.eq.${uid}`);
+        } else if (userEmail) {
+          staffQuery = staffQuery.eq("email", userEmail);
+        }
+        const { data: sRow } = await staffQuery.maybeSingle();
+        if (sRow && (sRow.status === "active" || sRow.status === undefined)) {
+          staffData = sRow;
         }
       } catch {}
-    }
-  } catch {}
-  return null;
-})();
+
+      // Authoritative backend verification for admin/super_admin privileges
+      let isVerifiedAdmin = false;
+      let isVerifiedSuperAdmin = false;
+      let finalRole = (data?.role || staffData?.role || "customer").toLowerCase();
+
+      // If user or staff data claims admin/super_admin, verify against backend!
+      if (finalRole === "admin" || finalRole === "super_admin" || staffData) {
+        const serverCheck = await verifyServerAdminOrStaffSession();
+        if (serverCheck.isAuthenticated && (serverCheck.isAdmin || serverCheck.isSuperAdmin)) {
+          isVerifiedAdmin = serverCheck.isAdmin;
+          isVerifiedSuperAdmin = serverCheck.isSuperAdmin;
+          finalRole = serverCheck.role;
+        } else {
+          isVerifiedAdmin = false;
+          isVerifiedSuperAdmin = false;
+          if (finalRole === "admin" || finalRole === "super_admin") {
+            finalRole = "customer";
+          }
+        }
+      }
+
+      if (isExplicitLogoutActive() || thisEpoch !== currentAuthEpoch) return null;
+
+      const defaultTitle = isVerifiedSuperAdmin ? "সুপার এডমিন" : (isVerifiedAdmin ? "এডমিনিস্ট্রেটর" : "সম্মানিত গ্রাহক");
+
+      if (data) {
+        return {
+          uid: data.uid || data.id || uid,
+          id: data.id || data.uid || uid,
+          email: data.email || userEmail,
+          displayName: data.display_name || data.full_name || staffData?.name || staffData?.fullName || defaultTitle,
+          fullName: data.full_name || data.display_name || staffData?.fullName || staffData?.name || defaultTitle,
+          phone: data.phone || data.mobile || staffData?.phone || "",
+          phoneNumber: data.phone || data.mobile || staffData?.phone || "",
+          photoURL: data.photo_url || staffData?.photoURL || staffData?.photo_url || "",
+          role: finalRole as any,
+          isSuperAdmin: isVerifiedSuperAdmin,
+          address: data.address || staffData?.address,
+          referralCode: data.referral_code,
+          referredBy: data.referred_by,
+          walletBalance: Number(data.wallet_balance || 0),
+          rewardPoints: Number(data.reward_points || 0),
+          membershipTier: (isVerifiedAdmin || isVerifiedSuperAdmin) ? "Platinum" : (data.membership_tier || "Silver"),
+          isVerified: Boolean(data.is_verified || staffData)
+        };
+      }
+
+      if (staffData && (isVerifiedAdmin || isVerifiedSuperAdmin)) {
+        return {
+          uid: staffData.id || staffData.staff_id || uid,
+          id: staffData.id || staffData.staff_id || uid,
+          email: staffData.email || userEmail,
+          displayName: staffData.name || staffData.fullName || staffData.displayName || defaultTitle,
+          fullName: staffData.fullName || staffData.name || staffData.displayName || defaultTitle,
+          phone: staffData.phone || staffData.mobile || "",
+          phoneNumber: staffData.phone || staffData.mobile || "",
+          photoURL: staffData.photo_url || staffData.photoURL || "",
+          role: finalRole as any,
+          isSuperAdmin: isVerifiedSuperAdmin,
+          address: staffData.address,
+          membershipTier: "Platinum",
+          isVerified: true
+        };
+      }
+
+      // 3. Server-authoritative fallback if client query returned null
+      if (!data && !staffData && uid) {
+        try {
+          const sRes = await apiClient.get<any>(`/api/user/profile/${uid}?email=${encodeURIComponent(userEmail || "")}`, { silent: true });
+          if (sRes?.success && sRes?.profile) {
+            const sp = sRes.profile;
+            const userPhoto = sp.photoURL || sp.photo_url || sp.avatar || sp.image || "";
+            return {
+              uid: sp.userId || sp.uid || sp.id || uid,
+              id: sp.id || sp.userId || sp.uid || uid,
+              email: sp.email || userEmail,
+              displayName: sp.displayName || sp.fullName || defaultTitle,
+              fullName: sp.fullName || sp.displayName || defaultTitle,
+              phone: sp.phone || "",
+              phoneNumber: sp.phone || "",
+              photoURL: userPhoto,
+              role: (sp.role === "admin" || sp.role === "super_admin") ? "customer" : (sp.role || "customer") as any,
+              address: sp.address,
+              walletBalance: Number(sp.walletBalance || 0),
+              rewardPoints: Number(sp.rewardPoints || 0),
+              membershipTier: sp.membershipTier || "Silver",
+              isVerified: true
+            };
+          }
+        } catch {}
+      }
+    } catch {}
+    return null;
+  })();
 
   profileInFlight.set(cleanUid, promise);
   promise.finally(() => {
@@ -675,6 +809,8 @@ export async function fetchUserProfile(uid: string): Promise<SupabaseUserProfile
  */
 export async function saveUserProfile(profile: SupabaseUserProfile): Promise<void> {
   const targetId = profile.id || profile.uid;
+  if (!targetId || isExplicitLogoutActive()) return;
+
   try {
     await supabase.from("users").upsert({
       id: targetId,
@@ -684,7 +820,7 @@ export async function saveUserProfile(profile: SupabaseUserProfile): Promise<voi
       display_name: profile.displayName,
       phone: profile.phone || profile.phoneNumber || null,
       mobile: profile.phone || profile.phoneNumber || null,
-      photo_url: profile.photoURL || null,
+      photo_url: (profile.photoURL && !profile.photoURL.startsWith("data:") && !profile.photoURL.startsWith("blob:")) ? profile.photoURL : null,
       role: profile.role || "customer",
       address: profile.address || null,
       referral_code: profile.referralCode || null,
@@ -700,17 +836,25 @@ export async function saveUserProfile(profile: SupabaseUserProfile): Promise<voi
 
   // Dual sync to server profile store so it persists even when client RLS or offline mode applies
   try {
-    if (targetId) {
+    if (targetId && !isExplicitLogoutActive()) {
+      const safePhoto = (profile.photoURL && !profile.photoURL.startsWith("data:") && !profile.photoURL.startsWith("blob:") && (profile.photoURL.startsWith("http") || profile.photoURL.startsWith("/"))) ? profile.photoURL : undefined;
       await apiClient.post("/api/user/profile", {
         userId: targetId,
-        ...profile
+        email: profile.email,
+        fullName: profile.fullName,
+        displayName: profile.displayName,
+        phone: profile.phone || profile.phoneNumber,
+        address: profile.address,
+        role: profile.role,
+        referralCode: profile.referralCode,
+        ...(safePhoto ? { photoURL: safePhoto } : {})
       }, { silent: true });
     }
   } catch {}
 
   // Sync Supabase Auth metadata if session is active
   try {
-    if (profile.photoURL) {
+    if (profile.photoURL && !isExplicitLogoutActive()) {
       await (supabase.auth as any).updateUser({
         data: {
           avatar_url: profile.photoURL,
@@ -729,6 +873,7 @@ export async function saveUserProfile(profile: SupabaseUserProfile): Promise<voi
  */
 export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
   if (isExplicitLogoutActive()) return null;
+  const thisEpoch = currentAuthEpoch;
   try {
     const sessionPromise = supabase.auth.getSession();
     const timeoutPromise = new Promise<{ data: { session: any } }>((resolve) => {
@@ -736,27 +881,14 @@ export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
     });
     const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any;
     if (session?.user) {
+      if (isExplicitLogoutActive() || thisEpoch !== currentAuthEpoch) return null;
       const uid = session.user.id;
-      const cleanEmail = (session.user.email || "").toLowerCase().trim();
       let profile = await fetchUserProfile(uid);
+      if (isExplicitLogoutActive() || thisEpoch !== currentAuthEpoch) return null;
+
       if (!profile) {
         const meta = session.user.user_metadata || {};
-        const isSuper = SUPER_ADMIN_EMAILS.has(cleanEmail);
-        const isSbAdmin = isSuper || (await checkIsSupabaseAdmin(uid, cleanEmail));
-        const resolvedRole = isSuper ? "super_admin" : (isSbAdmin ? "admin" : (meta.role || "customer"));
-        const name = meta.full_name || meta.display_name || cleanEmail.split("@")[0] || (isSbAdmin ? "এডমিনিস্ট্রেটর" : "গ্রাহক");
-        
-        // Also check server-side disk cache for persistent photoURL
-        let restoredPhoto = meta.avatar_url || meta.picture || meta.photoURL || "";
-        if (!restoredPhoto) {
-          try {
-            const sRes = await apiClient.get<any>(`/api/user/profile/${uid}?email=${encodeURIComponent(cleanEmail)}`, { silent: true });
-            if (sRes?.success && sRes?.profile?.photoURL) {
-              restoredPhoto = sRes.profile.photoURL;
-            }
-          } catch {}
-        }
-
+        const name = meta.full_name || meta.display_name || session.user.email?.split("@")[0] || "গ্রাহক";
         profile = {
           uid,
           id: uid,
@@ -765,13 +897,10 @@ export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
           fullName: name,
           phone: meta.phone || session.user.phone || "",
           phoneNumber: meta.phone || session.user.phone || "",
-          role: resolvedRole,
-          isSuperAdmin: isSuper,
-          photoURL: restoredPhoto
+          role: "customer",
+          isSuperAdmin: false,
+          photoURL: meta.avatar_url || meta.picture || meta.photoURL || ""
         };
-      } else if (cleanEmail && SUPER_ADMIN_EMAILS.has(cleanEmail)) {
-        profile.role = "super_admin";
-        profile.isSuperAdmin = true;
       }
       return profile;
     }
@@ -780,51 +909,21 @@ export async function getSupabaseUser(): Promise<SupabaseUserProfile | null> {
 }
 
 /**
- * Check if a user is an authorized admin in Supabase
+ * Check if a user is an authorized admin in Supabase via backend verification
  */
 export async function checkIsSupabaseAdmin(uid: string, email?: string): Promise<boolean> {
   const cleanEmail = (email || "").toLowerCase().trim();
   if (!uid && !cleanEmail) return false;
 
-  // 0. Super Admin / Founder emails
-  const SUPER_ADMIN_EMAILS = new Set([
-    "sarkarmdanik14@gmail.com",
-    "megabajar@admin.com"
-  ]);
-  if (cleanEmail && SUPER_ADMIN_EMAILS.has(cleanEmail)) {
-    return true;
-  }
-
   try {
-    // 1. Check staff table by authenticated UID, staff_id, or email
-    let staffQuery = supabase.from("staff").select("id, staff_id, email, role, status");
-    if (uid && cleanEmail) {
-      staffQuery = staffQuery.or(`id.eq.${uid},staff_id.eq.${uid},email.ilike.${cleanEmail}`);
-    } else if (uid) {
-      staffQuery = staffQuery.or(`id.eq.${uid},staff_id.eq.${uid}`);
-    } else {
-      staffQuery = staffQuery.eq("email", cleanEmail);
-    }
-
-    const { data: staffData } = await staffQuery.maybeSingle();
-
-    if (staffData && staffData.status === "active" && (staffData.role === "admin" || staffData.role === "super_admin" || staffData.role === "founder")) {
+    const verified = await verifyServerAdminOrStaffSession();
+    if (verified.isAdmin || verified.isSuperAdmin) {
       return true;
     }
 
-    // 2. Check users table by authenticated UID or email
-    let userQuery = supabase.from("users").select("role, email, id, uid");
-    if (uid && cleanEmail) {
-      userQuery = userQuery.or(`id.eq.${uid},uid.eq.${uid},email.ilike.${cleanEmail}`);
-    } else if (uid) {
-      userQuery = userQuery.or(`id.eq.${uid},uid.eq.${uid}`);
-    } else {
-      userQuery = userQuery.eq("email", cleanEmail);
-    }
-
-    const { data: userData } = await userQuery.maybeSingle();
-
-    if (userData && (userData.role === "admin" || userData.role === "super_admin" || userData.role === "founder")) {
+    // Secondary backend verification check via active session
+    const sRes = await apiClient.get<any>("/api/staff/active-session", { silent: true, timeoutMs: 3000 });
+    if (sRes?.success && sRes?.staff && (sRes.staff.role === "admin" || sRes.staff.role === "super_admin" || sRes.staff.isSuperAdmin)) {
       return true;
     }
   } catch (err) {

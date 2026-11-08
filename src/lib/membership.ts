@@ -9,6 +9,7 @@ import {
   updateDoc, 
   serverTimestamp 
 } from "./firebase";
+import { supabase } from "./supabase";
 
 /**
  * Kacha Bazar Premium Membership Rules & Qualification:
@@ -104,6 +105,16 @@ async function evaluateDailyOrders(orders: any[], userRef: any, userData: any): 
         premiumDiscountPercent: PREMIUM_DISCOUNT_PERCENT,
         premiumQualifiedAt: serverTimestamp()
       });
+      try {
+        if (supabase) {
+          await supabase.from("users").update({
+            membership_tier: "প্রিমিয়াম মেম্বার",
+            updated_at: new Date().toISOString()
+          }).or(`id.eq.${userRef.id},uid.eq.${userRef.id}`);
+        }
+      } catch (sErr) {
+        console.warn("Supabase membership tier update notice:", sErr);
+      }
       console.log(`User ${userRef.id} successfully qualified for Premium Membership (≥ ৳${PREMIUM_QUALIFICATION_THRESHOLD} in a single day)!`);
     }
     return true;

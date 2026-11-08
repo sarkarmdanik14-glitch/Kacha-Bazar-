@@ -12,6 +12,7 @@ import {
   increment, 
   serverTimestamp 
 } from "./firebase";
+import { supabase } from "./supabase";
 
 /**
  * Checks all conditions of the Kacha Bazar Refer & Earn reward policy:
@@ -164,6 +165,18 @@ export async function checkAndRewardReferral(referredUserId: string) {
           referralEarnings: increment(19),
           updatedAt: serverTimestamp()
         });
+      }
+      try {
+        if (supabase) {
+          const { data: suData } = await supabase.from("users").select("wallet_balance").or(`id.eq.${referrerId},uid.eq.${referrerId}`).maybeSingle();
+          const currentBal = Number(suData?.wallet_balance || 0);
+          await supabase.from("users").update({
+            wallet_balance: currentBal + 19,
+            updated_at: new Date().toISOString()
+          }).or(`id.eq.${referrerId},uid.eq.${referrerId}`);
+        }
+      } catch (suErr) {
+        console.warn("Supabase referral wallet sync:", suErr);
       }
     } catch (uErr) {
       console.warn("Could not update referrer user doc:", uErr);

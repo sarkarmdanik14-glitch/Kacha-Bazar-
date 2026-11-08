@@ -429,35 +429,19 @@ export default function StaffIdCardModal({
     }
   };
 
-  // Convert file to URL (Cloudinary upload or base64 Data URL)
+  // Convert file to permanent cloud URL
   const processImageFileToUrl = async (file: File): Promise<string> => {
     if (!file.type.startsWith("image/")) {
       throw new Error(lang === "bn" ? "অনুগ্রহ করে একটি ছবি ফাইল নির্বাচন করুন!" : "Please select an image file!");
     }
 
-    // 1. Primary: Cloudflare R2 via uploadImageWithFallback
-    try {
-      const url = await uploadImageWithFallback(file, { folder: "staff" });
-      if (url) {
-        return url;
-      }
-    } catch (uploadErr) {
-      console.warn("Upload notice, using local data URL fallback:", uploadErr);
+    // Cloudflare R2 / Server Upload via uploadImageWithFallback
+    const url = await uploadImageWithFallback(file, { folder: "staff" });
+    if (url && (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("/api/media/") || url.startsWith("/uploads/"))) {
+      return url;
     }
 
-    // 2. High-reliability fallback: Read file as Data URL
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === "string") {
-          resolve(reader.result);
-        } else {
-          reject(new Error("Failed to process image"));
-        }
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+    throw new Error(lang === "bn" ? "ক্লাউড স্টোরেজে ছবি আপলোড ব্যর্থ হয়েছে!" : "Failed to upload photo to cloud storage!");
   };
 
   // Direct upload and immediate save of photo from header
