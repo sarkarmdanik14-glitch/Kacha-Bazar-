@@ -78,11 +78,23 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
       }
     };
 
+    // Helper to check if banner was recently dismissed
+    const isDismissedRecently = () => {
+      try {
+        const dismissed = localStorage.getItem("pwa_dismissed_time");
+        if (!dismissed) return false;
+        // Do not display banner again for 24 hours once dismissed
+        return Date.now() - parseInt(dismissed, 10) < 24 * 60 * 60 * 1000;
+      } catch {
+        return false;
+      }
+    };
+
     // 3. Retrieve global cached prompt if already fired
     const cachedPrompt = getGlobalDeferredPrompt();
     if (cachedPrompt) {
       setDeferredPrompt(cachedPrompt);
-      if (!installed) {
+      if (!installed && !isDismissedRecently()) {
         if (isQRScan) {
           setTimeout(() => tryAutoPrompt(cachedPrompt), 500);
         } else {
@@ -95,7 +107,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
     const handlePromptAvailable = () => {
       const prompt = getGlobalDeferredPrompt();
       setDeferredPrompt(prompt);
-      if (!isPWAInstalled()) {
+      if (!isPWAInstalled() && !isDismissedRecently()) {
         if (isQRScan && prompt) {
           setTimeout(() => tryAutoPrompt(prompt), 500);
         } else {
@@ -136,12 +148,9 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
     window.addEventListener("open-pwa-qrcode-modal", handleOpenQR);
 
     // If iOS and not installed, show banner after 3 seconds if not dismissed
-    if (platform.isIOS && !installed && !isQRScan) {
-      const dismissed = localStorage.getItem("pwa_dismissed_time");
-      if (!dismissed || Date.now() - parseInt(dismissed, 10) > 24 * 60 * 60 * 1000) {
-        const timer = setTimeout(() => setShowBanner(true), 2500);
-        return () => clearTimeout(timer);
-      }
+    if (platform.isIOS && !installed && !isQRScan && !isDismissedRecently()) {
+      const timer = setTimeout(() => setShowBanner(true), 2500);
+      return () => clearTimeout(timer);
     }
 
     return () => {
@@ -305,23 +314,27 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
       {!isInstalled && showBanner && !showLandingModal && (
         <div 
           id="pwa-floating-banner"
-          className="fixed bottom-4 left-3 right-3 sm:left-auto sm:right-5 sm:max-w-md z-40 bg-white/95 backdrop-blur-md border border-emerald-500/30 rounded-2xl shadow-xl p-3 sm:p-3.5 transition-all animate-in slide-in-from-bottom-5 duration-300"
+          className="fixed bottom-[70px] md:bottom-5 inset-x-3 md:inset-x-auto md:right-5 md:max-w-md z-[99995] bg-white border border-emerald-500/40 rounded-2xl shadow-2xl p-3 sm:p-3.5 transition-all animate-in slide-in-from-bottom-5 duration-300"
+          style={{
+            bottom: "calc(56px + max(env(safe-area-inset-bottom, 0px), 12px))",
+            zIndex: 99995
+          }}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {/* App Icon */}
             <div className="relative shrink-0">
               <img 
                 src={APP_LOGO_URL} 
                 alt="মেগা বাজার" 
-                className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl object-contain bg-white p-0.5 border border-emerald-100 shadow-2xs"
+                className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl object-contain bg-white p-0.5 border border-emerald-200 shadow-sm"
               />
-              <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-[8px] text-white font-bold">
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[9px] text-white font-bold shadow-xs">
                 ★
               </span>
             </div>
 
             {/* Info Text */}
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 pr-1">
               <div className="flex items-center gap-1.5">
                 <h4 className="text-xs sm:text-sm font-black text-slate-800 truncate">
                   {lang === "bn" ? "মেগা বাজার অ্যাপ" : "Mega Bazar App"}
@@ -332,27 +345,17 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
               </div>
               <p className="text-[10px] sm:text-[11px] text-slate-500 leading-tight mt-0.5 line-clamp-1">
                 {lang === "bn" 
-                  ? "আরও দ্রুত অর্ডারের জন্য অ্যাপ ইনস্টল করুন" 
-                  : "Instant access, fast orders & offline support"}
+                  ? "দ্রুত অর্ডারের জন্য হোমস্ক্রিনে অ্যাপটি যোগ করুন" 
+                  : "Add to home screen for faster ordering"}
               </p>
             </div>
 
-            {/* Action Buttons: QR + Install + Close */}
+            {/* Action Buttons: Install + QR + Close */}
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
-                onClick={() => setShowQRModal(true)}
-                className="p-1.5 sm:px-2 sm:py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl transition-all flex items-center gap-1 cursor-pointer border border-emerald-200"
-                title={lang === "bn" ? "QR কোড দেখুন" : "View QR Code"}
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline text-[11px]">QR</span>
-              </button>
-
-              <button
-                type="button"
                 onClick={handleInstallClick}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1 cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>{lang === "bn" ? "ইনস্টল" : "Install"}</span>
@@ -361,10 +364,11 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ lang }) => {
               <button
                 type="button"
                 onClick={handleDismissBanner}
-                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                title={lang === "bn" ? "বন্ধ করুন" : "Dismiss"}
+                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-rose-100"
+                title={lang === "bn" ? "কেটে দিন / বন্ধ করুন" : "Dismiss"}
+                aria-label="Dismiss banner"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4 text-slate-500 hover:text-rose-600" />
               </button>
             </div>
           </div>
