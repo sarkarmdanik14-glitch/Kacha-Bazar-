@@ -60,7 +60,6 @@ export function markExplicitLogout(): void {
  * Clear explicit logout: called when user starts a fresh login action.
  */
 export function clearExplicitLogout(): void {
-  currentAuthEpoch++;
   if (typeof window !== "undefined") {
     try {
       localStorage.removeItem(EXPLICIT_LOGOUT_STORAGE_KEY);
@@ -596,8 +595,9 @@ export async function supabaseSendPasswordResetEmail(email: string): Promise<{ s
 export function onSupabaseAuthStateChange(
   callback: (user: SupabaseUserProfile | null) => void
 ): () => void {
+  let listenerSeq = 0;
   async function handleAuthChange(_event: string, session: any) {
-    const thisEpoch = ++currentAuthEpoch;
+    const thisSeq = ++listenerSeq;
 
     if (session?.user) {
       if (isExplicitLogoutActive()) {
@@ -613,11 +613,11 @@ export function onSupabaseAuthStateChange(
       }
 
       let profile = await fetchUserProfile(uid);
-      if (thisEpoch !== currentAuthEpoch || isExplicitLogoutActive()) return;
+      if (thisSeq !== listenerSeq || isExplicitLogoutActive()) return;
 
       if (!profile) {
         const serverAuth = await verifyServerAdminOrStaffSession(session.access_token);
-        if (thisEpoch !== currentAuthEpoch || isExplicitLogoutActive()) return;
+        if (thisSeq !== listenerSeq || isExplicitLogoutActive()) return;
 
         const meta = session.user.user_metadata || {};
         const resolvedRole = serverAuth.isAdmin ? serverAuth.role : "customer";
@@ -637,7 +637,7 @@ export function onSupabaseAuthStateChange(
       }
       callback(profile);
     } else {
-      if (thisEpoch !== currentAuthEpoch) return;
+      if (thisSeq !== listenerSeq) return;
       callback(null);
     }
   }
