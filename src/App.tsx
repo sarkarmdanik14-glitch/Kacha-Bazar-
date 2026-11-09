@@ -4088,9 +4088,9 @@ export default function App() {
 
 
 
-      {/* ================= BEAUTIFUL FOOTER (Desktop only, hidden on mobile) ================= */}
-      {homeConfig?.sectionVisibility?.showFooter !== false && (
-      <footer className="hidden md:block bg-slate-950 text-slate-400 pt-3 pb-2 sm:pt-4 sm:pb-3 border-t border-slate-800 text-[10px] sm:text-xs">
+      {/* ================= WEBSITE FOOTER REMOVED (Replaced by always-fixed 5-tab App Bottom Bar) ================= */}
+      {false && (
+      <footer className="hidden">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 mb-2.5 items-start">
           
           {/* Leftmost Kacha Bazar Branding Area */}
@@ -5137,7 +5137,7 @@ export default function App() {
       {/* ================= ANDROID APP BOTTOM NAVIGATION BAR (Always Fixed Root Viewport Pinned) ================= */}
       <nav 
         id="android-bottom-nav"
-        className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200/90 z-[99999] md:hidden shadow-[0_-2px_10px_rgba(0,0,0,0.06)] select-none"
+        className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 z-[99999] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] select-none"
         style={{ 
           position: "fixed",
           bottom: 0,
@@ -5149,9 +5149,9 @@ export default function App() {
           WebkitTransform: "translateZ(0)",
           paddingBottom: "max(env(safe-area-inset-bottom, 0px), 4px)"
         }}
-        aria-label="Mobile Navigation"
+        aria-label="App Navigation"
       >
-        <div className="grid grid-cols-5 h-14 items-center">
+        <div className="max-w-md md:max-w-xl mx-auto grid grid-cols-5 h-14 items-center">
           {/* 1. হোম (Home) */}
           <button
             onClick={() => {
@@ -5160,14 +5160,14 @@ export default function App() {
               setSelectedCategory("all");
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
-            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-90 ${
+            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-95 ${
               !showPortalModal && selectedCategory === "all" && !showFlashSaleOnly
                 ? "text-emerald-700 font-bold"
                 : "text-slate-500 font-medium hover:text-slate-800"
             }`}
           >
-            <Home className={`w-5 h-5 transition-transform ${!showPortalModal && selectedCategory === "all" && !showFlashSaleOnly ? "scale-110 text-emerald-700 fill-emerald-100/60" : ""}`} />
-            <span className="text-[10px] mt-0.5 tracking-tight leading-none">
+            <Home className={`w-5 h-5 transition-transform ${!showPortalModal && selectedCategory === "all" && !showFlashSaleOnly ? "text-emerald-700 fill-emerald-700" : "text-slate-600"}`} />
+            <span className={`text-[11px] mt-1 tracking-tight leading-none ${!showPortalModal && selectedCategory === "all" && !showFlashSaleOnly ? "text-emerald-700 font-bold" : "text-slate-600 font-medium"}`}>
               {lang === "bn" ? "হোম" : "Home"}
             </span>
           </button>
@@ -5187,14 +5187,14 @@ export default function App() {
                 }, 100);
               }
             }}
-            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-90 ${
+            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-95 ${
               !showPortalModal && selectedCategory !== "all"
                 ? "text-emerald-700 font-bold"
                 : "text-slate-500 font-medium hover:text-slate-800"
             }`}
           >
-            <LayoutGrid className={`w-5 h-5 transition-transform ${!showPortalModal && selectedCategory !== "all" ? "scale-110 text-emerald-700" : ""}`} />
-            <span className="text-[10px] mt-0.5 tracking-tight leading-none">
+            <LayoutGrid className={`w-5 h-5 transition-transform ${!showPortalModal && selectedCategory !== "all" ? "text-emerald-700 scale-105" : "text-slate-600"}`} />
+            <span className={`text-[11px] mt-1 tracking-tight leading-none ${!showPortalModal && selectedCategory !== "all" ? "text-emerald-700 font-bold" : "text-slate-600 font-medium"}`}>
               {lang === "bn" ? "ক্যাটাগরি" : "Category"}
             </span>
           </button>
@@ -5207,14 +5207,14 @@ export default function App() {
               setShowFlashSaleOnly(true);
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
-            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-90 ${
+            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-95 ${
               !showPortalModal && showFlashSaleOnly
                 ? "text-emerald-700 font-bold"
                 : "text-slate-500 font-medium hover:text-slate-800"
             }`}
           >
-            <Tag className={`w-5 h-5 transition-transform ${!showPortalModal && showFlashSaleOnly ? "scale-110 text-emerald-700 fill-emerald-100/60" : ""}`} />
-            <span className="text-[10px] mt-0.5 tracking-tight leading-none">
+            <Tag className={`w-5 h-5 transition-transform ${!showPortalModal && showFlashSaleOnly ? "text-emerald-700 fill-emerald-700/20 scale-105" : "text-slate-600"}`} />
+            <span className={`text-[11px] mt-1 tracking-tight leading-none ${!showPortalModal && showFlashSaleOnly ? "text-emerald-700 font-bold" : "text-slate-600 font-medium"}`}>
               {lang === "bn" ? "অফার" : "Offers"}
             </span>
           </button>
@@ -5226,14 +5226,14 @@ export default function App() {
               setPortalInitialTab("orders");
               setShowPortalModal(true);
             }}
-            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-90 ${
+            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-95 ${
               showPortalModal && portalInitialTab === "orders"
                 ? "text-emerald-700 font-bold"
                 : "text-slate-500 font-medium hover:text-slate-800"
             }`}
           >
-            <ClipboardList className={`w-5 h-5 transition-transform ${showPortalModal && portalInitialTab === "orders" ? "scale-110 text-emerald-700" : ""}`} />
-            <span className="text-[10px] mt-0.5 tracking-tight leading-none">
+            <ClipboardList className={`w-5 h-5 transition-transform ${showPortalModal && portalInitialTab === "orders" ? "text-emerald-700 scale-105" : "text-slate-600"}`} />
+            <span className={`text-[11px] mt-1 tracking-tight leading-none ${showPortalModal && portalInitialTab === "orders" ? "text-emerald-700 font-bold" : "text-slate-600 font-medium"}`}>
               {lang === "bn" ? "অর্ডার" : "Orders"}
             </span>
           </button>
@@ -5252,14 +5252,14 @@ export default function App() {
               setPortalInitialTab("dashboard");
               setShowPortalModal(true);
             }}
-            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-90 ${
+            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-95 ${
               showPortalModal && portalInitialTab !== "orders"
                 ? "text-emerald-700 font-bold"
                 : "text-slate-500 font-medium hover:text-slate-800"
             }`}
           >
-            <User className={`w-5 h-5 transition-transform ${showPortalModal && portalInitialTab !== "orders" ? "scale-110 text-emerald-700 fill-emerald-100/60" : ""}`} />
-            <span className="text-[10px] mt-0.5 tracking-tight leading-none">
+            <User className={`w-5 h-5 transition-transform ${showPortalModal && portalInitialTab !== "orders" ? "text-emerald-700 scale-105" : "text-slate-600"}`} />
+            <span className={`text-[11px] mt-1 tracking-tight leading-none ${showPortalModal && portalInitialTab !== "orders" ? "text-emerald-700 font-bold" : "text-slate-600 font-medium"}`}>
               {lang === "bn" ? "প্রোফাইল" : "Profile"}
             </span>
           </button>

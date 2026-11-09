@@ -29,11 +29,12 @@ html, body {
   backface-visibility: hidden !important;
   -webkit-backface-visibility: hidden !important;
   pointer-events: auto !important;
+  display: block !important;
 }
 
 #mobile-floating-cart-bar {
   position: fixed !important;
-  bottom: 60px !important;
+  bottom: 64px !important;
   left: 12px !important;
   right: 12px !important;
   z-index: 99998 !important;
