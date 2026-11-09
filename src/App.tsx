@@ -880,33 +880,42 @@ export default function App() {
 
         // Restore saved local user session ONLY if an active auth token is legitimately present
         const savedStr = localStorage.getItem("kb_current_user");
+        const hasStaffSession = Boolean(
+          localStorage.getItem("kb_staff_session") || 
+          sessionStorage.getItem("kb_staff_session")
+        );
         const hasActiveToken = Boolean(
           localStorage.getItem("kb_supabase_token") || 
           sessionStorage.getItem("kb_supabase_token") ||
-          localStorage.getItem("kb_staff_session")
+          hasStaffSession
         );
 
         if (savedStr && hasActiveToken) {
           try {
             const savedUser = JSON.parse(savedStr);
             if (savedUser && isMounted) {
-              setLoggedInUser(savedUser);
-              if (savedUser.role) setUserRole(savedUser.role);
-              if (savedUser.referralCode) setUserReferralCode(savedUser.referralCode);
-              const localPhoto = localStorage.getItem("kb_user_photo");
-              if (localPhoto && (localPhoto.startsWith("data:") || localPhoto.startsWith("blob:"))) {
-                try { localStorage.removeItem("kb_user_photo"); } catch {}
+              // If an active staff session exists and saved user role is customer, do not let stale customer cache override staff session
+              if (hasStaffSession && savedUser.role === "customer") {
+                // Let staff session remain active without overriding to customer
+              } else {
+                setLoggedInUser(savedUser);
+                if (savedUser.role) setUserRole(savedUser.role);
+                if (savedUser.referralCode) setUserReferralCode(savedUser.referralCode);
+                const localPhoto = localStorage.getItem("kb_user_photo");
+                if (localPhoto && (localPhoto.startsWith("data:") || localPhoto.startsWith("blob:"))) {
+                  try { localStorage.removeItem("kb_user_photo"); } catch {}
+                }
+                const pPhoto = resolveProfilePhotoUrl(savedUser);
+                if (pPhoto) {
+                  setUserProfilePhoto(pPhoto);
+                  setPhotoLoadError(false);
+                }
+                const uid = savedUser.uid || savedUser.id;
+                if (uid) {
+                  fetchAndMergeUserCart(uid, true);
+                }
+                return;
               }
-              const pPhoto = resolveProfilePhotoUrl(savedUser);
-              if (pPhoto) {
-                setUserProfilePhoto(pPhoto);
-                setPhotoLoadError(false);
-              }
-              const uid = savedUser.uid || savedUser.id;
-              if (uid) {
-                fetchAndMergeUserCart(uid, true);
-              }
-              return;
             }
           } catch {}
         } else if (savedStr && !hasActiveToken) {
@@ -2644,7 +2653,11 @@ export default function App() {
             {/* User Profile Info */}
             <button 
               onClick={() => {
-                const targetRole = (userRole === "admin" || userRole === "super_admin" || userRole === "founder" || loggedInUser?.role === "admin" || loggedInUser?.role === "super_admin") 
+                const hasStaffSession = Boolean(
+                  localStorage.getItem("kb_staff_session") || 
+                  sessionStorage.getItem("kb_staff_session")
+                );
+                const targetRole = (userRole === "admin" || userRole === "super_admin" || userRole === "founder" || loggedInUser?.role === "admin" || loggedInUser?.role === "super_admin" || hasStaffSession) 
                   ? "admin" 
                   : "customer";
                 setForcedPortalRole(targetRole);

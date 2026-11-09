@@ -33,15 +33,7 @@ interface SellerPanelProps {
 }
 
 export default function SellerPanel({ user, onLogout, lang, triggerToast }: SellerPanelProps) {
-  if (user?.role !== "seller" && user?.role !== "admin" && user?.role !== "founder") {
-    return (
-      <div className="p-8 text-center bg-red-50 border border-red-200 rounded-2xl m-4 flex flex-col items-center justify-center space-y-3">
-        <p className="text-red-750 font-black text-sm">
-          Access Denied. You do not have permission to access this page.
-        </p>
-      </div>
-    );
-  }
+  const isAuthorized = user?.role === "seller" || user?.role === "admin" || user?.role === "founder";
 
   const [activeTab, setActiveTab] = useState<"dashboard" | "products" | "orders" | "withdraw" | "notifications">("dashboard");
   const [products, setProducts] = useState<any[]>([]);
@@ -340,6 +332,16 @@ export default function SellerPanel({ user, onLogout, lang, triggerToast }: Sell
       console.error("Quick seed error:", err);
     }
   };
+
+  if (!isAuthorized) {
+    return (
+      <div className="p-8 text-center bg-red-50 border border-red-200 rounded-2xl m-4 flex flex-col items-center justify-center space-y-3">
+        <p className="text-red-750 font-black text-sm">
+          Access Denied. You do not have permission to access this page.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full bg-slate-50 overflow-hidden flex flex-col md:flex-row">

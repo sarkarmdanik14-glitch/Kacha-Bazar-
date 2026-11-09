@@ -80,11 +80,19 @@ export default function PortalModal({
 }: PortalModalProps) {
   const resolveInitialRole = () => {
     if (forcedRole && forcedRole !== "customer") return forcedRole;
+    if (typeof window !== "undefined" && (localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session"))) {
+      if (forcedRole !== "seller" && forcedRole !== "rider" && forcedRole !== "partner") {
+        return "admin";
+      }
+    }
     if (initialUser?.role) return initialUser.role;
     return "customer";
   };
 
   const initialRole = resolveInitialRole();
+  const isAuthenticatingRef = useRef<boolean>(false);
+  const intendedRoleRef = useRef<string>(initialRole);
+
   const [currentUser, setCurrentUser] = useState<any | null>(() => initialUser || null);
   const [currentPartner, setCurrentPartner] = useState<PartnerShop | null>(null);
   const [userRole, setUserRole] = useState<string>(initialRole);
@@ -96,15 +104,36 @@ export default function PortalModal({
     if (initialRole === "partner") return "partner";
     return "customer";
   });
-  // If user is already provided or no stored session exists, never block on loading
+  // If user is already provided, or modal opened directly for login/registration, never block on loading
   const [loading, setLoading] = useState<boolean>(() => {
     if (initialUser || forcedRole === "partner") return false;
+    if (initialAuthMode === "login" || initialAuthMode === "register") return false;
     return hasStoredAuthSession();
   });
   const [toasts, setToasts] = useState<{ id: string; bn: string; en: string }[]>([]);
   const isLoggingOutLocalRef = useRef<boolean>(false);
 
   const getTranslation = createTranslator(lang);
+
+  const handleRoleChangeFromAuth = (selectedRole: "customer" | "admin" | "seller" | "rider" | "partner") => {
+    intendedRoleRef.current = selectedRole;
+    if (selectedRole === "admin") {
+      setActivePortalTab("admin");
+      setUserRole("admin");
+    } else if (selectedRole === "partner") {
+      setActivePortalTab("partner");
+      setUserRole("partner");
+    } else if (selectedRole === "seller") {
+      setActivePortalTab("seller");
+      setUserRole("seller");
+    } else if (selectedRole === "rider") {
+      setActivePortalTab("rider");
+      setUserRole("rider");
+    } else {
+      setActivePortalTab("customer");
+      setUserRole("customer");
+    }
+  };
 
   // Helper to check if role allows tab
   const isTabAllowed = (tab: string, role: string) => {
@@ -137,6 +166,14 @@ export default function PortalModal({
   // Keep in sync if initialUser updates from parent
   useEffect(() => {
     if (initialUser && (!currentUser || currentUser.uid !== initialUser.uid || currentUser.id !== initialUser.id)) {
+      const hasStaffSession = typeof window !== "undefined" && Boolean(localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session"));
+      const isTargetingAdmin = forcedRole === "admin" || intendedRoleRef.current === "admin" || activePortalTab === "admin" || hasStaffSession;
+      
+      // If modal is targeting Admin or active staff session exists, do not demote to customer
+      if (isTargetingAdmin && initialUser.role === "customer" && !initialUser.isSuperAdmin) {
+        return;
+      }
+
       const role = (forcedRole && forcedRole !== "customer") ? forcedRole : (initialUser.role || "customer");
       
       setCurrentUser({ ...initialUser, role, isSuperAdmin: Boolean(initialUser.isSuperAdmin || role === "super_admin") });
@@ -194,47 +231,55 @@ export default function PortalModal({
       }
     }
 
-    // Hard safety timeout: Spinner MUST NEVER remain visible for more than 1000ms
+    // Safety timeout: Spinner MUST NEVER remain visible for more than 400ms
     const safetyTimeout = setTimeout(() => {
       if (isMounted) {
         setLoading(false);
       }
-    }, 1000);
+    }, 400);
 
     const handleUserSession = async (user: any, sbAccessToken?: string) => {
       if (!isMounted || isLoggingOutLocalRef.current || isExplicitLogoutActive()) return;
+      if (isAuthenticatingRef.current) return;
       try {
         if (!user) {
-          setCurrentUser(null);
-          const resolvedRole = (forcedRole && forcedRole !== "customer") ? forcedRole : "customer";
-          setUserRole(resolvedRole);
-          setActivePortalTab(resolvedRole);
-          setLoading(false);
+          const hasStaffSession = typeof window !== "undefined" && Boolean(localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session"));
+          if (!hasStaffSession) {
+            setCurrentUser(null);
+            const resolvedRole = (forcedRole && forcedRole !== "customer") ? forcedRole : (intendedRoleRef.current || "customer");
+            setUserRole(resolvedRole);
+            setActivePortalTab(resolvedRole);
+            setLoading(false);
+          }
           return;
         }
 
         const uid = user.uid || user.id;
         const email = (user.email || "").toLowerCase().trim();
 
-        if (forcedRole === "admin" || user.role === "admin" || user.role === "super_admin") {
+        const isTargetingAdmin = forcedRole === "admin" || 
+          intendedRoleRef.current === "admin" || 
+          activePortalTab === "admin" || 
+          user.role === "admin" || 
+          user.role === "super_admin" ||
+          (typeof window !== "undefined" && Boolean(localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session")));
+
+        if (isTargetingAdmin) {
           let isAdminUser = false;
           let adminData: any = null;
 
-          // 1. Supabase admin check (strict database verification by uid & email)
-          isAdminUser = await checkIsSupabaseAdmin(uid, email);
-
-          // 2. Verified active staff session check
-          if (!isAdminUser) {
-            const staffSessionId = localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session");
-            if (staffSessionId) {
-              try {
-                const sRes = await apiClient.get<any>("/api/staff/active-session", { silent: true });
-                if (sRes?.success && sRes?.staff && (sRes.staff.role === "admin" || sRes.staff.role === "super_admin" || sRes.staff.role === "founder")) {
-                  isAdminUser = true;
-                  adminData = sRes.staff;
-                }
-              } catch {}
+          // 1. Authoritative server verification first
+          try {
+            const serverCheck = await verifyServerAdminOrStaffSession(sbAccessToken);
+            if (serverCheck.isAuthenticated && (serverCheck.isAdmin || serverCheck.isSuperAdmin)) {
+              isAdminUser = true;
+              adminData = serverCheck.staff;
             }
+          } catch {}
+
+          // 2. Strict Supabase admin check (strict database verification by uid & email)
+          if (!isAdminUser) {
+            isAdminUser = await checkIsSupabaseAdmin(uid, email);
           }
 
           if (isAdminUser) {
@@ -242,15 +287,16 @@ export default function PortalModal({
               uid,
               id: uid,
               email: user.email,
-              displayName: adminData?.displayName || user.displayName || user.fullName || email.split("@")[0] || "System Admin",
-              role: "admin",
+              displayName: adminData?.displayName || adminData?.fullName || user.displayName || user.fullName || email.split("@")[0] || "System Admin",
+              role: adminData?.role || "admin",
+              isSuperAdmin: Boolean(adminData?.role === "super_admin" || adminData?.isSuperAdmin),
               profileStatus: "approved"
             };
 
-            // Authenticate server session
+            // Authenticate server session if token available and not already established
             try {
               const tokenToUse = sbAccessToken || localStorage.getItem("kb_supabase_token") || "";
-              if (tokenToUse) {
+              if (tokenToUse && !localStorage.getItem("kb_staff_session")) {
                 const sessionData = await apiClient.post<any>("/api/staff/supabase-session", {
                   accessToken: tokenToUse,
                   token: tokenToUse
@@ -267,34 +313,32 @@ export default function PortalModal({
             }
 
             if (!isMounted) return;
+            // Purge stale customer cache from localStorage to prevent overriding admin
+            try {
+              const st = localStorage.getItem("kb_current_user");
+              if (st && JSON.parse(st)?.role === "customer") {
+                localStorage.removeItem("kb_current_user");
+              }
+            } catch {}
+
             setCurrentUser(adminUserObj);
-            setUserRole("admin");
+            setUserRole(adminUserObj.role);
             setActivePortalTab("admin");
             setLoading(false);
+            isAuthenticatingRef.current = false;
+            onUserChange?.(adminUserObj);
             return;
           } else {
-            // User is currently authenticated as customer, but opened admin panel:
-            // Allow them to see the admin login interface without throwing an error or signing out
-            if (user && (user.role === "customer" || !user.role)) {
+            // Not a verified admin
+            if (forcedRole === "admin" || intendedRoleRef.current === "admin") {
               if (!isMounted) return;
-              setCurrentUser(user);
-              setUserRole("customer");
-              if (forcedRole === "admin") {
-                setActivePortalTab("admin");
-              } else {
-                setActivePortalTab("customer");
-              }
+              setCurrentUser(null);
+              setUserRole("admin");
+              setActivePortalTab("admin");
               setLoading(false);
+              isAuthenticatingRef.current = false;
               return;
             }
-            await supabaseSignOut().catch(() => {});
-            await signOut(auth).catch(() => {});
-            if (!isMounted) return;
-            setCurrentUser(null);
-            setUserRole(forcedRole === "admin" ? "admin" : "customer");
-            setActivePortalTab(forcedRole === "admin" ? "admin" : "customer");
-            setLoading(false);
-            return;
           }
         } else if (forcedRole === "seller") {
           let isSellerUser = false;
@@ -617,24 +661,34 @@ export default function PortalModal({
     let verifiedStaffObj: any = null;
 
     if (targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder" || authRole === "admin") {
-      const serverCheck = await verifyServerAdminOrStaffSession();
-      if (serverCheck.isAuthenticated && (serverCheck.isAdmin || serverCheck.isSuperAdmin)) {
-        isAdmin = serverCheck.isAdmin;
-        isSuperAdmin = serverCheck.isSuperAdmin;
-        targetRole = serverCheck.role;
-        verifiedStaffObj = serverCheck.staff;
+      // If AuthView or caller already authoritatively verified staff session, avoid redundant network check
+      if (userData?.isSuperAdmin || userData?.role === "admin" || userData?.role === "super_admin" || userData?.staffId) {
+        isAdmin = true;
+        isSuperAdmin = Boolean(userData.isSuperAdmin || userData.role === "super_admin");
+        targetRole = userData.role || "admin";
+        verifiedStaffObj = userData;
       } else {
-        isAdmin = false;
-        isSuperAdmin = false;
-        targetRole = "customer";
+        const serverCheck = await verifyServerAdminOrStaffSession();
+        if (serverCheck.isAuthenticated && (serverCheck.isAdmin || serverCheck.isSuperAdmin)) {
+          isAdmin = serverCheck.isAdmin;
+          isSuperAdmin = serverCheck.isSuperAdmin;
+          targetRole = serverCheck.role;
+          verifiedStaffObj = serverCheck.staff;
+        } else {
+          isAdmin = false;
+          isSuperAdmin = false;
+          targetRole = "customer";
+        }
       }
     }
 
     if (targetRole === "partner") {
+      isAuthenticatingRef.current = false;
       setCurrentPartner(userData);
       setCurrentUser(userData);
       setUserRole("partner");
       setActivePortalTab("partner");
+      setLoading(false);
       onUserChange?.(userData);
       triggerToast(
         "লগইন সফল হয়েছে! পার্টনার পোর্টালে স্বাগতম।",
@@ -644,6 +698,17 @@ export default function PortalModal({
     }
 
     if (isAdmin || targetRole === "admin" || targetRole === "super_admin") {
+      // Clean up stale customer data from localStorage so it doesn't pollute admin session
+      try {
+        const savedStr = localStorage.getItem("kb_current_user");
+        if (savedStr) {
+          const parsed = JSON.parse(savedStr);
+          if (parsed.role === "customer") {
+            localStorage.removeItem("kb_current_user");
+          }
+        }
+      } catch {}
+
       let adminObj = {
         ...userData,
         ...(verifiedStaffObj || {}),
@@ -651,9 +716,12 @@ export default function PortalModal({
         isSuperAdmin: isSuperAdmin
       };
 
+      // Atomically update all admin states
+      isAuthenticatingRef.current = false;
       setCurrentUser(adminObj);
       setUserRole(adminObj.role);
       setActivePortalTab("admin");
+      setLoading(false);
       onUserChange?.(adminObj);
       triggerToast(
         "এডমিন প্যানেলে সফলভাবে লগইন হয়েছে!",
@@ -663,6 +731,7 @@ export default function PortalModal({
     }
 
     if (targetRole === "seller") {
+      isAuthenticatingRef.current = false;
       const sellerUser = {
         ...userData,
         role: "seller",
@@ -671,6 +740,7 @@ export default function PortalModal({
       setCurrentUser(sellerUser);
       setUserRole("seller");
       setActivePortalTab("seller");
+      setLoading(false);
       onUserChange?.(sellerUser);
       triggerToast(
         "বিক্রেতা প্যানেলে সফলভাবে লগইন হয়েছে!",
@@ -680,6 +750,7 @@ export default function PortalModal({
     }
 
     if (targetRole === "rider") {
+      isAuthenticatingRef.current = false;
       const riderUser = {
         ...userData,
         role: "rider",
@@ -688,6 +759,7 @@ export default function PortalModal({
       setCurrentUser(riderUser);
       setUserRole("rider");
       setActivePortalTab("rider");
+      setLoading(false);
       onUserChange?.(riderUser);
       triggerToast(
         "রাইডার প্যানেলে সফলভাবে লগইন হয়েছে!",
@@ -697,6 +769,7 @@ export default function PortalModal({
     }
 
     // Default: Customer login
+    isAuthenticatingRef.current = false;
     let customerUser = {
       ...userData,
       role: "customer",
@@ -758,6 +831,8 @@ export default function PortalModal({
   const handleLogout = async () => {
     try {
       isLoggingOutLocalRef.current = true;
+      isAuthenticatingRef.current = false;
+      intendedRoleRef.current = "customer";
       // 1. Immediately reset portal state and partner session synchronously
       logoutPartnerSession();
       setCurrentPartner(null);
@@ -831,7 +906,10 @@ export default function PortalModal({
               </p>
               <button
                 type="button"
-                onClick={() => setLoading(false)}
+                onClick={() => {
+                  setLoading(false);
+                  isAuthenticatingRef.current = false;
+                }}
                 className="mt-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-4 py-1.5 rounded-full transition cursor-pointer border border-emerald-200"
               >
                 {lang === "bn" ? "সরাসরি লগইনে যান" : "Continue to Login"}
@@ -846,6 +924,13 @@ export default function PortalModal({
                   forcedRole={forcedRole}
                   initialAuthMode={forcedRole === "admin" || forcedRole === "partner" ? "login" : initialAuthMode}
                   initialReferralCode={forcedRole === "admin" || forcedRole === "partner" ? "" : referralCode}
+                  onRoleChange={handleRoleChangeFromAuth}
+                  onAuthStart={() => {
+                    isAuthenticatingRef.current = true;
+                  }}
+                  onAuthEnd={() => {
+                    isAuthenticatingRef.current = false;
+                  }}
                 />
               </React.Suspense>
             </div>
@@ -897,6 +982,13 @@ export default function PortalModal({
                             lang={lang} 
                             forcedRole="admin"
                             initialAuthMode="login"
+                            onRoleChange={handleRoleChangeFromAuth}
+                            onAuthStart={() => {
+                              isAuthenticatingRef.current = true;
+                            }}
+                            onAuthEnd={() => {
+                              isAuthenticatingRef.current = false;
+                            }}
                           />
                         </React.Suspense>
                       </div>

@@ -24,6 +24,9 @@ interface AuthViewProps {
   forcedRole?: "customer" | "admin" | "seller" | "rider" | "partner";
   initialAuthMode?: "login" | "register";
   initialReferralCode?: string;
+  onRoleChange?: (role: "customer" | "admin" | "seller" | "rider" | "partner") => void;
+  onAuthStart?: () => void;
+  onAuthEnd?: () => void;
 }
 
 export default function AuthView({ 
@@ -31,7 +34,10 @@ export default function AuthView({
   lang, 
   forcedRole,
   initialAuthMode = "login",
-  initialReferralCode 
+  initialReferralCode,
+  onRoleChange,
+  onAuthStart,
+  onAuthEnd
 }: AuthViewProps) {
   const [role, setRole] = useState<"customer" | "admin" | "seller" | "rider" | "partner">(forcedRole || "customer");
   const isStrictLoginOnly = forcedRole === "admin" || forcedRole === "partner" || role === "admin" || role === "partner";
@@ -65,6 +71,13 @@ export default function AuthView({
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState<boolean>(false);
   const [forgotTimer, setForgotTimer] = useState<number>(0);
   const [successMsg, setSuccessMsg] = useState<string>("");
+
+  React.useEffect(() => {
+    if (forcedRole) {
+      setRole(forcedRole);
+      onRoleChange?.(forcedRole);
+    }
+  }, [forcedRole]);
 
   React.useEffect(() => {
     if (isStrictLoginOnly) {
@@ -556,6 +569,7 @@ export default function AuthView({
 
     setLoading(true);
     isSubmittingRef.current = true;
+    onAuthStart?.();
     const currentRequestSeq = ++authRequestSeqRef.current;
 
     // Timeout safety fallback (20s for mobile network resilience)
@@ -563,6 +577,7 @@ export default function AuthView({
       if (isMountedRef.current && currentRequestSeq === authRequestSeqRef.current) {
         setLoading(false);
         isSubmittingRef.current = false;
+        onAuthEnd?.();
         setError(getTranslation(
           "অনুরোধ সম্পন্ন হতে অতিরিক্ত সময় লেগেছে। অনুগ্রহ করে ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।",
           "Request timed out. Please check your internet connection and try again."
@@ -614,15 +629,30 @@ export default function AuthView({
 
         // Role authorization check for selected tab: strictly verified on backend
         if (role === "admin") {
-          const serverCheck = await verifyServerAdminOrStaffSession();
-          const isAdmin = serverCheck.isAuthenticated && (serverCheck.isAdmin || serverCheck.isSuperAdmin);
+          let isAdmin = false;
+          let serverCheckRole = "customer";
+          let isSuperAdmin = false;
+
+          // Check if session was already authoritatively verified inside supabaseSignInWithEmail
+          const hasStaffSession = typeof window !== "undefined" && Boolean(localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session"));
+          if (hasStaffSession && (sbRes.user?.role === "admin" || sbRes.user?.role === "super_admin" || sbRes.user?.isSuperAdmin)) {
+            isAdmin = true;
+            serverCheckRole = sbRes.user.role || "admin";
+            isSuperAdmin = Boolean(sbRes.user.isSuperAdmin || sbRes.user.role === "super_admin");
+          } else {
+            const serverCheck = await verifyServerAdminOrStaffSession();
+            isAdmin = serverCheck.isAuthenticated && (serverCheck.isAdmin || serverCheck.isSuperAdmin);
+            serverCheckRole = serverCheck.role;
+            isSuperAdmin = serverCheck.isSuperAdmin;
+          }
+
           if (!isAdmin) {
             await supabaseSignOut();
             throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।", "Access denied. You are not authorized as an admin."));
           }
-          authenticatedRole = serverCheck.role;
+          authenticatedRole = serverCheckRole;
           authenticatedUser.role = authenticatedRole as any;
-          authenticatedUser.isSuperAdmin = serverCheck.isSuperAdmin;
+          authenticatedUser.isSuperAdmin = isSuperAdmin;
         } else if (role === "seller") {
           const sRes = await checkSellerStatus(userUid);
           if (!sRes.isSeller) {
@@ -702,6 +732,7 @@ export default function AuthView({
       clearTimeout(timeoutId);
       if (!authSucceeded) {
         isSubmittingRef.current = false;
+        onAuthEnd?.();
         if (isMountedRef.current) {
           setLoading(false);
         }
@@ -1078,6 +1109,37 @@ export default function AuthView({
             : getTranslation("মেগা বাজার অনলাইন পোর্টালে প্রবেশ করুন", "Access Mega Bazar Customer Portal")}
         </p>
       </div>
+
+      {/* Role Selection Switcher for General Login Modal */}
+      {(!forcedRole || forcedRole === "customer") && (
+        <div className="flex bg-slate-100 p-1 rounded-2xl mb-4 text-xs font-bold gap-1 overflow-x-auto scrollbar-none border border-slate-200/60">
+          {[
+            { id: "customer", bn: "গ্রাহক", en: "Customer" },
+            { id: "admin", bn: "এডমিন", en: "Admin" },
+            { id: "partner", bn: "পার্টনার", en: "Partner" },
+            { id: "seller", bn: "বিক্রেতা", en: "Seller" },
+            { id: "rider", bn: "রাইডার", en: "Rider" }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                const newRole = tab.id as "customer" | "admin" | "seller" | "rider" | "partner";
+                setRole(newRole);
+                onRoleChange?.(newRole);
+                setError("");
+              }}
+              className={`flex-1 py-1.5 px-2 rounded-xl transition text-center cursor-pointer whitespace-nowrap text-[11px] ${
+                role === tab.id
+                  ? "bg-white text-emerald-800 shadow-xs font-black border border-slate-200/80"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              {lang === "bn" ? tab.bn : tab.en}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl p-3.5 space-y-2.5">

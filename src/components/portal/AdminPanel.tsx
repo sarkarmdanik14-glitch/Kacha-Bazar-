@@ -118,17 +118,6 @@ export default function AdminPanel({
     user?.role === "accounts_manager" || 
     user?.isSuperAdmin === true;
 
-  if (!isAuthorized) {
-    return (
-      <div className="p-8 text-center bg-red-50 border border-red-200 rounded-2xl m-4 flex flex-col items-center justify-center space-y-3 text-slate-700">
-        <ShieldAlert className="w-12 h-12 text-red-600 animate-bounce" />
-        <p className="text-red-750 font-black text-sm">
-          Access Denied. You do not have permission to access this page.
-        </p>
-      </div>
-    );
-  }
-
   // All menu tabs with their corresponding module
   const ALL_MENU_TABS = [
     { id: "dashboard", module: "dashboard", labelBn: "সিস্টেম ড্যাশবোর্ড", labelEn: "System Analytics", icon: <TrendingUp className="w-4 h-4" /> },
@@ -195,6 +184,7 @@ export default function AdminPanel({
 
   // Real-time Staff Heartbeat
   useEffect(() => {
+    if (!isAuthorized) return;
     const sId = user?.staffId || user?.uid;
     if (sId) {
       sendStaffHeartbeat(sId, "online", user);
@@ -206,16 +196,20 @@ export default function AdminPanel({
         sendStaffHeartbeat(sId, "offline", user);
       };
     }
-  }, [user]);
+  }, [user, isAuthorized]);
 
   // Adjust activeTab if current is unauthorized
   useEffect(() => {
     if (allowedTabs.length > 0 && !allowedTabs.some(t => t.id === activeTab)) {
       setActiveTab(allowedTabs[0].id);
     }
-  }, [user]);
+  }, [user, allowedTabs, activeTab]);
 
   useEffect(() => {
+    if (!isAuthorized) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
 
     // Listen to orders from Supabase with Firestore fallback
@@ -798,6 +792,17 @@ export default function AdminPanel({
 
   // Currently selected tab object for mobile header
   const currentActiveTabObj = allowedTabs.find(t => t.id === activeTab) || allowedTabs[0];
+
+  if (!isAuthorized) {
+    return (
+      <div className="p-8 text-center bg-red-50 border border-red-200 rounded-2xl m-4 flex flex-col items-center justify-center space-y-3 text-slate-700">
+        <ShieldAlert className="w-12 h-12 text-red-600 animate-bounce" />
+        <p className="text-red-750 font-black text-sm">
+          Access Denied. You do not have permission to access this page.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full bg-slate-50 overflow-hidden flex flex-col relative">
