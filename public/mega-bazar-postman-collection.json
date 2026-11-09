@@ -1,0 +1,211 @@
+{
+  "info": {
+    "_postman_id": "mega-bazar-api-v1",
+    "name": "Mega Bazar (Kacha Bazar) API Collection",
+    "description": "Complete production API collection for Mega Bazar mobile app and backend integration.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://ais-dev-lpudpfmldfca2qhk3auo6g-34630404070.asia-southeast1.run.app",
+      "type": "string"
+    },
+    {
+      "key": "supabaseToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "staffSessionId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "System & Health",
+      "item": [
+        {
+          "name": "Server Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            }
+          }
+        },
+        {
+          "name": "Cloudflare R2 Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/r2/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "r2", "status"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication & Staff",
+      "item": [
+        {
+          "name": "Login Verification (Staff & OTP Users)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"sarkarmdanik14@gmail.com\",\n  \"password\": \"your_password\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login-verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login-verify"]
+            }
+          }
+        },
+        {
+          "name": "Exchange Supabase Token for Staff Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accessToken\": \"{{supabaseToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/staff/supabase-session",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "staff", "supabase-session"]
+            }
+          }
+        },
+        {
+          "name": "Get Active Staff Session",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{staffSessionId}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/staff/active-session",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "staff", "active-session"]
+            }
+          }
+        },
+        {
+          "name": "Logout Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{staffSessionId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"{{staffSessionId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Profiles",
+      "item": [
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{supabaseToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/user/profile/:userId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "profile", ":userId"],
+              "variable": [
+                { "key": "userId", "value": "c5ff04ac-5003-4324-a79d-39a0f18a57a7" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update User Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{supabaseToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"c5ff04ac-5003-4324-a79d-39a0f18a57a7\",\n  \"displayName\": \"Admin\",\n  \"phone\": \"01700000000\",\n  \"address\": \"চাঁচকৈড় বাজার, নাটোর\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/user/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "user", "profile"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Media & Uploads",
+      "item": [
+        {
+          "name": "Upload Profile Photo (Cloudflare R2)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{supabaseToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dataUrl\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\n  \"filename\": \"profile.png\",\n  \"folder\": \"profiles\",\n  \"userId\": \"c5ff04ac-5003-4324-a79d-39a0f18a57a7\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "upload"]
+            }
+          }
+        },
+        {
+          "name": "Upload Product Image",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dataUrl\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\n  \"filename\": \"product.png\",\n  \"folder\": \"products\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "upload"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
