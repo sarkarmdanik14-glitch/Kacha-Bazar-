@@ -79,12 +79,33 @@ export default function PortalModal({
   onUserChange
 }: PortalModalProps) {
   const resolveInitialRole = () => {
-    if (forcedRole && forcedRole !== "customer") return forcedRole;
-    if (typeof window !== "undefined" && (localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session"))) {
-      if (forcedRole !== "seller" && forcedRole !== "rider" && forcedRole !== "partner") {
+    // 1. Direct admin check on passed initialUser
+    const initialEmail = (initialUser?.email || "").toLowerCase().trim();
+    if (initialUser?.role === "admin" || initialUser?.role === "super_admin" || initialUser?.isSuperAdmin || initialEmail === "adminofficer@megabajar.com") {
+      return "admin";
+    }
+
+    // 2. Synchronous local storage session verification
+    if (typeof window !== "undefined") {
+      const hasStaffSession = Boolean(localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session"));
+      if (hasStaffSession && forcedRole !== "seller" && forcedRole !== "rider" && forcedRole !== "partner") {
         return "admin";
       }
+      try {
+        const cachedUserStr = localStorage.getItem("kb_current_user");
+        if (cachedUserStr) {
+          const cachedUser = JSON.parse(cachedUserStr);
+          const cachedEmail = (cachedUser?.email || "").toLowerCase().trim();
+          if (cachedUser?.role === "admin" || cachedUser?.role === "super_admin" || cachedUser?.isSuperAdmin || cachedEmail === "adminofficer@megabajar.com") {
+            if (forcedRole !== "seller" && forcedRole !== "rider" && forcedRole !== "partner") {
+              return "admin";
+            }
+          }
+        }
+      } catch {}
     }
+
+    if (forcedRole && forcedRole !== "customer") return forcedRole;
     if (initialUser?.role) return initialUser.role;
     return "customer";
   };
@@ -93,12 +114,24 @@ export default function PortalModal({
   const isAuthenticatingRef = useRef<boolean>(false);
   const intendedRoleRef = useRef<string>(initialRole);
 
-  const [currentUser, setCurrentUser] = useState<any | null>(() => initialUser || null);
+  const [currentUser, setCurrentUser] = useState<any | null>(() => {
+    if (initialUser) return initialUser;
+    if (typeof window !== "undefined") {
+      try {
+        const cachedUserStr = localStorage.getItem("kb_current_user");
+        if (cachedUserStr) {
+          const parsed = JSON.parse(cachedUserStr);
+          if (parsed && (parsed.uid || parsed.id || parsed.email)) return parsed;
+        }
+      } catch {}
+    }
+    return null;
+  });
   const [currentPartner, setCurrentPartner] = useState<PartnerShop | null>(null);
   const [userRole, setUserRole] = useState<string>(initialRole);
   const [activePortalTab, setActivePortalTab] = useState<string>(() => {
-    if (forcedRole && forcedRole !== "customer") return forcedRole;
     if (initialRole === "admin" || initialRole === "super_admin") return "admin";
+    if (forcedRole && forcedRole !== "customer") return forcedRole;
     if (initialRole === "seller") return "seller";
     if (initialRole === "rider") return "rider";
     if (initialRole === "partner") return "partner";
@@ -174,7 +207,8 @@ export default function PortalModal({
         return;
       }
 
-      const role = (forcedRole && forcedRole !== "customer") ? forcedRole : (initialUser.role || "customer");
+      const isInitialUserAdmin = initialUser.role === "admin" || initialUser.role === "super_admin" || initialUser.isSuperAdmin || (initialUser.email || "").toLowerCase().trim() === "adminofficer@megabajar.com";
+      const role = isInitialUserAdmin ? "admin" : ((forcedRole && forcedRole !== "customer") ? forcedRole : (initialUser.role || "customer"));
       
       setCurrentUser({ ...initialUser, role, isSuperAdmin: Boolean(initialUser.isSuperAdmin || role === "super_admin") });
       setUserRole(role);
@@ -660,7 +694,7 @@ export default function PortalModal({
     let isSuperAdmin = false;
     let verifiedStaffObj: any = null;
 
-    if (targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder" || authRole === "admin") {
+    if (cleanEmail === "adminofficer@megabajar.com" || targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder" || authRole === "admin") {
       // If AuthView or caller already authoritatively verified staff session, avoid redundant network check
       if (userData?.isSuperAdmin || userData?.role === "admin" || userData?.role === "super_admin" || userData?.staffId) {
         isAdmin = true;

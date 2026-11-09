@@ -627,8 +627,22 @@ export default function AuthView({
         const userUid = authenticatedUser.uid || authenticatedUser.id || "";
         const cleanEmail = (authenticatedUser.email || email).toLowerCase().trim();
 
+        // If signing in user is an administrator or admin officer, immediately elevate to admin role
+        const isDetectedAdmin = cleanEmail === "adminofficer@megabajar.com" || 
+          authenticatedUser.role === "admin" || 
+          authenticatedUser.role === "super_admin" || 
+          Boolean(authenticatedUser.isSuperAdmin) || 
+          sbRes.role === "admin" || 
+          sbRes.role === "super_admin";
+
+        if (isDetectedAdmin) {
+          authenticatedRole = "admin";
+          authenticatedUser.role = "admin";
+          onRoleChange?.("admin");
+        }
+
         // Role authorization check for selected tab: strictly verified on backend
-        if (role === "admin") {
+        if (role === "admin" || isDetectedAdmin) {
           let isAdmin = false;
           let serverCheckRole = "customer";
           let isSuperAdmin = false;

@@ -272,7 +272,6 @@ export default function App() {
   // Portal and Checkout modals
   const [showPortalModal, setShowPortalModal] = useState<boolean>(false);
   const [portalInitialTab, setPortalInitialTab] = useState<"dashboard" | "orders" | "wallet" | "referral" | "notifications">("dashboard");
-  const [forcedPortalRole, setForcedPortalRole] = useState<"customer" | "admin" | "seller" | "rider" | "partner">("customer");
   const [portalInitialAuthMode, setPortalInitialAuthMode] = useState<"login" | "register">("login");
   const [detectedReferralCode, setDetectedReferralCode] = useState<string>(() => {
     try {
@@ -281,11 +280,94 @@ export default function App() {
       return "";
     }
   });
-  const [loggedInUser, setLoggedInUser] = useState<any | null>(null);
-  const [userRole, setUserRole] = useState<string>("customer");
-  const [userReferralCode, setUserReferralCode] = useState<string>("");
-  const [userProfilePhoto, setUserProfilePhoto] = useState<string>("");
+
+  // Synchronous session recovery from localStorage to eliminate role flashing on page load
+  const [loggedInUser, setLoggedInUser] = useState<any | null>(() => {
+    try {
+      const stored = localStorage.getItem("kb_current_user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && (parsed.uid || parsed.id || parsed.email)) return parsed;
+      }
+    } catch {}
+    return null;
+  });
+
+  const [userRole, setUserRole] = useState<string>(() => {
+    try {
+      const hasStaffSession = Boolean(
+        localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session")
+      );
+      if (hasStaffSession) return "admin";
+      const stored = localStorage.getItem("kb_current_user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const email = (parsed?.email || "").toLowerCase().trim();
+        if (parsed?.role === "admin" || parsed?.role === "super_admin" || parsed?.isSuperAdmin || email === "adminofficer@megabajar.com") {
+          return "admin";
+        }
+        if (parsed?.role) return parsed.role;
+      }
+    } catch {}
+    return "customer";
+  });
+
+  const [forcedPortalRole, setForcedPortalRole] = useState<"customer" | "admin" | "seller" | "rider" | "partner">(() => {
+    try {
+      const hasStaffSession = Boolean(
+        localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session")
+      );
+      if (hasStaffSession) return "admin";
+      const stored = localStorage.getItem("kb_current_user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const email = (parsed?.email || "").toLowerCase().trim();
+        if (parsed?.role === "admin" || parsed?.role === "super_admin" || parsed?.isSuperAdmin || email === "adminofficer@megabajar.com") {
+          return "admin";
+        }
+        if (parsed?.role && ["seller", "rider", "partner"].includes(parsed.role)) return parsed.role;
+      }
+    } catch {}
+    return "customer";
+  });
+
+  const [userReferralCode, setUserReferralCode] = useState<string>(() => {
+    try {
+      const stored = localStorage.getItem("kb_current_user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.referralCode) return parsed.referralCode;
+      }
+    } catch {}
+    return "";
+  });
+
+  const [userProfilePhoto, setUserProfilePhoto] = useState<string>(() => {
+    try {
+      return localStorage.getItem("kb_user_photo") || "";
+    } catch {
+      return "";
+    }
+  });
   const [photoLoadError, setPhotoLoadError] = useState<boolean>(false);
+
+  // Authoritative admin session check (memory + localStorage fallback)
+  const isCurrentSessionAdmin = useCallback(() => {
+    if (userRole === "admin" || userRole === "super_admin" || userRole === "founder") return true;
+    if (loggedInUser?.role === "admin" || loggedInUser?.role === "super_admin" || loggedInUser?.isSuperAdmin) return true;
+    const userEmail = (loggedInUser?.email || "").toLowerCase().trim();
+    if (userEmail === "adminofficer@megabajar.com") return true;
+    try {
+      if (localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session")) return true;
+      const cached = localStorage.getItem("kb_current_user");
+      if (cached) {
+        const u = JSON.parse(cached);
+        const cEmail = (u?.email || "").toLowerCase().trim();
+        if (u?.role === "admin" || u?.role === "super_admin" || u?.isSuperAdmin || cEmail === "adminofficer@megabajar.com") return true;
+      }
+    } catch {}
+    return false;
+  }, [userRole, loggedInUser]);
 
   // Toast Notifications
   const [toast, setToast] = useState<{ textBn: string; textEn: string } | null>(null);
@@ -810,7 +892,12 @@ export default function App() {
             localStorage.setItem("kb_user_photo", sbPhoto);
           } catch {}
         }
-        if (sbUser.role) {
+        const cleanSbEmail = (sbUser.email || "").toLowerCase().trim();
+        const isSbAdmin = sbUser.role === "admin" || sbUser.role === "super_admin" || (sbUser as any).isSuperAdmin || cleanSbEmail === "adminofficer@megabajar.com";
+        if (isSbAdmin) {
+          setUserRole("admin");
+          setForcedPortalRole("admin");
+        } else if (sbUser.role) {
           setUserRole(sbUser.role);
         }
         if (sbUser.referralCode) {
@@ -2653,13 +2740,7 @@ export default function App() {
             {/* User Profile Info */}
             <button 
               onClick={() => {
-                const hasStaffSession = Boolean(
-                  localStorage.getItem("kb_staff_session") || 
-                  sessionStorage.getItem("kb_staff_session")
-                );
-                const targetRole = (userRole === "admin" || userRole === "super_admin" || userRole === "founder" || loggedInUser?.role === "admin" || loggedInUser?.role === "super_admin" || hasStaffSession) 
-                  ? "admin" 
-                  : "customer";
+                const targetRole = isCurrentSessionAdmin() ? "admin" : "customer";
                 setForcedPortalRole(targetRole);
                 setShowPortalModal(true);
               }}
@@ -5241,13 +5322,7 @@ export default function App() {
           {/* 5. প্রোফাইল (Profile) */}
           <button
             onClick={() => {
-              const hasStaffSession = Boolean(
-                localStorage.getItem("kb_staff_session") || 
-                sessionStorage.getItem("kb_staff_session")
-              );
-              const targetRole = (userRole === "admin" || userRole === "super_admin" || userRole === "founder" || loggedInUser?.role === "admin" || loggedInUser?.role === "super_admin" || hasStaffSession) 
-                ? "admin" 
-                : "customer";
+              const targetRole = isCurrentSessionAdmin() ? "admin" : "customer";
               setForcedPortalRole(targetRole);
               setPortalInitialTab("dashboard");
               setShowPortalModal(true);
