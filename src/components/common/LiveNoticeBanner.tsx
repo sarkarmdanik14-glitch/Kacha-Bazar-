@@ -19,11 +19,34 @@ export const LiveNoticeBanner: React.FC<LiveNoticeBannerProps> = ({
   className = "",
   onNoticeStateChange
 }) => {
-  const [notice, setNotice] = useState<LiveNoticeConfig>(noticeOverride || DEFAULT_LIVE_NOTICE);
+  const [notice, setNotice] = useState<LiveNoticeConfig>(() => {
+    if (noticeOverride) return noticeOverride;
+    try {
+      const cached = typeof window !== "undefined" ? localStorage.getItem("kachabazar_live_notice_cache") : null;
+      if (cached) {
+        const p = JSON.parse(cached);
+        if (p && (p.titleBn || p.title_bn || p.messageBn || p.message_bn)) {
+          return {
+            isActive: p.isActive !== undefined ? p.isActive : (p.is_active !== undefined ? p.is_active : true),
+            badgeBn: p.badgeBn || p.badge_bn || "🔴 LIVE UPDATE",
+            badgeEn: p.badgeEn || p.badge_en || "🔴 LIVE UPDATE",
+            titleBn: p.titleBn || p.title_bn || "",
+            titleEn: p.titleEn || p.title_en || "",
+            messageBn: p.messageBn || p.message_bn || "",
+            messageEn: p.messageEn || p.message_en || "",
+            theme: p.theme || "rose",
+            showDotPulse: p.showDotPulse !== undefined ? p.showDotPulse : true,
+            orderDisabled: !!(p.orderDisabled || p.order_disabled),
+          };
+        }
+      }
+    } catch {}
+    return DEFAULT_LIVE_NOTICE;
+  });
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
   const [isDismissed, setIsDismissed] = useState<boolean>(false);
 
-  // Subscribe to live notice config in Supabase with Firestore fallback
+  // Subscribe to live notice config in Supabase with zero-latency state synchronization
   useEffect(() => {
     if (noticeOverride) {
       setNotice(noticeOverride);
@@ -36,16 +59,21 @@ export const LiveNoticeBanner: React.FC<LiveNoticeBannerProps> = ({
         if (supaNotice) {
           const merged: LiveNoticeConfig = {
             isActive: supaNotice.isActive !== undefined ? supaNotice.isActive : true,
-            badgeBn: supaNotice.badgeBn || DEFAULT_LIVE_NOTICE.badgeBn,
-            badgeEn: supaNotice.badgeEn || DEFAULT_LIVE_NOTICE.badgeEn,
-            titleBn: supaNotice.titleBn || DEFAULT_LIVE_NOTICE.titleBn,
-            titleEn: supaNotice.titleEn || DEFAULT_LIVE_NOTICE.titleEn,
-            messageBn: supaNotice.messageBn || DEFAULT_LIVE_NOTICE.messageBn,
-            messageEn: supaNotice.messageEn || DEFAULT_LIVE_NOTICE.messageEn,
-            theme: supaNotice.theme || DEFAULT_LIVE_NOTICE.theme,
+            badgeBn: supaNotice.badgeBn || supaNotice.badge_bn || "🔴 LIVE UPDATE",
+            badgeEn: supaNotice.badgeEn || supaNotice.badge_en || "🔴 LIVE UPDATE",
+            titleBn: supaNotice.titleBn !== undefined ? supaNotice.titleBn : (supaNotice.title_bn || ""),
+            titleEn: supaNotice.titleEn !== undefined ? supaNotice.titleEn : (supaNotice.title_en || ""),
+            messageBn: supaNotice.messageBn !== undefined ? supaNotice.messageBn : (supaNotice.message_bn || ""),
+            messageEn: supaNotice.messageEn !== undefined ? supaNotice.messageEn : (supaNotice.message_en || ""),
+            theme: supaNotice.theme || "rose",
             showDotPulse: supaNotice.showDotPulse !== undefined ? supaNotice.showDotPulse : true,
             orderDisabled: supaNotice.orderDisabled !== undefined ? supaNotice.orderDisabled : false,
           };
+
+          try {
+            localStorage.setItem("kachabazar_live_notice_cache", JSON.stringify(merged));
+          } catch {}
+
           setNotice(merged);
           if (onNoticeStateChange) {
             onNoticeStateChange(merged.isActive, merged);
@@ -68,12 +96,12 @@ export const LiveNoticeBanner: React.FC<LiveNoticeBannerProps> = ({
     : (notice.badgeEn || "🔴 LIVE UPDATE");
 
   const titleText = lang === "bn" 
-    ? (notice.titleBn || DEFAULT_LIVE_NOTICE.titleBn) 
-    : (notice.titleEn || DEFAULT_LIVE_NOTICE.titleEn);
+    ? (notice.titleBn || notice.titleEn || "") 
+    : (notice.titleEn || notice.titleBn || "");
 
   const messageText = lang === "bn" 
-    ? (notice.messageBn || DEFAULT_LIVE_NOTICE.messageBn) 
-    : (notice.messageEn || DEFAULT_LIVE_NOTICE.messageEn);
+    ? (notice.messageBn || notice.messageEn || "") 
+    : (notice.messageEn || notice.messageBn || "");
 
   // Theme styling presets
   const theme = notice.theme || "rose";

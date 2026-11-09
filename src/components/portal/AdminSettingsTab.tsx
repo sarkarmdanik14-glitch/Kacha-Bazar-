@@ -27,15 +27,87 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
   const [activeSettingsSubTab, setActiveSettingsSubTab] = useState<"global" | "notice" | "delivery" | "pwa">("global");
   const [savingSettings, setSavingSettings] = useState<boolean>(false);
 
-  // Live Notice / Announcement State
-  const [noticeActive, setNoticeActive] = useState<boolean>(DEFAULT_LIVE_NOTICE.isActive);
-  const [noticeBadgeBn, setNoticeBadgeBn] = useState<string>(DEFAULT_LIVE_NOTICE.badgeBn || "🔴 LIVE UPDATE");
-  const [noticeBadgeEn, setNoticeBadgeEn] = useState<string>(DEFAULT_LIVE_NOTICE.badgeEn || "🔴 LIVE UPDATE");
-  const [noticeTitleBn, setNoticeTitleBn] = useState<string>(DEFAULT_LIVE_NOTICE.titleBn);
-  const [noticeTitleEn, setNoticeTitleEn] = useState<string>(DEFAULT_LIVE_NOTICE.titleEn || "");
-  const [noticeMsgBn, setNoticeMsgBn] = useState<string>(DEFAULT_LIVE_NOTICE.messageBn);
-  const [noticeMsgEn, setNoticeMsgEn] = useState<string>(DEFAULT_LIVE_NOTICE.messageEn || "");
-  const [noticeTheme, setNoticeTheme] = useState<"rose" | "amber" | "emerald" | "blue">(DEFAULT_LIVE_NOTICE.theme || "rose");
+  // Live Notice / Announcement State with local cache preference
+  const [noticeActive, setNoticeActive] = useState<boolean>(() => {
+    try {
+      const c = localStorage.getItem("kachabazar_live_notice_cache");
+      if (c) {
+        const p = JSON.parse(c);
+        if (p?.isActive !== undefined) return p.isActive;
+      }
+    } catch {}
+    return DEFAULT_LIVE_NOTICE.isActive;
+  });
+  const [noticeBadgeBn, setNoticeBadgeBn] = useState<string>(() => {
+    try {
+      const c = localStorage.getItem("kachabazar_live_notice_cache");
+      if (c) {
+        const p = JSON.parse(c);
+        if (p?.badgeBn || p?.badge_bn) return p.badgeBn || p.badge_bn;
+      }
+    } catch {}
+    return DEFAULT_LIVE_NOTICE.badgeBn || "🔴 LIVE UPDATE";
+  });
+  const [noticeBadgeEn, setNoticeBadgeEn] = useState<string>(() => {
+    try {
+      const c = localStorage.getItem("kachabazar_live_notice_cache");
+      if (c) {
+        const p = JSON.parse(c);
+        if (p?.badgeEn || p?.badge_en) return p.badgeEn || p.badge_en;
+      }
+    } catch {}
+    return DEFAULT_LIVE_NOTICE.badgeEn || "🔴 LIVE UPDATE";
+  });
+  const [noticeTitleBn, setNoticeTitleBn] = useState<string>(() => {
+    try {
+      const c = localStorage.getItem("kachabazar_live_notice_cache");
+      if (c) {
+        const p = JSON.parse(c);
+        if (p?.titleBn || p?.title_bn) return p.titleBn || p.title_bn;
+      }
+    } catch {}
+    return DEFAULT_LIVE_NOTICE.titleBn;
+  });
+  const [noticeTitleEn, setNoticeTitleEn] = useState<string>(() => {
+    try {
+      const c = localStorage.getItem("kachabazar_live_notice_cache");
+      if (c) {
+        const p = JSON.parse(c);
+        if (p?.titleEn || p?.title_en) return p.titleEn || p.title_en;
+      }
+    } catch {}
+    return DEFAULT_LIVE_NOTICE.titleEn || "";
+  });
+  const [noticeMsgBn, setNoticeMsgBn] = useState<string>(() => {
+    try {
+      const c = localStorage.getItem("kachabazar_live_notice_cache");
+      if (c) {
+        const p = JSON.parse(c);
+        if (p?.messageBn || p?.message_bn) return p.messageBn || p.message_bn;
+      }
+    } catch {}
+    return DEFAULT_LIVE_NOTICE.messageBn;
+  });
+  const [noticeMsgEn, setNoticeMsgEn] = useState<string>(() => {
+    try {
+      const c = localStorage.getItem("kachabazar_live_notice_cache");
+      if (c) {
+        const p = JSON.parse(c);
+        if (p?.messageEn || p?.message_en) return p.messageEn || p.message_en;
+      }
+    } catch {}
+    return DEFAULT_LIVE_NOTICE.messageEn || "";
+  });
+  const [noticeTheme, setNoticeTheme] = useState<"rose" | "amber" | "emerald" | "blue">(() => {
+    try {
+      const c = localStorage.getItem("kachabazar_live_notice_cache");
+      if (c) {
+        const p = JSON.parse(c);
+        if (p?.theme) return p.theme;
+      }
+    } catch {}
+    return (DEFAULT_LIVE_NOTICE.theme as any) || "rose";
+  });
   const [noticePulse, setNoticePulse] = useState<boolean>(true);
   const [savingNotice, setSavingNotice] = useState<boolean>(false);
 
@@ -140,14 +212,18 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
     const unsub = subscribeToSupabaseLiveNotice((d) => {
       if (d) {
         if (d.isActive !== undefined) setNoticeActive(d.isActive);
-        if (d.badgeBn) setNoticeBadgeBn(d.badgeBn);
-        if (d.badgeEn) setNoticeBadgeEn(d.badgeEn);
-        if (d.titleBn) setNoticeTitleBn(d.titleBn);
-        if (d.titleEn !== undefined) setNoticeTitleEn(d.titleEn);
-        if (d.messageBn) setNoticeMsgBn(d.messageBn);
-        if (d.messageEn !== undefined) setNoticeMsgEn(d.messageEn);
+        if (d.badgeBn || d.badge_bn) setNoticeBadgeBn(d.badgeBn || d.badge_bn);
+        if (d.badgeEn || d.badge_en) setNoticeBadgeEn(d.badgeEn || d.badge_en);
+        if (d.titleBn !== undefined || d.title_bn !== undefined) setNoticeTitleBn(d.titleBn || d.title_bn || "");
+        if (d.titleEn !== undefined || d.title_en !== undefined) setNoticeTitleEn(d.titleEn || d.title_en || "");
+        if (d.messageBn !== undefined || d.message_bn !== undefined) setNoticeMsgBn(d.messageBn || d.message_bn || "");
+        if (d.messageEn !== undefined || d.message_en !== undefined) setNoticeMsgEn(d.messageEn || d.message_en || "");
         if (d.theme) setNoticeTheme(d.theme);
         if (d.showDotPulse !== undefined) setNoticePulse(d.showDotPulse);
+
+        try {
+          localStorage.setItem("kachabazar_live_notice_cache", JSON.stringify(d));
+        } catch {}
       }
     });
     return () => unsub();
@@ -162,14 +238,18 @@ export default function AdminSettingsTab({ settings, lang, triggerToast }: Admin
         isActive: noticeActive,
         badgeBn: noticeBadgeBn.trim() || "🔴 LIVE UPDATE",
         badgeEn: noticeBadgeEn.trim() || "🔴 LIVE UPDATE",
-        titleBn: noticeTitleBn.trim() || DEFAULT_LIVE_NOTICE.titleBn,
-        titleEn: noticeTitleEn.trim() || (DEFAULT_LIVE_NOTICE.titleEn || ""),
-        messageBn: noticeMsgBn.trim() || DEFAULT_LIVE_NOTICE.messageBn,
-        messageEn: noticeMsgEn.trim() || (DEFAULT_LIVE_NOTICE.messageEn || ""),
+        titleBn: noticeTitleBn.trim(),
+        titleEn: noticeTitleEn.trim(),
+        messageBn: noticeMsgBn.trim(),
+        messageEn: noticeMsgEn.trim(),
         theme: noticeTheme,
         showDotPulse: noticePulse,
         orderDisabled: true
       };
+
+      try {
+        localStorage.setItem("kachabazar_live_notice_cache", JSON.stringify(payload));
+      } catch {}
 
       await saveLiveNoticeToSupabase(payload);
       await apiClient.post("/api/settings/notice", { settings: payload }, { silent: true }).catch(() => {});

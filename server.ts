@@ -632,6 +632,23 @@ app.post("/api/settings/:key", rateLimiter(60, 60000), requireAdminAuth, async (
         settings: fileSettings[key],
         updated_at: new Date().toISOString()
       });
+
+      if (key === "notice" || key === "live_notice") {
+        await sb.from("live_notices").upsert({
+          id: "default_notice",
+          is_active: incoming.isActive !== false,
+          badge_bn: incoming.badgeBn || "🔴 LIVE UPDATE",
+          badge_en: incoming.badgeEn || "🔴 LIVE UPDATE",
+          title_bn: incoming.titleBn || "",
+          title_en: incoming.titleEn || "",
+          message_bn: incoming.messageBn || "",
+          message_en: incoming.messageEn || "",
+          theme: incoming.theme || "rose",
+          show_dot_pulse: incoming.showDotPulse !== false,
+          order_disabled: Boolean(incoming.orderDisabled),
+          updated_at: new Date().toISOString()
+        });
+      }
     } catch {}
   }
 
@@ -2553,7 +2570,8 @@ interface AuthenticatedCaller {
 
 const SUPER_ADMIN_WHITELIST = new Set([
   "sarkarmdanik14@gmail.com",
-  "megabajar@admin.com"
+  "megabajar@admin.com",
+  "adminofficer@megabajar.com"
 ]);
 
 /**
@@ -6191,20 +6209,20 @@ app.post("/api/staff/supabase-session", rateLimiter(20, 60000), async (req, res)
         const { data: staffRow } = await sb
           .from("staff")
           .select("*")
-          .or(`email.eq.${email},username.eq.${email}`)
-          .single();
-        if (staffRow && staffRow.status === "active") {
+          .or(`id.eq.${uid},email.eq.${email},username.eq.${email}`)
+          .maybeSingle();
+        if (staffRow && (staffRow.status === "active" || !staffRow.status)) {
           staff = {
-            id: staffRow.id,
+            id: staffRow.id || uid,
             staffId: staffRow.staff_id || staffRow.staffId || "CFI-KB-STAFF",
             username: staffRow.username || email.split("@")[0],
             fullName: staffRow.full_name || staffRow.name || "Staff",
-            email: staffRow.email,
+            email: staffRow.email || email,
             role: staffRow.role || "admin",
             designation: staffRow.designation || "Staff",
             department: staffRow.department || "Operations",
             status: "active",
-            isSuperAdmin: staffRow.role === "super_admin"
+            isSuperAdmin: staffRow.role === "super_admin" || Boolean(staffRow.is_super_admin)
           };
           staffList.push(staff);
         }
@@ -6217,15 +6235,15 @@ app.post("/api/staff/supabase-session", rateLimiter(20, 60000), async (req, res)
         const { data: userRow } = await sb
           .from("users")
           .select("*")
-          .or(`id.eq.${uid},uid.eq.${uid}`)
-          .single();
-        if (userRow && (userRow.role === "admin" || userRow.role === "super_admin")) {
+          .or(`id.eq.${uid},uid.eq.${uid},email.eq.${email}`)
+          .maybeSingle();
+        if (userRow && (userRow.role === "admin" || userRow.role === "super_admin" || userRow.role === "founder")) {
           staff = {
             id: uid,
             staffId: "CFI-KB-ADMIN",
             username: userRow.email?.split("@")[0] || "admin",
             fullName: userRow.full_name || userRow.display_name || "Admin",
-            email: userRow.email,
+            email: userRow.email || email,
             role: userRow.role,
             status: "active",
             isSuperAdmin: userRow.role === "super_admin"

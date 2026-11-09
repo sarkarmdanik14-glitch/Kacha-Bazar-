@@ -351,7 +351,7 @@ export async function fetchLiveNoticeFromSupabase(): Promise<any | null> {
       .maybeSingle();
 
     if (error || !data) return null;
-    return {
+    const mapped = {
       id: data.id,
       isActive: data.is_active !== false,
       badgeBn: data.badge_bn,
@@ -364,6 +364,10 @@ export async function fetchLiveNoticeFromSupabase(): Promise<any | null> {
       showDotPulse: data.show_dot_pulse !== false,
       orderDisabled: !!data.order_disabled
     };
+    try {
+      localStorage.setItem("kachabazar_live_notice_cache", JSON.stringify(mapped));
+    } catch {}
+    return mapped;
   } catch {
     return null;
   }
@@ -423,10 +427,45 @@ export async function saveLiveNoticeToSupabase(notice: {
       order_disabled: !!notice.orderDisabled,
       updated_at: new Date().toISOString()
     };
+    try {
+      localStorage.setItem("kachabazar_live_notice_cache", JSON.stringify({
+        id: "default_notice",
+        isActive: payload.is_active,
+        badgeBn: payload.badge_bn,
+        badgeEn: payload.badge_en,
+        titleBn: payload.title_bn,
+        titleEn: payload.title_en,
+        messageBn: payload.message_bn,
+        messageEn: payload.message_en,
+        theme: payload.theme,
+        showDotPulse: payload.show_dot_pulse,
+        orderDisabled: payload.order_disabled
+      }));
+    } catch {}
+
     const { error } = await supabase.from("live_notices").upsert(payload, { onConflict: "id" });
     if (error) {
-      console.warn("[Supabase] Notice save notice:", error.message);
-      return false;
+      console.warn("[Supabase] Notice direct upsert notice:", error.message);
+      // Seamless server-side fallback using service_role via /api/settings/notice
+      try {
+        const { apiClient } = await import("./apiClient");
+        await apiClient.post("/api/settings/notice", { settings: {
+          isActive: payload.is_active,
+          badgeBn: payload.badge_bn,
+          badgeEn: payload.badge_en,
+          titleBn: payload.title_bn,
+          titleEn: payload.title_en,
+          messageBn: payload.message_bn,
+          messageEn: payload.message_en,
+          theme: payload.theme,
+          showDotPulse: payload.show_dot_pulse,
+          orderDisabled: payload.order_disabled
+        } }, { silent: true });
+        return true;
+      } catch (fbErr) {
+        console.warn("[API] Fallback notice save error:", fbErr);
+        return false;
+      }
     }
     return true;
   } catch (err) {
