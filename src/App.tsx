@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, Share2, Eye, Plus, Minus, Trash2, X, 
   MapPin, Bell, User, Check, Send, Tag, Gift, Award, Smartphone, 
   QrCode, ArrowRight, ArrowLeft, ThumbsUp, Info, ChevronDown, ChevronUp, CheckCircle, Percent, Volume2,
-  Phone, PhoneCall, Mail, ExternalLink, Navigation, Locate, Copy, Zap, Printer, Download, FileText, Loader2, Wifi, WifiOff, MessageSquare, Globe, Home, Utensils, Pill, Repeat, Radio
+  Phone, PhoneCall, Mail, ExternalLink, Navigation, Locate, Copy, Zap, Printer, Download, FileText, Loader2, Wifi, WifiOff, MessageSquare, Globe, Home, Utensils, Pill, Repeat, Radio, ClipboardList
 } from "lucide-react";
 import BuySellMarketplace from "./components/buysell/BuySellMarketplace";
 import OrderMemoModal from "./components/portal/OrderMemoModal";
@@ -61,7 +61,6 @@ import { LiveNoticeBanner } from "./components/common/LiveNoticeBanner";
 import { FloatingContactOverlay } from "./components/FloatingContactOverlay";
 import { AppSplashScreen } from "./components/AppSplashScreen";
 import { openPWAQRCodeModal, openPWAInstallModal } from "./utils/pwa";
-import { MobileFlutterHomeView } from "./components/mobile/MobileFlutterHomeView";
 
 import makkahImg from "./assets/images/makkah.jpg";
 import madinaImg from "./assets/images/madina_dome_1784201787764.jpg";
@@ -2477,54 +2476,21 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 font-sans text-slate-800 antialiased selection:bg-emerald-500 selection:text-white overflow-x-hidden">
+    <div className="min-h-screen w-full bg-slate-50 font-sans text-slate-800 antialiased selection:bg-emerald-500 selection:text-white">
       
       {/* App Launch Luxury Emerald Animated Splash Screen Overlay */}
       <AppSplashScreen isReady={products.length > 0 && categories.length > 0} minDurationMs={550} />
 
-      {/* ================= NATIVE FLUTTER MOBILE APP HOMEPAGE ================= */}
-      {selectedCategory === "all" && (
-        <MobileFlutterHomeView
-          products={availableProducts}
-          categories={categories}
-          cart={cart}
-          wishlist={wishlist}
-          lang={lang}
-          fmtNum={fmtNum}
-          addToCart={addToCart}
-          updateCartQuantity={updateCartQuantity}
-          removeFromCart={removeFromCart}
-          toggleWishlist={toggleWishlist}
-          openQuickView={openQuickView}
-          navigateToCategory={navigateToCategory}
-          onOpenCart={() => setShowCart(true)}
-          onOpenPortal={(role) => {
-            if (role) setForcedPortalRole(role as any);
-            setShowPortalModal(true);
-          }}
-          onOpenVoiceCall={() => setShowVoiceCall(true)}
-          onOpenLiveChat={() => setShowLiveChat(true)}
-          onOpenQRCode={() => openPWAQRCodeModal()}
-          onVoiceSearch={handleVoiceSearchClick}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          globalSettings={globalSettings}
-          user={loggedInUser}
-          userRole={userRole}
-          userProfilePhoto={userProfilePhoto}
-        />
-      )}
-
-      {/* Main Page Layout Wrapper (Desktop View or Mobile Category View) */}
-      <div className={selectedCategory === "all" ? "hidden md:block" : "block"}>
+      {/* Main Page Layout Wrapper with mobile bottom safe area padding */}
+      <div className="pb-20 md:pb-0">
       
       {/* ================= HEADER ================= */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm transition-shadow duration-300">
         
-        {/* Islamic Header taking 100% full space edge-to-edge with 4-sided White Border & Black Center Piping */}
+        {/* Islamic Header taking 100% full space edge-to-edge with 4-sided White Border & Black Center Piping (Desktop only) */}
         <div 
           id="premium-islamic-header" 
-          className="w-full bg-[#04060c] h-[50px] sm:h-[58px] flex items-center justify-between px-3 sm:px-6 md:px-8 text-white relative select-none overflow-hidden"
+          className="w-full bg-[#04060c] h-[50px] sm:h-[58px] hidden md:flex items-center justify-between px-3 sm:px-6 md:px-8 text-white relative select-none overflow-hidden"
         >
           {/* 4-Sided Elegant Frame: Outer Thin White + Center Black Piping + Inner Thin White */}
           <div className="absolute inset-0 border border-white pointer-events-none z-20" />
@@ -2860,7 +2826,7 @@ export default function App() {
 
       {/* ================= 4. CATEGORIES (HOME PAGE VIEW) ================= */}
       {selectedCategory === "all" && (
-        <section className="max-w-7xl mx-auto px-4 mt-8">
+        <section id="categories-section" className="max-w-7xl mx-auto px-4 mt-8 scroll-mt-24">
           <div className="flex justify-between items-center mb-6">
             <div>
               <h3 className="text-lg md:text-xl font-bold text-slate-800 flex items-center gap-1.5">
@@ -4032,9 +3998,9 @@ export default function App() {
 
 
 
-      {/* ================= WHY CHOOSE US (EXACT MATCH TO REFERENCE DESIGN - COMPACT 50% HEIGHT) ================= */}
+      {/* ================= WHY CHOOSE US (Desktop only, hidden on mobile apps) ================= */}
       {homeConfig?.sectionVisibility?.showWhyChooseUs !== false && (
-      <section className="max-w-7xl mx-auto px-3 sm:px-4 mt-1.5 sm:mt-2">
+      <section className="hidden md:block max-w-7xl mx-auto px-3 sm:px-4 mt-1.5 sm:mt-2">
         <div className="bg-white rounded-xl md:rounded-2xl border border-slate-200/80 shadow-[0_1px_4px_rgba(0,0,0,0.02)] py-1.5 sm:py-2 px-2 sm:px-3">
           {/* Section Header with Leaf Accents */}
           <div className="flex items-center justify-center gap-1 sm:gap-1.5 mb-1">
@@ -4122,9 +4088,9 @@ export default function App() {
 
 
 
-      {/* ================= BEAUTIFUL FOOTER (COMPACT 40% REDUCED) ================= */}
+      {/* ================= BEAUTIFUL FOOTER (Desktop only, hidden on mobile) ================= */}
       {homeConfig?.sectionVisibility?.showFooter !== false && (
-      <footer className="bg-slate-950 text-slate-400 pt-3 pb-2 sm:pt-4 sm:pb-3 border-t border-slate-800 text-[10px] sm:text-xs">
+      <footer className="hidden md:block bg-slate-950 text-slate-400 pt-3 pb-2 sm:pt-4 sm:pb-3 border-t border-slate-800 text-[10px] sm:text-xs">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 mb-2.5 items-start">
           
           {/* Leftmost Kacha Bazar Branding Area */}
@@ -4379,42 +4345,38 @@ export default function App() {
 
       {/* ================= FIXED VERTICAL FLOATING CONTACT OVERLAY ================= */}
       {!showPortalModal && (
-        <div className={selectedCategory === "all" ? "hidden md:block" : "block"}>
-          <FloatingContactOverlay 
-            hotlinePhone={
-              globalSettings?.hotline || 
-              "01615581975"
-            }
-            whatsappNumber={
-              globalSettings?.whatsapp || 
-              "01615581975"
-            }
-            facebookUrl={
-              (globalSettings?.facebookUrl && globalSettings.facebookUrl !== "https://facebook.com")
-                ? globalSettings.facebookUrl
-                : "https://web.facebook.com/profile.php?id=61594593267528"
-            }
-            lang={lang}
-          />
-        </div>
+        <FloatingContactOverlay 
+          hotlinePhone={
+            globalSettings?.hotline || 
+            "01615581975"
+          }
+          whatsappNumber={
+            globalSettings?.whatsapp || 
+            "01615581975"
+          }
+          facebookUrl={
+            (globalSettings?.facebookUrl && globalSettings.facebookUrl !== "https://facebook.com")
+              ? globalSettings.facebookUrl
+              : "https://web.facebook.com/profile.php?id=61594593267528"
+          }
+          lang={lang}
+        />
       )}
 
-      {/* ================= COMPACT FLOATING CHECKOUT BUTTON ================= */}
+      {/* ================= DESKTOP COMPACT FLOATING CHECKOUT BUTTON ================= */}
       {cart.length > 0 && !showCart && !showPortalModal && !showLiveChat && (
         <button 
           onClick={() => setShowCart(true)}
-          className={`fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm py-1.5 px-3 sm:py-2 sm:px-3.5 rounded-full shadow-lg shadow-slate-950/30 border border-emerald-400/40 items-center gap-1.5 sm:gap-2 cursor-pointer transition-all duration-200 ${
-            selectedCategory === "all" ? "hidden md:flex" : "flex"
-          }`}
+          className="hidden md:flex fixed bottom-4 right-4 z-40 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm py-2 px-3.5 rounded-full shadow-lg shadow-slate-950/30 border border-emerald-400/40 items-center gap-2 cursor-pointer transition-all duration-200"
           title={lang === "bn" ? "কার্ট ও চেকআউট দেখুন" : "View Cart & Checkout"}
         >
-          <span className="bg-emerald-900/80 text-emerald-200 text-[10px] sm:text-xs font-black px-1.5 py-0.5 rounded-full leading-none">
+          <span className="bg-emerald-900/80 text-emerald-200 text-xs font-black px-1.5 py-0.5 rounded-full leading-none">
             {fmtNum(cart.reduce((s, i) => s + i.quantity, 0))}
           </span>
-          <span className="text-xs sm:text-sm font-black text-emerald-100">
+          <span className="text-sm font-black text-emerald-100">
             ৳{fmtNum(subtotal)}
           </span>
-          <span className="text-xs sm:text-sm font-bold text-white border-l border-emerald-500/50 pl-1.5 sm:pl-2">
+          <span className="text-sm font-bold text-white border-l border-emerald-500/50 pl-2">
             {lang === "bn" ? "চেকআউট" : "Checkout"}
           </span>
           <ArrowRight className="w-3.5 h-3.5 text-white shrink-0" />
@@ -5123,6 +5085,186 @@ export default function App() {
       )}
 
       </div>
+
+      {/* ================= MOBILE FLOATING APP CART BAR (Always pinned above bottom nav) ================= */}
+      {cart.length > 0 && !showCart && !showPortalModal && (
+        <div 
+          id="mobile-floating-cart-bar"
+          className="fixed bottom-[60px] inset-x-3 z-[99998] md:hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
+          style={{
+            position: "fixed",
+            bottom: "60px",
+            left: "12px",
+            right: "12px",
+            zIndex: 99998,
+            transform: "translateZ(0)",
+            WebkitTransform: "translateZ(0)"
+          }}
+        >
+          <div 
+            onClick={() => setShowCart(true)}
+            className="bg-[#0f5132] text-white rounded-2xl px-3.5 py-2.5 shadow-xl shadow-emerald-950/25 flex items-center justify-between cursor-pointer border border-emerald-600/40 select-none active:scale-[0.99] transition-transform"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/10">
+                <ShoppingCart className="w-5 h-5 text-emerald-200" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black tracking-tight leading-none text-white truncate">
+                  {lang === "bn" 
+                    ? `${fmtNum(cart.reduce((s, i) => s + i.quantity, 0))}টি আইটেম • ৳${fmtNum(subtotal)}` 
+                    : `${cart.reduce((s, i) => s + i.quantity, 0)} Items • ৳${fmtNum(subtotal)}`}
+                </p>
+                <p className="text-[10px] text-emerald-200 font-medium leading-none mt-1 truncate">
+                  {lang === "bn" ? "ফ্রি ডেলিভারি প্রযোজ্য" : "Free delivery applicable"}
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowCart(true);
+              }}
+              className="bg-white text-emerald-900 font-black text-xs px-3.5 py-1.5 rounded-xl shadow-sm flex items-center gap-1 cursor-pointer hover:bg-emerald-50 transition shrink-0 active:scale-95"
+            >
+              <span>{lang === "bn" ? "ভিউ কার্ট" : "View Cart"}</span>
+              <ArrowRight className="w-3.5 h-3.5 text-emerald-800" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ANDROID APP BOTTOM NAVIGATION BAR (Always Fixed Root Viewport Pinned) ================= */}
+      <nav 
+        id="android-bottom-nav"
+        className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200/90 z-[99999] md:hidden shadow-[0_-2px_10px_rgba(0,0,0,0.06)] select-none"
+        style={{ 
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          width: "100%",
+          zIndex: 99999,
+          transform: "translateZ(0)",
+          WebkitTransform: "translateZ(0)",
+          paddingBottom: "max(env(safe-area-inset-bottom, 0px), 4px)"
+        }}
+        aria-label="Mobile Navigation"
+      >
+        <div className="grid grid-cols-5 h-14 items-center">
+          {/* 1. হোম (Home) */}
+          <button
+            onClick={() => {
+              if (showPortalModal) setShowPortalModal(false);
+              setShowFlashSaleOnly(false);
+              setSelectedCategory("all");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-90 ${
+              !showPortalModal && selectedCategory === "all" && !showFlashSaleOnly
+                ? "text-emerald-700 font-bold"
+                : "text-slate-500 font-medium hover:text-slate-800"
+            }`}
+          >
+            <Home className={`w-5 h-5 transition-transform ${!showPortalModal && selectedCategory === "all" && !showFlashSaleOnly ? "scale-110 text-emerald-700 fill-emerald-100/60" : ""}`} />
+            <span className="text-[10px] mt-0.5 tracking-tight leading-none">
+              {lang === "bn" ? "হোম" : "Home"}
+            </span>
+          </button>
+
+          {/* 2. ক্যাটাগরি (Category) */}
+          <button
+            onClick={() => {
+              if (showPortalModal) setShowPortalModal(false);
+              setShowFlashSaleOnly(false);
+              const catEl = document.getElementById("categories-section");
+              if (catEl) {
+                catEl.scrollIntoView({ behavior: "smooth" });
+              } else {
+                setSelectedCategory("all");
+                setTimeout(() => {
+                  document.getElementById("categories-section")?.scrollIntoView({ behavior: "smooth" });
+                }, 100);
+              }
+            }}
+            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-90 ${
+              !showPortalModal && selectedCategory !== "all"
+                ? "text-emerald-700 font-bold"
+                : "text-slate-500 font-medium hover:text-slate-800"
+            }`}
+          >
+            <LayoutGrid className={`w-5 h-5 transition-transform ${!showPortalModal && selectedCategory !== "all" ? "scale-110 text-emerald-700" : ""}`} />
+            <span className="text-[10px] mt-0.5 tracking-tight leading-none">
+              {lang === "bn" ? "ক্যাটাগরি" : "Category"}
+            </span>
+          </button>
+
+          {/* 3. অফার (Offers / Flash Deals) */}
+          <button
+            onClick={() => {
+              if (showPortalModal) setShowPortalModal(false);
+              setSelectedCategory("all");
+              setShowFlashSaleOnly(true);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-90 ${
+              !showPortalModal && showFlashSaleOnly
+                ? "text-emerald-700 font-bold"
+                : "text-slate-500 font-medium hover:text-slate-800"
+            }`}
+          >
+            <Tag className={`w-5 h-5 transition-transform ${!showPortalModal && showFlashSaleOnly ? "scale-110 text-emerald-700 fill-emerald-100/60" : ""}`} />
+            <span className="text-[10px] mt-0.5 tracking-tight leading-none">
+              {lang === "bn" ? "অফার" : "Offers"}
+            </span>
+          </button>
+
+          {/* 4. অর্ডার (Orders) */}
+          <button
+            onClick={() => {
+              setForcedPortalRole("customer");
+              setPortalInitialTab("orders");
+              setShowPortalModal(true);
+            }}
+            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-90 ${
+              showPortalModal && portalInitialTab === "orders"
+                ? "text-emerald-700 font-bold"
+                : "text-slate-500 font-medium hover:text-slate-800"
+            }`}
+          >
+            <ClipboardList className={`w-5 h-5 transition-transform ${showPortalModal && portalInitialTab === "orders" ? "scale-110 text-emerald-700" : ""}`} />
+            <span className="text-[10px] mt-0.5 tracking-tight leading-none">
+              {lang === "bn" ? "অর্ডার" : "Orders"}
+            </span>
+          </button>
+
+          {/* 5. প্রোফাইল (Profile) */}
+          <button
+            onClick={() => {
+              const hasStaffSession = Boolean(
+                localStorage.getItem("kb_staff_session") || 
+                sessionStorage.getItem("kb_staff_session")
+              );
+              const targetRole = (userRole === "admin" || userRole === "super_admin" || userRole === "founder" || loggedInUser?.role === "admin" || loggedInUser?.role === "super_admin" || hasStaffSession) 
+                ? "admin" 
+                : "customer";
+              setForcedPortalRole(targetRole);
+              setPortalInitialTab("dashboard");
+              setShowPortalModal(true);
+            }}
+            className={`flex flex-col items-center justify-center h-full cursor-pointer transition active:scale-90 ${
+              showPortalModal && portalInitialTab !== "orders"
+                ? "text-emerald-700 font-bold"
+                : "text-slate-500 font-medium hover:text-slate-800"
+            }`}
+          >
+            <User className={`w-5 h-5 transition-transform ${showPortalModal && portalInitialTab !== "orders" ? "scale-110 text-emerald-700 fill-emerald-100/60" : ""}`} />
+            <span className="text-[10px] mt-0.5 tracking-tight leading-none">
+              {lang === "bn" ? "প্রোফাইল" : "Profile"}
+            </span>
+          </button>
+        </div>
+      </nav>
 
       {/* ================= TOAST FLOATING BANNER ================= */}
       {toast && (

@@ -3570,7 +3570,33 @@ const handleImageUpload = async (req: express.Request, res: express.Response) =>
       }
     }
 
-    // High-resilience fallback to local uploads if R2 write encounters an issue
+    // High-resilience tier: Try Supabase Storage public buckets if R2 is unavailable
+    let storageProvider = r2Success ? "cloudflare_r2" : "local_storage";
+    if (!r2Success) {
+      const sb = getServerSupabase();
+      if (sb) {
+        try {
+          const bucketName = cleanFolder === "profiles" ? "profiles" : "products";
+          const { error: sbUpErr } = await sb.storage.from(bucketName).upload(safeName, buffer, {
+            contentType: mimeType,
+            upsert: true
+          });
+          if (!sbUpErr) {
+            const { data: pubData } = sb.storage.from(bucketName).getPublicUrl(safeName);
+            if (pubData?.publicUrl) {
+              finalUrl = pubData.publicUrl;
+              r2Success = true;
+              storageProvider = "supabase_storage";
+              console.log(`[Supabase Storage] Successfully uploaded image: ${bucketName}/${safeName} -> ${finalUrl}`);
+            }
+          }
+        } catch (sbEx) {
+          console.warn("[Supabase Storage] Upload fallback notice:", sbEx);
+        }
+      }
+    }
+
+    // High-resilience fallback to local uploads if remote storage is unreachable
     if (!r2Success) {
       const uploadsDir = path.resolve(process.cwd(), "public", "uploads");
       if (!fs.existsSync(uploadsDir)) {
@@ -3579,13 +3605,14 @@ const handleImageUpload = async (req: express.Request, res: express.Response) =>
       const filePath = path.join(uploadsDir, safeName);
       fs.writeFileSync(filePath, buffer);
       finalUrl = `/uploads/${safeName}`;
+      storageProvider = "local_storage";
     }
 
     return res.json({
       success: true,
       url: finalUrl,
       r2Key: r2Success ? r2Key : null,
-      provider: r2Success ? "cloudflare_r2" : "local_storage",
+      provider: storageProvider,
       message: "ছবি সফলভাবে আপলোড করা হয়েছে।"
     });
   } catch (err: any) {

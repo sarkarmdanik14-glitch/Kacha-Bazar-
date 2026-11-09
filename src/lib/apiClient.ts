@@ -93,6 +93,8 @@ function getStatusErrorMessage(status: number, statusText: string, path: string)
       return "তথ্যের অসঙ্গতি বা ডুপ্লিকেট রেকর্ড পাওয়া গেছে (Conflict)।";
     case 429:
       return "অতিরিক্ত অনুরোধ পাঠানো হয়েছে। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।";
+    case 413:
+      return "ছবির আকার সীমার চেয়ে বড়। অনুগ্রহ করে পুনরায় চেষ্টা করুন।";
     case 500:
       return "সার্ভারে অভ্যন্তরীণ সমস্যা দেখা দিয়েছে। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।";
     case 502:
@@ -246,6 +248,7 @@ export async function apiRequest<T = any>(
     if (
       import.meta.env?.DEV &&
       !options.silent &&
+      !(response.status === 413 && url.includes("/api/upload")) &&
       !(isProfileEndpoint && (response.status === 413 || response.status === 401 || response.status === 403)) &&
       !(isAuthCheckEndpoint && (response.status === 401 || response.status === 403))
     ) {

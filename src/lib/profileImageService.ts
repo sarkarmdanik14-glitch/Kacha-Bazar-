@@ -119,26 +119,49 @@ export async function uploadProfilePhotoUnified({
   }
 
   try {
-    // 3. Client-side compression for fast network upload
-    const compressed = await compressImage(file, 400, 0.85);
-    const dataUrlToSend = compressed.dataUrl;
+    // 3. Client-side compression for fast network upload (max 180px for avatars, max 28KB budget for GFE proxy safety)
+    const compressed = await compressImage(file, 180, 0.68, 28 * 1024);
+    let dataUrlToSend = compressed.dataUrl;
 
     if (!dataUrlToSend || !dataUrlToSend.startsWith("data:image/")) {
       throw new Error("ছবিটি প্রক্রিয়াকরণ করা সম্ভব হয়নি।");
     }
 
     // 4. Authenticated backend upload to Cloudflare R2
-    const cleanFilename = `profile_${cleanUserId}_${Date.now()}.${file.type.includes("png") ? "png" : file.type.includes("webp") ? "webp" : "jpg"}`;
-    const uploadRes = await apiClient.post<any>("/api/upload", {
-      dataUrl: dataUrlToSend,
-      filename: cleanFilename,
-      folder,
-      userId: cleanUserId,
-      targetUserId: cleanUserId
-    }, {
-      skipAuth: false,
-      timeoutMs: 30000
-    });
+    const cleanFilename = `profile_${cleanUserId}_${Date.now()}.jpg`;
+    let uploadRes: any = null;
+
+    try {
+      uploadRes = await apiClient.post<any>("/api/upload", {
+        dataUrl: dataUrlToSend,
+        filename: cleanFilename,
+        folder,
+        userId: cleanUserId,
+        targetUserId: cleanUserId
+      }, {
+        skipAuth: false,
+        timeoutMs: 30000
+      });
+    } catch (uploadErr: any) {
+      const errStr = String(uploadErr?.message || uploadErr?.status || "");
+      // If 413 or proxy payload limit is encountered, automatically re-compress with ultra-compact 140px avatar and retry
+      if (errStr.includes("413") || uploadErr?.status === 413 || errStr.includes("সীমার চেয়ে বড়")) {
+        console.warn("Retrying profile upload with ultra-compact 140px avatar due to proxy limits...");
+        const fallbackComp = await compressImage(file, 140, 0.55, 18 * 1024);
+        uploadRes = await apiClient.post<any>("/api/upload", {
+          dataUrl: fallbackComp.dataUrl,
+          filename: `c_${cleanFilename}`,
+          folder,
+          userId: cleanUserId,
+          targetUserId: cleanUserId
+        }, {
+          skipAuth: false,
+          timeoutMs: 25000
+        });
+      } else {
+        throw uploadErr;
+      }
+    }
 
     if (!uploadRes?.success || !uploadRes?.url) {
       throw new Error(uploadRes?.error || uploadRes?.message || "ক্লাউডে ছবি আপলোড করতে ব্যর্থ হয়েছে।");
