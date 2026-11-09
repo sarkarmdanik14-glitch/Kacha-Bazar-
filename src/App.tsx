@@ -61,6 +61,7 @@ import { LiveNoticeBanner } from "./components/common/LiveNoticeBanner";
 import { FloatingContactOverlay } from "./components/FloatingContactOverlay";
 import { AppSplashScreen } from "./components/AppSplashScreen";
 import { openPWAQRCodeModal, openPWAInstallModal } from "./utils/pwa";
+import { MobileFlutterHomeView } from "./components/mobile/MobileFlutterHomeView";
 
 import makkahImg from "./assets/images/makkah.jpg";
 import madinaImg from "./assets/images/madina_dome_1784201787764.jpg";
@@ -2481,8 +2482,41 @@ export default function App() {
       {/* App Launch Luxury Emerald Animated Splash Screen Overlay */}
       <AppSplashScreen isReady={products.length > 0 && categories.length > 0} minDurationMs={550} />
 
-      {/* Main Page Layout Wrapper */}
-      <div>
+      {/* ================= NATIVE FLUTTER MOBILE APP HOMEPAGE ================= */}
+      {selectedCategory === "all" && (
+        <MobileFlutterHomeView
+          products={availableProducts}
+          categories={categories}
+          cart={cart}
+          wishlist={wishlist}
+          lang={lang}
+          fmtNum={fmtNum}
+          addToCart={addToCart}
+          updateCartQuantity={updateCartQuantity}
+          removeFromCart={removeFromCart}
+          toggleWishlist={toggleWishlist}
+          openQuickView={openQuickView}
+          navigateToCategory={navigateToCategory}
+          onOpenCart={() => setShowCart(true)}
+          onOpenPortal={(role) => {
+            if (role) setForcedPortalRole(role as any);
+            setShowPortalModal(true);
+          }}
+          onOpenVoiceCall={() => setShowVoiceCall(true)}
+          onOpenLiveChat={() => setShowLiveChat(true)}
+          onOpenQRCode={() => openPWAQRCodeModal()}
+          onVoiceSearch={handleVoiceSearchClick}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          globalSettings={globalSettings}
+          user={loggedInUser}
+          userRole={userRole}
+          userProfilePhoto={userProfilePhoto}
+        />
+      )}
+
+      {/* Main Page Layout Wrapper (Desktop View or Mobile Category View) */}
+      <div className={selectedCategory === "all" ? "hidden md:block" : "block"}>
       
       {/* ================= HEADER ================= */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm transition-shadow duration-300">
@@ -4345,29 +4379,33 @@ export default function App() {
 
       {/* ================= FIXED VERTICAL FLOATING CONTACT OVERLAY ================= */}
       {!showPortalModal && (
-        <FloatingContactOverlay 
-          hotlinePhone={
-            globalSettings?.hotline || 
-            "01615581975"
-          }
-          whatsappNumber={
-            globalSettings?.whatsapp || 
-            "01615581975"
-          }
-          facebookUrl={
-            (globalSettings?.facebookUrl && globalSettings.facebookUrl !== "https://facebook.com")
-              ? globalSettings.facebookUrl
-              : "https://web.facebook.com/profile.php?id=61594593267528"
-          }
-          lang={lang}
-        />
+        <div className={selectedCategory === "all" ? "hidden md:block" : "block"}>
+          <FloatingContactOverlay 
+            hotlinePhone={
+              globalSettings?.hotline || 
+              "01615581975"
+            }
+            whatsappNumber={
+              globalSettings?.whatsapp || 
+              "01615581975"
+            }
+            facebookUrl={
+              (globalSettings?.facebookUrl && globalSettings.facebookUrl !== "https://facebook.com")
+                ? globalSettings.facebookUrl
+                : "https://web.facebook.com/profile.php?id=61594593267528"
+            }
+            lang={lang}
+          />
+        </div>
       )}
 
       {/* ================= COMPACT FLOATING CHECKOUT BUTTON ================= */}
       {cart.length > 0 && !showCart && !showPortalModal && !showLiveChat && (
         <button 
           onClick={() => setShowCart(true)}
-          className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm py-1.5 px-3 sm:py-2 sm:px-3.5 rounded-full shadow-lg shadow-slate-950/30 border border-emerald-400/40 flex items-center gap-1.5 sm:gap-2 cursor-pointer transition-all duration-200"
+          className={`fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm py-1.5 px-3 sm:py-2 sm:px-3.5 rounded-full shadow-lg shadow-slate-950/30 border border-emerald-400/40 items-center gap-1.5 sm:gap-2 cursor-pointer transition-all duration-200 ${
+            selectedCategory === "all" ? "hidden md:flex" : "flex"
+          }`}
           title={lang === "bn" ? "কার্ট ও চেকআউট দেখুন" : "View Cart & Checkout"}
         >
           <span className="bg-emerald-900/80 text-emerald-200 text-[10px] sm:text-xs font-black px-1.5 py-0.5 rounded-full leading-none">

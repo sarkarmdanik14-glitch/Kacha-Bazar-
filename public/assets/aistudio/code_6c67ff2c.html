@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+
+<html lang="bn"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>মেগা বাজার - Oppo / Vivo Android</title>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'mb-green': '#0c733f',
+            'mb-dark-green': '#08532d',
+            'mb-light-green': '#e8f7ee',
+            'mb-orange': '#f37321',
+            'mb-badge': '#ff4747'
+          },
+          fontFamily: {
+            sans: ['Hind Siliguri', 'Segoe UI', 'Roboto', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<style data-purpose="custom-scrollbars-and-reset">
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Hind Siliguri', sans-serif;
+      background-color: #0f172a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 12px;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-gray-800 antialiased">
+<!-- BEGIN: AndroidDeviceFrame -->
+<div class="relative w-[360px] h-[800px] bg-[#f8fafc] rounded-[38px] overflow-hidden shadow-2xl border-[6px] border-slate-700 flex flex-col justify-between select-none" data-purpose="oppo-vivo-device-viewport">
+<!-- BEGIN: AndroidStatusBar -->
+<div class="relative w-full h-8 px-4 bg-white flex items-center justify-between z-30 pt-1 text-xs text-gray-700 font-medium" data-purpose="android-status-bar">
+<!-- Left side: Time & Notification icons -->
+<div class="flex items-center space-x-1.5 pl-1">
+<span class="text-[12px] font-semibold text-gray-900 tracking-tight">10:30</span>
+</div>
+<!-- Center: Punch hole selfie camera (Oppo/Vivo style) -->
+<div class="absolute left-1/2 transform -translate-x-1/2 top-1.5 w-3.5 h-3.5 bg-black rounded-full ring-1 ring-neutral-800 flex items-center justify-center">
+<div class="w-1.5 h-1.5 bg-[#0f2338] rounded-full"></div>
+</div>
+<!-- Right side: Android Status icons (VoLTE, 5G, Wi-Fi, Battery) -->
+<div class="flex items-center space-x-1.5 text-[11px] pr-1">
+<span class="text-[9px] font-semibold px-0.5 border border-gray-400 rounded leading-none text-gray-600">VoLTE</span>
+<!-- 5G / Signal icon -->
+<svg class="w-3.5 h-3.5 text-gray-700" fill="currentColor" viewbox="0 0 24 24">
+<path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19H12v-7H8.5V9.5h7V12h-2v7h5.65l-.62-1.39C19.26 16.07 20 14.12 20 12c0-4.97-4.03-9-9-9z"></path>
+</svg>
+<!-- Battery with 85% -->
+<div class="flex items-center space-x-0.5">
+<span class="text-[10px] font-bold text-gray-700">85%</span>
+<svg class="w-4 h-3.5 text-gray-700" fill="currentColor" viewbox="0 0 24 24">
+<path d="M17 5v14a1 1 0 01-1 1H8a1 1 0 01-1-1V5a1 1 0 011-1h2V2h4v2h2a1 1 0 011 1z"></path>
+</svg>
+</div>
+</div>
+</div>
+<!-- END: AndroidStatusBar -->
+<!-- BEGIN: TopAppBar -->
+<header class="bg-white border-b border-gray-100 px-3 pt-1.5 pb-2.5 shadow-sm shrink-0 z-20" data-purpose="app-header">
+<!-- Upper row: Brand Logo + Location dropdown + Notification & Cart badge -->
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center space-x-2">
+<!-- App Logo -->
+<div class="w-8 h-8 rounded-full overflow-hidden border border-emerald-200 bg-white p-0.5 flex-shrink-0">
+<img alt="মেগা বাজার" class="w-full h-full object-contain" src="https://lh3.googleusercontent.com/aida/ALJJyrAcnG7_raLQg6wCQ3zWZY1kBhz00rPPDp-4GcRNJwPJ0l3VMusRxjNuEU8l1kEZTze-Bb719m6JDtQB4WubhDqUBs24sW9KqEVHmrgknpdQk9V3fTwY7TTQOjMXKocjrT6r3_Jww_D3hUROY8C_sl7nGgECxM3YV2LrExwse6cm_KtNayEXyS0CcwnuOwpqUYca10pUXx5jN156pLLJZGrrrzK7CVdHvD6GKswJTlKh"/>
+</div>
+<div>
+<div class="flex items-center space-x-1">
+<span class="font-bold text-base text-[#0c733f] leading-none">মেগা বাজার</span>
+<span class="bg-rose-500 text-white text-[9px] font-bold px-1 rounded uppercase tracking-wider">অ্যাপ</span>
+</div>
+<!-- Delivery Location -->
+<div class="flex items-center text-[11px] text-gray-600 font-medium cursor-pointer">
+<svg class="w-3 h-3 text-emerald-600 mr-0.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span>ধানমন্ডি, ঢাকা</span>
+<svg class="w-3 h-3 text-gray-500 ml-0.5" fill="currentColor" viewbox="0 0 20 20">
+<path clip-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" fill-rule="evenodd"></path>
+</svg>
+</div>
+</div>
+</div>
+<!-- Action Icons (Notification & Cart) -->
+<div class="flex items-center space-x-2">
+<!-- Notification Icon -->
+<button aria-label="Notifications" class="relative p-1.5 rounded-full hover:bg-gray-100 text-gray-700">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+</button>
+<!-- Mini Cart Icon with Count -->
+<button aria-label="Shopping Cart" class="relative p-1.5 rounded-full hover:bg-gray-100 text-gray-800">
+<svg class="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="absolute -top-0.5 -right-0.5 bg-orange-600 text-white font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center border border-white">৩</span>
+</button>
+<!-- User Avatar Placeholder -->
+<div class="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center text-xs font-semibold text-slate-600">
+            ম
+          </div>
+</div>
+</div>
+<!-- Search Bar -->
+<div class="relative flex items-center bg-[#f1f5f9] rounded-xl px-2.5 py-1.5 border border-slate-200/70">
+<svg class="w-4 h-4 text-emerald-700 mr-2 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<input class="w-full bg-transparent text-xs text-gray-800 placeholder-gray-400 focus:outline-none border-none p-0 focus:ring-0" placeholder="চাল, ডাল, মাছ, মাংস খুঁজুন..." type="text"/>
+<!-- Voice & QR Scan icons -->
+<div class="flex items-center space-x-1.5 text-gray-500 ml-1">
+<svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 003-3V5a3 3 0 10-6 0v6a3 3 0 003 3z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" stroke-width="1.8" viewbox="0 0 24 24">
+<path d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</div>
+</header>
+<!-- END: TopAppBar -->
+<!-- BEGIN: MainScrollFeed -->
+<main class="flex-1 overflow-y-auto no-scrollbar px-3 py-2 space-y-3" data-purpose="app-body-content">
+<!-- Quick Status & Order Bar (30-min express & WhatsApp/Phone) -->
+<section class="space-y-1.5" data-purpose="quick-actions">
+<div class="bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-1 rounded-lg flex items-center justify-between border border-emerald-100">
+<div class="flex items-center space-x-1">
+<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+<span>⚡ ৩০ মিনিটে এক্সপ্রেস ডেলিভারি • ধানমন্ডি</span>
+</div>
+<span class="text-[10px] text-emerald-700 bg-emerald-100/60 px-1.5 py-0.5 rounded">খোলা আছে ●</span>
+</div>
+<div class="grid grid-cols-2 gap-2 text-xs font-semibold">
+<a class="bg-emerald-50 border border-emerald-200 text-emerald-700 py-1.5 px-2 rounded-lg flex items-center justify-center space-x-1.5 shadow-sm" href="#">
+<svg class="w-3.5 h-3.5 text-emerald-600 fill-current" viewbox="0 0 24 24">
+<path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.669-.699c.97.53 1.87.82 2.791.82 3.182 0 5.769-2.587 5.769-5.766 0-3.18-2.587-5.806-5.769-5.806zm0 10.518c-.84 0-1.63-.23-2.34-.65l-.17-.1-1.74.45.46-1.7-.11-.18c-.46-.74-.71-1.6-.71-2.47 0-2.62 2.13-4.75 4.75-4.75s4.75 2.13 4.75 4.75c0 2.62-2.13 4.75-4.75 4.75z"></path>
+</svg>
+<span>হোয়াটসঅ্যাপে অর্ডার</span>
+</a>
+<a class="bg-orange-50 border border-orange-200 text-orange-700 py-1.5 px-2 rounded-lg flex items-center justify-center space-x-1.5 shadow-sm" href="#">
+<svg class="w-3.5 h-3.5 text-orange-600" fill="currentColor" viewbox="0 0 24 24">
+<path d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.57a1 1 0 01-.25 1.02l-2.2 2.2z"></path>
+</svg>
+<span>০১৬৭০১১৮১১৫</span>
+</a>
+</div>
+</section>
+<!-- BEGIN: HeroPromoBanner -->
+<section class="relative bg-gradient-to-r from-emerald-800 to-emerald-700 rounded-2xl p-3 text-white overflow-hidden shadow-sm" data-purpose="promo-banner">
+<div class="relative z-10 w-2/3">
+<span class="inline-block bg-amber-500 text-slate-900 text-[9px] font-bold px-1.5 py-0.5 rounded-full mb-1">রমজানের মেগা অফার</span>
+<h2 class="text-sm font-bold leading-tight mb-1 text-white">দৈনন্দিন বাজার ও সেহরিতে ৫০% পর্যন্ত সাশ্রয়!</h2>
+<p class="text-[10px] text-emerald-100 leading-snug line-clamp-2 mb-2">তাতকা শাক-সবজি, মাছ ও মাংস ঘরে বসেই পান দ্রুততম সময়ে।</p>
+<button class="bg-white text-emerald-800 font-bold text-[10px] px-2.5 py-1 rounded-full flex items-center space-x-1 shadow">
+<span>অফার দেখুন</span>
+<span>→</span>
+</button>
+</div>
+<!-- Decorative shopping bag / graphic on the right -->
+<div class="absolute -right-2 -bottom-2 opacity-30 text-white pointer-events-none">
+<svg class="w-28 h-28" fill="currentColor" viewbox="0 0 24 24">
+<path d="M19 6h-2c0-2.76-2.24-5-5-5S7 3.24 7 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-7-3c1.66 0 3 1.34 3 3H9c0-1.66 1.34-3 3-3zm7 17H5V8h14v12z"></path>
+</svg>
+</div>
+</section>
+<!-- END: HeroPromoBanner -->
+<!-- BEGIN: CategoryIcons -->
+<section data-purpose="quick-categories">
+<div class="flex items-center justify-between mb-1.5 px-0.5">
+<h3 class="text-xs font-bold text-gray-800">ক্যাটাগরি সমূহ</h3>
+<a class="text-[11px] text-emerald-700 font-semibold" href="#">সব দেখুন</a>
+</div>
+<div class="grid grid-cols-5 gap-2 text-center">
+<!-- Item 1: শাক-সবজি -->
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-lg shadow-sm">
+              🥬
+            </div>
+<span class="text-[10px] font-medium text-gray-700 mt-1 leading-tight">শাক-সবজি</span>
+</div>
+<!-- Item 2: তাজা মাছ -->
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 rounded-full bg-cyan-50 border border-cyan-100 flex items-center justify-center text-lg shadow-sm">
+              🐟
+            </div>
+<span class="text-[10px] font-medium text-gray-700 mt-1 leading-tight">তাজা মাছ</span>
+</div>
+<!-- Item 3: হালাল মাংস -->
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 rounded-full bg-red-50 border border-red-100 flex items-center justify-center text-lg shadow-sm">
+              🥩
+            </div>
+<span class="text-[10px] font-medium text-gray-700 mt-1 leading-tight">হালাল মাংস</span>
+</div>
+<!-- Item 4: মুদি সামগ্রী -->
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 rounded-full bg-amber-50 border border-amber-100 flex items-center justify-center text-lg shadow-sm">
+              🌾
+            </div>
+<span class="text-[10px] font-medium text-gray-700 mt-1 leading-tight">মুদি সামগ্রী</span>
+</div>
+<!-- Item 5: মিষ্টি ও ফল -->
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 rounded-full bg-orange-50 border border-orange-100 flex items-center justify-center text-lg shadow-sm">
+              🍎
+            </div>
+<span class="text-[10px] font-medium text-gray-700 mt-1 leading-tight">মিষ্টি ও ফল</span>
+</div>
+</div>
+</section>
+<!-- END: CategoryIcons -->
+<!-- BEGIN: FlashSaleSection -->
+<section class="space-y-1.5" data-purpose="flash-deals">
+<div class="flex items-center justify-between px-0.5">
+<div class="flex items-center space-x-1.5">
+<span class="text-xs font-bold text-gray-800 flex items-center gap-1">
+              🔥 আজকের ধামাকা ডিল
+            </span>
+<!-- Countdown badge -->
+<span class="bg-red-50 text-red-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-red-200">
+              ⏱ ০৩:৪৫:১২
+            </span>
+</div>
+<a class="text-[11px] text-emerald-700 font-semibold flex items-center" href="#">
+            সব দেখুন <span class="text-[9px] ml-0.5">›</span>
+</a>
+</div>
+<!-- 2-column Compact Product Grid -->
+<div class="grid grid-cols-2 gap-2">
+<!-- Product Card 1: গরুর মাংস -->
+<div class="bg-white rounded-xl p-2 border border-gray-100 shadow-sm flex flex-col justify-between relative">
+<span class="absolute top-2 left-2 bg-rose-500 text-white font-bold text-[9px] px-1 rounded">-৪%</span>
+<button aria-label="Favorite" class="absolute top-2 right-2 text-gray-400 hover:text-rose-500">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+<div class="w-full h-20 rounded-lg bg-gray-50 flex items-center justify-center my-1 overflow-hidden">
+<span class="text-3xl">🥩</span>
+</div>
+<div>
+<span class="text-[9px] text-gray-500 block">১ কেজি</span>
+<h4 class="text-xs font-bold text-gray-800 line-clamp-1 leading-tight">তাজা গরুর মাংস (হাড়সহ)</h4>
+<div class="flex items-center space-x-1 my-1">
+<span class="text-xs font-bold text-emerald-700">৳৭৫০</span>
+<span class="text-[10px] text-gray-400 line-through">৳৭৮০</span>
+</div>
+</div>
+<button class="w-full bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 font-semibold text-[11px] py-1 rounded-lg flex items-center justify-center space-x-1">
+<span>+ যোগ করুন</span>
+</button>
+</div>
+<!-- Product Card 2: ফ্রেশ স্পেশাল মুড়ি -->
+<div class="bg-white rounded-xl p-2 border border-gray-100 shadow-sm flex flex-col justify-between relative">
+<span class="absolute top-2 left-2 bg-rose-500 text-white font-bold text-[9px] px-1 rounded">-৭%</span>
+<button aria-label="Favorite" class="absolute top-2 right-2 text-gray-400 hover:text-rose-500">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+<div class="w-full h-20 rounded-lg bg-gray-50 flex items-center justify-center my-1 overflow-hidden">
+<span class="text-3xl">🍿</span>
+</div>
+<div>
+<span class="text-[9px] text-gray-500 block">৫০০ গ্রাম</span>
+<h4 class="text-xs font-bold text-gray-800 line-clamp-1 leading-tight">ফ্রেশ স্পেশাল মুড়ি</h4>
+<div class="flex items-center space-x-1 my-1">
+<span class="text-xs font-bold text-emerald-700">৳৬৫</span>
+<span class="text-[10px] text-gray-400 line-through">৳৭০</span>
+</div>
+</div>
+<button class="w-full bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 font-semibold text-[11px] py-1 rounded-lg flex items-center justify-center space-x-1">
+<span>+ যোগ করুন</span>
+</button>
+</div>
+</div>
+</section>
+<!-- END: FlashSaleSection -->
+<!-- Trust banner micro card -->
+<div class="bg-white rounded-xl p-2 border border-emerald-100 flex items-center space-x-2 shadow-xs">
+<div class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs">
+          ✓
+        </div>
+<div class="text-[10px] leading-tight">
+<p class="font-bold text-gray-800">১০০% তাজা ও অর্গানিক নিশ্চয়তা</p>
+<p class="text-gray-500">সরাসরি স্থানীয় খামার থেকে আপনার কিচেনে</p>
+</div>
+</div>
+</main>
+<!-- END: MainScrollFeed -->
+<!-- BEGIN: FloatingMiniCart -->
+<div class="px-3 pb-1 z-30" data-purpose="floating-cart-indicator">
+<div class="bg-[#0c733f] text-white px-3 py-2 rounded-xl flex items-center justify-between shadow-lg shadow-emerald-900/20">
+<div class="flex items-center space-x-2">
+<div class="bg-white/20 p-1.5 rounded-lg">
+<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<div>
+<div class="text-xs font-bold leading-tight">৩টি আইটেম • ৳১,১৩৫</div>
+<div class="text-[9px] text-emerald-200">ফ্রি ডেলিভারি প্রযোজ্য</div>
+</div>
+</div>
+<button class="bg-white text-emerald-800 text-[11px] font-bold px-2.5 py-1 rounded-lg flex items-center space-x-1 shadow-sm">
+<span>ভিউ কার্ট</span>
+<span>→</span>
+</button>
+</div>
+</div>
+<!-- END: FloatingMiniCart -->
+<!-- BEGIN: BottomNavigationBar -->
+<nav class="bg-white border-t border-gray-100 px-3 py-1 flex items-center justify-between text-gray-500 z-30 shrink-0" data-purpose="android-bottom-nav">
+<!-- Nav item: হোম (Active) -->
+<button class="flex flex-col items-center py-0.5 text-[#0c733f]">
+<svg class="w-5 h-5 fill-current" viewbox="0 0 24 24">
+<path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"></path>
+</svg>
+<span class="text-[10px] font-bold mt-0.5">হোম</span>
+</button>
+<!-- Nav item: ক্যাটাগরি -->
+<button class="flex flex-col items-center py-0.5 hover:text-emerald-700">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[10px] font-medium mt-0.5">ক্যাটাগরি</span>
+</button>
+<!-- Nav item: অফার -->
+<button class="flex flex-col items-center py-0.5 hover:text-emerald-700">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[10px] font-medium mt-0.5">অফার</span>
+</button>
+<!-- Nav item: অর্ডার -->
+<button class="flex flex-col items-center py-0.5 hover:text-emerald-700">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[10px] font-medium mt-0.5">অর্ডার</span>
+</button>
+<!-- Nav item: প্রোফাইল -->
+<button class="flex flex-col items-center py-0.5 hover:text-emerald-700">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[10px] font-medium mt-0.5">প্রোফাইল</span>
+</button>
+</nav>
+<!-- END: BottomNavigationBar -->
+<!-- BEGIN: AndroidSystemNavigationBar -->
+<!-- Authentic ColorOS / Funtouch 3-button navigation bar -->
+<div class="h-6 w-full bg-white flex items-center justify-around px-12 pb-1 text-gray-500 border-t border-gray-50 shrink-0" data-purpose="android-system-buttons">
+<!-- Back button (Triangle pointing left) -->
+<div class="cursor-pointer p-1">
+<svg class="w-3.5 h-3.5 text-gray-500 fill-current" viewbox="0 0 24 24">
+<path d="M19 19V5l-11 7 11 7z"></path>
+</svg>
+</div>
+<!-- Home button (Circle) -->
+<div class="cursor-pointer p-1">
+<div class="w-3.5 h-3.5 border-2 border-gray-500 rounded-full"></div>
+</div>
+<!-- Recents button (Square) -->
+<div class="cursor-pointer p-1">
+<div class="w-3.5 h-3.5 border-2 border-gray-500 rounded-sm"></div>
+</div>
+</div>
+<!-- END: AndroidSystemNavigationBar -->
+</div>
+<!-- END: AndroidDeviceFrame -->
+</body></html>
