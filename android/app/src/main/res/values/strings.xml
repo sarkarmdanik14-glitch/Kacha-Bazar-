@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Mega Bajar</string>
+    <string name="app_name_bn">মেগা বাজার</string>
+    <string name="website_url">https://megabajar.com</string>
+    <string name="offline_title">ইন্টারনেট সংযোগ নেই</string>
+    <string name="offline_message">আপনার ডিভাইসের ওয়াইফাই বা মোবাইল ডাটা চালু আছে কিনা পরীক্ষা করে পুনরায় চেষ্টা করুন।</string>
+    <string name="retry_button">পুনরায় চেষ্টা করুন</string>
+    <string name="exit_press_again">অ্যাপ থেকে বের হতে আবার ব্যাক চাপুন</string>
+</resources>

@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# Mega Bajar - Gradle Wrapper Script
+# Executes Gradle build tasks for Android
+
+DIRNAME=""
+case "$0" in
+  /*) DIRNAME=`dirname "$0"` ;;
+  *) DIRNAME=`dirname "./$0"` ;;
+esac
+
+APP_BASE_NAME=`basename "$0"`
+APP_HOME=`cd "$DIRNAME" && pwd`
+
+exec "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" "$@"

@@ -1,0 +1,8 @@
+<resources>
+    <color name="primary_emerald">#064E3B</color>
+    <color name="primary_light">#059669</color>
+    <color name="accent_teal">#10B981</color>
+    <color name="background_light">#F8FAFC</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+</resources>
