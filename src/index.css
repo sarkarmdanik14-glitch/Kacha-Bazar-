@@ -29,7 +29,18 @@ html, body {
   backface-visibility: hidden !important;
   -webkit-backface-visibility: hidden !important;
   pointer-events: auto !important;
-  display: block !important;
+}
+
+@media (max-width: 767px) {
+  #android-bottom-nav {
+    display: block !important;
+  }
+}
+
+@media (min-width: 768px) {
+  #android-bottom-nav {
+    display: none !important;
+  }
 }
 
 #mobile-floating-cart-bar {

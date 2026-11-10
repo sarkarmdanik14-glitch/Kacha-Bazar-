@@ -4169,9 +4169,9 @@ export default function App() {
 
 
 
-      {/* ================= WEBSITE FOOTER REMOVED (Replaced by always-fixed 5-tab App Bottom Bar) ================= */}
-      {false && (
-      <footer className="hidden">
+      {/* ================= BEAUTIFUL FOOTER (Desktop only, hidden on mobile) ================= */}
+      {homeConfig?.sectionVisibility?.showFooter !== false && (
+      <footer className="hidden md:block bg-slate-950 text-slate-400 pt-3 pb-2 sm:pt-4 sm:pb-3 border-t border-slate-800 text-[10px] sm:text-xs">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 mb-2.5 items-start">
           
           {/* Leftmost Kacha Bazar Branding Area */}
@@ -5215,10 +5215,10 @@ export default function App() {
         </div>
       )}
 
-      {/* ================= ANDROID APP BOTTOM NAVIGATION BAR (Always Fixed Root Viewport Pinned) ================= */}
+      {/* ================= ANDROID APP BOTTOM NAVIGATION BAR (Mobile Only - Always Fixed Root Viewport Pinned) ================= */}
       <nav 
         id="android-bottom-nav"
-        className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 z-[99999] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] select-none"
+        className="fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 z-[99999] md:hidden shadow-[0_-4px_16px_rgba(0,0,0,0.08)] select-none"
         style={{ 
           position: "fixed",
           bottom: 0,
