@@ -4,148 +4,104 @@ export interface UploadImageOptions {
   folder?: string;
   maxDimension?: number;
   quality?: number;
+  maxBytes?: number;
+}
+
+export interface CompressOptions {
+  maxDimension?: number;
+  quality?: number;
+  maxBytes?: number;
 }
 
 /**
- * Compresses an image file in browser using canvas with smart size budget.
- * Uses URL.createObjectURL for 0ms memory overhead instead of loading giant strings with FileReader.
- * Iteratively ensures the output Base64 dataUrl is strictly under maxBytes (default 250KB).
+ * Universal client-side image compression with iterative byte-budget enforcement.
+ * Ensures output is always well within Google Front End / Cloud Run proxy limits (< 300KB).
  */
 export async function compressImage(
-  file: File, 
-  maxDim = 400, 
-  quality = 0.72,
-  maxSizeBytes = 35 * 1024 // 35KB max payload to guarantee no GFE 413 proxy reject
+  file: File,
+  maxDimOrOptions: number | CompressOptions = 800,
+  initialQuality = 0.78,
+  maxBytesBudget = 240 * 1024
 ): Promise<{ blob: Blob; dataUrl: string }> {
+  let targetMaxDim = typeof maxDimOrOptions === "number" ? maxDimOrOptions : (maxDimOrOptions.maxDimension || 800);
+  let currentQuality = typeof maxDimOrOptions === "object" && maxDimOrOptions.quality !== undefined ? maxDimOrOptions.quality : initialQuality;
+  const targetMaxBytes = typeof maxDimOrOptions === "object" && maxDimOrOptions.maxBytes !== undefined ? maxDimOrOptions.maxBytes : maxBytesBudget;
+
   return new Promise((resolve, reject) => {
-    if (!file) {
-      return reject(new Error("কোনো ফাইল পাওয়া যায়নি।"));
-    }
-
-    // Support standard image types
-    const validMimes = ["image/jpeg", "image/png", "image/webp", "image/jpg", "image/gif"];
-    if (file.type && !validMimes.includes(file.type.toLowerCase())) {
-      return reject(new Error("শুধুমাত্র JPEG, PNG অথবা WebP ফরম্যাটের ছবি আপলোড করা যাবে।"));
-    }
-
-    let objectUrl = "";
-    try {
-      objectUrl = URL.createObjectURL(file);
-    } catch {
-      // Fallback to FileReader if createObjectURL fails in rare webviews
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("ফাইলটি পড়া সম্ভব হয়নি।"));
-      reader.onload = () => {
-        processImage(reader.result as string, () => {});
-      };
-      reader.readAsDataURL(file);
-      return;
-    }
-
-    const cleanup = () => {
-      if (objectUrl) {
-        try {
-          URL.revokeObjectURL(objectUrl);
-        } catch {}
-      }
-    };
-
-    processImage(objectUrl, cleanup);
-
-    function processImage(src: string, onFinish: () => void) {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("ছবির ফাইল পড়তে ব্যর্থ হয়েছে।"));
+    reader.onload = () => {
+      const rawData = reader.result as string;
       const img = new Image();
-
-      img.onerror = () => {
-        onFinish();
-        reject(new Error("ছবিটি লোড করা সম্ভব হয়নি। ফাইলটি ক্ষতিগ্রস্ত বা অনুপযুক্ত হতে পারে।"));
-      };
-
+      img.onerror = () => reject(new Error("ছবির ফরম্যাট সমর্থন করে না বা ফাইলটি ক্ষতিগ্রস্ত।"));
       img.onload = () => {
-        onFinish();
+        try {
+          const originalWidth = img.width || 400;
+          const originalHeight = img.height || 400;
 
-        let width = img.naturalWidth || img.width;
-        let height = img.naturalHeight || img.height;
+          // Helper to render on canvas at specific scale and quality
+          const renderCanvas = (dim: number, q: number): string => {
+            let width = originalWidth;
+            let height = originalHeight;
 
-        if (!width || !height) {
-          return reject(new Error("ছবির সাইজ নির্ণয় করা সম্ভব হয়নি।"));
-        }
-
-        // Calculate initial target dimensions respecting maxDim
-        if (width > height) {
-          if (width > maxDim) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          }
-        } else {
-          if (height > maxDim) {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, width);
-        canvas.height = Math.max(1, height);
-        let ctx = canvas.getContext("2d", { willReadFrequently: true });
-        if (!ctx) {
-          return reject(new Error("Canvas context unavailable"));
-        }
-
-        // Draw solid white background so transparent PNGs don't turn black
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        let currentQuality = Math.min(Math.max(quality, 0.4), 0.85);
-        let dataUrl = canvas.toDataURL("image/jpeg", currentQuality);
-
-        // Robust loop: progressively reduce quality and scale down canvas until strictly <= maxSizeBytes
-        let attempts = 0;
-        while (dataUrl.length > maxSizeBytes && attempts < 8) {
-          attempts++;
-          if (currentQuality > 0.45) {
-            currentQuality = Math.max(0.4, Number((currentQuality - 0.12).toFixed(2)));
-          } else {
-            // Downscale dimensions by 25%
-            const nextW = Math.max(64, Math.round(canvas.width * 0.75));
-            const nextH = Math.max(64, Math.round(canvas.height * 0.75));
-
-            const tempCanvas = document.createElement("canvas");
-            tempCanvas.width = nextW;
-            tempCanvas.height = nextH;
-            const tempCtx = tempCanvas.getContext("2d");
-            if (tempCtx) {
-              tempCtx.fillStyle = "#ffffff";
-              tempCtx.fillRect(0, 0, nextW, nextH);
-              tempCtx.drawImage(canvas, 0, 0, nextW, nextH);
-
-              canvas.width = nextW;
-              canvas.height = nextH;
-              ctx = canvas.getContext("2d", { willReadFrequently: true });
-              if (ctx) {
-                ctx.drawImage(tempCanvas, 0, 0);
+            if (width > height) {
+              if (width > dim) {
+                height = Math.max(1, Math.round((height * dim) / width));
+                width = dim;
+              }
+            } else {
+              if (height > dim) {
+                width = Math.max(1, Math.round((width * dim) / height));
+                height = dim;
               }
             }
-            currentQuality = 0.65;
-          }
-          dataUrl = canvas.toDataURL("image/jpeg", currentQuality);
-        }
 
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              resolve({ blob, dataUrl });
-            } else {
-              resolve({ blob: file, dataUrl });
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d", { willReadFrequently: false });
+            if (!ctx) {
+              throw new Error("ক্যানভাস ইনিশিয়ালাইজ করা যায়নি।");
             }
-          },
-          "image/jpeg",
-          currentQuality
-        );
-      };
 
-      img.src = src;
-    }
+            // Fill neutral background so transparent PNGs don't produce black background
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            return canvas.toDataURL("image/jpeg", Math.min(0.92, Math.max(0.3, q)));
+          };
+
+          // Pass 1: Initial compression
+          let outDataUrl = renderCanvas(targetMaxDim, currentQuality);
+          const maxAllowedChars = Math.round(targetMaxBytes * 1.33);
+
+          // Iterative reduction passes until payload strictly satisfies budget
+          let pass = 0;
+          while (outDataUrl.length > maxAllowedChars && pass < 7) {
+            pass++;
+            targetMaxDim = Math.max(96, Math.round(targetMaxDim * 0.72));
+            currentQuality = Math.max(0.30, currentQuality - 0.12);
+            outDataUrl = renderCanvas(targetMaxDim, currentQuality);
+          }
+
+          // Convert final dataUrl to Blob
+          const byteString = atob(outDataUrl.split(",")[1]);
+          const ab = new ArrayBuffer(byteString.length);
+          const ia = new Uint8Array(ab);
+          for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+          }
+          const finalBlob = new Blob([ab], { type: "image/jpeg" });
+
+          resolve({ blob: finalBlob, dataUrl: outDataUrl });
+        } catch (canvasErr) {
+          reject(canvasErr);
+        }
+      };
+      img.src = rawData;
+    };
+    reader.readAsDataURL(file);
   });
 }
 
@@ -161,82 +117,118 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
   const cloudName = (import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "").trim();
   const uploadPreset = (import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "").trim();
 
-  // Pre-compress image with strict 35KB budget for fast upload and GFE proxy safety
+  // Tier 0: Dynamic budget allocation based on target destination
+  const isAvatar = folder === "profiles" || folder === "staff";
+  const defaultMaxDim = isAvatar ? 160 : (options.maxDimension || 480);
+  const defaultQuality = isAvatar ? 0.65 : (options.quality || 0.70);
+  const maxBytes = isAvatar ? 12 * 1024 : (options.maxBytes || 28 * 1024);
+
   let compressedDataUrl = "";
   let compressedBlob: Blob = file;
 
   try {
-    const compressed = await compressImage(file, options.maxDimension || 480, options.quality || 0.72, 35 * 1024);
+    const compressed = await compressImage(file, defaultMaxDim, defaultQuality, maxBytes);
     compressedBlob = compressed.blob;
     compressedDataUrl = compressed.dataUrl;
   } catch (compErr) {
-    console.warn("Client compression notice:", compErr);
+    console.warn("[ImageUpload] Compression warning:", compErr);
   }
 
-  // TIER 1: Cloudflare R2 Object Storage (Zero Egress, Unlimited CDN)
-  try {
-    const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-    const data = await apiClient.post("/api/upload", {
-      dataUrl: compressedDataUrl,
-      filename,
-      folder
-    }, { skipAuth: false, timeoutMs: 25000 });
+  // TIER 1: Cloudflare R2 Object Storage
+  if (compressedDataUrl) {
+    try {
+      const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const data = await apiClient.post<any>("/api/upload", {
+        dataUrl: compressedDataUrl,
+        filename,
+        folder
+      }, { skipAuth: false, timeoutMs: 25000 });
 
-    if (data?.url) {
-      return data.url;
-    }
-  } catch (r2Err: any) {
-    const errStr = String(r2Err?.message || r2Err?.status || "");
-    if (errStr.includes("413") || r2Err?.status === 413) {
-      try {
-        console.warn("Retrying /api/upload with compact 24KB image due to proxy size limit...");
-        const compact = await compressImage(file, 320, 0.55, 24 * 1024);
-        const retryData = await apiClient.post("/api/upload", {
-          dataUrl: compact.dataUrl,
-          filename: `c_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`,
-          folder
-        }, { skipAuth: false, timeoutMs: 25000 });
-        if (retryData?.url) return retryData.url;
-      } catch (retryErr) {
-        console.warn("Compact upload retry notice:", retryErr);
+      if (data?.url) {
+        return data.url;
+      }
+    } catch (r2Err: any) {
+      console.warn("[ImageUpload] Primary upload attempt notice:", r2Err?.message || r2Err);
+
+      // If status 413 (Entity Too Large), execute aggressive emergency compression (< 50KB) and retry once
+      const is413 = r2Err?.status === 413 || /413|too large|entity/i.test(r2Err?.message || "");
+      if (is413) {
+        try {
+          console.info("[ImageUpload] Performing emergency compression retry for 413 error...");
+          const emergency = await compressImage(file, 240, 0.60, 45 * 1024);
+          const retryFilename = `retry_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+          const retryData = await apiClient.post<any>("/api/upload", {
+            dataUrl: emergency.dataUrl,
+            filename: retryFilename,
+            folder
+          }, { skipAuth: false, timeoutMs: 20000 });
+
+          if (retryData?.url) {
+            return retryData.url;
+          }
+        } catch (retryErr) {
+          console.warn("[ImageUpload] Emergency retry notice:", retryErr);
+        }
       }
     }
-    console.warn("Cloudflare R2 tier notice, attempting Cloudinary fallback:", r2Err);
+  }
+
+  // TIER 1.5: Direct-to-Cloud Signed Upload (Bypasses proxy limits)
+  try {
+    const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const signedRes = await apiClient.post<any>("/api/upload/signed-url", {
+      folder,
+      filename,
+      contentType: "image/jpeg"
+    }, { silent: true, timeoutMs: 10000 });
+
+    if (signedRes?.success && signedRes?.signedUrl && signedRes?.publicUrl) {
+      const putRes = await fetch(signedRes.signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "image/jpeg" },
+        body: compressedBlob
+      });
+      if (putRes.ok) {
+        return signedRes.publicUrl;
+      }
+    }
+  } catch (signedErr) {
+    console.warn("[ImageUpload] Signed URL tier notice:", signedErr);
   }
 
   // TIER 2: Cloudinary Fallback
   if (cloudName && uploadPreset) {
     try {
-    const formData = new FormData();
-    if (compressedDataUrl) {
-      formData.append("file", compressedDataUrl);
-    } else {
-      formData.append("file", compressedBlob, file.name || "image.jpg");
-    }
-    formData.append("upload_preset", uploadPreset);
-    if (folder) {
-      formData.append("folder", folder);
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
-
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-      method: "POST",
-      body: formData,
-      signal: controller.signal
-    });
-    clearTimeout(timer);
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.secure_url) {
-        return data.secure_url;
+      const formData = new FormData();
+      if (compressedDataUrl) {
+        formData.append("file", compressedDataUrl);
+      } else {
+        formData.append("file", compressedBlob, file.name || "image.jpg");
       }
+      formData.append("upload_preset", uploadPreset);
+      if (folder) {
+        formData.append("folder", folder);
+      }
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+        method: "POST",
+        body: formData,
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.secure_url) {
+          return data.secure_url;
+        }
+      }
+    } catch (cldErr) {
+      // Graceful fallback to next tier
     }
-  } catch (cldErr) {
-    // Graceful fallback to next tier
-  }
   }
 
   // Profile and staff images must be permanent cloud URLs, never Base64
@@ -252,7 +244,7 @@ export async function uploadImageWithFallback(file: File, options: UploadImageOp
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
+    reader.onerror = () => reject(new Error("ছবির ফাইল পড়তে ব্যর্থ হয়েছে।"));
     reader.readAsDataURL(file);
   });
 }

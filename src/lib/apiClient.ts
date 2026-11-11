@@ -91,10 +91,10 @@ function getStatusErrorMessage(status: number, statusText: string, path: string)
       return "অনুরোধ পদ্ধতি সার্ভারে সমর্থিত নয় (Method Not Allowed)।";
     case 409:
       return "তথ্যের অসঙ্গতি বা ডুপ্লিকেট রেকর্ড পাওয়া গেছে (Conflict)।";
+    case 413:
+      return "ফাইলের আকার অতিরিক্ত বড় (413 Request Entity Too Large)। অনুগ্রহ করে ছোট সাইজের ছবি ব্যবহার করুন।";
     case 429:
       return "অতিরিক্ত অনুরোধ পাঠানো হয়েছে। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।";
-    case 413:
-      return "ছবির আকার সীমার চেয়ে বড়। অনুগ্রহ করে পুনরায় চেষ্টা করুন।";
     case 500:
       return "সার্ভারে অভ্যন্তরীণ সমস্যা দেখা দিয়েছে। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।";
     case 502:
@@ -243,12 +243,13 @@ export async function apiRequest<T = any>(
       url.includes("/api/staff/list") ||
       url.includes("/api/staff/activity-logs") ||
       url.includes("/api/staff/get");
+    const isUploadEndpoint = url.includes("/api/upload");
     const isProfileEndpoint = url.includes("/api/user/profile");
 
     if (
       import.meta.env?.DEV &&
       !options.silent &&
-      !(response.status === 413 && url.includes("/api/upload")) &&
+      !(isUploadEndpoint && response.status === 413) &&
       !(isProfileEndpoint && (response.status === 413 || response.status === 401 || response.status === 403)) &&
       !(isAuthCheckEndpoint && (response.status === 401 || response.status === 403))
     ) {

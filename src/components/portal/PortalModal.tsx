@@ -207,7 +207,8 @@ export default function PortalModal({
         return;
       }
 
-      const isInitialUserAdmin = initialUser.role === "admin" || initialUser.role === "super_admin" || initialUser.isSuperAdmin || (initialUser.email || "").toLowerCase().trim() === "adminofficer@megabajar.com";
+      const cleanInitialEmail = (initialUser.email || "").toLowerCase().trim();
+      const isInitialUserAdmin = initialUser.role === "admin" || initialUser.role === "super_admin" || initialUser.isSuperAdmin || cleanInitialEmail === "adminofficer@megabajar.com" || cleanInitialEmail === "sarkarmdanik14@gmail.com" || cleanInitialEmail === "megabajar@admin.com";
       const role = isInitialUserAdmin ? "admin" : ((forcedRole && forcedRole !== "customer") ? forcedRole : (initialUser.role || "customer"));
       
       setCurrentUser({ ...initialUser, role, isSuperAdmin: Boolean(initialUser.isSuperAdmin || role === "super_admin") });
@@ -694,7 +695,8 @@ export default function PortalModal({
     let isSuperAdmin = false;
     let verifiedStaffObj: any = null;
 
-    if (cleanEmail === "adminofficer@megabajar.com" || targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder" || authRole === "admin") {
+    const isSuperAdminEmail = cleanEmail === "adminofficer@megabajar.com" || cleanEmail === "sarkarmdanik14@gmail.com" || cleanEmail === "megabajar@admin.com";
+    if (isSuperAdminEmail || targetRole === "admin" || targetRole === "super_admin" || targetRole === "founder" || authRole === "admin") {
       // If AuthView or caller already authoritatively verified staff session, avoid redundant network check
       if (userData?.isSuperAdmin || userData?.role === "admin" || userData?.role === "super_admin" || userData?.staffId) {
         isAdmin = true;

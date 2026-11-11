@@ -119,38 +119,82 @@ export async function uploadProfilePhotoUnified({
   }
 
   try {
-    // 3. Client-side compression for fast network upload (max 180px for avatars, max 28KB budget for GFE proxy safety)
-    const compressed = await compressImage(file, 180, 0.68, 28 * 1024);
-    let dataUrlToSend = compressed.dataUrl;
-
-    if (!dataUrlToSend || !dataUrlToSend.startsWith("data:image/")) {
-      throw new Error("ছবিটি প্রক্রিয়াকরণ করা সম্ভব হয়নি।");
-    }
-
-    // 4. Authenticated backend upload to Cloudflare R2
+    // 3. Client-side compression for high visual fidelity (< 45KB budget, ~280px avatar)
+    const compressed = await compressImage(file, 280, 0.75, 45 * 1024);
     const cleanFilename = `profile_${cleanUserId}_${Date.now()}.jpg`;
     let uploadRes: any = null;
 
+    // TIER 1: Direct-to-Cloud Signed Upload (Completely bypasses reverse proxy 413 limits)
     try {
-      uploadRes = await apiClient.post<any>("/api/upload", {
-        dataUrl: dataUrlToSend,
-        filename: cleanFilename,
+      const signedRes = await apiClient.post<any>("/api/upload/signed-url", {
         folder,
-        userId: cleanUserId,
-        targetUserId: cleanUserId
+        filename: cleanFilename,
+        contentType: "image/jpeg"
       }, {
-        skipAuth: false,
-        timeoutMs: 30000
+        silent: true,
+        timeoutMs: 10000
       });
-    } catch (uploadErr: any) {
-      const errStr = String(uploadErr?.message || uploadErr?.status || "");
-      // If 413 or proxy payload limit is encountered, automatically re-compress with ultra-compact 140px avatar and retry
-      if (errStr.includes("413") || uploadErr?.status === 413 || errStr.includes("সীমার চেয়ে বড়")) {
-        console.warn("Retrying profile upload with ultra-compact 140px avatar due to proxy limits...");
-        const fallbackComp = await compressImage(file, 140, 0.55, 18 * 1024);
-        uploadRes = await apiClient.post<any>("/api/upload", {
-          dataUrl: fallbackComp.dataUrl,
-          filename: `c_${cleanFilename}`,
+
+      if (signedRes?.success && (signedRes?.signedUrl || signedRes?.token) && signedRes?.publicUrl) {
+        let uploadSucceeded = false;
+
+        // Method A: Direct PUT fetch
+        if (signedRes.signedUrl) {
+          try {
+            const putRes = await fetch(signedRes.signedUrl, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "image/jpeg"
+              },
+              body: compressed.blob
+            });
+            if (putRes.ok) {
+              uploadSucceeded = true;
+            }
+          } catch (fetchErr) {
+            console.warn("[ProfilePhoto] Direct fetch PUT notice:", fetchErr);
+          }
+        }
+
+        // Method B: Supabase SDK uploadToSignedUrl fallback
+        if (!uploadSucceeded && supabase?.storage && signedRes?.path && signedRes?.token) {
+          try {
+            const bucketName = folder === "profiles" ? "profiles" : "products";
+            const cleanPath = signedRes.path.replace(new RegExp(`^${bucketName}/`), "");
+            const { error: upToSignErr } = await supabase.storage
+              .from(bucketName)
+              .uploadToSignedUrl(cleanPath, signedRes.token, compressed.blob, {
+                contentType: "image/jpeg",
+                upsert: true
+              });
+            if (!upToSignErr) {
+              uploadSucceeded = true;
+            }
+          } catch (sdkErr) {
+            console.warn("[ProfilePhoto] SDK uploadToSignedUrl notice:", sdkErr);
+          }
+        }
+
+        if (uploadSucceeded) {
+          uploadRes = {
+            success: true,
+            url: signedRes.publicUrl,
+            provider: "supabase_storage"
+          };
+          console.info("[ProfilePhoto] Direct cloud upload succeeded:", signedRes.publicUrl);
+        }
+      }
+    } catch (signedErr) {
+      console.warn("[ProfilePhoto] Signed upload tier notice:", signedErr);
+    }
+
+    // TIER 2: Backend upload to Cloudflare R2 / Server storage
+    if (!uploadRes?.url) {
+      try {
+        const compact = await compressImage(file, 160, 0.60, 8 * 1024);
+        const backendRes = await apiClient.post<any>("/api/upload", {
+          dataUrl: compact.dataUrl,
+          filename: cleanFilename,
           folder,
           userId: cleanUserId,
           targetUserId: cleanUserId
@@ -158,19 +202,50 @@ export async function uploadProfilePhotoUnified({
           skipAuth: false,
           timeoutMs: 25000
         });
-      } else {
-        throw uploadErr;
+        if (backendRes?.url) {
+          uploadRes = backendRes;
+        }
+      } catch (uploadErr: any) {
+        console.warn("[ProfilePhoto] Backend upload fallback notice:", uploadErr?.message || uploadErr);
+
+        // Emergency retry with minimal footprint if 413 occurred
+        const is413 = uploadErr?.status === 413 || /413|too large|entity/i.test(uploadErr?.message || "");
+        if (is413) {
+          try {
+            const emergency = await compressImage(file, 120, 0.45, 3 * 1024);
+            const retryRes = await apiClient.post<any>("/api/upload", {
+              dataUrl: emergency.dataUrl,
+              filename: `emergency_${cleanFilename}`,
+              folder,
+              userId: cleanUserId,
+              targetUserId: cleanUserId
+            }, {
+              skipAuth: false,
+              timeoutMs: 20000
+            });
+            if (retryRes?.url) {
+              uploadRes = retryRes;
+            }
+          } catch (retryErr: any) {
+            console.warn("[ProfilePhoto] Emergency retry notice:", retryErr?.message || retryErr);
+          }
+        }
       }
     }
 
-    if (!uploadRes?.success || !uploadRes?.url) {
-      throw new Error(uploadRes?.error || uploadRes?.message || "ক্লাউডে ছবি আপলোড করতে ব্যর্থ হয়েছে।");
+    // Null safety guard: Verify upload result is valid before dereferencing
+    if (!uploadRes?.url) {
+      throw new Error(
+        uploadRes?.error ||
+        uploadRes?.message ||
+        "ক্লাউডে ছবি আপলোড সম্পন্ন হতে পারেনি। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।"
+      );
     }
 
-    const permanentUrl = uploadRes.url.trim();
+    const permanentUrl = String(uploadRes.url || "").trim();
 
     // Verify it is a genuine permanent cloud URL and NOT a data URL
-    if (!isPermanentCloudUrl(permanentUrl)) {
+    if (!permanentUrl || !isPermanentCloudUrl(permanentUrl)) {
       throw new Error("সার্ভার থেকে স্থায়ী ক্লাউড ইউআরএল পাওয়া যায়নি।");
     }
 
@@ -205,7 +280,7 @@ export async function uploadProfilePhotoUnified({
         console.warn("Server profile sync notice:", apiErr);
       }
 
-      // Update Supabase auth user metadata if active
+      // Update Supabase auth user metadata if active (avatar_url is valid in auth metadata)
       try {
         if (supabase?.auth?.updateUser) {
           (supabase.auth as any).updateUser({

@@ -3736,6 +3736,47 @@ app.post("/api/upload", rateLimiter(120, 60000), handleImageUpload);
 app.post("/api/upload-audio", rateLimiter(60, 60000), handleAudioUpload);
 app.post("/api/staff/upload-photo", rateLimiter(120, 60000), requireStaffAuth, handleImageUpload);
 
+// 4.6.2 POST /api/upload/signed-url - Direct-to-Cloud signed upload URL (bypasses reverse proxy 413 limit)
+app.post("/api/upload/signed-url", rateLimiter(120, 60000), async (req, res) => {
+  try {
+    const { folder, filename, contentType } = req.body || {};
+    const cleanFolder = (typeof folder === "string" && folder.trim()) ? folder.trim().replace(/[^a-zA-Z0-9_-]/g, "_") : "profiles";
+    const bucketName = cleanFolder === "profiles" ? "profiles" : "products";
+    const safeExt = contentType === "image/png" ? "png" : (contentType === "image/webp" ? "webp" : "jpg");
+    const safeName = filename && typeof filename === "string"
+      ? filename.replace(/[^a-zA-Z0-9_.-]/g, "_")
+      : `${cleanFolder}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${safeExt}`;
+
+    const sb = getServerSupabase();
+    if (!sb) {
+      return res.status(500).json({ success: false, error: "Supabase service client not available" });
+    }
+
+    // Ensure bucket exists
+    try {
+      await sb.storage.createBucket(bucketName, { public: true });
+    } catch {}
+
+    const { data, error } = await sb.storage.from(bucketName).createSignedUploadUrl(safeName);
+    if (error || !data) {
+      return res.status(500).json({ success: false, error: error?.message || "Failed to create signed upload URL" });
+    }
+
+    const { data: pubData } = sb.storage.from(bucketName).getPublicUrl(safeName);
+
+    return res.json({
+      success: true,
+      signedUrl: data.signedUrl,
+      path: data.path,
+      token: data.token,
+      publicUrl: pubData?.publicUrl || "",
+      provider: "supabase_storage"
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || "Failed to generate signed upload URL" });
+  }
+});
+
 // 4.7 GET /api/r2/status - Cloudflare R2 Health Check & Stats
 app.get("/api/r2/status", rateLimiter(30, 60000), async (_req, res) => {
   if (!isR2Configured || !r2Client) {

@@ -852,7 +852,10 @@ export default function CustomerPortal({ user, onLogout, lang, triggerToast, ini
         }
       });
 
-      const permanentUrl = result.permanentUrl;
+      const permanentUrl = result?.permanentUrl || "";
+      if (!permanentUrl) {
+        throw new Error("ক্লাউড থেকে ছবির লিঙ্ক সংগ্রহ করা সম্ভব হয়নি।");
+      }
 
       // Guard: if user has logged out while upload was running, do not resurrect session
       const isStillLoggedIn = Boolean(
