@@ -506,7 +506,17 @@ export default function AuthView({
         if (existingUser) {
           if (isMountedRef.current) {
             otpSuccess = true;
-            await onAuthSuccess(existingUser, existingUser.role || role);
+            let detectedRole = existingUser.role || "customer";
+            if (detectedRole === "customer" || !detectedRole) {
+              const [isSeller, isRider] = await Promise.all([
+                checkSellerStatus(existingUser.id || existingUser.uid).catch(() => false),
+                checkRiderStatus(existingUser.id || existingUser.uid).catch(() => false)
+              ]);
+              if (isSeller) detectedRole = "seller";
+              else if (isRider) detectedRole = "rider";
+            }
+            onRoleChange?.(detectedRole as any);
+            await onAuthSuccess(existingUser, detectedRole);
           }
         } else {
           const randomId = "user_" + Math.random().toString(36).substring(2, 10);
@@ -588,30 +598,47 @@ export default function AuthView({
     let authSucceeded = false;
     try {
       if (isLogin) {
-        // Direct Partner Shop login with Partner ID / Email & Password
-        if (role === "partner" || email.trim().toUpperCase().startsWith("KB-SHOP-")) {
-          const partnerRes = await loginPartnerWithCredentials(email, password);
+        const cleanIdent = email.trim();
+        const lowerEmail = cleanIdent.toLowerCase();
+
+        // 1. Check partner credentials if identifier matches partner pattern
+        if (cleanIdent.toUpperCase().startsWith("KB-SHOP-") || forcedRole === "partner") {
+          const partnerRes = await loginPartnerWithCredentials(cleanIdent, password);
           if (partnerRes.success && partnerRes.partner) {
             if (isMountedRef.current && currentRequestSeq === authRequestSeqRef.current) {
               authSucceeded = true;
+              onRoleChange?.("partner");
               await onAuthSuccess(partnerRes.partner, "partner");
             }
             return;
-          } else {
+          } else if (cleanIdent.toUpperCase().startsWith("KB-SHOP-")) {
             throw new Error(partnerRes.error || getTranslation("পার্টনার শপ লগইন ব্যর্থ হয়েছে। আইডি বা পাসওয়ার্ড সঠিক নয়।", "Partner shop login failed. Incorrect ID or password."));
           }
         }
 
-        // Single authoritative call to Supabase Auth login (handles server verification, Supabase Auth, and profile resolution)
-        const sbRes = await supabaseSignInWithEmail(email, password, role);
+        // 2. Authoritative Supabase Auth & Server verification
+        const sbRes = await supabaseSignInWithEmail(cleanIdent, password, forcedRole || "customer");
 
-        // Point 1: Invalidate stale response if request was superseded or timed out
+        // Invalidate stale response if request was superseded or timed out
         if (currentRequestSeq !== authRequestSeqRef.current) {
           console.warn("[AuthView] Discarding stale login response from previous timed-out request");
           return;
         }
 
         if (!sbRes.success || !sbRes.user) {
+          // If Supabase standard auth failed, check if it was a partner shop credential (e.g., email or shop id)
+          try {
+            const partnerRes = await loginPartnerWithCredentials(cleanIdent, password);
+            if (partnerRes.success && partnerRes.partner) {
+              if (isMountedRef.current && currentRequestSeq === authRequestSeqRef.current) {
+                authSucceeded = true;
+                onRoleChange?.("partner");
+                await onAuthSuccess(partnerRes.partner, "partner");
+              }
+              return;
+            }
+          } catch {}
+
           const errText = sbRes.error || "";
           if (/email not confirmed/i.test(errText)) {
             throw new Error(getTranslation(
@@ -623,77 +650,105 @@ export default function AuthView({
         }
 
         const authenticatedUser = sbRes.user;
-        let authenticatedRole = sbRes.role || role;
         const userUid = authenticatedUser.uid || authenticatedUser.id || "";
-        const cleanEmail = (authenticatedUser.email || email).toLowerCase().trim();
+        const cleanEmail = (authenticatedUser.email || cleanIdent).toLowerCase().trim();
 
-        // If signing in user is an administrator or admin officer, immediately elevate to admin role
-        const isDetectedAdmin = cleanEmail === "adminofficer@megabajar.com" || 
+        // 3. AUTOMATIC ROLE DETECTION:
+        const isWhitelistedAdmin = cleanEmail === "adminofficer@megabajar.com" || 
           cleanEmail === "sarkarmdanik14@gmail.com" ||
-          cleanEmail === "megabajar@admin.com" ||
-          authenticatedUser.role === "admin" || 
-          authenticatedUser.role === "super_admin" || 
-          Boolean(authenticatedUser.isSuperAdmin) || 
-          sbRes.role === "admin" || 
-          sbRes.role === "super_admin";
+          cleanEmail === "megabajar@admin.com";
 
-        if (isDetectedAdmin) {
-          authenticatedRole = "admin";
-          authenticatedUser.role = "admin";
-          onRoleChange?.("admin");
-        }
+        const userRoleStr = (authenticatedUser.role || "") as string;
+        const resRoleStr = (sbRes.role || "") as string;
+        const hasAdminRole = userRoleStr === "admin" || 
+          userRoleStr === "super_admin" || 
+          userRoleStr === "staff" ||
+          Boolean((authenticatedUser as any).isSuperAdmin) || 
+          resRoleStr === "admin" || 
+          resRoleStr === "super_admin" || 
+          resRoleStr === "staff";
 
-        // Role authorization check for selected tab: strictly verified on backend
-        if (role === "admin" || isDetectedAdmin) {
-          let isAdmin = false;
-          let serverCheckRole = "customer";
-          let isSuperAdmin = false;
+        let detectedRole = "customer";
+        let isSuperAdmin = false;
 
-          // Check if session was already authoritatively verified inside supabaseSignInWithEmail
+        // Step A: Admin / Staff Detection
+        if (isWhitelistedAdmin || hasAdminRole || forcedRole === "admin") {
           const hasStaffSession = typeof window !== "undefined" && Boolean(localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session"));
-          if (hasStaffSession && (sbRes.user?.role === "admin" || sbRes.user?.role === "super_admin" || sbRes.user?.isSuperAdmin)) {
-            isAdmin = true;
-            serverCheckRole = sbRes.user.role || "admin";
-            isSuperAdmin = Boolean(sbRes.user.isSuperAdmin || sbRes.user.role === "super_admin");
+          if (hasStaffSession && (userRoleStr === "admin" || userRoleStr === "super_admin" || (authenticatedUser as any).isSuperAdmin)) {
+            detectedRole = userRoleStr || "admin";
+            isSuperAdmin = Boolean((authenticatedUser as any).isSuperAdmin || detectedRole === "super_admin");
           } else {
             const serverCheck = await verifyServerAdminOrStaffSession();
-            isAdmin = serverCheck.isAuthenticated && (serverCheck.isAdmin || serverCheck.isSuperAdmin);
-            serverCheckRole = serverCheck.role;
-            isSuperAdmin = serverCheck.isSuperAdmin;
+            if (serverCheck.isAuthenticated && (serverCheck.isAdmin || serverCheck.isSuperAdmin || serverCheck.role === "staff")) {
+              detectedRole = serverCheck.role || (serverCheck.isAdmin ? "admin" : "staff");
+              isSuperAdmin = serverCheck.isSuperAdmin;
+            } else if (isWhitelistedAdmin) {
+              detectedRole = "admin";
+              isSuperAdmin = true;
+            }
           }
 
-          if (!isAdmin) {
-            await supabaseSignOut();
-            throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। আপনি এডমিন হিসেবে অনুমোদিত নন।", "Access denied. You are not authorized as an admin."));
+          if (isWhitelistedAdmin || detectedRole === "admin" || detectedRole === "super_admin" || detectedRole === "staff") {
+            authenticatedUser.role = detectedRole as any;
+            authenticatedUser.isSuperAdmin = isSuperAdmin;
+            onRoleChange?.("admin");
+          } else {
+            detectedRole = "customer";
           }
-          authenticatedRole = serverCheckRole;
-          authenticatedUser.role = authenticatedRole as any;
-          authenticatedUser.isSuperAdmin = isSuperAdmin;
-        } else if (role === "seller") {
-          const sRes = await checkSellerStatus(userUid);
-          if (!sRes.isSeller) {
-            await supabaseSignOut();
-            throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি বিক্রেতা হিসেবে নিবন্ধিত নয়।", "Access denied. This account is not registered as a seller."));
+        }
+
+        // Step B: Seller Detection (if not admin)
+        if (detectedRole === "customer") {
+          try {
+            const sRes = await checkSellerStatus(userUid);
+            if (sRes.isSeller) {
+              if (sRes.status === "rejected") {
+                await supabaseSignOut();
+                throw new Error(getTranslation("আপনার বিক্রেতা অ্যাকাউন্টটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your seller account application was rejected by admin."));
+              }
+              detectedRole = "seller";
+              authenticatedUser.role = "seller";
+              onRoleChange?.("seller");
+            }
+          } catch (sellerErr: any) {
+            if (sellerErr.message?.includes("বাতিল")) throw sellerErr;
           }
-          if (sRes.status === "rejected") {
-            await supabaseSignOut();
-            throw new Error(getTranslation("আপনার বিক্রেতা অ্যাকাউন্টটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your seller account application was rejected by admin."));
+        }
+
+        // Step C: Rider Detection (if not admin or seller)
+        if (detectedRole === "customer") {
+          try {
+            const rRes = await checkRiderStatus(userUid);
+            if (rRes.isRider) {
+              if (rRes.status === "rejected") {
+                await supabaseSignOut();
+                throw new Error(getTranslation("আপনার রাইডার অ্যাকাউন্টটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your rider account application was rejected by admin."));
+              }
+              detectedRole = "rider";
+              authenticatedUser.role = "rider";
+              onRoleChange?.("rider");
+            }
+          } catch (riderErr: any) {
+            if (riderErr.message?.includes("বাতিল")) throw riderErr;
           }
-        } else if (role === "rider") {
-          const rRes = await checkRiderStatus(userUid);
-          if (!rRes.isRider) {
-            await supabaseSignOut();
-            throw new Error(getTranslation("প্রবেশাধিকার সংরক্ষিত। এই অ্যাকাউন্টটি রাইডার হিসেবে নিবন্ধিত নয়।", "Access denied. This account is not registered as a rider."));
-          }
-          if (rRes.status === "rejected") {
-            await supabaseSignOut();
-            throw new Error(getTranslation("আপনার রাইডার অ্যাকাউন্টটি এডমিন কর্তৃক বাতিল করা হয়েছে।", "Your rider account application was rejected by admin."));
-          }
+        }
+
+        // Step D: Partner Shop Detection (if not admin, seller, or rider)
+        if (detectedRole === "customer" && (authenticatedUser.role === "partner" || sbRes.role === "partner")) {
+          detectedRole = "partner";
+          authenticatedUser.role = "partner";
+          onRoleChange?.("partner");
+        }
+
+        // Step E: Default to customer
+        if (detectedRole === "customer") {
+          authenticatedUser.role = "customer";
+          onRoleChange?.("customer");
         }
 
         if (isMountedRef.current && currentRequestSeq === authRequestSeqRef.current) {
           authSucceeded = true;
-          await onAuthSuccess(authenticatedUser, authenticatedRole);
+          await onAuthSuccess(authenticatedUser, detectedRole);
         }
       } else {
         // Sign up with Supabase Auth
@@ -1103,59 +1158,24 @@ export default function AuthView({
           className="h-12 w-auto max-w-[64px] object-contain rounded-2xl mx-auto mb-3 border border-emerald-100 bg-white p-1 shadow-xs" 
         />
         <h2 className="text-xl font-black text-slate-800 tracking-tight">
-          {role === "admin" 
-            ? getTranslation("এডমিন পোর্টাল লগইন", "Admin Portal Login")
-            : role === "partner"
-            ? getTranslation("পার্টনার শপ লগইন", "Partner Shop Merchant Login")
+          {isLogin 
+            ? getTranslation("অ্যাকাউন্ট লগইন", "Account Login")
             : role === "seller"
-            ? (isLogin ? getTranslation("বিক্রেতা পোর্টাল লগইন", "Seller Portal Login") : getTranslation("নতুন বিক্রেতা নিবন্ধন", "Seller Account Registration"))
+            ? getTranslation("নতুন বিক্রেতা নিবন্ধন", "Seller Account Registration")
             : role === "rider"
-            ? (isLogin ? getTranslation("রাইডার পোর্টাল লগইন", "Rider Portal Login") : getTranslation("নতুন রাইডার নিবন্ধন", "Rider Account Registration"))
-            : (isLogin ? getTranslation("গ্রাহক অ্যাকাউন্ট লগইন", "Customer Account Sign In") : getTranslation("নতুন গ্রাহক অ্যাকাউন্ট তৈরি করুন", "Create Customer Account"))}
+            ? getTranslation("নতুন রাইডার নিবন্ধন", "Rider Account Registration")
+            : getTranslation("নতুন গ্রাহক অ্যাকাউন্ট তৈরি করুন", "Create Customer Account")}
         </h2>
         <p className="text-xs text-slate-400 mt-1">
-          {role === "admin" 
-            ? getTranslation("এডমিন সিস্টেমে নিরাপদ প্রবেশাধিকার", "Secure Admin System Access")
-            : role === "partner"
-            ? getTranslation("মেগা বাজার পার্টনার শপ মার্চেন্ট ড্যাশবোর্ড", "Access Your Mega Bazar Partner Store Hub")
+          {isLogin
+            ? getTranslation("মেগা বাজার অনলাইন পোর্টালে প্রবেশ করুন", "Access Mega Bazar Online Portal")
             : role === "seller" 
-            ? getTranslation("মেগা বাজার মার্চেন্ট প্যানেলে প্রবেশ করুন", "Access Mega Bazar Seller Hub")
+            ? getTranslation("মেগা বাজার মার্চেন্ট প্যানেলে নিবন্ধন করুন", "Register for Mega Bazar Seller Hub")
             : role === "rider" 
-            ? getTranslation("মেগা বাজার ডেলিভারি নেটওয়ার্কে প্রবেশ করুন", "Access Mega Bazar Rider Network")
+            ? getTranslation("মেগা বাজার ডেলিভারি নেটওয়ার্কে নিবন্ধন করুন", "Register for Mega Bazar Rider Network")
             : getTranslation("মেগা বাজার অনলাইন পোর্টালে প্রবেশ করুন", "Access Mega Bazar Customer Portal")}
         </p>
       </div>
-
-      {/* Role Selection Switcher for General Login Modal */}
-      {(!forcedRole || forcedRole === "customer") && (
-        <div className="flex bg-slate-100 p-1 rounded-2xl mb-4 text-xs font-bold gap-1 overflow-x-auto scrollbar-none border border-slate-200/60">
-          {[
-            { id: "customer", bn: "গ্রাহক", en: "Customer" },
-            { id: "admin", bn: "এডমিন", en: "Admin" },
-            { id: "partner", bn: "পার্টনার", en: "Partner" },
-            { id: "seller", bn: "বিক্রেতা", en: "Seller" },
-            { id: "rider", bn: "রাইডার", en: "Rider" }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => {
-                const newRole = tab.id as "customer" | "admin" | "seller" | "rider" | "partner";
-                setRole(newRole);
-                onRoleChange?.(newRole);
-                setError("");
-              }}
-              className={`flex-1 py-1.5 px-2 rounded-xl transition text-center cursor-pointer whitespace-nowrap text-[11px] ${
-                role === tab.id
-                  ? "bg-white text-emerald-800 shadow-xs font-black border border-slate-200/80"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              {lang === "bn" ? tab.bn : tab.en}
-            </button>
-          ))}
-        </div>
-      )}
 
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl p-3.5 space-y-2.5">
@@ -1372,22 +1392,14 @@ export default function AuthView({
 
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                {role === "admin" 
-                  ? getTranslation("ইউজারনেম / স্টাফ আইডি / ইমেইল", "Username / Staff ID / Email")
-                  : role === "partner"
-                  ? getTranslation("পার্টনার আইডি (KB-SHOP-001) বা ইমেইল", "Partner ID (KB-SHOP-001) or Email")
-                  : getTranslation("ইমেইল ঠিকানা", "Email Address")}
+                {getTranslation("ইমেইল ঠিকানা", "Email Address")}
               </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
                 <input
-                  type={role === "admin" || role === "partner" ? "text" : "email"}
+                  type={isLogin ? "text" : "email"}
                   required
-                  placeholder={role === "admin" 
-                    ? getTranslation("যেমন: CFI-KB-001 বা name@example.com", "e.g. CFI-KB-001 or name@example.com")
-                    : role === "partner"
-                    ? getTranslation("যেমন: KB-SHOP-001 বা greenvalley@kachabazar.com", "e.g. KB-SHOP-001 or email")
-                    : "name@example.com"}
+                  placeholder="name@megabazar.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
@@ -1484,9 +1496,7 @@ export default function AuthView({
             <>
               <LogIn className="w-4 h-4" />
               <span>
-                {role === "partner" 
-                  ? getTranslation("পার্টনার শপে প্রবেশ করুন", "Enter Partner Dashboard") 
-                  : getTranslation("লগইন করুন", "Sign In")}
+                {getTranslation("লগইন করুন", "Sign In")}
               </span>
             </>
           ) : (
@@ -1498,8 +1508,8 @@ export default function AuthView({
         </button>
       </form>
 
-      {/* Google Sign In Option - only for customer and non-partner */}
-      {role !== "admin" && role !== "partner" && (
+      {/* Google Sign In Option */}
+      {(isLogin || role === "customer") && (
         <>
           <div className="relative my-5">
             <div className="absolute inset-0 flex items-center">

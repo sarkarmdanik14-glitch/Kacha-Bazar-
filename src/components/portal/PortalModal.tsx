@@ -297,6 +297,9 @@ export default function PortalModal({
           activePortalTab === "admin" || 
           user.role === "admin" || 
           user.role === "super_admin" ||
+          email === "sarkarmdanik14@gmail.com" ||
+          email === "adminofficer@megabajar.com" ||
+          email === "megabajar@admin.com" ||
           (typeof window !== "undefined" && Boolean(localStorage.getItem("kb_staff_session") || sessionStorage.getItem("kb_staff_session")));
 
         if (isTargetingAdmin) {
